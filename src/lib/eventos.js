@@ -35,21 +35,24 @@ export async function deleteEvento(id) {
 }
 
 export async function getEventoCompleto(id) {
-  const [eventoRes, itemsRes] = await Promise.all([
+  const [eventoRes, itemsRes, rolesRes] = await Promise.all([
     supabase.from("eventos").select("*").eq("id", id).single(),
     supabase.from("items_servicio").select("*, canciones(titulo, artista, tonalidad, tempo)").eq("evento_id", id).order("orden", { ascending: true }),
+    supabase.from("roles_evento").select("*").eq("evento_id", id).order("orden", { ascending: true }),
   ]);
   if (eventoRes.error) throw eventoRes.error;
   if (itemsRes.error) throw itemsRes.error;
+  if (rolesRes.error) throw rolesRes.error;
 
   const itemIds = itemsRes.data.map((it) => it.id);
-  let encargados = [];
-  if (itemIds.length) {
-    const { data, error } = await supabase.from("miembros_rol").select("*").in("item_servicio_id", itemIds).order("orden", { ascending: true });
-    if (error) throw error;
-    encargados = data;
-  }
-  return { evento: eventoRes.data, items: itemsRes.data, encargados };
+  const roleIds = rolesRes.data.map((r) => r.id);
+  const [encargadosRes, roleMembersRes] = await Promise.all([
+    itemIds.length ? supabase.from("miembros_rol").select("*").in("item_servicio_id", itemIds).order("orden", { ascending: true }) : { data: [] },
+    roleIds.length ? supabase.from("miembros_rol").select("*").in("rol_id", roleIds).order("orden", { ascending: true }) : { data: [] },
+  ]);
+  if (encargadosRes.error) throw encargadosRes.error;
+  if (roleMembersRes.error) throw roleMembersRes.error;
+  return { evento: eventoRes.data, items: itemsRes.data, encargados: encargadosRes.data, roles: rolesRes.data, roleMembers: roleMembersRes.data };
 }
 
 // ---- Setlist ----
@@ -120,15 +123,28 @@ function encargadosPorItemAFilas(serviceOrder) {
   return filas;
 }
 
-export function eventoCompletoAFormatoEditor({ evento, items, encargados }) {
+// Roles del equipo de alabanza (ej. "Guitarra", "Batería", "Voz principal") — a diferencia de los
+// encargados por ítem, viven a nivel de EVENTO (roles_evento + miembros_rol.rol_id) porque los bloques
+// de Alabanza y Adoración comparten el mismo equipo: es un solo roster que ambos bloques leen/editan,
+// no una copia por bloque.
+function filaARolAlabanza(row, miembrosPorRol) {
+  return { id: row.id, name: row.nombre, members: (miembrosPorRol[row.id] || []).map(filaAEncargado) };
+}
+
+export function eventoCompletoAFormatoEditor({ evento, items, encargados, roles, roleMembers }) {
   const encargadosPorItem = {};
   encargados.forEach((m) => {
     (encargadosPorItem[m.item_servicio_id] ||= []).push(m);
+  });
+  const miembrosPorRol = {};
+  roleMembers.forEach((m) => {
+    (miembrosPorRol[m.rol_id] ||= []).push(m);
   });
   return {
     id: evento.id, title: evento.titulo, dateLabel: evento.fecha_label || "", date: evento.fecha || null,
     location: evento.ubicacion || "", openPositions: 0, cover: null, esPlantilla: !!evento.es_plantilla,
     serviceOrder: items.map((row) => filaAItemServicio(row, encargadosPorItem)),
+    worshipRoles: roles.map((row) => filaARolAlabanza(row, miembrosPorRol)),
   };
 }
 
@@ -159,12 +175,39 @@ export function sincronizarServiceOrder(eventoId, serviceOrder) {
   return encolar(`items:${eventoId}`, () => sincronizarServiceOrderInterno(eventoId, serviceOrder));
 }
 
-// Crea un evento nuevo completo (datos + setlist) desde el formato en memoria del prototipo.
+// Reemplaza TODOS los roles del equipo de alabanza (roles_evento + miembros_rol por rol_id) de un evento.
+async function sincronizarWorshipRolesInterno(eventoId, worshipRoles) {
+  const { error: delErr } = await supabase.from("roles_evento").delete().eq("evento_id", eventoId);
+  if (delErr) throw delErr;
+  if (!worshipRoles.length) return;
+  const rolesRows = worshipRoles.map((r, i) => ({ id: r.id, evento_id: eventoId, nombre: r.name, orden: i }));
+  const { error: rolErr } = await supabase.from("roles_evento").insert(rolesRows);
+  if (rolErr) throw rolErr;
+
+  const miembrosRows = [];
+  worshipRoles.forEach((r) => {
+    r.members.forEach((m, i) => {
+      miembrosRows.push({ id: m.id, rol_id: r.id, nombre: m.n, usuario_id: m.usuarioId || null, estado: m.status || "pendiente", lead: !!m.lead, orden: i });
+    });
+  });
+  if (miembrosRows.length) {
+    const { error: mErr } = await supabase.from("miembros_rol").insert(miembrosRows);
+    if (mErr) throw mErr;
+  }
+}
+export function sincronizarWorshipRoles(eventoId, worshipRoles) {
+  return encolar(`worshiproles:${eventoId}`, () => sincronizarWorshipRolesInterno(eventoId, worshipRoles));
+}
+
+// Crea un evento nuevo completo (datos + setlist + roles de alabanza) desde el formato en memoria del prototipo.
 export async function crearEventoCompleto(evento, userId) {
   const { error } = await supabase.from("eventos").insert({
     id: evento.id, titulo: evento.title, fecha: evento.date || null, fecha_label: evento.dateLabel || null,
     ubicacion: evento.location || null, creado_por: userId, es_plantilla: !!evento.esPlantilla,
   });
   if (error) throw error;
-  await sincronizarServiceOrder(evento.id, evento.serviceOrder);
+  await Promise.all([
+    sincronizarServiceOrder(evento.id, evento.serviceOrder),
+    sincronizarWorshipRoles(evento.id, evento.worshipRoles || []),
+  ]);
 }

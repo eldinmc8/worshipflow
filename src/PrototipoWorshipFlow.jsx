@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion } from "./lib/canciones.js";
 import {
-  listEventosCompletos, crearEventoCompleto, sincronizarServiceOrder, deleteEvento,
+  listEventosCompletos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento,
 } from "./lib/eventos.js";
 import { listMinisteriosCompletos, crearMinisterio, actualizarLiderMinisterio, sincronizarPlan, sincronizarRecursos } from "./lib/ministerios.js";
 import { updateLiveSession, clearLiveSession } from "./lib/liveSession.js";
@@ -236,6 +236,18 @@ function cloneServiceOrder(order) {
     encargados: (item.encargados || []).map((m) => ({ ...m, id: nextId(), status: "pendiente" })),
   }));
 }
+// Mismo criterio para el equipo de alabanza compartido entre los bloques de Alabanza y Adoración.
+function cloneWorshipRoles(roles) {
+  return roles.map((r) => ({
+    ...r, id: nextId(),
+    members: r.members.map((m) => ({ ...m, id: nextId(), status: "pendiente" })),
+  }));
+}
+// Un bloque "pertenece" al equipo de alabanza si su título incluye Alabanza o Adoración — mismo criterio
+// que ya usa addSong para mandar canciones al bloque correcto (SONG_CATEGORIES).
+function isWorshipBlock(item) {
+  return item.type === "seccion" && /alabanza|ador/i.test(item.title || "");
+}
 
 export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios }) {
   const isCompact = useIsCompact(); // vista de celular: en pantallas angostas se activan los layouts compactos y se oculta Multimedia
@@ -422,6 +434,35 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const removeEncargado = (itemId, idx) =>
     updateItemEncargados(itemId, (encargados) => encargados.filter((_, mi) => mi !== idx));
 
+  // Equipo de alabanza: un solo roster de roles (Guitarra, Batería, Voz...) compartido por los bloques
+  // de Alabanza y Adoración del mismo evento — por eso vive en el evento, no en cada bloque.
+  const updateWorshipRoles = (fn) => {
+    let nuevo = null;
+    setEvents((evs) => evs.map((e) => {
+      if (e.id !== selectedEventId) return e;
+      nuevo = fn(e.worshipRoles || []);
+      return { ...e, worshipRoles: nuevo };
+    }));
+    if (nuevo) sincronizarWorshipRoles(selectedEventId, nuevo).catch((err) => window.alert("No se pudo guardar el equipo de alabanza: " + err.message));
+  };
+  const addWorshipRole = (name) => {
+    if (!name.trim()) return;
+    updateWorshipRoles((roles) => [...roles, { id: nextId(), name: name.trim(), members: [] }]);
+  };
+  const removeWorshipRole = (roleId) => updateWorshipRoles((roles) => roles.filter((r) => r.id !== roleId));
+  const updateWorshipRoleMembers = (roleId, fn) =>
+    updateWorshipRoles((roles) => roles.map((r) => (r.id === roleId ? { ...r, members: fn(r.members) } : r)));
+  const addWorshipRoleMember = (roleId, usuario) => {
+    if (!usuario) return;
+    updateWorshipRoleMembers(roleId, (members) => [...members, { id: nextId(), n: usuario.nombre, usuarioId: usuario.id, status: "pendiente", lead: false }]);
+  };
+  const setWorshipRoleMemberStatus = (roleId, idx, status) =>
+    updateWorshipRoleMembers(roleId, (members) => members.map((m, mi) => (mi === idx ? { ...m, status } : m)));
+  const setWorshipRoleMemberLead = (roleId, idx) =>
+    updateWorshipRoleMembers(roleId, (members) => members.map((m, mi) => (mi === idx ? { ...m, lead: !m.lead } : m)));
+  const removeWorshipRoleMember = (roleId, idx) =>
+    updateWorshipRoleMembers(roleId, (members) => members.filter((_, mi) => mi !== idx));
+
   const goto = (i) => {
     setBlanked(false);
     if (adHoc) { setAdHocIdx(Math.min(Math.max(i, 0), adHoc.slides.length - 1)); return; }
@@ -527,6 +568,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       openPositions: template ? template.openPositions : 0,
       cover: template ? template.cover : DEFAULT_COVERS[events.length % DEFAULT_COVERS.length],
       serviceOrder: template ? cloneServiceOrder(template.serviceOrder) : [],
+      worshipRoles: template ? cloneWorshipRoles(template.worshipRoles || []) : [],
       esPlantilla: !!esPlantilla,
     };
     setEvents((evs) => [...evs, newEvent]);
@@ -667,7 +709,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       {!["envivo", "proyeccion"].includes(tab) && (
       <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: tab === "inicio" ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {tab === "inicio" && (
-        <InicioView events={realEvents} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} isCompact={isCompact} onSelectEvent={(id) => { setSelectedEventId(id); setReturnTab("inicio"); setTab("eventos"); }} />
+        <InicioView events={realEvents} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} isCompact={isCompact} onSelectEvent={(id) => { setSelectedEventId(id); setReturnTab("inicio"); setTab("eventos"); }} onGoToTeam={() => setTab("ajustes")} />
       )}
 
       {tab === "ajustes" && (
@@ -683,6 +725,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           perfil={perfil}
           events={realEvents}
           onSelectEvent={(id) => { setSelectedEventId(id); setReturnTab("ajustes"); setTab("eventos"); }}
+          onGoToUsuarios={onGoToUsuarios}
         />
       )}
 
@@ -704,10 +747,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       )}
 
       {tab === "canciones" && openSong === null && (
-        <CancionesList library={library} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onDelete={deleteSong} />
+        <CancionesList library={library} isAdminViewer={isAdminViewer} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onDelete={deleteSong} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "view" && (
-        <SongView song={library.find((s) => s.id === openSong.id)} onBack={() => setOpenSong(null)} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
+        <SongView song={library.find((s) => s.id === openSong.id)} isAdminViewer={isAdminViewer} onBack={() => setOpenSong(null)} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "edit" && (
         <SongEditor
@@ -737,6 +780,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           canAddBibleReading={canAddBibleReading()}
           canAddSermonPoints={canAddSermonPoints()}
           onAddEncargado={addEncargado} onSetEncargadoStatus={setEncargadoStatus} onSetEncargadoLead={setEncargadoLead} onRemoveEncargado={removeEncargado}
+          onAddWorshipRole={addWorshipRole} onRemoveWorshipRole={removeWorshipRole} onAddWorshipRoleMember={addWorshipRoleMember} onSetWorshipRoleMemberStatus={setWorshipRoleMemberStatus} onSetWorshipRoleMemberLead={setWorshipRoleMemberLead} onRemoveWorshipRoleMember={removeWorshipRoleMember}
           onViewMinistry={(id) => { setReturnTab("eventos"); setTab("ministerios"); setSelectedMinistryId(id); }}
           showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
           showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
@@ -822,9 +866,10 @@ function greetingWord() {
   return "Buenas noches";
 }
 
-function StatCard({ icon: Icon, label, value }) {
+function StatCard({ icon: Icon, label, value, onClick }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div style={{ flex: 1, background: "#fff", borderRadius: 16, boxShadow: "0 4px 14px rgba(22,50,79,0.06)", padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+    <Tag onClick={onClick} className={onClick ? "hoverable" : undefined} style={{ flex: 1, background: "#fff", border: "none", borderRadius: 16, boxShadow: "0 4px 14px rgba(22,50,79,0.06)", padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, minWidth: 0, textAlign: "left", cursor: onClick ? "pointer" : "default" }}>
       <div style={{ width: 34, height: 34, borderRadius: 10, background: "#EEF1F6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <Icon size={16} color="#2F5FA8" />
       </div>
@@ -832,7 +877,7 @@ function StatCard({ icon: Icon, label, value }) {
         <div style={{ fontSize: 17, fontWeight: 800, color: "#16233A", lineHeight: 1 }}>{value}</div>
         <div style={{ fontSize: 10, color: "#8996A6", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
       </div>
-    </div>
+    </Tag>
   );
 }
 
@@ -855,7 +900,7 @@ function nextUpcomingEvent(events, liveEventId) {
     .sort(compareByDay)[0];
 }
 
-function InicioView({ events, favoritesCount, memberCount, liveEventId, onSelectEvent, isCompact }) {
+function InicioView({ events, favoritesCount, memberCount, liveEventId, onSelectEvent, onGoToTeam, isCompact }) {
   const liveEvent = events.find((e) => e.id === liveEventId);
   const today = todayLocal();
   // Mes que se está viendo en el calendario — arranca en el mes real de hoy, navegable con ‹ ›.
@@ -963,7 +1008,7 @@ function InicioView({ events, favoritesCount, memberCount, liveEventId, onSelect
 
           <div style={{ display: "flex", gap: 12, flexShrink: 0 }}>
             <StatCard icon={Heart} label="Canciones favoritas" value={favoritesCount} />
-            <StatCard icon={Users} label="Miembros del equipo" value={memberCount} />
+            <StatCard icon={Users} label="Miembros del equipo" value={memberCount} onClick={onGoToTeam} />
           </div>
         </div>
       </div>
@@ -1001,7 +1046,7 @@ function useInstallState() {
   return state;
 }
 
-function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent }) {
+function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios }) {
   const [horarioAbierto, setHorarioAbierto] = useState(false);
   const install = useInstallState();
   const ROLE_OPTIONS = ["Administrador", "Multimedia", "Músico", "Miembro"];
@@ -1059,6 +1104,9 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
 
       {realIsAdmin && (
         <>
+          <SectionLabel>ADMINISTRACIÓN</SectionLabel>
+          <NavRow icon={Settings} label="Usuarios" onClick={onGoToUsuarios} right={<ChevronRight size={16} color="#8996A6" />} />
+
           <SectionLabel>SIMULAR IDENTIDAD (SOLO ADMINISTRADORES)</SectionLabel>
           <div style={{ background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: 14, marginBottom: 8 }}>
             <div style={{ fontSize: 12, color: "#64707F", marginBottom: 10 }}>Simula qué ve la app si "inicias sesión" como otra persona ya registrada — así puedes probar que cada quien vea solo lo que le corresponde (limpieza solo ve limpieza, nadie salvo administradores ve Predicación, etc.).</div>
@@ -1236,7 +1284,7 @@ function MinistryDetail({ ministry, usuariosReales, onBack, onAddPlanItem, onUpd
 }
 
 // ---------------- CANCIONES: LISTA ----------------
-function CancionesList({ library, onToggleFavorite, onOpen, onNew, onDelete }) {
+function CancionesList({ library, isAdminViewer, onToggleFavorite, onOpen, onNew, onDelete }) {
   const [query, setQuery] = useState("");
   const filtered = library.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
   return (
@@ -1259,7 +1307,7 @@ function CancionesList({ library, onToggleFavorite, onOpen, onNew, onDelete }) {
           <span style={{ fontSize: 11, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 20, padding: "3px 10px", color: "#33415A" }}>{s.key}</span>
           <span style={{ fontSize: 11, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 20, padding: "3px 10px", color: "#33415A" }}>{s.tempo} bpm</span>
           <button onClick={(e) => { e.stopPropagation(); onToggleFavorite(s.id); }} style={iconGhost}><Heart size={16} color={s.favorite ? "#C23B32" : "#8996A6"} fill={s.favorite ? "#C23B32" : "none"} /></button>
-          <button onClick={(e) => { e.stopPropagation(); onDelete(s); }} style={iconGhost}><Trash2 size={16} color="#8996A6" /></button>
+          {isAdminViewer && <button onClick={(e) => { e.stopPropagation(); onDelete(s); }} style={iconGhost}><Trash2 size={16} color="#8996A6" /></button>}
         </div>
       ))}
       {filtered.length === 0 && <div style={{ color: "#8996A6", fontSize: 13 }}>No hay canciones que coincidan con la búsqueda.</div>}
@@ -1318,7 +1366,7 @@ function badgeColor(badge) {
   return "#2E86AB"; // Estrofas: celeste
 }
 
-function SongView({ song, onBack, onEdit, onTranspose, onDelete }) {
+function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete }) {
   const sectionRefs = useRef({});
   if (!song) return null;
   const blockKeys = Object.keys(song.blocks);
@@ -1343,9 +1391,11 @@ function SongView({ song, onBack, onEdit, onTranspose, onDelete }) {
           <button onClick={onEdit} style={{ display: "flex", alignItems: "center", gap: 6, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: "#16233A", cursor: "pointer" }}>
             <Pencil size={14} /> Editar
           </button>
-          <button onClick={() => onDelete(song)} style={{ display: "flex", alignItems: "center", gap: 6, background: "#FDECEA", border: "1px solid #C23B32", borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: "#C23B32", cursor: "pointer" }}>
-            <Trash2 size={14} /> Eliminar
-          </button>
+          {isAdminViewer && (
+            <button onClick={() => onDelete(song)} title="Eliminar canción" style={iconGhost}>
+              <Trash2 size={14} color="#C23B32" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -1936,7 +1986,9 @@ function EventDetail({
   event, library, ministries, isCompact, isLive, canControlLive, isAdminViewer, userId, usuariosReales, onBack, onStart, onGoLive, onDelete,
   onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onMove, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
-  onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onViewMinistry,
+  onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
+  onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
+  onViewMinistry,
   showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide,
   showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint,
 }) {
@@ -1945,9 +1997,11 @@ function EventDetail({
       <div style={{ padding: "20px 20px 0", maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
-          <button onClick={() => onDelete(event)} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "1px solid #C23B32", borderRadius: 20, padding: "5px 12px", fontSize: 12, fontWeight: 700, color: "#C23B32", cursor: "pointer" }}>
-            <Trash2 size={13} /> Eliminar evento
-          </button>
+          {isAdminViewer && (
+            <button onClick={() => onDelete(event)} title="Eliminar evento" style={iconGhost}>
+              <Trash2 size={16} color="#C23B32" />
+            </button>
+          )}
         </div>
         <div style={{ borderRadius: 12, background: "linear-gradient(135deg, #2A3B4D, #EEF1F6)", padding: 20, marginBottom: 16 }}>
           <div style={{ display: "inline-block", background: event.esPlantilla ? "#5661B3" : "rgba(0,0,0,0.35)", borderRadius: 20, padding: "4px 12px", fontSize: 12, marginBottom: 10 }}>
@@ -1977,6 +2031,7 @@ function EventDetail({
         onSetSongKey={onSetSongKey}
         canAddBibleReading={canAddBibleReading} canAddSermonPoints={canAddSermonPoints}
         onAddEncargado={onAddEncargado} onSetEncargadoStatus={onSetEncargadoStatus} onSetEncargadoLead={onSetEncargadoLead} onRemoveEncargado={onRemoveEncargado}
+        onAddWorshipRole={onAddWorshipRole} onRemoveWorshipRole={onRemoveWorshipRole} onAddWorshipRoleMember={onAddWorshipRoleMember} onSetWorshipRoleMemberStatus={onSetWorshipRoleMemberStatus} onSetWorshipRoleMemberLead={onSetWorshipRoleMemberLead} onRemoveWorshipRoleMember={onRemoveWorshipRoleMember}
         onViewMinistry={onViewMinistry}
         showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
         showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
@@ -2046,6 +2101,52 @@ function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLe
   );
 }
 
+// Equipo de alabanza: roles con nombre fijo (Guitarra, Batería, Voz...) en vez de una lista libre de
+// encargados — el mismo roster se muestra y se edita igual desde el bloque de Alabanza que desde el de
+// Adoración (es un solo array compartido a nivel de evento, no una copia por bloque).
+function WorshipRolesEditor({ roles, canEdit, allUsuarios, onAddRole, onRemoveRole, onAddMember, onSetStatus, onSetLead, onRemoveMember }) {
+  const [newRoleName, setNewRoleName] = useState("");
+  return (
+    <div>
+      {roles.map((r) => (
+        <div key={r.id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid #DDE3ED" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#33415A" }}>{r.name}</span>
+            {canEdit && <button onClick={() => onRemoveRole(r.id)} title="Quitar rol" style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={13} /></button>}
+          </div>
+          <EncargadosList
+            encargados={r.members}
+            canEdit={canEdit}
+            allUsuarios={allUsuarios}
+            onAddEncargado={(usuario) => onAddMember(r.id, usuario)}
+            onSetStatus={(mi, status) => onSetStatus(r.id, mi, status)}
+            onSetLead={(mi) => onSetLead(r.id, mi)}
+            onRemove={(mi) => onRemoveMember(r.id, mi)}
+          />
+        </div>
+      ))}
+      {roles.length === 0 && <div style={{ color: "#8996A6", fontSize: 12, marginBottom: 10 }}>Aún no hay roles definidos para el equipo de alabanza.</div>}
+      {canEdit && (
+        <div style={{ display: "flex", gap: 6 }}>
+          <input
+            value={newRoleName}
+            onChange={(e) => setNewRoleName(e.target.value)}
+            placeholder="Nuevo rol (ej. Guitarra)"
+            style={{ ...inputStyle, flex: 1 }}
+            onKeyDown={(e) => { if (e.key === "Enter" && newRoleName.trim()) { onAddRole(newRoleName); setNewRoleName(""); } }}
+          />
+          <button
+            onClick={() => { if (newRoleName.trim()) { onAddRole(newRoleName); setNewRoleName(""); } }}
+            style={{ ...addBtnStyle, width: "auto", padding: "0 12px", color: "#5661B3" }}
+          >
+            <Plus size={14} color="#5661B3" /> Agregar rol
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Botón "Encargados": ícono de personas con una insignia del conteo actual — es el punto de entrada
 // para agregar/gestionar a los encargados de este ítem del Setlist, sin necesitar una pantalla aparte.
 function EncargadosToggleButton({ count, onClick }) {
@@ -2060,7 +2161,7 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onMove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onMove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   // Estructura: solo administradores agregan/mueven/eliminan bloques (la "estructura" del culto). El
   // contenido DE un bloque (encargados, título, descripción, tonalidad de sus canciones) lo puede
   // editar además el líder del ministerio vinculado a ESE bloque específico — no cualquier líder de grupo.
@@ -2076,6 +2177,12 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
     if (!ministryId) return false;
     return ministries.find((m) => m.id === ministryId)?.leaderId === userId;
   };
+  // El equipo de alabanza (roles) es un solo roster compartido por los bloques de Alabanza y Adoración:
+  // lo puede editar un administrador, o el líder de CUALQUIERA de los ministerios vinculados a esos
+  // bloques (así, si solo "Alabanza" está vinculado a un ministerio, su líder ya puede manejar el equipo).
+  const canEditWorshipRoles = isAdminViewer || event.serviceOrder
+    .filter(isWorshipBlock)
+    .some((it) => it.ministryId && ministries.find((m) => m.id === it.ministryId)?.leaderId === userId);
   const [query, setQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({});
   const [showLibrary, setShowLibrary] = useState(!isCompact);
@@ -2193,7 +2300,10 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                     )}
                   </div>
                   <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
-                    <EncargadosToggleButton count={(item.encargados || []).length} onClick={() => setExpandedSections((e) => ({ ...e, [item.id]: !e[item.id] }))} />
+                    <EncargadosToggleButton
+                      count={isWorshipBlock(item) ? (event.worshipRoles || []).reduce((acc, r) => acc + r.members.length, 0) : (item.encargados || []).length}
+                      onClick={() => setExpandedSections((e) => ({ ...e, [item.id]: !e[item.id] }))}
+                    />
                     {isAdminViewer && (
                       <>
                         <button onClick={() => onMove(idx, -1)} style={iconGhost}><ChevronUp size={14} /></button>
@@ -2226,16 +2336,35 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                         <button onClick={() => onViewMinistry(linkedMinistry.id)} style={{ fontSize: 11, fontWeight: 700, color: "#2F5FA8", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>Ver ministerio <ExternalLink size={12} /></button>
                       </div>
                     )}
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>ENCARGADOS DE ESTE BLOQUE</div>
-                    <EncargadosList
-                      encargados={item.encargados || []}
-                      canEdit={canEdit}
-                      allUsuarios={usuariosReales}
-                      onAddEncargado={(usuario) => onAddEncargado(item.id, usuario)}
-                      onSetStatus={(mi, status) => onSetEncargadoStatus(item.id, mi, status)}
-                      onSetLead={(mi) => onSetEncargadoLead(item.id, mi)}
-                      onRemove={(mi) => onRemoveEncargado(item.id, mi)}
-                    />
+                    {isWorshipBlock(item) ? (
+                      <>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>EQUIPO DE ALABANZA (compartido con Alabanza/Adoración)</div>
+                        <WorshipRolesEditor
+                          roles={event.worshipRoles || []}
+                          canEdit={canEditWorshipRoles}
+                          allUsuarios={usuariosReales}
+                          onAddRole={onAddWorshipRole}
+                          onRemoveRole={onRemoveWorshipRole}
+                          onAddMember={onAddWorshipRoleMember}
+                          onSetStatus={onSetWorshipRoleMemberStatus}
+                          onSetLead={onSetWorshipRoleMemberLead}
+                          onRemoveMember={onRemoveWorshipRoleMember}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>ENCARGADOS DE ESTE BLOQUE</div>
+                        <EncargadosList
+                          encargados={item.encargados || []}
+                          canEdit={canEdit}
+                          allUsuarios={usuariosReales}
+                          onAddEncargado={(usuario) => onAddEncargado(item.id, usuario)}
+                          onSetStatus={(mi, status) => onSetEncargadoStatus(item.id, mi, status)}
+                          onSetLead={(mi) => onSetEncargadoLead(item.id, mi)}
+                          onRemove={(mi) => onRemoveEncargado(item.id, mi)}
+                        />
+                      </>
+                    )}
                   </div>
                 )}
               </div>

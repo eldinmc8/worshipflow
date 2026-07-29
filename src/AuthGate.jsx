@@ -43,23 +43,9 @@ export default function AuthGate() {
 
   const esAdmin = perfil?.rol === "admin";
 
-  return (
-    <>
-      {view === "app" && esAdmin && (
-        <div style={{ position: "fixed", top: 8, right: 8, zIndex: 1000 }}>
-          <button
-            onClick={() => setView("usuarios")}
-            style={{ fontSize: 11, fontWeight: 700, background: "#16324F", color: "#fff", border: "none", borderRadius: 20, padding: "6px 12px", cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}
-          >
-            ⚙ Usuarios
-          </button>
-        </div>
-      )}
-      {view === "usuarios" && esAdmin ? (
-        <UsersAdmin myEmail={session.user.email} onExit={() => setView("app")} />
-      ) : (
-        <PrototipoWorshipFlow userId={session.user.id} perfil={perfil} onGoToUsuarios={esAdmin ? () => setView("usuarios") : null} />
-      )}
-    </>
+  return view === "usuarios" && esAdmin ? (
+    <UsersAdmin myEmail={session.user.email} onExit={() => setView("app")} />
+  ) : (
+    <PrototipoWorshipFlow userId={session.user.id} perfil={perfil} onGoToUsuarios={esAdmin ? () => setView("usuarios") : null} />
   );
 }
