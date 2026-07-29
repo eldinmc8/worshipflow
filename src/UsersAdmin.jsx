@@ -193,7 +193,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [draft, setDraft] = useState({ nombre: "", email: "", password: "", rol: "miembro" });
+  const [draft, setDraft] = useState({ nombre: "", email: "", rol: "miembro" });
   const [selectedUserId, setSelectedUserId] = useState(null);
 
   const load = async () => {
@@ -204,12 +204,14 @@ export default function UsersAdmin({ myEmail, onExit }) {
   };
   useEffect(() => { load(); }, []);
 
+  // Ya no se le pide contraseña al admin: se manda una invitación por correo y la persona elige su
+  // propia contraseña al aceptarla (ver crear-usuario/index.ts y AuthGate.jsx → SetPassword).
   const addUser = async (e) => {
     e.preventDefault();
     setBusy(true); setError("");
     try {
       await callUsersFunction("crear-usuario", draft);
-      setDraft({ nombre: "", email: "", password: "", rol: "miembro" });
+      setDraft({ nombre: "", email: "", rol: "miembro" });
       await load();
     } catch (err) {
       setError(err.message);
@@ -284,18 +286,15 @@ export default function UsersAdmin({ myEmail, onExit }) {
                 <label style={{ fontSize: 11, fontWeight: 700, color: "#64707F" }}>Correo</label>
                 <input type="email" required value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} style={inputStyle} />
               </div>
-              <div style={{ flex: "1 1 140px" }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "#64707F" }}>Contraseña inicial</label>
-                <input type="text" required minLength={6} value={draft.password} onChange={(e) => setDraft({ ...draft, password: e.target.value })} style={inputStyle} />
-              </div>
               <div style={{ flex: "1 1 150px" }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: "#64707F" }}>Rol</label>
                 <select value={draft.rol} onChange={(e) => setDraft({ ...draft, rol: e.target.value })} style={inputStyle}>
                   {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
               </div>
-              <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>+ Agregar usuario</button>
+              <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Enviando…" : "✉ Invitar por correo"}</button>
             </form>
+            <div style={{ fontSize: 11, color: "#8996A6", marginTop: -12, marginBottom: 20 }}>Le llegará un correo para crear su propia contraseña y activar su cuenta.</div>
 
             <div style={{ background: "#FFFFFF", borderRadius: 12, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", overflow: "hidden" }}>
               {rows === null && <div style={{ padding: 20, color: "#8996A6", fontSize: 13 }}>Cargando…</div>}
