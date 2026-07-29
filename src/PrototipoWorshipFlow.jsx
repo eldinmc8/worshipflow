@@ -15,6 +15,7 @@ import { listMinisteriosCompletos, crearMinisterio, actualizarLiderMinisterio, s
 import { updateLiveSession, clearLiveSession } from "./lib/liveSession.js";
 import { supabase } from "./lib/supabaseClient.js";
 import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } from "./lib/pwaInstall.js";
+import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FULL, MONTH_ABBR, DOW_LABELS, monthKey, monthLabelFromKey, formatFullDate, buildMonthWeeks } from "./lib/dates.js";
 
 // ---------- Vista de celular: se activa sola según el ancho real de la pantalla, no un dispositivo fijo ----------
 const MOBILE_BREAKPOINT = 768;
@@ -709,7 +710,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       {!["envivo", "proyeccion"].includes(tab) && (
       <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: tab === "inicio" ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {tab === "inicio" && (
-        <InicioView events={realEvents} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} isCompact={isCompact} onSelectEvent={(id) => { setSelectedEventId(id); setReturnTab("inicio"); setTab("eventos"); }} onGoToTeam={() => setTab("ajustes")} />
+        <InicioView events={realEvents} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} isCompact={isCompact} onSelectEvent={(id) => { setSelectedEventId(id); setReturnTab("inicio"); setTab("eventos"); }} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} />
       )}
 
       {tab === "ajustes" && (
@@ -1712,58 +1713,7 @@ function Field({ label, required, children }) {
 
 // ---------------- LISTA DE EVENTOS ----------------
 // Todo el calendario se calcula desde `event.date` (fecha real, "YYYY-MM-DD") — nunca desde `dateLabel`
-// (texto libre, ej. "10:00 am"), que solo es una nota para mostrar. Parsear dateLabel para sacar
-// día/mes era la causa del bug de "creé el evento el 2 de agosto y aparece el 10 de julio".
-// `new Date("YYYY-MM-DD")` la interpreta como medianoche UTC, lo que en husos horarios negativos
-// (Guatemala, UTC-6) puede mostrar el día anterior — por eso se arma la fecha en horario local a mano.
-function parseIsoDateLocal(iso) {
-  if (!iso) return null;
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return null;
-  return new Date(y, m - 1, d);
-}
-function todayLocal() {
-  const t = new Date();
-  return new Date(t.getFullYear(), t.getMonth(), t.getDate());
-}
-function isUpcoming(ev) {
-  const d = parseIsoDateLocal(ev.date);
-  if (!d) return true; // sin fecha asignada todavía: se muestra en "Próximos" para que no se pierda de vista
-  return d >= todayLocal();
-}
-function compareByDay(a, b) {
-  const da = parseIsoDateLocal(a.date);
-  const db = parseIsoDateLocal(b.date);
-  if (!da && !db) return 0;
-  if (!da) return 1; // sin fecha: al final
-  if (!db) return -1;
-  return da - db;
-}
-const MONTH_NAMES_FULL = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-const MONTH_ABBR = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
-const monthKey = (year, month) => `${year}-${String(month + 1).padStart(2, "0")}`; // month: 0-indexado
-const monthLabelFromKey = (key) => { const [y, m] = key.split("-").map(Number); return `${MONTH_NAMES_FULL[m - 1]} ${y}`; };
-function formatFullDate(iso) {
-  const d = parseIsoDateLocal(iso);
-  if (!d) return null;
-  return `${d.getDate()} de ${MONTH_NAMES_FULL[d.getMonth()].toLowerCase()} de ${d.getFullYear()}`;
-}
-// Cuadrícula de semanas de un mes cualquiera (ya no una tira fija de julio 2026): domingo primero,
-// celdas vacías (null) antes del día 1 y después del último día del mes.
-function buildMonthWeeks(year, month) {
-  const firstDow = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const weeks = [];
-  let week = new Array(firstDow).fill(null);
-  for (let d = 1; d <= daysInMonth; d++) {
-    week.push(d);
-    if (week.length === 7) { weeks.push(week); week = []; }
-  }
-  if (week.length) { while (week.length < 7) week.push(null); weeks.push(week); }
-  return weeks;
-}
-
-const DOW_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+// (texto libre, ej. "10:00 am"), que solo es una nota para mostrar — ver src/lib/dates.js.
 
 function MiniTicket({ ev, isLive, onClick }) {
   const time = (ev.dateLabel.split("·")[1] || "").trim();
