@@ -5,14 +5,14 @@ import {
   MonitorOff, X, Search, Sparkles, Calendar, MapPin, Users, Check,
   UserPlus, Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download,
-  ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy,
+  ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion } from "./lib/canciones.js";
 import {
   listEventosCompletos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento,
 } from "./lib/eventos.js";
 import { listMinisteriosCompletos, crearMinisterio, actualizarLiderMinisterio, sincronizarPlan, sincronizarRecursos } from "./lib/ministerios.js";
-import { updateLiveSession, clearLiveSession } from "./lib/liveSession.js";
+import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession } from "./lib/liveSession.js";
 import { supabase } from "./lib/supabaseClient.js";
 import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } from "./lib/pwaInstall.js";
 import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FULL, MONTH_ABBR, DOW_LABELS, monthKey, monthLabelFromKey, formatFullDate, buildMonthWeeks } from "./lib/dates.js";
@@ -296,7 +296,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
 
   const selectedEvent = events.find((e) => e.id === selectedEventId);
   const [liveEventId, setLiveEventId] = useState(null);
-  const [liveOwner, setLiveOwner] = useState(null); // nombre de quien inició la transmisión; solo esa persona puede finalizarla
+  const [liveOwnerId, setLiveOwnerId] = useState(null); // usuario que inició la transmisión; solo esa persona puede finalizarla
   const liveEvent = events.find((e) => e.id === liveEventId);
   const slides = useMemo(() => (liveEvent ? buildSlides(liveEvent.serviceOrder, library) : []), [liveEvent, library]);
   const current = adHoc ? adHoc.slides[adHocIdx] : slides[activeIdx];
@@ -525,11 +525,11 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       const ok = window.confirm(`"${otherTitle}" ya está en vivo. ¿Finalizarlo e iniciar este evento en su lugar?`);
       if (!ok) return;
     }
-    setLiveEventId(eventId); setLiveOwner(myName); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setTab("envivo");
+    setLiveEventId(eventId); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setTab("envivo");
     startPresentation(); // abre/enfoca la pantalla de proyección de una vez, sin paso manual extra
   };
   const endEvent = () => {
-    setLiveEventId(null); setLiveOwner(null); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setTab("eventos");
+    setLiveEventId(null); setLiveOwnerId(null); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setTab("eventos");
     clearLiveSession().catch((e) => window.alert("No se pudo cerrar la sesión en vivo: " + e.message));
   };
 
@@ -623,6 +623,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // Administrador y Multimedia controlan la transmisión en vivo — así ningún músico o miembro puede
   // detenerla por accidente desde su teléfono (ver Ajustes → "Rol de este dispositivo").
   const canControlLive = myRole === "Administrador" || myRole === "Multimedia";
+  // Iniciar la transmisión es más delicado que solo controlarla ya en marcha: únicamente Multimedia
+  // (ni Administrador) ve el botón "Iniciar evento", y únicamente desde un escritorio — nunca desde un
+  // teléfono, ni para Multimedia ni para nadie, para que solo se inicie desde el equipo conectado de verdad.
+  const canStartLive = myRole === "Multimedia" && !isCompact;
   const myName = realIsAdmin && nameOverride ? nameOverride : realName;
   const isAdminViewer = realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride)?.rol === "admin" : realIsAdmin;
   // Agregar versículos/puntos del bosquejo al Setlist ya no depende de un rol de "Lectura"/"Predicación"
@@ -636,16 +640,38 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // ---- Sincroniza la pantalla pública (ventana/dispositivo aparte) vía Supabase Realtime — ya no
   // BroadcastChannel, que solo funcionaba dentro del mismo navegador: ahora el panel de control y la
   // proyección pueden estar en computadoras distintas de verdad. Solo transmite mientras hay un
-  // evento en vivo (si no, no hay nada que la pantalla pública deba mostrar).
+  // evento en vivo Y este dispositivo es quien lo está llevando (si no, un músico que solo está
+  // observando "En vivo" encendido en su teléfono pisaría por accidente lo que Multimedia proyecta).
   useEffect(() => {
-    if (!liveEventId) return;
+    if (!liveEventId || userId !== liveOwnerId) return;
     updateLiveSession({ evento_id: liveEventId, liderado_por: userId, slide_actual: current || null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null })
       .catch((e) => window.alert("No se pudo actualizar la proyección: " + e.message));
-  }, [current, blanked, liveStyle, liveEventId, adHoc, userId]);
+  }, [current, blanked, liveStyle, liveEventId, liveOwnerId, adHoc, userId]);
+
+  // ---- Sincroniza EN TIEMPO REAL, en todos los dispositivos, si hay un evento en vivo ahora mismo y
+  // quién lo está llevando — así el indicador "En vivo" (pestaña, franja de Inicio, tarjeta del evento)
+  // se enciende para músicos/miembros apenas Multimedia inicia la transmisión, sin que cada quien tenga
+  // que haberlo iniciado desde su propio teléfono. Antes esto era solo estado local: cada dispositivo
+  // solo se enteraba de un evento en vivo si ÉL MISMO lo había iniciado.
+  useEffect(() => {
+    getLiveSession()
+      .then((fila) => { setLiveEventId(fila?.evento_id || null); setLiveOwnerId(fila?.liderado_por || null); })
+      .catch(() => {});
+    const unsubscribe = subscribeLiveSession((fila) => {
+      setLiveEventId(fila.evento_id || null);
+      setLiveOwnerId(fila.liderado_por || null);
+    });
+    return unsubscribe;
+  }, []);
 
   // ---- Ministerios ----
   const [ministries, setMinistries] = useState([]);
   const [selectedMinistryId, setSelectedMinistryId] = useState(null);
+  // Grupos: solo administradores ven todos; quien lidera uno o más grupos ve la pestaña pero solo SUS
+  // propios grupos (no los de los demás), aunque tenga dos o más asignados.
+  const myMinistries = ministries.filter((m) => m.leaderId === userId);
+  const canSeeGrupos = isAdminViewer || myMinistries.length > 0;
+  const visibleMinistries = isAdminViewer ? ministries : myMinistries;
   // Guarda en Supabase solo la parte que de verdad cambió (plan o recursos), comparando por
   // referencia — cada mutador de abajo crea un array nuevo únicamente para lo que tocó.
   const updateMinistry = (id, fn) => {
@@ -700,21 +726,23 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   useEffect(() => {
     tabRef.current = tab; selectedEventIdRef.current = selectedEventId; openSongRef.current = openSong; selectedMinistryIdRef.current = selectedMinistryId;
   }, [tab, selectedEventId, openSong, selectedMinistryId]);
-  // Si se está editando una canción con cambios sin guardar, "atrás" (botón, gesto o hardware) no debe
-  // salir de una — hay que confirmar primero si guardar o descartar (ver songExitPrompt más abajo).
+  // Si se está editando una canción con cambios sin guardar y se sale por el botón "‹" propio o por
+  // cambiar de pestaña, se pregunta si guardar o descartar (ver requestLeaveSongEditor más abajo). Por
+  // atrás físico/gesto NO se pregunta — cancelar esa navegación desde JS reapilando el historial resultó
+  // muy poco confiable en celulares (quedaba la pantalla trabada) — en su lugar se guarda solo, sin
+  // preguntar, y se deja pasar la navegación normal: así nunca se pierde nada de todas formas.
   const songEditDirtyRef = useRef(false);
   const songDraftGetterRef = useRef(null);
   const [songExitPrompt, setSongExitPrompt] = useState(false);
+  const pendingNavigateRef = useRef(null);
   useEffect(() => {
     const onPopState = (e) => {
       if (!e.state || e.state.screen !== "app-nav") return;
       const editingSongNow = tabRef.current === "canciones" && openSongRef.current?.mode === "edit";
       if (editingSongNow && songEditDirtyRef.current) {
-        // Cancela visualmente el "atrás" volviendo a apilar la pantalla de edición actual, y en su
-        // lugar pregunta si guardar o descartar — recién ahí se deja pasar la navegación de verdad.
-        history.pushState({ screen: "app-nav", tab: tabRef.current, selectedEventId: selectedEventIdRef.current, openSong: openSongRef.current, selectedMinistryId: selectedMinistryIdRef.current }, "");
-        setSongExitPrompt(true);
-        return;
+        const draft = songDraftGetterRef.current?.();
+        if (draft) persistSongDraft(draft).catch((e2) => window.alert("No se pudo guardar la canción: " + e2.message));
+        songEditDirtyRef.current = false;
       }
       isPoppingNavRef.current = true;
       const s = { tab: e.state.tab ?? "inicio", selectedEventId: e.state.selectedEventId ?? null, openSong: e.state.openSong ?? null, selectedMinistryId: e.state.selectedMinistryId ?? null };
@@ -765,16 +793,34 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     }
   }, [tab, selectedEventId, openSong, selectedMinistryId]);
 
-  // Resuelve el aviso de "salir sin guardar": apaga el guard y repite el "atrás" real — como ya no
-  // está sucio, esta vez el popstate de arriba lo deja pasar y aplica la navegación pendiente tal cual.
-  const exitSongEditor = () => { songEditDirtyRef.current = false; setSongExitPrompt(false); window.history.back(); };
+  // Punto único por el que sale cualquier navegación que podría abandonar el editor de canciones (el
+  // botón "‹" propio, o el nav inferior): si hay cambios sin guardar, la detiene y pregunta primero;
+  // si no, la deja pasar de inmediato. `navigateFn` es la acción real (setTab/history.back/etc.).
+  const requestLeaveSongEditor = (navigateFn) => {
+    const editingSongNow = tab === "canciones" && openSong?.mode === "edit";
+    if (editingSongNow && songEditDirtyRef.current) {
+      pendingNavigateRef.current = navigateFn;
+      setSongExitPrompt(true);
+      return;
+    }
+    navigateFn();
+  };
+  const exitSongEditor = () => {
+    songEditDirtyRef.current = false;
+    setSongExitPrompt(false);
+    pendingNavigateRef.current?.();
+    pendingNavigateRef.current = null;
+  };
   const handleDiscardSongEdit = () => exitSongEditor();
   const handleSaveSongEdit = () => {
     const draft = songDraftGetterRef.current?.();
     if (draft) persistSongDraft(draft).catch((e) => window.alert("No se pudo guardar la canción: " + e.message));
     exitSongEditor();
   };
-  const handleKeepEditingSong = () => setSongExitPrompt(false);
+  const handleKeepEditingSong = () => { pendingNavigateRef.current = null; setSongExitPrompt(false); };
+  // Saltar a un evento específico desde Inicio/Ajustes: limpia openSong/selectedMinistryId por la misma
+  // razón que el nav inferior — si no, podía quedar "pegada" una canción o ministerio de otra pestaña.
+  const goToEvent = (id) => requestLeaveSongEditor(() => { setSelectedEventId(id); setOpenSong(null); setSelectedMinistryId(null); setTab("eventos"); });
 
   if (!datosListos) {
     return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", color: "#8996A6", fontFamily: "'Poppins', sans-serif", fontSize: 14 }}>Cargando…</div>;
@@ -822,7 +868,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       {!["envivo", "proyeccion"].includes(tab) && (
       <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: tab === "inicio" ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {tab === "inicio" && (
-        <InicioView events={realEvents} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} isCompact={isCompact} onSelectEvent={(id) => { setSelectedEventId(id); setTab("eventos"); }} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} />
+        <InicioView events={realEvents} library={library} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} isCompact={isCompact} onSelectEvent={goToEvent} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} />
       )}
 
       {tab === "ajustes" && (
@@ -837,13 +883,13 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           usuariosReales={usuariosReales}
           perfil={perfil}
           events={realEvents}
-          onSelectEvent={(id) => { setSelectedEventId(id); setTab("eventos"); }}
+          onSelectEvent={goToEvent}
           onGoToUsuarios={onGoToUsuarios}
         />
       )}
 
       {tab === "ministerios" && !selectedMinistryId && (
-        <MinistriesList ministries={ministries} usuariosReales={usuariosReales} isAdminViewer={isAdminViewer} onSelect={setSelectedMinistryId} onCreate={createMinistry} />
+        <MinistriesList ministries={visibleMinistries} usuariosReales={usuariosReales} isAdminViewer={isAdminViewer} onSelect={setSelectedMinistryId} onCreate={createMinistry} />
       )}
       {tab === "ministerios" && selectedMinistryId && (
         <MinistryDetail
@@ -871,7 +917,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         <SongEditor
           song={openSong.id ? library.find((s) => s.id === openSong.id) : null}
           isAdminViewer={isAdminViewer}
-          onCancel={() => window.history.back()}
+          onCancel={() => requestLeaveSongEditor(() => window.history.back())}
           onSave={saveSong}
           onDirtyChange={(d) => { songEditDirtyRef.current = d; }}
           draftGetterRef={songDraftGetterRef}
@@ -895,7 +941,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       {tab === "eventos" && selectedEvent && !openSong && (
         <EventDetail
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
-          isLive={selectedEvent.id === liveEventId} canControlLive={canControlLive} isAdminViewer={isAdminViewer}
+          isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={isAdminViewer}
           userId={userId} usuariosReales={usuariosReales}
           onBack={() => window.history.back()}
           onStart={() => startEvent(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
@@ -947,7 +993,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           <MultimediaControl
             eventTitle={liveEvent.title} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
             goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}
-            onEnd={endEvent} canEnd={myName === liveOwner} liveOwner={liveOwner} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
+            onEnd={endEvent} canEnd={userId === liveOwnerId} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
             adHoc={adHoc} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
             onOpenPublicScreen={startPresentation}
             onNavigateBibleVerse={navigateBibleVerse} onChangeBibleVersion={changeBibleVersion}
@@ -969,13 +1015,25 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         <div style={{ display: "flex", alignItems: "center", gap: 2, background: "#16324F", borderRadius: 24, padding: 6, boxShadow: "0 8px 24px rgba(22,50,79,0.35)", maxWidth: "94vw", overflowX: "auto" }}>
           {[["inicio", "Inicio", Home], ["canciones", "Canciones", Music], ["eventos", "Eventos", Calendar], ["ministerios", "Grupos", LayoutGrid], ["envivo", "En vivo", Radio], ["proyeccion", "Pantalla", ImgIcon], ["ajustes", "Ajustes", Settings]]
             .filter(([val]) => !isCompact || (val !== "envivo" && val !== "proyeccion")) // Control en vivo/Proyección son de escritorio: en celular no aparecen
+            .filter(([val]) => val !== "ministerios" || canSeeGrupos) // Grupos: solo admins o quien lidera al menos uno
             .map(([val, label, Icon]) => {
             const needsLive = val === "envivo" || val === "proyeccion";
             const needsLiveControlRole = (val === "envivo" || val === "proyeccion") && !canControlLive;
             const isDisabled = (needsLive && !liveEvent) || needsLiveControlRole;
             const active = tab === val;
             return (
-              <button key={val} onClick={() => setTab(val)} disabled={isDisabled} className="navitem" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: active ? "#E8821E" : "transparent", border: "none", borderRadius: 18, padding: "8px 12px", cursor: isDisabled ? "not-allowed" : "pointer", opacity: isDisabled ? 0.35 : 1, flexShrink: 0 }}>
+              <button
+                key={val}
+                onClick={() => requestLeaveSongEditor(() => {
+                  // Cambiar de pestaña siempre lleva a la RAÍZ de esa pestaña — si no se limpian estos
+                  // tres, quedaban "pegados" (ej. abrir una canción desde un evento y luego, sin volver
+                  // antes, tocar otra pestaña dejaba esa canción/evento fantasma abierto por debajo).
+                  setTab(val); setSelectedEventId(null); setOpenSong(null); setSelectedMinistryId(null);
+                })}
+                disabled={isDisabled}
+                className="navitem"
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: active ? "#E8821E" : "transparent", border: "none", borderRadius: 18, padding: "8px 12px", cursor: isDisabled ? "not-allowed" : "pointer", opacity: isDisabled ? 0.35 : 1, flexShrink: 0 }}
+              >
                 <Icon size={17} color={active ? "#16324F" : "rgba(255,255,255,0.8)"} />
                 <span style={{ fontSize: 9, fontWeight: 700, color: active ? "#16324F" : "rgba(255,255,255,0.6)" }}>{label}</span>
               </button>
@@ -1048,8 +1106,10 @@ function nextUpcomingEvent(events, liveEventId) {
     .sort(compareByDay)[0];
 }
 
-function InicioView({ events, favoritesCount, memberCount, liveEventId, onSelectEvent, onGoToTeam, isCompact }) {
+function InicioView({ events, library, favoritesCount, memberCount, liveEventId, onSelectEvent, onGoToTeam, onOpenSong, isCompact }) {
   const liveEvent = events.find((e) => e.id === liveEventId);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const favoriteSongs = library.filter((s) => s.favorite);
   const today = todayLocal();
   // Mes que se está viendo en el calendario — arranca en el mes real de hoy, navegable con ‹ ›.
   const [viewedMonth, setViewedMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
@@ -1155,11 +1215,31 @@ function InicioView({ events, favoritesCount, memberCount, liveEventId, onSelect
           )}
 
           <div style={{ display: "flex", gap: 12, flexShrink: 0 }}>
-            <StatCard icon={Heart} label="Canciones favoritas" value={favoritesCount} />
+            <StatCard icon={Heart} label="Canciones favoritas" value={favoritesCount} onClick={() => setShowFavorites(true)} />
             <StatCard icon={Users} label="Miembros del equipo" value={memberCount} onClick={onGoToTeam} />
           </div>
         </div>
       </div>
+
+      {showFavorites && (
+        <ModalShell title="Canciones favoritas" icon={Heart} color="#C23B32" onClose={() => setShowFavorites(false)}>
+          {favoriteSongs.length === 0 ? (
+            <div style={{ fontSize: 13, color: "#8996A6" }}>Todavía no has marcado ninguna canción como favorita — busca el corazón en Canciones.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "60vh", overflowY: "auto" }}>
+              {favoriteSongs.map((s) => (
+                <button key={s.id} onClick={() => { setShowFavorites(false); onOpenSong(s.id); }} className="hoverable" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", background: "#EEF1F6", border: "none", borderRadius: 8, padding: "10px 12px", cursor: "pointer" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{s.title}</div>
+                    <div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{s.key} · {s.tempo} bpm</div>
+                  </div>
+                  <ChevronRight size={14} color="#8996A6" />
+                </button>
+              ))}
+            </div>
+          )}
+        </ModalShell>
+      )}
     </div>
   );
 }
@@ -1196,6 +1276,8 @@ function useInstallState() {
 
 function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios }) {
   const [horarioAbierto, setHorarioAbierto] = useState(false);
+  const [showTeamList, setShowTeamList] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const install = useInstallState();
   const ROLE_OPTIONS = ["Administrador", "Multimedia", "Músico", "Miembro"];
   const initials = (myName || "?").split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
@@ -1267,13 +1349,31 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
       )}
 
       <SectionLabel>EQUIPO</SectionLabel>
-      <div style={{ background: "#FFFFFF", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 10, padding: 16, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <button onClick={() => setShowTeamList(true)} className="hoverable" style={{ background: "#FFFFFF", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 10, padding: 16, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", cursor: "pointer", textAlign: "left" }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{TEAM_NAME}</div>
           <div style={{ fontSize: 12, color: "#64707F" }}>{usuariosReales.length} {usuariosReales.length === 1 ? "miembro" : "miembros"}</div>
         </div>
-        <AvatarStack initials={usuariosReales.map((u) => u.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase())} max={2} />
-      </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <AvatarStack initials={usuariosReales.map((u) => u.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase())} max={2} />
+          <ChevronRight size={16} color="#8996A6" />
+        </div>
+      </button>
+      {showTeamList && (
+        <ModalShell title={TEAM_NAME} icon={Users} color="#6E63C7" onClose={() => setShowTeamList(false)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: "60vh", overflowY: "auto" }}>
+            {usuariosReales.map((u) => (
+              <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 2px", borderBottom: "1px solid #EEF1F6" }}>
+                <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+                  {u.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{u.nombre}</span>
+                {u.rol === "admin" && <span style={{ fontSize: 10, fontWeight: 700, color: "#2F5FA8", background: "#E8F1FB", border: "1px solid #2F5FA8", borderRadius: 12, padding: "2px 8px" }}>ADMIN</span>}
+              </div>
+            ))}
+          </div>
+        </ModalShell>
+      )}
 
       <SectionLabel>PERSONAL</SectionLabel>
       <NavRow icon={Calendar} label="Mi Horario" onClick={() => setHorarioAbierto((v) => !v)} right={<span style={{ fontSize: 11, color: "#8996A6", display: "flex", alignItems: "center", gap: 4 }}>{misEventos.length} {horarioAbierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>} />
@@ -1296,10 +1396,50 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
       )}
 
       <SectionLabel>CUENTA</SectionLabel>
+      <NavRow icon={KeyRound} label="Cambiar contraseña" onClick={() => setShowChangePassword(true)} right={<ChevronRight size={16} color="#8996A6" />} />
       <NavRow icon={LogOut} label="Cerrar sesión" danger onClick={signOut} />
+
+      {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
 
       <div style={{ textAlign: "center", fontSize: 11, color: "#C3CBD6", marginTop: 20 }}>WorshipFlow</div>
     </div>
+  );
+}
+
+// Cambiar la propia contraseña sin depender de un administrador — a diferencia de "Reiniciar
+// contraseña" en Usuarios (que un admin usa para OTRA persona), esto es autoservicio: updateUser()
+// de Supabase Auth ya cambia la contraseña de la sesión actual sin pedir la anterior.
+function ChangePasswordModal({ onClose }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (password.length < 6) { setError("La contraseña debe tener al menos 6 caracteres."); return; }
+    if (password !== confirm) { setError("Las contraseñas no coinciden."); return; }
+    setBusy(true); setError("");
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) { setError(error.message); return; }
+    setDone(true);
+  };
+
+  return (
+    <ModalShell title="Cambiar contraseña" icon={KeyRound} color="#16324F" onClose={onClose}>
+      {done ? (
+        <div style={{ fontSize: 13, color: "#1F8A73", fontWeight: 700 }}>Contraseña actualizada correctamente.</div>
+      ) : (
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <input type="password" required placeholder="Nueva contraseña" value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} autoFocus />
+          <input type="password" required placeholder="Confirmar contraseña" value={confirm} onChange={(e) => setConfirm(e.target.value)} style={inputStyle} />
+          {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
+          <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar contraseña"}</button>
+        </form>
+      )}
+    </ModalShell>
   );
 }
 
@@ -1520,28 +1660,32 @@ function badgeColor(badge) {
 
 function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext }) {
   const sectionRefs = useRef({});
-  const touchStartXRef = useRef(null);
+  const touchStartRef = useRef(null);
   if (!song) return null;
   const blockKeys = Object.keys(song.blocks);
   const scrollTo = (key) => sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
   const isMinorKey = song.key.endsWith("m");
   const keyChoices = KEY_OPTIONS.filter((k) => k.endsWith("m") === isMinorKey);
   // Deslizar para pasar a la siguiente/anterior canción del setlist mientras se toca en vivo (solo
-  // cuando esta vista viene abierta desde un Setlist, es decir cuando hay onPrev/onNext).
+  // cuando esta vista viene abierta desde un Setlist, es decir cuando hay onPrev/onNext) — sin botones,
+  // solo el gesto. Se guarda también el Y inicial para no confundir un scroll vertical con un deslizar
+  // horizontal (si el gesto fue más vertical que horizontal, no cuenta como deslizar de canción).
   const swipeHandlers = (onPrev || onNext) ? {
-    onTouchStart: (e) => { touchStartXRef.current = e.touches[0].clientX; },
+    onTouchStart: (e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; },
     onTouchEnd: (e) => {
-      if (touchStartXRef.current == null) return;
-      const dx = e.changedTouches[0].clientX - touchStartXRef.current;
-      touchStartXRef.current = null;
-      if (Math.abs(dx) < 60) return;
+      const start = touchStartRef.current;
+      touchStartRef.current = null;
+      if (!start) return;
+      const dx = e.changedTouches[0].clientX - start.x;
+      const dy = e.changedTouches[0].clientY - start.y;
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
       if (dx < 0 && onNext) onNext();
       else if (dx > 0 && onPrev) onPrev();
     },
   } : {};
 
   return (
-    <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box", position: "relative" }} {...swipeHandlers}>
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box", position: "relative", touchAction: (onPrev || onNext) ? "pan-y" : undefined }} {...swipeHandlers}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1604,15 +1748,15 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
       })}
 
       {(onPrev || onNext) && (
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 24, position: "sticky", bottom: 8 }}>
-          <button onClick={onPrev} disabled={!onPrev} style={{ ...navPillBtn, opacity: onPrev ? 1 : 0.35, cursor: onPrev ? "pointer" : "default" }}><ChevronLeft size={16} /> Anterior</button>
-          <button onClick={onNext} disabled={!onNext} style={{ ...navPillBtn, opacity: onNext ? 1 : 0.35, cursor: onNext ? "pointer" : "default" }}>Siguiente <ChevronRight size={16} /></button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 24, color: "#8996A6", fontSize: 12 }}>
+          {onPrev && <ChevronLeft size={14} />}
+          <span>Desliza para {onPrev && onNext ? "cambiar de canción" : onNext ? "la siguiente canción" : "la canción anterior"}</span>
+          {onNext && <ChevronRight size={14} />}
         </div>
       )}
     </div>
   );
 }
-const navPillBtn = { display: "flex", alignItems: "center", gap: 6, background: "#16324F", color: "#FFFFFF", border: "none", borderRadius: 24, padding: "10px 18px", fontSize: 13, fontWeight: 700, boxShadow: "0 4px 14px rgba(22,50,79,0.25)" };
 
 function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draftGetterRef }) {
   const canEditKey = isAdminViewer || !song;
@@ -2130,7 +2274,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
 
 // ---------------- DETALLE DE EVENTO ----------------
 function EventDetail({
-  event, library, ministries, isCompact, isLive, canControlLive, isAdminViewer, userId, usuariosReales, onBack, onStart, onGoLive, onDelete,
+  event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, userId, usuariosReales, onBack, onStart, onGoLive, onDelete,
   onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onMove, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
@@ -2159,14 +2303,15 @@ function EventDetail({
         </div>
         {event.esPlantilla ? (
           <div style={{ fontSize: 12, color: "#8996A6", marginBottom: 14 }}>Esta es una plantilla — no se transmite en vivo, solo sirve como base para nuevos eventos ("Selecciona plantilla" al crear uno).</div>
-        ) : (
+        ) : canStartLive ? (
           <>
-            <button onClick={isLive ? onGoLive : onStart} disabled={!canControlLive} style={{ ...primaryBtn, width: "100%", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: !canControlLive ? "#C7D0DD" : isLive ? "#C23B32" : "#E8821E", color: !canControlLive ? "#64707F" : isLive ? "#fff" : "#16233A", cursor: canControlLive ? "pointer" : "not-allowed" }}>
+            <button onClick={isLive ? onGoLive : onStart} style={{ ...primaryBtn, width: "100%", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: isLive ? "#C23B32" : "#E8821E", color: isLive ? "#fff" : "#16233A" }}>
               <Play size={15} /> {isLive ? "Ya en vivo · Ir al control" : "Iniciar evento"}
             </button>
-            {!canControlLive && <div style={{ fontSize: 11, color: "#8996A6", marginBottom: 14 }}>Solo los roles Administrador y Multimedia pueden iniciar o controlar la transmisión (cámbialo en Ajustes si este es tu dispositivo).</div>}
-            {canControlLive && <div style={{ marginBottom: 20 }} />}
+            <div style={{ marginBottom: 20 }} />
           </>
+        ) : (
+          isLive && <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#E8821E", marginBottom: 14 }}><span className="live-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "#E8821E" }} /> Este evento está en vivo ahora mismo.</div>
         )}
       </div>
       <SetlistPane
