@@ -912,8 +912,11 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       // "Siguiente" dentro del lector abierto desde un Setlist) reemplaza en vez de apilar — si no,
       // "atrás" iría regresando canción por canción en vez de volver de un solo golpe al Setlist/lista
       // de donde se abrió la primera. Cualquier OTRO tipo de entrada (evento, ministerio, o la primera
-      // canción que se abre) sigue apilando normalmente.
-      const isLateralSongSwap = !!prev.openSong && !!openSong && prev.tab === tab && prev.selectedEventId === selectedEventId && prev.selectedMinistryId === selectedMinistryId;
+      // canción que se abre) sigue apilando normalmente. OJO: el modo (view/edit) también tiene que
+      // coincidir — si no, pasar de "ver" a "editar" la misma canción (con Editar) se confundía con un
+      // deslizar lateral y REEMPLAZABA la entrada de "ver" en vez de apilar un paso real, así que "atrás"
+      // desde el editor se saltaba la vista de solo lectura en vez de volver a ella.
+      const isLateralSongSwap = !!prev.openSong && !!openSong && prev.openSong.mode === openSong.mode && prev.tab === tab && prev.selectedEventId === selectedEventId && prev.selectedMinistryId === selectedMinistryId;
       if (isLateralSongSwap) {
         history.replaceState(next, "");
       } else {
@@ -979,10 +982,11 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         <div style={{ position: "absolute", bottom: -40, left: 40, width: 90, height: 90, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            {/* Fondo blanco detrás del logo: el logo tiene fondo transparente y trazos en azul marino —
-                sobre el header (también azul marino) se perdería sin un fondo claro que le dé contraste. */}
+            {/* Fondo blanco detrás del logo (el ícono ya trae su propio fondo blanco, pero el círculo
+                asegura que se vea igual sobre el header azul marino) — sin zoom (contain, no cover) para
+                que se vea el logo COMPLETO (antes se recortaba la "J" de "Jesús" al hacerle zoom). */}
             <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
-              <img src="/pwa-192x192.png" alt="Iglesia Jesús El Buen Pastor" style={{ width: "150%", height: "150%", objectFit: "cover" }} />
+              <img src="/pwa-192x192.png" alt="Iglesia Jesús El Buen Pastor" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             </div>
             <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "#fff" }}>WorshipFlow</span>
           </div>
