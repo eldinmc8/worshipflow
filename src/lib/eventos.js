@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient.js";
+import { sincronizarRecordatorios } from "./recordatorios.js";
 
 // Algunas acciones (ej. agregar varios versículos de un rango, uno por diapositiva) pueden disparar
 // varios guardados de "todo el setlist"/"todos los roles" del mismo evento casi al mismo tiempo. Como
@@ -35,14 +36,16 @@ export async function deleteEvento(id) {
 }
 
 export async function getEventoCompleto(id) {
-  const [eventoRes, itemsRes, rolesRes] = await Promise.all([
+  const [eventoRes, itemsRes, rolesRes, recordatoriosRes] = await Promise.all([
     supabase.from("eventos").select("*").eq("id", id).single(),
     supabase.from("items_servicio").select("*, canciones(titulo, artista, tonalidad, tempo)").eq("evento_id", id).order("orden", { ascending: true }),
     supabase.from("roles_evento").select("*").eq("evento_id", id).order("orden", { ascending: true }),
+    supabase.from("recordatorios_evento").select("*").eq("evento_id", id).order("created_at", { ascending: true }),
   ]);
   if (eventoRes.error) throw eventoRes.error;
   if (itemsRes.error) throw itemsRes.error;
   if (rolesRes.error) throw rolesRes.error;
+  if (recordatoriosRes.error) throw recordatoriosRes.error;
 
   const itemIds = itemsRes.data.map((it) => it.id);
   const roleIds = rolesRes.data.map((r) => r.id);
@@ -52,7 +55,7 @@ export async function getEventoCompleto(id) {
   ]);
   if (encargadosRes.error) throw encargadosRes.error;
   if (roleMembersRes.error) throw roleMembersRes.error;
-  return { evento: eventoRes.data, items: itemsRes.data, encargados: encargadosRes.data, roles: rolesRes.data, roleMembers: roleMembersRes.data };
+  return { evento: eventoRes.data, items: itemsRes.data, encargados: encargadosRes.data, roles: rolesRes.data, roleMembers: roleMembersRes.data, recordatorios: recordatoriosRes.data };
 }
 
 // ---- Setlist ----
@@ -143,7 +146,11 @@ function filaARolAlabanza(row, miembrosPorRol) {
   return { id: row.id, name: row.nombre, members: (miembrosPorRol[row.id] || []).map(filaAEncargado) };
 }
 
-export function eventoCompletoAFormatoEditor({ evento, items, encargados, roles, roleMembers }) {
+function filaARecordatorio(row) {
+  return { id: row.id, cantidad: row.cantidad, unidad: row.unidad, enviado: row.enviado };
+}
+
+export function eventoCompletoAFormatoEditor({ evento, items, encargados, roles, roleMembers, recordatorios }) {
   const encargadosPorItem = {};
   encargados.forEach((m) => {
     (encargadosPorItem[m.item_servicio_id] ||= []).push(m);
@@ -154,9 +161,11 @@ export function eventoCompletoAFormatoEditor({ evento, items, encargados, roles,
   });
   return {
     id: evento.id, title: evento.titulo, dateLabel: evento.fecha_label || "", date: evento.fecha || null,
+    hora: evento.hora || null,
     location: evento.ubicacion || "", openPositions: 0, cover: null, esPlantilla: !!evento.es_plantilla,
     serviceOrder: items.map((row) => filaAItemServicio(row, encargadosPorItem)),
     worshipRoles: roles.map((row) => filaARolAlabanza(row, miembrosPorRol)),
+    reminders: (recordatorios || []).map(filaARecordatorio),
   };
 }
 
@@ -211,15 +220,18 @@ export function sincronizarWorshipRoles(eventoId, worshipRoles) {
   return encolar(`worshiproles:${eventoId}`, () => sincronizarWorshipRolesInterno(eventoId, worshipRoles));
 }
 
-// Crea un evento nuevo completo (datos + setlist + roles de alabanza) desde el formato en memoria del prototipo.
+// Crea un evento nuevo completo (datos + setlist + roles de alabanza + recordatorios) desde el
+// formato en memoria del prototipo.
 export async function crearEventoCompleto(evento, userId) {
   const { error } = await supabase.from("eventos").insert({
     id: evento.id, titulo: evento.title, fecha: evento.date || null, fecha_label: evento.dateLabel || null,
+    hora: evento.hora || null,
     ubicacion: evento.location || null, creado_por: userId, es_plantilla: !!evento.esPlantilla,
   });
   if (error) throw error;
   await Promise.all([
     sincronizarServiceOrder(evento.id, evento.serviceOrder),
     sincronizarWorshipRoles(evento.id, evento.worshipRoles || []),
+    sincronizarRecordatorios(evento.id, evento.reminders || []),
   ]);
 }

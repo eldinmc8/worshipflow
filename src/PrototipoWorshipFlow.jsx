@@ -5,15 +5,17 @@ import {
   MonitorOff, X, Search, Sparkles, Calendar, MapPin, Users, Check,
   UserPlus, Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download,
-  ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound,
+  ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion } from "./lib/canciones.js";
 import {
-  listEventosCompletos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento,
+  listEventosCompletos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento,
 } from "./lib/eventos.js";
 import { listMinisteriosCompletos, crearMinisterio, actualizarLiderMinisterio, sincronizarPlan, sincronizarRecursos } from "./lib/ministerios.js";
 import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession } from "./lib/liveSession.js";
-import { supabase } from "./lib/supabaseClient.js";
+import { sincronizarRecordatorios } from "./lib/recordatorios.js";
+import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotificaciones, suscribirPush, desuscribirPush, estaSuscritoPush } from "./lib/notificaciones.js";
+import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } from "./lib/pwaInstall.js";
 import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FULL, MONTH_ABBR, DOW_LABELS, monthKey, monthLabelFromKey, formatFullDate, buildMonthWeeks } from "./lib/dates.js";
 
@@ -252,6 +254,11 @@ function cloneWorshipRoles(roles) {
     members: r.members.map((m) => ({ ...m, id: nextId(), status: "pendiente" })),
   }));
 }
+// Y para los recordatorios de una plantilla: "enviado" siempre arranca en false — es un evento
+// nuevo, todavía no se le mandó ningún recordatorio.
+function cloneRecordatorios(reminders) {
+  return (reminders || []).map((r) => ({ ...r, id: nextId(), enviado: false }));
+}
 // Un bloque "pertenece" al equipo de alabanza si su título incluye Alabanza o Adoración — mismo criterio
 // que ya usa addSong para mandar canciones al bloque correcto (SONG_CATEGORIES).
 function isWorshipBlock(item) {
@@ -468,9 +475,18 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // de ese ítem, ya no en una pantalla de "Roles/Participantes" separada.
   const updateItemEncargados = (itemId, fn) =>
     updateOrder((o) => o.map((i) => (i.id === itemId ? { ...i, encargados: fn(i.encargados || []) } : i)));
+  // Avisa a alguien que lo acaban de asignar a algo (encargado de un bloque, equipo de alabanza, líder
+  // de ministerio) — notificación in-app + push real si tiene un dispositivo suscrito. No bloquea la
+  // asignación si falla (solo avisa en consola): la persona ya quedó asignada de todas formas.
+  const notificarAsignacion = (usuarioId, { titulo, cuerpo, eventoId }) => {
+    if (!usuarioId || usuarioId === userId) return; // no hace falta avisarse a uno mismo
+    callUsersFunction("notificar-asignacion", { usuario_id: usuarioId, tipo: "asignacion", titulo, cuerpo, evento_id: eventoId || null })
+      .catch((e) => console.warn("No se pudo notificar la asignación:", e.message));
+  };
   const addEncargado = (itemId, usuario) => {
     if (!usuario) return;
     updateItemEncargados(itemId, (encargados) => [...encargados, { id: nextId(), n: usuario.nombre, usuarioId: usuario.id, status: "pendiente", lead: false }]);
+    notificarAsignacion(usuario.id, { titulo: "Te asignaron un encargo", cuerpo: `Tienes un encargo en "${selectedEvent?.title}".`, eventoId: selectedEventId });
   };
   const setEncargadoStatus = (itemId, idx, status) =>
     updateItemEncargados(itemId, (encargados) => encargados.map((m, mi) => (mi === idx ? { ...m, status } : m)));
@@ -500,6 +516,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const addWorshipRoleMember = (roleId, usuario) => {
     if (!usuario) return;
     updateWorshipRoleMembers(roleId, (members) => [...members, { id: nextId(), n: usuario.nombre, usuarioId: usuario.id, status: "pendiente", lead: false }]);
+    notificarAsignacion(usuario.id, { titulo: "Te asignaron al equipo de alabanza", cuerpo: `Quedaste en el equipo de alabanza de "${selectedEvent?.title}".`, eventoId: selectedEventId });
   };
   const setWorshipRoleMemberStatus = (roleId, idx, status) =>
     updateWorshipRoleMembers(roleId, (members) => members.map((m, mi) => (mi === idx ? { ...m, status } : m)));
@@ -612,15 +629,16 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     setOpenSong(null);
     deleteCancion(song.id).catch((e) => window.alert("No se pudo eliminar la canción: " + e.message));
   };
-  const createEvent = ({ templateId, title, dateLabel, date, location, esPlantilla }) => {
+  const createEvent = ({ templateId, title, dateLabel, date, hora, location, esPlantilla }) => {
     const template = events.find((e) => e.id === templateId);
     const newEvent = {
       id: nextId(),
-      title, dateLabel, date, location,
+      title, dateLabel, date, hora: hora || null, location,
       openPositions: template ? template.openPositions : 0,
       cover: template ? template.cover : DEFAULT_COVERS[events.length % DEFAULT_COVERS.length],
       serviceOrder: template ? cloneServiceOrder(template.serviceOrder) : [],
       worshipRoles: template ? cloneWorshipRoles(template.worshipRoles || []) : [],
+      reminders: template ? cloneRecordatorios(template.reminders) : [],
       esPlantilla: !!esPlantilla,
     };
     setEvents((evs) => [...evs, newEvent]);
@@ -633,6 +651,24 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     setEvents((evs) => evs.filter((e) => e.id !== event.id));
     setSelectedEventId(null);
     deleteEvento(event.id).catch((e) => window.alert("No se pudo eliminar el evento: " + e.message));
+  };
+
+  // Recordatorios: mismo patrón que updateMinistry — calcula el nuevo valor dentro del setter y
+  // sincroniza con ESE valor (no con el estado viejo que todavía tendría el closure).
+  const updateEventReminders = (eventId, fn) => {
+    let nuevo = null;
+    setEvents((evs) => evs.map((e) => {
+      if (e.id !== eventId) return e;
+      nuevo = fn(e);
+      return nuevo;
+    }));
+    if (nuevo) sincronizarRecordatorios(eventId, nuevo.reminders).catch((e) => window.alert("No se pudo guardar el recordatorio: " + e.message));
+  };
+  const addReminder = (eventId, cantidad, unidad) => updateEventReminders(eventId, (e) => ({ ...e, reminders: [...(e.reminders || []), { id: nextId(), cantidad, unidad, enviado: false }] }));
+  const removeReminder = (eventId, reminderId) => updateEventReminders(eventId, (e) => ({ ...e, reminders: (e.reminders || []).filter((r) => r.id !== reminderId) }));
+  const setEventHora = (eventId, hora) => {
+    setEvents((evs) => evs.map((e) => (e.id === eventId ? { ...e, hora: hora || null } : e)));
+    updateEvento(eventId, { hora: hora || null }).catch((e) => window.alert("No se pudo guardar la hora: " + e.message));
   };
 
   const favoritesCount = library.filter((s) => s.favorite).length;
@@ -656,6 +692,28 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   useEffect(() => {
     supabase.from("usuarios").select("id, nombre, rol").order("nombre").then(({ data }) => setUsuariosReales(data || []));
   }, []);
+
+  // ---- Notificaciones (campanita del header): carga las propias al entrar y se suscribe en tiempo
+  // real a las nuevas (asignaciones, recordatorios de eventos) — mismo patrón que subscribeLiveSession.
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  useEffect(() => {
+    listMisNotificaciones(userId).then(setNotifications).catch(() => {});
+    const unsubscribe = subscribeNotificaciones(userId, (fila) => setNotifications((ns) => [fila, ...ns]));
+    return unsubscribe;
+  }, [userId]);
+  const unreadCount = notifications.filter((n) => !n.leido).length;
+  const openNotification = (n) => {
+    if (!n.leido) {
+      setNotifications((ns) => ns.map((x) => (x.id === n.id ? { ...x, leido: true } : x)));
+      marcarLeida(n.id).catch(() => {});
+    }
+    if (n.evento_id) { setShowNotifications(false); goToEvent(n.evento_id); }
+  };
+  const markAllNotificationsRead = () => {
+    setNotifications((ns) => ns.map((n) => ({ ...n, leido: true })));
+    marcarTodasLeidas(userId).catch(() => {});
+  };
   const myRole = realIsAdmin && roleOverride ? roleOverride : realRoleLabel;
   // Administrador y Multimedia controlan la transmisión en vivo — así ningún músico o miembro puede
   // detenerla por accidente desde su teléfono (ver Ajustes → "Rol de este dispositivo").
@@ -740,8 +798,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   };
   const setMinistryLeader = (id, leaderId) => {
     const leaderName = usuariosReales.find((u) => u.id === leaderId)?.nombre || "";
+    const ministryName = ministries.find((m) => m.id === id)?.name || "un grupo";
     setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, leaderId: leaderId || null, leaderName } : m)));
     actualizarLiderMinisterio(id, leaderId || null).catch((e) => window.alert("No se pudo actualizar el líder: " + e.message));
+    if (leaderId) notificarAsignacion(leaderId, { titulo: "Te asignaron como líder", cuerpo: `Ahora eres líder del grupo "${ministryName}".` });
   };
 
   // ---- Botón "atrás" real ----
@@ -912,14 +972,48 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
             </div>
             <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "#fff" }}>WorshipFlow</span>
           </div>
-          {liveEvent && (
-            <button onClick={() => setTab("envivo")} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 20, padding: "4px 10px", cursor: "pointer" }}>
-              <span className="live-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "#F0704A" }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#FFD9C7" }}>EN VIVO</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {liveEvent && (
+              <button onClick={() => setTab("envivo")} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 20, padding: "4px 10px", cursor: "pointer" }}>
+                <span className="live-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "#F0704A" }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#FFD9C7" }}>EN VIVO</span>
+              </button>
+            )}
+            <button onClick={() => setShowNotifications(true)} title="Notificaciones" style={{ position: "relative", width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+              <Bell size={15} color="#fff" />
+              {unreadCount > 0 && (
+                <span style={{ position: "absolute", top: -3, right: -3, background: "#E8821E", color: "#16324F", fontSize: 9, fontWeight: 800, borderRadius: 8, minWidth: 14, height: 14, lineHeight: "14px", textAlign: "center", padding: "0 2px" }}>{unreadCount > 9 ? "9+" : unreadCount}</span>
+              )}
             </button>
-          )}
+          </div>
         </div>
       </div>
+
+      {showNotifications && (
+        <ModalShell title="Notificaciones" icon={Bell} color="#E8821E" onClose={() => setShowNotifications(false)}>
+          {unreadCount > 0 && (
+            <button onClick={markAllNotificationsRead} style={{ ...ghostToggleBtn, marginBottom: 10 }}>Marcar todas como leídas</button>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "60vh", overflowY: "auto" }}>
+            {notifications.length === 0 && <div style={{ fontSize: 13, color: "#8996A6", textAlign: "center", padding: "20px 0" }}>No tienes notificaciones todavía.</div>}
+            {notifications.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => openNotification(n)}
+                className="hoverable"
+                style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%", textAlign: "left", background: n.leido ? "#FFFFFF" : "#FFF6EC", border: n.leido ? "1px solid #EEF1F6" : "1px solid #F3D9B8", borderRadius: 10, padding: "10px 12px", cursor: n.evento_id ? "pointer" : "default" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {!n.leido && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#E8821E", flexShrink: 0 }} />}
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{n.titulo}</span>
+                </div>
+                {n.cuerpo && <div style={{ fontSize: 12, color: "#64707F" }}>{n.cuerpo}</div>}
+                <div style={{ fontSize: 10, color: "#B0B8C4", marginTop: 2 }}>{new Date(n.created_at).toLocaleString("es-GT", { dateStyle: "medium", timeStyle: "short" })}</div>
+              </button>
+            ))}
+          </div>
+        </ModalShell>
+      )}
 
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "stretch" }}>
       {!["envivo", "proyeccion"].includes(tab) && (
@@ -942,6 +1036,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           events={realEvents}
           onSelectEvent={goToEvent}
           onGoToUsuarios={onGoToUsuarios}
+          userId={userId}
         />
       )}
 
@@ -1013,6 +1108,9 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           onAddWorshipRole={addWorshipRole} onRemoveWorshipRole={removeWorshipRole} onAddWorshipRoleMember={addWorshipRoleMember} onSetWorshipRoleMemberStatus={setWorshipRoleMemberStatus} onSetWorshipRoleMemberLead={setWorshipRoleMemberLead} onRemoveWorshipRoleMember={removeWorshipRoleMember}
           onViewMinistry={(id) => { setTab("ministerios"); setSelectedMinistryId(id); }}
           onOpenSong={(songId, itemId) => setOpenSong({ id: songId, mode: "view", itemId })}
+          onAddReminder={(cantidad, unidad) => addReminder(selectedEvent.id, cantidad, unidad)}
+          onRemoveReminder={(reminderId) => removeReminder(selectedEvent.id, reminderId)}
+          onSetHora={(hora) => setEventHora(selectedEvent.id, hora)}
           showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
           showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
           showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
@@ -1339,11 +1437,42 @@ function useInstallState() {
   return state;
 }
 
-function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios }) {
+function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, userId }) {
   const [horarioAbierto, setHorarioAbierto] = useState(false);
   const [showTeamList, setShowTeamList] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [pushEstado, setPushEstado] = useState("cargando"); // cargando | activo | inactivo | sin-soporte
+  const [pushBusy, setPushBusy] = useState(false);
   const install = useInstallState();
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+      setPushEstado("sin-soporte");
+      return;
+    }
+    estaSuscritoPush().then((si) => setPushEstado(si ? "activo" : "inactivo")).catch(() => setPushEstado("inactivo"));
+  }, []);
+  const activarPush = async () => {
+    setPushBusy(true);
+    try {
+      await suscribirPush(userId);
+      setPushEstado("activo");
+    } catch (e) {
+      window.alert(e.message || "No se pudo activar las notificaciones push.");
+    } finally {
+      setPushBusy(false);
+    }
+  };
+  const desactivarPush = async () => {
+    setPushBusy(true);
+    try {
+      await desuscribirPush();
+      setPushEstado("inactivo");
+    } catch (e) {
+      window.alert(e.message || "No se pudo desactivar las notificaciones push.");
+    } finally {
+      setPushBusy(false);
+    }
+  };
   const ROLE_OPTIONS = ["Administrador", "Multimedia", "Músico", "Miembro"];
   const initials = (myName || "?").split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
   const misEventos = useMemo(
@@ -1379,6 +1508,13 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
       ) : (
         <NavRow icon={Download} label="Instalar la app" right={<span style={{ fontSize: 11, color: "#8996A6" }}>Disponible desde el menú del navegador</span>} />
       )}
+      {pushEstado === "sin-soporte" ? (
+        <NavRow icon={Bell} label="Notificaciones push no disponibles en este navegador" right={null} />
+      ) : pushEstado === "activo" ? (
+        <NavRow icon={Bell} label="Notificaciones push activadas" onClick={desactivarPush} right={pushBusy ? null : <span style={{ fontSize: 11, color: "#1F8A73", fontWeight: 700 }}>Desactivar</span>} />
+      ) : pushEstado === "inactivo" ? (
+        <NavRow icon={Bell} label="Activar notificaciones push" onClick={activarPush} right={pushBusy ? null : <ChevronRight size={16} color="#8996A6" />} />
+      ) : null}
 
       <SectionLabel>ROL DE ESTE DISPOSITIVO</SectionLabel>
       <div style={{ background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: 14, marginBottom: 8 }}>
@@ -2183,7 +2319,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
   const [viewMode, setViewMode] = useState("eventos"); // eventos | plantillas (solo administradores alternan)
   const [step, setStep] = useState(null); // null | 'template' | 'details'
   const [templateId, setTemplateId] = useState("blank");
-  const [form, setForm] = useState({ title: "", dateLabel: "", date: "", location: "" });
+  const [form, setForm] = useState({ title: "", dateLabel: "", date: "", hora: "", location: "" });
   const [monthFilter, setMonthFilter] = useState("proximos"); // 'proximos' | mes (para revisar eventos pasados)
 
   const isPlantillaMode = isAdminViewer && viewMode === "plantillas";
@@ -2191,13 +2327,13 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
   // al formulario de detalles, y se guarda con esPlantilla: true.
   const openCreate = () => {
     setTemplateId("blank");
-    setForm({ title: "", dateLabel: "", date: "", location: "" });
+    setForm({ title: "", dateLabel: "", date: "", hora: "", location: "" });
     setStep(isPlantillaMode ? "details" : "template");
   };
   const confirmTemplate = () => setStep("details");
   const confirmCreate = () => {
     if (!form.title.trim() || (!isPlantillaMode && !form.date)) return;
-    onCreate({ templateId: templateId === "blank" ? null : templateId, title: form.title, dateLabel: form.dateLabel || "", date: form.date || null, location: form.location || "Por definir", esPlantilla: isPlantillaMode });
+    onCreate({ templateId: templateId === "blank" ? null : templateId, title: form.title, dateLabel: form.dateLabel || "", date: form.date || null, hora: form.hora || null, location: form.location || "Por definir", esPlantilla: isPlantillaMode });
     setStep(null);
   };
 
@@ -2377,6 +2513,10 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
               <span style={{ display: "block", fontSize: 11, color: "#8996A6", marginTop: 4 }}>Es la fecha real del evento — de aquí sale su lugar en Inicio y en el filtro de mes, y también trae sola la planificación de Ministerios de esa semana.</span>
             </Field>
             <Field label="Hora o nota (opcional)"><input value={form.dateLabel} onChange={(e) => setForm({ ...form, dateLabel: e.target.value })} placeholder="Ej. 10:00 am" style={inputStyle} /></Field>
+            <Field label="Hora exacta (opcional)">
+              <input type="time" value={form.hora} onChange={(e) => setForm({ ...form, hora: e.target.value })} style={inputStyle} />
+              <span style={{ display: "block", fontSize: 11, color: "#8996A6", marginTop: 4 }}>Solo se usa para calcular recordatorios "por horas" — no reemplaza la nota de arriba.</span>
+            </Field>
             <Field label="Ubicación"><input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Ej. Pastores, Sacatepéquez" style={inputStyle} /></Field>
           </div>
           <button onClick={confirmCreate} disabled={!form.title.trim() || !form.date} style={{ ...primaryBtn, marginTop: 14, opacity: form.title.trim() && form.date ? 1 : 0.4, cursor: form.title.trim() && form.date ? "pointer" : "not-allowed" }}>Crear evento</button>
@@ -2393,10 +2533,17 @@ function EventDetail({
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
-  onViewMinistry, onOpenSong,
+  onViewMinistry, onOpenSong, onAddReminder, onRemoveReminder, onSetHora,
   showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide,
   showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint,
 }) {
+  const [showReminderForm, setShowReminderForm] = useState(false);
+  const [reminderDraft, setReminderDraft] = useState({ cantidad: 1, unidad: "dias" });
+  const confirmAddReminder = () => {
+    onAddReminder(Math.max(1, Number(reminderDraft.cantidad) || 1), reminderDraft.unidad);
+    setReminderDraft({ cantidad: 1, unidad: "dias" });
+    setShowReminderForm(false);
+  };
   return (
     <div className="screen-enter" style={{ width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "20px 20px 0", maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box", flexShrink: 0 }}>
@@ -2415,6 +2562,30 @@ function EventDetail({
           <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600, marginBottom: 4 }}>{event.title}</div>
           {!event.esPlantilla && <div style={{ fontSize: 13, color: "#C8CDD6" }}>{event.location}</div>}
         </div>
+
+        {isAdminViewer && (
+          <div style={{ background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><Bell size={14} color="#E8821E" /> Recordatorios</div>
+              <button onClick={() => setShowReminderForm(true)} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar</button>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+              {(event.reminders || []).length === 0 && <div style={{ color: "#8996A6", fontSize: 12 }}>Sin recordatorios configurados{event.esPlantilla ? " en esta plantilla" : ""}.</div>}
+              {(event.reminders || []).map((r) => (
+                <span key={r.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "#EEF1F6", borderRadius: 20, padding: "5px 6px 5px 12px", fontSize: 12, fontWeight: 600 }}>
+                  {r.cantidad} {r.unidad === "horas" ? (r.cantidad === 1 ? "hora" : "horas") : (r.cantidad === 1 ? "día" : "días")} antes
+                  <button onClick={() => onRemoveReminder(r.id)} style={{ ...iconGhost, width: 18, height: 18 }}><X size={11} /></button>
+                </span>
+              ))}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#64707F" }}>HORA DEL EVENTO</span>
+              <input type="time" value={event.hora || ""} onChange={(e) => onSetHora(e.target.value)} style={{ ...inputStyle, width: "auto", padding: "5px 8px", fontSize: 12 }} />
+            </div>
+            {!event.hora && <div style={{ fontSize: 11, color: "#8996A6", marginTop: 6 }}>Sin hora definida, los recordatorios "por horas" no se pueden calcular con precisión.</div>}
+          </div>
+        )}
+
         {event.esPlantilla ? (
           <div style={{ fontSize: 12, color: "#8996A6", marginBottom: 14 }}>Esta es una plantilla — no se transmite en vivo, solo sirve como base para nuevos eventos ("Selecciona plantilla" al crear uno).</div>
         ) : canStartLive ? (
@@ -2443,6 +2614,25 @@ function EventDetail({
         showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
         showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
       />
+      {showReminderForm && (
+        <ModalShell title="Agregar recordatorio" icon={Bell} color="#E8821E" onClose={() => setShowReminderForm(false)}>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+            <Field label="Cantidad">
+              <input type="number" min={1} value={reminderDraft.cantidad} onChange={(e) => setReminderDraft({ ...reminderDraft, cantidad: e.target.value })} style={inputStyle} />
+            </Field>
+            <Field label="Unidad">
+              <select value={reminderDraft.unidad} onChange={(e) => setReminderDraft({ ...reminderDraft, unidad: e.target.value })} style={inputStyle}>
+                <option value="dias">Días antes</option>
+                <option value="horas">Horas antes</option>
+              </select>
+            </Field>
+          </div>
+          {reminderDraft.unidad === "horas" && !event.hora && (
+            <div style={{ fontSize: 11, color: "#C23B32", marginTop: 8 }}>Este evento todavía no tiene hora definida — este recordatorio no se enviará hasta que se le asigne una.</div>
+          )}
+          <button onClick={confirmAddReminder} style={{ ...primaryBtn, marginTop: 14 }}>Agregar recordatorio</button>
+        </ModalShell>
+      )}
     </div>
   );
 }

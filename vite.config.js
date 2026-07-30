@@ -8,6 +8,12 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // injectManifest (no generateSW): necesitamos nuestro propio src/sw.js con listeners de
+      // "push"/"notificationclick" para las notificaciones reales — generateSW arma el service
+      // worker automáticamente y no deja agregarle código propio.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       includeAssets: ['manifest-pantalla.webmanifest'],
       // Manifest principal: el panel de control (Canciones, Eventos, En vivo, Ajustes...). La pantalla
       // de proyección (?screen=publico) usa su propio manifest aparte (public/manifest-pantalla.webmanifest,
