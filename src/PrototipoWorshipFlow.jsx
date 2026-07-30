@@ -844,11 +844,12 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   useEffect(() => {
     tabRef.current = tab; selectedEventIdRef.current = selectedEventId; openSongRef.current = openSong; selectedMinistryIdRef.current = selectedMinistryId;
   }, [tab, selectedEventId, openSong, selectedMinistryId]);
-  // Si se está editando una canción con cambios sin guardar y se sale por el botón "‹" propio o por
-  // cambiar de pestaña, se pregunta si guardar o descartar (ver requestLeaveSongEditor más abajo). Por
-  // atrás físico/gesto NO se pregunta — cancelar esa navegación desde JS reapilando el historial resultó
-  // muy poco confiable en celulares (quedaba la pantalla trabada) — en su lugar se guarda solo, sin
-  // preguntar, y se deja pasar la navegación normal: así nunca se pierde nada de todas formas.
+  // Si se está editando una canción con cambios sin guardar, se pregunta si guardar o descartar antes
+  // de salir — sin importar si el "atrás" viene del botón "‹" propio, de cambiar de pestaña, o del
+  // gesto/botón físico del teléfono (los tres caminos comparten exactamente la misma confirmación).
+  // El físico/gesto ya disparó el pop del navegador cuando llega acá, así que "cancelarlo" es volver a
+  // apilar la MISMA pantalla de edición encima — recién cuando se confirma guardar/descartar se repite
+  // el "atrás" de verdad (ver exitSongEditor), y como para entonces ya no está sucio, esta vez sí pasa.
   const songEditDirtyRef = useRef(false);
   const songDraftGetterRef = useRef(null);
   const [songExitPrompt, setSongExitPrompt] = useState(false);
@@ -858,9 +859,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       if (!e.state || e.state.screen !== "app-nav") return;
       const editingSongNow = tabRef.current === "canciones" && openSongRef.current?.mode === "edit";
       if (editingSongNow && songEditDirtyRef.current) {
-        const draft = songDraftGetterRef.current?.();
-        if (draft) persistSongDraft(draft).catch((e2) => window.alert("No se pudo guardar la canción: " + e2.message));
-        songEditDirtyRef.current = false;
+        history.pushState({ screen: "app-nav", tab: tabRef.current, selectedEventId: selectedEventIdRef.current, openSong: openSongRef.current, selectedMinistryId: selectedMinistryIdRef.current }, "");
+        pendingNavigateRef.current = () => window.history.back();
+        setSongExitPrompt(true);
+        return;
       }
       isPoppingNavRef.current = true;
       const s = { tab: e.state.tab ?? "inicio", selectedEventId: e.state.selectedEventId ?? null, openSong: e.state.openSong ?? null, selectedMinistryId: e.state.selectedMinistryId ?? null };
