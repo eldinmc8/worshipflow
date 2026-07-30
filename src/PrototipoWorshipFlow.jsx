@@ -257,6 +257,11 @@ function cloneWorshipRoles(roles) {
 function isWorshipBlock(item) {
   return item.type === "seccion" && /alabanza|ador/i.test(item.title || "");
 }
+// Un bloque "pertenece" a lectura bíblica/oración por el mismo criterio (título) — el encargado de
+// ESE bloque en el evento puede agregar su propio versículo, aunque no sea administrador.
+function isBibleReadingBlock(item) {
+  return item.type === "seccion" && /lectura|oraci[oó]n/i.test(item.title || "");
+}
 
 export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios }) {
   const isCompact = useIsCompact(); // vista de celular: en pantallas angostas se activan los layouts compactos y se oculta Multimedia
@@ -629,9 +634,12 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const canStartLive = myRole === "Multimedia" && !isCompact;
   const myName = realIsAdmin && nameOverride ? nameOverride : realName;
   const isAdminViewer = realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride)?.rol === "admin" : realIsAdmin;
-  // Agregar versículos/puntos del bosquejo al Setlist ya no depende de un rol de "Lectura"/"Predicación"
-  // separado (ese roster se eliminó) — queda simplemente para administradores.
-  const canAddBibleReading = () => isAdminViewer;
+  // Agregar versículos al Setlist es de administradores, con una sola excepción: quien esté asignado
+  // como encargado de un bloque de Lectura bíblica/Oración EN ESTE EVENTO puede agregar su propio
+  // versículo para esa lectura, aunque no sea administrador.
+  const canAddBibleReading = () => isAdminViewer || !!(selectedEvent?.serviceOrder || []).find(
+    (it) => isBibleReadingBlock(it) && (it.encargados || []).some((m) => m.usuarioId === userId)
+  );
   const canAddSermonPoints = () => isAdminViewer;
 
   // ---- Estilo en vivo de la proyección (fondo/tipografía/tamaño), editable solo por Multimedia mientras transmite ----
@@ -959,7 +967,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         <EventDetail
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
           isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={isAdminViewer}
-          userId={userId} usuariosReales={usuariosReales}
+          usuariosReales={usuariosReales}
           onBack={() => window.history.back()}
           onStart={() => startEvent(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
           onAddSong={addSong} onAddSeccion={addSeccion}
@@ -1677,7 +1685,7 @@ function badgeColor(badge) {
 
 function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext }) {
   const sectionRefs = useRef({});
-  const touchStartRef = useRef(null);
+  const pointerStartRef = useRef(null);
   if (!song) return null;
   const blockKeys = Object.keys(song.blocks);
   const scrollTo = (key) => sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1685,24 +1693,26 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   const keyChoices = KEY_OPTIONS.filter((k) => k.endsWith("m") === isMinorKey);
   // Deslizar para pasar a la siguiente/anterior canción del setlist mientras se toca en vivo (solo
   // cuando esta vista viene abierta desde un Setlist, es decir cuando hay onPrev/onNext) — sin botones,
-  // solo el gesto. Se guarda también el Y inicial para no confundir un scroll vertical con un deslizar
-  // horizontal (si el gesto fue más vertical que horizontal, no cuenta como deslizar de canción).
+  // solo el gesto. Pointer Events en vez de Touch Events: unifica mouse/touch/lápiz y es más confiable
+  // en apps instaladas (touch events sueltos a veces no llegan a disparar en PWA/WebView). Se guarda
+  // también el Y inicial para no confundir un scroll vertical con un deslizar horizontal.
   const swipeHandlers = (onPrev || onNext) ? {
-    onTouchStart: (e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; },
-    onTouchEnd: (e) => {
-      const start = touchStartRef.current;
-      touchStartRef.current = null;
+    onPointerDown: (e) => { pointerStartRef.current = { x: e.clientX, y: e.clientY }; },
+    onPointerUp: (e) => {
+      const start = pointerStartRef.current;
+      pointerStartRef.current = null;
       if (!start) return;
-      const dx = e.changedTouches[0].clientX - start.x;
-      const dy = e.changedTouches[0].clientY - start.y;
-      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy)) return;
       if (dx < 0 && onNext) onNext();
       else if (dx > 0 && onPrev) onPrev();
     },
+    onPointerCancel: () => { pointerStartRef.current = null; },
   } : {};
 
   return (
-    <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box", position: "relative", touchAction: (onPrev || onNext) ? "pan-y" : undefined }} {...swipeHandlers}>
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", minHeight: "70vh", margin: "0 auto", boxSizing: "border-box", position: "relative", touchAction: (onPrev || onNext) ? "pan-y" : undefined }} {...swipeHandlers}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -2291,7 +2301,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
 
 // ---------------- DETALLE DE EVENTO ----------------
 function EventDetail({
-  event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, userId, usuariosReales, onBack, onStart, onGoLive, onDelete,
+  event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, usuariosReales, onBack, onStart, onGoLive, onDelete,
   onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onMove, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
@@ -2332,7 +2342,7 @@ function EventDetail({
         )}
       </div>
       <SetlistPane
-        event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer} userId={userId} usuariosReales={usuariosReales}
+        event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onAddSeccion={onAddSeccion}
         onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick}
         onRemove={onRemove} onMove={onMove} onDuplicate={onDuplicate} onReorder={onReorder}
@@ -2491,28 +2501,12 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onMove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
-  // Estructura: solo administradores agregan/mueven/eliminan bloques (la "estructura" del culto). El
-  // contenido DE un bloque (encargados, título, descripción, tonalidad de sus canciones) lo puede
-  // editar además el líder del ministerio vinculado a ESE bloque específico — no cualquier líder de grupo.
-  const bloqueMinistryForIdx = (idx) => {
-    for (let i = idx; i >= 0; i--) {
-      if (event.serviceOrder[i].type === "seccion") return event.serviceOrder[i].ministryId || null;
-    }
-    return null;
-  };
-  const canEditItem = (idx) => {
-    if (isAdminViewer) return true;
-    const ministryId = bloqueMinistryForIdx(idx);
-    if (!ministryId) return false;
-    return ministries.find((m) => m.id === ministryId)?.leaderId === userId;
-  };
-  // El equipo de alabanza (roles) es un solo roster compartido por los bloques de Alabanza y Adoración:
-  // lo puede editar un administrador, o el líder de CUALQUIERA de los ministerios vinculados a esos
-  // bloques (así, si solo "Alabanza" está vinculado a un ministerio, su líder ya puede manejar el equipo).
-  const canEditWorshipRoles = isAdminViewer || event.serviceOrder
-    .filter(isWorshipBlock)
-    .some((it) => it.ministryId && ministries.find((m) => m.id === it.ministryId)?.leaderId === userId);
+function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onMove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+  // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
+  // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
+  // el encargado de ese bloque de Lectura bíblica/Oración (ver canAddBibleReading más arriba).
+  const canEditItem = () => isAdminViewer;
+  const canEditWorshipRoles = isAdminViewer;
   const [query, setQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({});
   // Encargados/roles quedan de solo lectura hasta que se toque "Editar" — "Guardar" solo regresa a esa
