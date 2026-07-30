@@ -48,3 +48,23 @@ img, svg {
 @media (prefers-reduced-motion: reduce) {
   .screen-enter { animation: none; }
 }
+
+/* Efecto "galería de fotos" al deslizar entre canciones del Setlist: la que entra viene desde el lado
+   opuesto al que se deslizó (si avanzaste, entra desde la derecha; si retrocediste, desde la izquierda). */
+@keyframes songSlideInRight {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes songSlideInLeft {
+  from { opacity: 0; transform: translateX(-100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.song-slide-in-right {
+  animation: songSlideInRight 0.22s ease;
+}
+.song-slide-in-left {
+  animation: songSlideInLeft 0.22s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .song-slide-in-right, .song-slide-in-left { animation: none; }
+}

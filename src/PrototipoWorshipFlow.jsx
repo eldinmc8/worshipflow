@@ -1039,12 +1039,14 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         const positionLabel = pos >= 0 && songItems.length > 1 ? `${pos + 1} de ${songItems.length}` : null;
         return (
           <SongView
+            key={currentItem?.id ?? openSong.id}
             song={displaySong} isAdminViewer={isAdminViewer} positionLabel={positionLabel}
+            enterDirection={openSong.enterDir}
             onBack={() => window.history.back()}
             onEdit={() => { setTab("canciones"); setOpenSong({ id: openSong.id, mode: "edit" }); }}
             onTranspose={transposeSong} onDelete={deleteSong}
-            onPrev={prevItem ? () => setOpenSong({ id: prevItem.songId, mode: "view", itemId: prevItem.id }) : null}
-            onNext={nextItem ? () => setOpenSong({ id: nextItem.songId, mode: "view", itemId: nextItem.id }) : null}
+            onPrev={prevItem ? () => setOpenSong({ id: prevItem.songId, mode: "view", itemId: prevItem.id, enterDir: "prev" }) : null}
+            onNext={nextItem ? () => setOpenSong({ id: nextItem.songId, mode: "view", itemId: nextItem.id, enterDir: "next" }) : null}
           />
         );
       })()}
@@ -1721,41 +1723,80 @@ function badgeColor(badge) {
   return "#2E86AB"; // Estrofas: celeste
 }
 
-function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext, positionLabel }) {
+function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext, positionLabel, enterDirection }) {
   const sectionRefs = useRef({});
+  const containerRef = useRef(null);
   const pointerStartRef = useRef(null);
+  const draggingRef = useRef(false); // true una vez que el gesto se confirmó horizontal (no scroll vertical)
+  // Efecto "galería de fotos": mientras se arrastra, el contenido sigue al dedo en tiempo real (sin
+  // transición, dragX se mueve 1 a 1 con el gesto); al soltar, si pasó el umbral termina de salir de la
+  // pantalla hacia ese lado (con transición) y RECIÉN AHÍ cambia de canción — la que entra se monta de
+  // cero (por el key en el sitio donde se usa <SongView>) y juega su propia animación de entrada desde
+  // el lado opuesto. Si no pasó el umbral, vuelve a 0 con transición (como soltar una foto a medio camino).
+  const [dragX, setDragX] = useState(0);
+  const [phase, setPhase] = useState("idle"); // idle | dragging | exiting
   if (!song) return null;
   const blockKeys = Object.keys(song.blocks);
   const scrollTo = (key) => sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
   const isMinorKey = song.key.endsWith("m");
   const keyChoices = KEY_OPTIONS.filter((k) => k.endsWith("m") === isMinorKey);
-  // Deslizar para pasar a la siguiente/anterior canción del setlist mientras se toca en vivo (solo
-  // cuando esta vista viene abierta desde un Setlist, es decir cuando hay onPrev/onNext) — sin botones,
-  // solo el gesto. Pointer Events en vez de Touch Events: unifica mouse/touch/lápiz y es más confiable
-  // en apps instaladas (touch events sueltos a veces no llegan a disparar en PWA/WebView). setPointerCapture
-  // fuerza a que este mismo elemento reciba el "up" pase lo que pase con el dedo entre medio (scroll,
-  // salirse del borde, etc.) — sin esto, en algunos navegadores el "up" se pierde y el gesto queda a medias.
-  // Se guarda también el Y inicial para no confundir un scroll vertical con un deslizar horizontal.
-  const swipeHandlers = (onPrev || onNext) ? {
+  const canSwipe = onPrev || onNext;
+  const completeSwipe = (dir, distance) => {
+    setPhase("exiting");
+    setDragX(dir === "next" ? -distance : distance);
+    setTimeout(() => { (dir === "next" ? onNext : onPrev)(); }, 200);
+  };
+  // Pointer Events (no Touch Events): unifica mouse/touch/lápiz y es más confiable en apps instaladas.
+  // setPointerCapture fuerza a que este mismo elemento reciba todo el gesto pase lo que pase con el
+  // dedo entre medio (scroll, salirse del borde) — sin esto, en algunos navegadores el "up" se pierde.
+  const swipeHandlers = canSwipe ? {
     onPointerDown: (e) => {
       pointerStartRef.current = { x: e.clientX, y: e.clientY };
+      draggingRef.current = false;
       e.currentTarget.setPointerCapture?.(e.pointerId);
     },
-    onPointerUp: (e) => {
+    onPointerMove: (e) => {
       const start = pointerStartRef.current;
-      pointerStartRef.current = null;
-      if (!start) return;
+      if (!start || phase === "exiting") return;
       const dx = e.clientX - start.x;
       const dy = e.clientY - start.y;
-      if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy)) return;
-      if (dx < 0 && onNext) onNext();
-      else if (dx > 0 && onPrev) onPrev();
+      if (!draggingRef.current) {
+        if (Math.abs(dx) < 8) return; // todavía no se nota la intención del gesto
+        if (Math.abs(dy) > Math.abs(dx)) { pointerStartRef.current = null; return; } // es scroll vertical
+        draggingRef.current = true;
+        setPhase("dragging");
+      }
+      // Resistencia (se mueve, pero poco) si se arrastra hacia un lado sin canción a la que ir.
+      const resisted = (dx < 0 && !onNext) || (dx > 0 && !onPrev) ? dx * 0.25 : dx;
+      setDragX(resisted);
     },
-    onPointerCancel: () => { pointerStartRef.current = null; },
+    onPointerUp: () => {
+      const wasDragging = draggingRef.current;
+      pointerStartRef.current = null;
+      draggingRef.current = false;
+      if (!wasDragging) return;
+      const threshold = 70;
+      const containerWidth = containerRef.current?.offsetWidth || 400;
+      if (dragX <= -threshold && onNext) completeSwipe("next", containerWidth);
+      else if (dragX >= threshold && onPrev) completeSwipe("prev", containerWidth);
+      else { setPhase("idle"); setDragX(0); }
+    },
+    onPointerCancel: () => { pointerStartRef.current = null; draggingRef.current = false; setPhase("idle"); setDragX(0); },
   } : {};
+  const enterClass = enterDirection === "next" ? "song-slide-in-right" : enterDirection === "prev" ? "song-slide-in-left" : "screen-enter";
 
   return (
-    <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", minHeight: "70vh", margin: "0 auto", boxSizing: "border-box", position: "relative", touchAction: (onPrev || onNext) ? "pan-y" : undefined }} {...swipeHandlers}>
+    <div
+      ref={containerRef}
+      className={enterClass}
+      style={{
+        padding: 20, maxWidth: 820, width: "100%", minHeight: "70vh", margin: "0 auto", boxSizing: "border-box", position: "relative",
+        touchAction: canSwipe ? "pan-y" : undefined,
+        transform: dragX ? `translateX(${dragX}px)` : undefined,
+        transition: phase === "dragging" ? "none" : "transform 0.22s ease",
+      }}
+      {...swipeHandlers}
+    >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
