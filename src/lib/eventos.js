@@ -99,11 +99,23 @@ function filaAItemServicio(row, encargadosPorItem) {
 }
 
 function itemServicioAFila(item, eventoId, orden) {
-  const base = { id: item.id, evento_id: eventoId, orden };
+  // OJO: estas tres columnas son NOT NULL con default en la base de datos, pero solo tienen sentido
+  // para un tipo de ítem (estructura: canción · fondo_tipo/es_punto_bosquejo: slide). Como el insert
+  // de sincronizarServiceOrderInterno manda TODAS las filas del setlist en un solo array, si un tipo
+  // de ítem no incluyera la clave, Postgres/PostgREST la manda como NULL explícito en vez de aplicar
+  // el default (el default solo aplica cuando la columna se omite en un insert de una sola fila) —
+  // eso violaba el NOT NULL y hacía fallar el insert completo. Por eso van las tres en "base": así
+  // todas las filas del array tienen exactamente las mismas claves sin importar el tipo.
+  const base = {
+    id: item.id, evento_id: eventoId, orden,
+    estructura: item.structure || [],
+    fondo_tipo: item.bgType || "color",
+    es_punto_bosquejo: !!item.isSermonPoint,
+  };
   if (item.type === "seccion") return { ...base, tipo: "bloque", titulo: item.title, descripcion: item.description || "", ministerio_id: item.ministryId || null };
-  if (item.type === "cancion") return { ...base, tipo: "cancion", cancion_id: item.songId, estructura: item.structure || [], tonalidad_override: item.keyOverride || null };
+  if (item.type === "cancion") return { ...base, tipo: "cancion", cancion_id: item.songId, tonalidad_override: item.keyOverride || null };
   if (item.type === "biblia") return { ...base, tipo: "biblia", referencia: item.reference, version_biblia: item.version, texto_biblia: item.text, libro_id: item.bookId ?? null, libro_nombre: item.bookName ?? null, capitulo: item.chapter ?? null, versiculo_inicio: item.verseStart ?? null, versiculo_fin: item.verseEnd ?? null };
-  return { ...base, tipo: "slide", titulo: item.title || "", subtitulo: item.subtitle || "", fondo_color: item.bg || "#1B2029", fondo_tipo: item.bgType || "color", fondo_video_url: item.videoUrl || null, es_punto_bosquejo: !!item.isSermonPoint };
+  return { ...base, tipo: "slide", titulo: item.title || "", subtitulo: item.subtitle || "", fondo_color: item.bg || "#1B2029", fondo_video_url: item.videoUrl || null };
 }
 
 // "Encargados" de un ítem del Setlist (bloque, canción, versículo o slide) — reemplaza el antiguo roster

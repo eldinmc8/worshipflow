@@ -5,7 +5,7 @@ import {
   MonitorOff, X, Search, Sparkles, Calendar, MapPin, Users, Check,
   UserPlus, Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download,
-  ClipboardList, FolderOpen, ExternalLink, LayoutGrid, Pause, SkipBack, SkipForward, Copy,
+  ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion } from "./lib/canciones.js";
 import {
@@ -109,7 +109,15 @@ function transposeLine(raw, semitones) {
   if (!semitones) return raw;
   return raw.replace(/\[([^\]]+)\]/g, (_, chord) => `[${transposeChordToken(chord, semitones)}]`);
 }
-const transposeKeyLabel = transposeChordToken;
+// Devuelve una COPIA transportada de la canción para mostrarla en la tonalidad que se eligió para
+// ese ítem del Setlist en particular (tonalidad_override), sin tocar la canción real de la
+// biblioteca — a diferencia de transposeSong (que sí muta y guarda), esto es solo para lectura.
+function songWithKeyOverride(song, overrideKey) {
+  if (!song || !overrideKey || overrideKey === song.key) return song;
+  const semitones = semitoneShift(song.key, overrideKey);
+  const blocks = Object.fromEntries(Object.entries(song.blocks).map(([key, b]) => [key, { ...b, lines: b.lines.map((l) => transposeLine(l, semitones)) }]));
+  return { ...song, key: overrideKey, blocks };
+}
 
 const KEY_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "Dm", "Em", "Fm", "Gm", "Am", "Bm"];
 
@@ -544,14 +552,21 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     }));
     if (transposed) guardarCancionDesdeEditor(transposed, true, userId).catch((e) => window.alert("No se pudo guardar la transposición: " + e.message));
   };
-  const saveSong = (draft) => {
+  // Guarda el borrador en Supabase y refleja el resultado en la librería en memoria, sin decidir qué
+  // pantalla mostrar después — lo reutilizan tanto "Guardar" (que sí navega a la vista de la canción)
+  // como la confirmación de "Guardar y salir" al presionar atrás con cambios sin guardar (que navega
+  // a donde el usuario iba, no de vuelta a la canción).
+  const persistSongDraft = (draft) => {
     const existeEnDb = library.some((s) => s.id === draft.id);
-    guardarCancionDesdeEditor(draft, existeEnDb, userId)
-      .then((idReal) => {
-        const guardado = { ...draft, id: idReal };
-        setLibrary((lib) => (existeEnDb ? lib.map((s) => (s.id === draft.id ? guardado : s)) : [...lib, guardado]));
-        setOpenSong({ id: idReal, mode: "view" });
-      })
+    return guardarCancionDesdeEditor(draft, existeEnDb, userId).then((idReal) => {
+      const guardado = { ...draft, id: idReal };
+      setLibrary((lib) => (existeEnDb ? lib.map((s) => (s.id === draft.id ? guardado : s)) : [...lib, guardado]));
+      return idReal;
+    });
+  };
+  const saveSong = (draft) => {
+    persistSongDraft(draft)
+      .then((idReal) => setOpenSong({ id: idReal, mode: "view" }))
       .catch((e) => window.alert("No se pudo guardar la canción: " + e.message));
   };
   const deleteSong = (song) => {
@@ -671,14 +686,43 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // el mismo mecanismo (history.back()), así que ambos caminos siempre coinciden.
   const isPoppingNavRef = useRef(false);
   const hasMountedNavRef = useRef(false);
+  // Si el estado (sin importar la pestaña) no tiene nada "abierto" es una pantalla raíz de esa pestaña.
+  const isRootState = (s) => !s.selectedEventId && !s.openSong && !s.selectedMinistryId;
+  // true mientras estemos parados exactamente en Inicio-raíz sin haber avanzado a otra pestaña todavía.
+  const isAtHomeRootRef = useRef(true);
+  // El listener de "popstate" se registra UNA sola vez (deps: []), así que su closure nunca ve valores
+  // actualizados de tab/openSong/etc. — estos refs, sincronizados en cada render, son cómo lee los
+  // valores VIGENTES al momento real en que se dispara el evento (ej. para el guard de SongEditor abajo).
+  const tabRef = useRef(tab);
+  const selectedEventIdRef = useRef(selectedEventId);
+  const openSongRef = useRef(openSong);
+  const selectedMinistryIdRef = useRef(selectedMinistryId);
+  useEffect(() => {
+    tabRef.current = tab; selectedEventIdRef.current = selectedEventId; openSongRef.current = openSong; selectedMinistryIdRef.current = selectedMinistryId;
+  }, [tab, selectedEventId, openSong, selectedMinistryId]);
+  // Si se está editando una canción con cambios sin guardar, "atrás" (botón, gesto o hardware) no debe
+  // salir de una — hay que confirmar primero si guardar o descartar (ver songExitPrompt más abajo).
+  const songEditDirtyRef = useRef(false);
+  const songDraftGetterRef = useRef(null);
+  const [songExitPrompt, setSongExitPrompt] = useState(false);
   useEffect(() => {
     const onPopState = (e) => {
       if (!e.state || e.state.screen !== "app-nav") return;
+      const editingSongNow = tabRef.current === "canciones" && openSongRef.current?.mode === "edit";
+      if (editingSongNow && songEditDirtyRef.current) {
+        // Cancela visualmente el "atrás" volviendo a apilar la pantalla de edición actual, y en su
+        // lugar pregunta si guardar o descartar — recién ahí se deja pasar la navegación de verdad.
+        history.pushState({ screen: "app-nav", tab: tabRef.current, selectedEventId: selectedEventIdRef.current, openSong: openSongRef.current, selectedMinistryId: selectedMinistryIdRef.current }, "");
+        setSongExitPrompt(true);
+        return;
+      }
       isPoppingNavRef.current = true;
-      setTab(e.state.tab ?? "inicio");
-      setSelectedEventId(e.state.selectedEventId ?? null);
-      setOpenSong(e.state.openSong ?? null);
-      setSelectedMinistryId(e.state.selectedMinistryId ?? null);
+      const s = { tab: e.state.tab ?? "inicio", selectedEventId: e.state.selectedEventId ?? null, openSong: e.state.openSong ?? null, selectedMinistryId: e.state.selectedMinistryId ?? null };
+      isAtHomeRootRef.current = s.tab === "inicio" && isRootState(s);
+      setTab(s.tab);
+      setSelectedEventId(s.selectedEventId);
+      setOpenSong(s.openSong);
+      setSelectedMinistryId(s.selectedMinistryId);
     };
     window.addEventListener("popstate", onPopState);
     if (!history.state || history.state.screen !== "app-nav") {
@@ -689,10 +733,12 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       // el historial — sincroniza lo que se ve en pantalla con lo que esa entrada dice de verdad, para
       // que el historial real del navegador y la pantalla nunca queden desalineados.
       isPoppingNavRef.current = true;
-      setTab(history.state.tab ?? "inicio");
-      setSelectedEventId(history.state.selectedEventId ?? null);
-      setOpenSong(history.state.openSong ?? null);
-      setSelectedMinistryId(history.state.selectedMinistryId ?? null);
+      const s = { tab: history.state.tab ?? "inicio", selectedEventId: history.state.selectedEventId ?? null, openSong: history.state.openSong ?? null, selectedMinistryId: history.state.selectedMinistryId ?? null };
+      isAtHomeRootRef.current = s.tab === "inicio" && isRootState(s);
+      setTab(s.tab);
+      setSelectedEventId(s.selectedEventId);
+      setOpenSong(s.openSong);
+      setSelectedMinistryId(s.selectedMinistryId);
     }
     return () => window.removeEventListener("popstate", onPopState);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -700,8 +746,35 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   useEffect(() => {
     if (!hasMountedNavRef.current) { hasMountedNavRef.current = true; return; }
     if (isPoppingNavRef.current) { isPoppingNavRef.current = false; return; }
-    history.pushState({ screen: "app-nav", tab, selectedEventId, openSong, selectedMinistryId }, "");
+    const next = { screen: "app-nav", tab, selectedEventId, openSong, selectedMinistryId };
+    if (isRootState(next)) {
+      // Cambiar de pestaña SIN entrar a nada (Eventos → Canciones → Ajustes, todas en su lista raíz) no
+      // debe apilarse: si no, "atrás" te haría retroceder pestaña por pestaña en vez de ir a Inicio de
+      // un solo golpe. Solo la primera vez que nos movemos de Inicio hacia otra pestaña se apila (para
+      // dejar Inicio como piso); de ahí en adelante, moverse entre raíces de pestañas reemplaza.
+      if (tab !== "inicio" && isAtHomeRootRef.current) {
+        history.pushState(next, "");
+      } else {
+        history.replaceState(next, "");
+      }
+      isAtHomeRootRef.current = tab === "inicio";
+    } else {
+      // Entrar a un evento/canción/ministerio SÍ es un paso real: se apila para poder volver.
+      history.pushState(next, "");
+      isAtHomeRootRef.current = false;
+    }
   }, [tab, selectedEventId, openSong, selectedMinistryId]);
+
+  // Resuelve el aviso de "salir sin guardar": apaga el guard y repite el "atrás" real — como ya no
+  // está sucio, esta vez el popstate de arriba lo deja pasar y aplica la navegación pendiente tal cual.
+  const exitSongEditor = () => { songEditDirtyRef.current = false; setSongExitPrompt(false); window.history.back(); };
+  const handleDiscardSongEdit = () => exitSongEditor();
+  const handleSaveSongEdit = () => {
+    const draft = songDraftGetterRef.current?.();
+    if (draft) persistSongDraft(draft).catch((e) => window.alert("No se pudo guardar la canción: " + e.message));
+    exitSongEditor();
+  };
+  const handleKeepEditingSong = () => setSongExitPrompt(false);
 
   if (!datosListos) {
     return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", color: "#8996A6", fontFamily: "'Poppins', sans-serif", fontSize: 14 }}>Cargando…</div>;
@@ -770,12 +843,14 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       )}
 
       {tab === "ministerios" && !selectedMinistryId && (
-        <MinistriesList ministries={ministries} usuariosReales={usuariosReales} onSelect={setSelectedMinistryId} onCreate={createMinistry} />
+        <MinistriesList ministries={ministries} usuariosReales={usuariosReales} isAdminViewer={isAdminViewer} onSelect={setSelectedMinistryId} onCreate={createMinistry} />
       )}
       {tab === "ministerios" && selectedMinistryId && (
         <MinistryDetail
           ministry={ministries.find((m) => m.id === selectedMinistryId)}
           usuariosReales={usuariosReales}
+          isAdminViewer={isAdminViewer}
+          canEdit={isAdminViewer || ministries.find((m) => m.id === selectedMinistryId)?.leaderId === userId}
           onBack={() => window.history.back()}
           onAddPlanItem={() => addPlanItem(selectedMinistryId)}
           onUpdatePlanItem={(itemId, field, value) => updatePlanItem(selectedMinistryId, itemId, field, value)}
@@ -798,14 +873,26 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           isAdminViewer={isAdminViewer}
           onCancel={() => window.history.back()}
           onSave={saveSong}
+          onDirtyChange={(d) => { songEditDirtyRef.current = d; }}
+          draftGetterRef={songDraftGetterRef}
         />
+      )}
+      {songExitPrompt && (
+        <ModalShell title="Cambios sin guardar" icon={Pencil} color="#E8821E" onClose={handleKeepEditingSong}>
+          <div style={{ fontSize: 13, color: "#33415A", marginBottom: 16 }}>Esta canción tiene cambios sin guardar. ¿Qué quieres hacer antes de salir?</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button onClick={handleSaveSongEdit} style={primaryBtn}>Guardar y salir</button>
+            <button onClick={handleDiscardSongEdit} style={{ ...primaryBtn, background: "#EEF1F6", color: "#C23B32" }}>Descartar cambios y salir</button>
+            <button onClick={handleKeepEditingSong} style={{ ...primaryBtn, background: "none", boxShadow: "none" }}>Seguir editando</button>
+          </div>
+        </ModalShell>
       )}
 
       {tab === "eventos" && !selectedEvent && (
         <EventList events={realEvents} plantillas={plantillas} isAdminViewer={isAdminViewer} liveEventId={liveEventId} onSelect={setSelectedEventId} onCreate={createEvent} />
       )}
 
-      {tab === "eventos" && selectedEvent && (
+      {tab === "eventos" && selectedEvent && !openSong && (
         <EventDetail
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
           isLive={selectedEvent.id === liveEventId} canControlLive={canControlLive} isAdminViewer={isAdminViewer}
@@ -822,15 +909,36 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           onAddEncargado={addEncargado} onSetEncargadoStatus={setEncargadoStatus} onSetEncargadoLead={setEncargadoLead} onRemoveEncargado={removeEncargado}
           onAddWorshipRole={addWorshipRole} onRemoveWorshipRole={removeWorshipRole} onAddWorshipRoleMember={addWorshipRoleMember} onSetWorshipRoleMemberStatus={setWorshipRoleMemberStatus} onSetWorshipRoleMemberLead={setWorshipRoleMemberLead} onRemoveWorshipRoleMember={removeWorshipRoleMember}
           onViewMinistry={(id) => { setTab("ministerios"); setSelectedMinistryId(id); }}
+          onOpenSong={(songId) => setOpenSong({ id: songId, mode: "view" })}
           showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
           showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
           showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
         />
       )}
 
-      {tab === "musico" && liveEvent && (
-        <MusicianLiveView event={liveEvent} library={library} />
-      )}
+      {tab === "eventos" && selectedEvent && openSong && (() => {
+        // Abrir una canción desde el Setlist de un evento: mismo lector de solo lectura que en
+        // Canciones, pero con "Anterior/Siguiente" limitado a las canciones DE ESTE evento (para que
+        // el músico pueda ir pasando el setlist completo en vivo) y respetando la tonalidad_override
+        // que se haya elegido para ese ítem en particular (no la tonalidad guardada de la canción).
+        const songItems = selectedEvent.serviceOrder.filter((it) => it.type === "cancion");
+        const pos = songItems.findIndex((it) => it.songId === openSong.id);
+        const currentItem = pos >= 0 ? songItems[pos] : null;
+        const baseSong = library.find((s) => s.id === openSong.id);
+        const displaySong = songWithKeyOverride(baseSong, currentItem?.keyOverride);
+        const prevSongId = pos > 0 ? songItems[pos - 1].songId : null;
+        const nextSongId = pos >= 0 && pos < songItems.length - 1 ? songItems[pos + 1].songId : null;
+        return (
+          <SongView
+            song={displaySong} isAdminViewer={isAdminViewer}
+            onBack={() => window.history.back()}
+            onEdit={() => { setTab("canciones"); setOpenSong({ id: openSong.id, mode: "edit" }); }}
+            onTranspose={transposeSong} onDelete={deleteSong}
+            onPrev={prevSongId ? () => setOpenSong({ id: prevSongId, mode: "view" }) : null}
+            onNext={nextSongId ? () => setOpenSong({ id: nextSongId, mode: "view" }) : null}
+          />
+        );
+      })()}
       </div>
       )}
 
@@ -859,10 +967,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           y el contenido nunca pueda quedar tapado detrás de ella, tenga o no scroll la pantalla. */}
       <div style={{ flexShrink: 0, display: "flex", justifyContent: "center", padding: "10px 0 14px", zIndex: 40 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 2, background: "#16324F", borderRadius: 24, padding: 6, boxShadow: "0 8px 24px rgba(22,50,79,0.35)", maxWidth: "94vw", overflowX: "auto" }}>
-          {[["inicio", "Inicio", Home], ["canciones", "Canciones", Music], ["eventos", "Eventos", Calendar], ["ministerios", "Grupos", LayoutGrid], ["musico", "Músico", Mic2], ["envivo", "En vivo", Radio], ["proyeccion", "Pantalla", ImgIcon], ["ajustes", "Ajustes", Settings]]
+          {[["inicio", "Inicio", Home], ["canciones", "Canciones", Music], ["eventos", "Eventos", Calendar], ["ministerios", "Grupos", LayoutGrid], ["envivo", "En vivo", Radio], ["proyeccion", "Pantalla", ImgIcon], ["ajustes", "Ajustes", Settings]]
             .filter(([val]) => !isCompact || (val !== "envivo" && val !== "proyeccion")) // Control en vivo/Proyección son de escritorio: en celular no aparecen
             .map(([val, label, Icon]) => {
-            const needsLive = val === "envivo" || val === "proyeccion" || val === "musico";
+            const needsLive = val === "envivo" || val === "proyeccion";
             const needsLiveControlRole = (val === "envivo" || val === "proyeccion") && !canControlLive;
             const isDisabled = (needsLive && !liveEvent) || needsLiveControlRole;
             const active = tab === val;
@@ -1196,7 +1304,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
 }
 
 // ---------------- MINISTERIOS ----------------
-function MinistriesList({ ministries, usuariosReales, onSelect, onCreate }) {
+function MinistriesList({ ministries, usuariosReales, isAdminViewer, onSelect, onCreate }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", leaderId: "", color: MINISTRY_COLORS[0] });
 
@@ -1211,7 +1319,7 @@ function MinistriesList({ ministries, usuariosReales, onSelect, onCreate }) {
     <div className="screen-enter" style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Ministerios</h2>
-        <button onClick={() => setShowForm(true)} style={{ ...iconGhost, width: 30, height: 30, background: "#EEF1F6", border: "1px solid #C7D0DD" }}><Plus size={16} /></button>
+        {isAdminViewer && <button onClick={() => setShowForm(true)} style={{ ...iconGhost, width: 30, height: 30, background: "#EEF1F6", border: "1px solid #C7D0DD" }}><Plus size={16} /></button>}
       </div>
       <div style={{ fontSize: 12, color: "#64707F", marginBottom: 16 }}>Cada ministerio tiene su propio espacio para compartir la planificación del mes y recursos con su equipo. Cualquier miembro puede ser el líder de un grupo.</div>
 
@@ -1251,7 +1359,7 @@ function MinistriesList({ ministries, usuariosReales, onSelect, onCreate }) {
   );
 }
 
-function MinistryDetail({ ministry, usuariosReales, onBack, onAddPlanItem, onUpdatePlanItem, onRemovePlanItem, onAddResource, onRemoveResource, onSetLeader }) {
+function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBack, onAddPlanItem, onUpdatePlanItem, onRemovePlanItem, onAddResource, onRemoveResource, onSetLeader }) {
   const [showResourceForm, setShowResourceForm] = useState(false);
   const [resourceDraft, setResourceDraft] = useState({ title: "", link: "" });
   if (!ministry) return null;
@@ -1270,26 +1378,30 @@ function MinistryDetail({ ministry, usuariosReales, onBack, onAddPlanItem, onUpd
         <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, marginBottom: 8 }}>{ministry.name}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#33415A" }}>
           Líder:
-          <select value={ministry.leaderId || ""} onChange={(e) => onSetLeader(e.target.value || null)} style={{ ...inputStyle, width: "auto", padding: "4px 8px", fontSize: 12 }}>
-            <option value="">Sin asignar</option>
-            {usuariosReales.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-          </select>
+          {isAdminViewer ? (
+            <select value={ministry.leaderId || ""} onChange={(e) => onSetLeader(e.target.value || null)} style={{ ...inputStyle, width: "auto", padding: "4px 8px", fontSize: 12 }}>
+              <option value="">Sin asignar</option>
+              {usuariosReales.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+            </select>
+          ) : (
+            <span style={{ fontWeight: 700 }}>{ministry.leaderName || "Sin asignar"}</span>
+          )}
         </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><ClipboardList size={15} color={ministry.color} /> Planificación del mes</div>
-        <button onClick={onAddPlanItem} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar fecha</button>
+        {canEdit && <button onClick={onAddPlanItem} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar fecha</button>}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 22 }}>
         {ministry.plan.map((p) => (
           <div key={p.id} style={{ background: "#FFFFFF", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 10, padding: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <input type="date" title="Fecha del domingo (o día) al que corresponde esta planificación" value={p.date || ""} onChange={(e) => onUpdatePlanItem(p.id, "date", e.target.value)} style={{ ...inputStyle, width: 150, fontSize: 12, fontWeight: 700, flexShrink: 0 }} />
-              <input value={p.title} onChange={(e) => onUpdatePlanItem(p.id, "title", e.target.value)} placeholder="Título de la semana" style={{ ...inputStyle, flex: 1, fontWeight: 700 }} />
-              <button onClick={() => onRemovePlanItem(p.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>
+              <input type="date" disabled={!canEdit} title="Fecha del domingo (o día) al que corresponde esta planificación" value={p.date || ""} onChange={(e) => onUpdatePlanItem(p.id, "date", e.target.value)} style={{ ...inputStyle, width: 150, fontSize: 12, fontWeight: 700, flexShrink: 0 }} />
+              <input disabled={!canEdit} value={p.title} onChange={(e) => onUpdatePlanItem(p.id, "title", e.target.value)} placeholder="Título de la semana" style={{ ...inputStyle, flex: 1, fontWeight: 700 }} />
+              {canEdit && <button onClick={() => onRemovePlanItem(p.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>}
             </div>
-            <textarea value={p.detail} onChange={(e) => onUpdatePlanItem(p.id, "detail", e.target.value)} placeholder="Detalle, recursos necesarios, responsables..." rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+            <textarea disabled={!canEdit} value={p.detail} onChange={(e) => onUpdatePlanItem(p.id, "detail", e.target.value)} placeholder="Detalle, recursos necesarios, responsables..." rows={2} style={{ ...inputStyle, resize: "vertical" }} />
           </div>
         ))}
         {ministry.plan.length === 0 && <div style={{ color: "#8996A6", fontSize: 13 }}>Aún no hay planificación este mes.</div>}
@@ -1297,7 +1409,7 @@ function MinistryDetail({ ministry, usuariosReales, onBack, onAddPlanItem, onUpd
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><FolderOpen size={15} color={ministry.color} /> Recursos</div>
-        <button onClick={() => setShowResourceForm(true)} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar recurso</button>
+        {canEdit && <button onClick={() => setShowResourceForm(true)} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar recurso</button>}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {ministry.resources.map((r) => (
@@ -1305,7 +1417,7 @@ function MinistryDetail({ ministry, usuariosReales, onBack, onAddPlanItem, onUpd
             <FolderOpen size={14} color="#8996A6" />
             <span style={{ fontSize: 13, flex: 1 }}>{r.title}</span>
             {r.link && <a href={r.link} target="_blank" rel="noreferrer" style={{ color: "#2F5FA8" }}><ExternalLink size={14} /></a>}
-            <button onClick={() => onRemoveResource(r.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>
+            {canEdit && <button onClick={() => onRemoveResource(r.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>}
           </div>
         ))}
         {ministry.resources.length === 0 && <div style={{ color: "#8996A6", fontSize: 13 }}>No hay recursos compartidos todavía.</div>}
@@ -1406,31 +1518,52 @@ function badgeColor(badge) {
   return "#2E86AB"; // Estrofas: celeste
 }
 
-function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete }) {
+function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext }) {
   const sectionRefs = useRef({});
+  const touchStartXRef = useRef(null);
   if (!song) return null;
   const blockKeys = Object.keys(song.blocks);
   const scrollTo = (key) => sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
   const isMinorKey = song.key.endsWith("m");
   const keyChoices = KEY_OPTIONS.filter((k) => k.endsWith("m") === isMinorKey);
+  // Deslizar para pasar a la siguiente/anterior canción del setlist mientras se toca en vivo (solo
+  // cuando esta vista viene abierta desde un Setlist, es decir cuando hay onPrev/onNext).
+  const swipeHandlers = (onPrev || onNext) ? {
+    onTouchStart: (e) => { touchStartXRef.current = e.touches[0].clientX; },
+    onTouchEnd: (e) => {
+      if (touchStartXRef.current == null) return;
+      const dx = e.changedTouches[0].clientX - touchStartXRef.current;
+      touchStartXRef.current = null;
+      if (Math.abs(dx) < 60) return;
+      if (dx < 0 && onNext) onNext();
+      else if (dx > 0 && onPrev) onPrev();
+    },
+  } : {};
 
   return (
-    <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box", position: "relative" }} {...swipeHandlers}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <select
-            value={song.key}
-            onChange={(e) => onTranspose(song.id, e.target.value)}
-            title="Transportar la canción a otra tonalidad"
-            style={{ fontSize: 11, fontWeight: 700, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 6, padding: "5px 6px", color: "#33415A" }}
-          >
-            {keyChoices.map((k) => <option key={k} value={k}>{k}</option>)}
-          </select>
+          {isAdminViewer && (
+            <select
+              value={song.key}
+              onChange={(e) => onTranspose(song.id, e.target.value)}
+              title="Transportar la canción a otra tonalidad"
+              style={{ fontSize: 11, fontWeight: 700, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 6, padding: "5px 6px", color: "#33415A" }}
+            >
+              {keyChoices.map((k) => <option key={k} value={k}>{k}</option>)}
+            </select>
+          )}
+          {!isAdminViewer && (
+            <span style={{ fontSize: 11, fontWeight: 700, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 6, padding: "5px 8px", color: "#33415A" }}>{song.key}</span>
+          )}
           {song.hasAttachment && <Paperclip size={16} color="#8996A6" />}
-          <button onClick={onEdit} style={{ display: "flex", alignItems: "center", gap: 6, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: "#16233A", cursor: "pointer" }}>
-            <Pencil size={14} /> Editar
-          </button>
+          {isAdminViewer && (
+            <button onClick={onEdit} style={{ display: "flex", alignItems: "center", gap: 6, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: "#16233A", cursor: "pointer" }}>
+              <Pencil size={14} /> Editar
+            </button>
+          )}
           {isAdminViewer && (
             <button onClick={() => onDelete(song)} title="Eliminar canción" style={iconGhost}>
               <Trash2 size={14} color="#C23B32" />
@@ -1469,17 +1602,36 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete }
           </div>
         );
       })}
+
+      {(onPrev || onNext) && (
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 24, position: "sticky", bottom: 8 }}>
+          <button onClick={onPrev} disabled={!onPrev} style={{ ...navPillBtn, opacity: onPrev ? 1 : 0.35, cursor: onPrev ? "pointer" : "default" }}><ChevronLeft size={16} /> Anterior</button>
+          <button onClick={onNext} disabled={!onNext} style={{ ...navPillBtn, opacity: onNext ? 1 : 0.35, cursor: onNext ? "pointer" : "default" }}>Siguiente <ChevronRight size={16} /></button>
+        </div>
+      )}
     </div>
   );
 }
+const navPillBtn = { display: "flex", alignItems: "center", gap: 6, background: "#16324F", color: "#FFFFFF", border: "none", borderRadius: 24, padding: "10px 18px", fontSize: 13, fontWeight: 700, boxShadow: "0 4px 14px rgba(22,50,79,0.25)" };
 
-function SongEditor({ song, isAdminViewer, onCancel, onSave }) {
+function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draftGetterRef }) {
   const canEditKey = isAdminViewer || !song;
-  const [draft, setDraft] = useState(() => (song ? JSON.parse(JSON.stringify(song)) : blankSong()));
+  const initialSnapshotRef = useRef(song ? JSON.stringify(song) : JSON.stringify(blankSong()));
+  const [draft, setDraft] = useState(() => JSON.parse(initialSnapshotRef.current));
   const [subTab, setSubTab] = useState("detalles"); // detalles | contenido | letra | estructura
   const [activeBlockKey, setActiveBlockKey] = useState(null);
   const [chordMode, setChordMode] = useState("triadas"); // triadas | septimas
   const textareaRefs = useRef({});
+
+  // Avisa al contenedor si hay cambios sin guardar (para el guard de "atrás" con confirmación) y le
+  // deja siempre a mano el borrador actual (para el botón "Guardar y salir" de esa confirmación). Todo
+  // en un solo efecto sin dependencias: la limpieza de la render anterior corre justo antes que este
+  // efecto, así que solo queda "sucio" en falso cuando de verdad se desmonta (nada la pisa después).
+  useEffect(() => {
+    if (draftGetterRef) draftGetterRef.current = () => draft;
+    if (onDirtyChange) onDirtyChange(JSON.stringify(draft) !== initialSnapshotRef.current);
+    return () => { if (onDirtyChange) onDirtyChange(false); if (draftGetterRef) draftGetterRef.current = null; };
+  });
 
   const blockKeys = Object.keys(draft.blocks);
   const setBlockField = (key, field, value) => setDraft((d) => ({ ...d, blocks: { ...d.blocks, [key]: { ...d.blocks[key], [field]: value } } }));
@@ -1559,18 +1711,22 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave }) {
 
   return (
     <div style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onCancel} style={iconGhost}><ArrowLeft size={16} /></button>
-          <span style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600 }}>{song ? "Editar canción" : "Nueva canción"}</span>
+      {/* Fijo al hacer scroll: así "Guardar" queda siempre a mano después de agregar bloques, acordes
+          o diapositivas más abajo, sin tener que volver a subir hasta el principio. */}
+      <div style={{ position: "sticky", top: 0, zIndex: 5, background: "#F4F6FA", paddingBottom: 10, marginBottom: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={onCancel} style={iconGhost}><ArrowLeft size={16} /></button>
+            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600 }}>{song ? "Editar canción" : "Nueva canción"}</span>
+          </div>
+          <button disabled={!canSave} onClick={() => onSave(draft)} style={{ ...primaryBtn, width: "auto", padding: "8px 18px", opacity: canSave ? 1 : 0.4, cursor: canSave ? "pointer" : "not-allowed" }}>Guardar</button>
         </div>
-        <button disabled={!canSave} onClick={() => onSave(draft)} style={{ ...primaryBtn, width: "auto", padding: "8px 18px", opacity: canSave ? 1 : 0.4, cursor: canSave ? "pointer" : "not-allowed" }}>Guardar</button>
-      </div>
 
-      <div style={{ display: "flex", gap: 18, borderBottom: "1px solid #DDE3ED", marginBottom: 18 }}>
-        {[["detalles", "Detalles"], ["contenido", "Contenido"], ["letra", "Letra"], ["estructura", "Estructura"]].map(([val, label]) => (
-          <button key={val} onClick={() => setSubTab(val)} style={{ background: "none", border: "none", padding: "0 0 10px", fontSize: 13, fontWeight: 700, color: subTab === val ? "#16233A" : "#8996A6", borderBottom: subTab === val ? "2px solid #2F5FA8" : "2px solid transparent", cursor: "pointer" }}>{label}</button>
-        ))}
+        <div style={{ display: "flex", gap: 18, borderBottom: "1px solid #DDE3ED", marginTop: 14 }}>
+          {[["detalles", "Detalles"], ["contenido", "Contenido"], ["letra", "Letra"], ["estructura", "Estructura"]].map(([val, label]) => (
+            <button key={val} onClick={() => setSubTab(val)} style={{ background: "none", border: "none", padding: "0 0 10px", fontSize: 13, fontWeight: 700, color: subTab === val ? "#16233A" : "#8996A6", borderBottom: subTab === val ? "2px solid #2F5FA8" : "2px solid transparent", cursor: "pointer" }}>{label}</button>
+          ))}
+        </div>
       </div>
 
       {subTab === "detalles" && (
@@ -1979,7 +2135,7 @@ function EventDetail({
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
-  onViewMinistry,
+  onViewMinistry, onOpenSong,
   showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide,
   showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint,
 }) {
@@ -2023,7 +2179,7 @@ function EventDetail({
         canAddBibleReading={canAddBibleReading} canAddSermonPoints={canAddSermonPoints}
         onAddEncargado={onAddEncargado} onSetEncargadoStatus={onSetEncargadoStatus} onSetEncargadoLead={onSetEncargadoLead} onRemoveEncargado={onRemoveEncargado}
         onAddWorshipRole={onAddWorshipRole} onRemoveWorshipRole={onRemoveWorshipRole} onAddWorshipRoleMember={onAddWorshipRoleMember} onSetWorshipRoleMemberStatus={onSetWorshipRoleMemberStatus} onSetWorshipRoleMemberLead={onSetWorshipRoleMemberLead} onRemoveWorshipRoleMember={onRemoveWorshipRoleMember}
-        onViewMinistry={onViewMinistry}
+        onViewMinistry={onViewMinistry} onOpenSong={onOpenSong}
         showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
         showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
         showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
@@ -2173,7 +2329,7 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onMove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onMove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   // Estructura: solo administradores agregan/mueven/eliminan bloques (la "estructura" del culto). El
   // contenido DE un bloque (encargados, título, descripción, tonalidad de sus canciones) lo puede
   // editar además el líder del ministerio vinculado a ESE bloque específico — no cualquier líder de grupo.
@@ -2423,7 +2579,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                       <span style={{ width: 22, height: 22, borderRadius: "50%", border: "1px solid #C3CBD6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{effectiveKey}</span>
                     )}
                     <span style={{ fontSize: 11, color: "#64707F", background: "#EEF1F6", borderRadius: 12, padding: "3px 8px", flexShrink: 0 }}>{song.tempo} bpm</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{song.title}</span>
+                    <span onClick={() => onOpenSong(song.id)} title="Abrir para tocar en vivo" style={{ fontSize: 13, fontWeight: 600, flex: 1, cursor: "pointer" }}>{song.title}</span>
                     {song.hasAttachment && <Paperclip size={14} color="#8996A6" />}
                   </>
                 ) : (
@@ -2777,135 +2933,6 @@ function ModalShell({ title, icon: Icon, color, onClose, children }) {
 }
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
-// ---------------- MODO MÚSICO (auto-avance por tempo, con acordes) ----------------
-function MusicianLiveView({ event, library }) {
-  const items = useMemo(() => {
-    const out = [];
-    event.serviceOrder.forEach((it) => {
-      if (it.type !== "cancion") return;
-      const song = library.find((s) => s.id === it.songId);
-      if (!song) return;
-      (it.structure || song.defaultStructure).forEach((blockKey, i) => {
-        const block = song.blocks[blockKey];
-        out.push({ slideId: `${it.id}-${i}`, occurrenceId: it.id, songTitle: song.title, songKey: song.key, assignedKey: it.keyOverride || song.key, tempo: song.tempo || 80, badge: block.badge, blockLabel: block.label, bars: block.bars || 8, lines: block.lines });
-      });
-    });
-    return out;
-  }, [event, library]);
-
-  const [idx, setIdx] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [manualBpm, setManualBpm] = useState(null);
-  const [secondsLeft, setSecondsLeft] = useState(0);
-  const [nudge, setNudge] = useState(0); // ajuste de tonalidad personal del músico, en semitonos
-  const tapTimesRef = useRef([]);
-  const timeoutRef = useRef(null);
-  const intervalRef = useRef(null);
-
-  const current = items[idx];
-  const effectiveTempo = manualBpm || (current ? current.tempo : 80);
-  const durationSec = current ? Math.max(2, Math.round(((current.bars * 4) / effectiveTempo) * 60)) : 0;
-  const baseShift = current ? semitoneShift(current.songKey, current.assignedKey) : 0;
-  const totalShift = ((baseShift + nudge) % 12 + 12) % 12;
-  const displayedKey = current ? transposeKeyLabel(current.songKey, totalShift) : null;
-
-  const clearTimers = () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); if (intervalRef.current) clearInterval(intervalRef.current); };
-  const goto = (i) => { setPlaying(false); clearTimers(); setIdx(Math.min(Math.max(i, 0), items.length - 1)); };
-
-  // El ajuste personal solo dura mientras se está en esa canción: se resetea al cambiar de canción.
-  useEffect(() => { setNudge(0); }, [current?.occurrenceId]);
-
-  useEffect(() => {
-    clearTimers();
-    if (!playing || !current) return;
-    setSecondsLeft(durationSec);
-    intervalRef.current = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000);
-    timeoutRef.current = setTimeout(() => {
-      setIdx((i) => {
-        if (i + 1 >= items.length) { setPlaying(false); return i; }
-        return i + 1;
-      });
-    }, durationSec * 1000);
-    return clearTimers;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idx, playing, effectiveTempo]);
-
-  const tapTempo = () => {
-    const now = Date.now();
-    const arr = tapTimesRef.current.filter((t) => now - t < 2000);
-    arr.push(now);
-    tapTimesRef.current = arr.slice(-5);
-    if (arr.length >= 2) {
-      const intervals = arr.slice(1).map((t, i) => t - arr[i]);
-      const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-      const bpm = Math.round(60000 / avg);
-      if (bpm > 30 && bpm < 300) setManualBpm(bpm);
-    }
-  };
-
-  if (!current) {
-    return <div style={{ flex: 1, padding: 20, color: "#64707F" }}>Este evento no tiene canciones en su setlist todavía.</div>;
-  }
-
-  const next = items[idx + 1];
-  const pct = durationSec ? Math.round(((durationSec - secondsLeft) / durationSec) * 100) : 0;
-
-  return (
-    <div style={{ flex: 1, padding: 20, maxWidth: 640, width: "100%", margin: "0 auto", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#8996A6", letterSpacing: 0.5 }}>MODO MÚSICO · {current.songTitle}</div>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600 }}>{current.badge} · {current.blockLabel}</div>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: "#2F5FA8", fontFamily: "'JetBrains Mono', monospace" }}>{effectiveTempo}</div>
-          <div style={{ fontSize: 10, color: "#8996A6" }}>{manualBpm ? "bpm (tap)" : "bpm guardado"}</div>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "8px 12px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 11, color: "#8996A6", fontWeight: 700 }}>TONALIDAD</span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 700, color: "#1F8A73" }}>{displayedKey}</span>
-          {nudge !== 0 && <span style={{ fontSize: 10, color: "#E8821E" }}>Ajuste personal — no afecta a los demás</span>}
-        </div>
-        <div style={{ display: "flex", gap: 4 }}>
-          <button onClick={() => setNudge((n) => n - 1)} style={iconGhost} title="Bajar medio tono"><Minus size={14} /></button>
-          <button onClick={() => setNudge((n) => n + 1)} style={iconGhost} title="Subir medio tono"><Plus size={14} /></button>
-        </div>
-      </div>
-
-      <div style={{ background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: "20px 18px" }}>
-        {current.lines.map((l, i) => <ChordsAboveLyrics key={i} raw={l} semitones={totalShift} />)}
-      </div>
-
-      <div>
-        <div style={{ height: 8, borderRadius: 6, background: "#EEF1F6", overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${playing ? pct : 0}%`, background: "#E8821E", borderRadius: 6, transition: "width 1s linear" }} />
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#8996A6", marginTop: 4 }}>
-          <span>{current.bars} compases · ~{durationSec}s</span>
-          {playing && <span>{secondsLeft}s restantes</span>}
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={() => goto(idx - 1)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><ChevronLeft size={16} /> Anterior</button>
-        <button onClick={() => setPlaying((p) => !p)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center", background: playing ? "#E8821E" : "#16324F", color: "#fff" }}>
-          {playing ? <Pause size={15} /> : <Play size={15} />} {playing ? "Pausar" : "Reproducir"}
-        </button>
-        <button onClick={() => goto(idx + 1)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><ChevronRight size={16} /> Siguiente</button>
-      </div>
-
-      <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={tapTempo} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}>🥁 Tap tempo</button>
-        {manualBpm && <button onClick={() => setManualBpm(null)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center", color: "#C23B32" }}>Restablecer tempo guardado</button>}
-      </div>
-
-      {next && <div style={{ fontSize: 12, color: "#8996A6" }}>Siguiente: {next.badge} · {next.blockLabel} {next.songTitle !== current.songTitle ? `(${next.songTitle})` : ""}</div>}
-    </div>
-  );
-}
 
 function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onChangeBibleVersion, onAddLiveSlide, onEditLiveSlide }) {
   const [showStyle, setShowStyle] = useState(false);
