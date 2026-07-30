@@ -861,6 +861,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const songDraftGetterRef = useRef(null);
   const [songExitPrompt, setSongExitPrompt] = useState(false);
   const pendingNavigateRef = useRef(null);
+  // Aviso breve (no bloqueante) para cuando el atrás físico/gesto guarda solo, sin preguntar — así queda
+  // claro que el cambio no se perdió aunque no haya salido la alerta de guardar/descartar.
+  const [songAutoSaveToast, setSongAutoSaveToast] = useState(false);
+  const songAutoSaveToastTimeoutRef = useRef(null);
   useEffect(() => {
     const onPopState = (e) => {
       if (!e.state || e.state.screen !== "app-nav") return;
@@ -873,6 +877,9 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
             .then((idReal) => {
               const guardado = { ...draft, id: idReal };
               setLibrary((lib) => (existeEnDb ? lib.map((s) => (s.id === draft.id ? guardado : s)) : [...lib, guardado]));
+              clearTimeout(songAutoSaveToastTimeoutRef.current);
+              setSongAutoSaveToast(true);
+              songAutoSaveToastTimeoutRef.current = setTimeout(() => setSongAutoSaveToast(false), 2200);
             })
             .catch((e2) => window.alert("No se pudo guardar la canción: " + e2.message));
         }
@@ -1118,6 +1125,11 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
             <button onClick={handleKeepEditingSong} style={{ ...primaryBtn, background: "none", boxShadow: "none" }}>Seguir editando</button>
           </div>
         </ModalShell>
+      )}
+      {songAutoSaveToast && (
+        <div style={{ position: "fixed", left: "50%", bottom: 88, transform: "translateX(-50%)", background: "#16324F", color: "#FFFFFF", fontSize: 13, fontWeight: 600, padding: "10px 18px", borderRadius: 999, boxShadow: "0 8px 24px rgba(22,50,79,0.3)", zIndex: 200, display: "flex", alignItems: "center", gap: 8 }}>
+          <Check size={16} color="#5CD6A9" /> Cambios guardados
+        </div>
       )}
 
       {tab === "eventos" && !selectedEvent && (
