@@ -112,13 +112,9 @@ function SetPassword({ onDone }) {
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", fontFamily: "'Poppins', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Poppins:wght@400;500;600;700&display=swap');`}</style>
       <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 16 }}>
-          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#E8821E", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16324F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8 21V10c0-3.5 2.2-6 5.3-6 2.4 0 4 1.3 3.6 3.1-.4 1.9-2.7 2.6-4.9 2.1" />
-            </svg>
-          </div>
-          <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "#16324F" }}>WorshipFlow</span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 16 }}>
+          <img src="/logo-iglesia.png" alt="Iglesia Jesús El Buen Pastor" style={{ width: 180, maxWidth: "100%", height: "auto" }} />
+          <span style={{ fontFamily: "'Fraunces', serif", fontSize: 14, fontWeight: 600, color: "#16324F" }}>WorshipFlow</span>
         </div>
         <div style={{ fontSize: 14, fontWeight: 700, color: "#16233A", marginBottom: 4 }}>¡Bienvenido/a!</div>
         <div style={{ fontSize: 12, color: "#64707F", marginBottom: 16 }}>Elige tu contraseña para terminar de activar tu cuenta.</div>

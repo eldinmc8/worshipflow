@@ -905,10 +905,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         <div style={{ position: "absolute", bottom: -40, left: 40, width: 90, height: 90, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#E8821E", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16324F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 21V10c0-3.5 2.2-6 5.3-6 2.4 0 4 1.3 3.6 3.1-.4 1.9-2.7 2.6-4.9 2.1" />
-              </svg>
+            {/* Fondo blanco detrás del logo: el logo tiene fondo transparente y trazos en azul marino —
+                sobre el header (también azul marino) se perdería sin un fondo claro que le dé contraste. */}
+            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
+              <img src="/pwa-192x192.png" alt="Iglesia Jesús El Buen Pastor" style={{ width: "150%", height: "150%", objectFit: "cover" }} />
             </div>
             <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "#fff" }}>WorshipFlow</span>
           </div>

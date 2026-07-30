@@ -23,7 +23,8 @@ export default defineConfig({
         background_color: '#F4F6FA',
         theme_color: '#16324F',
         icons: [
-          { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
         ],
       },
     }),
