@@ -1012,7 +1012,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           onAddEncargado={addEncargado} onSetEncargadoStatus={setEncargadoStatus} onSetEncargadoLead={setEncargadoLead} onRemoveEncargado={removeEncargado}
           onAddWorshipRole={addWorshipRole} onRemoveWorshipRole={removeWorshipRole} onAddWorshipRoleMember={addWorshipRoleMember} onSetWorshipRoleMemberStatus={setWorshipRoleMemberStatus} onSetWorshipRoleMemberLead={setWorshipRoleMemberLead} onRemoveWorshipRoleMember={removeWorshipRoleMember}
           onViewMinistry={(id) => { setTab("ministerios"); setSelectedMinistryId(id); }}
-          onOpenSong={(songId) => setOpenSong({ id: songId, mode: "view" })}
+          onOpenSong={(songId, itemId) => setOpenSong({ id: songId, mode: "view", itemId })}
           showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
           showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
           showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
@@ -1024,21 +1024,27 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         // Canciones, pero con "Anterior/Siguiente" limitado a las canciones DE ESTE evento (para que
         // el músico pueda ir pasando el setlist completo en vivo) y respetando la tonalidad_override
         // que se haya elegido para ese ítem en particular (no la tonalidad guardada de la canción).
+        // OJO: se ubica por el id del ÍTEM del Setlist (openSong.itemId), no por el id de la canción —
+        // si la misma canción se repite varias veces en el setlist, todas comparten el mismo song id,
+        // así que buscar por song id siempre encontraba la PRIMERA repetición y deslizar no avanzaba.
         const songItems = selectedEvent.serviceOrder.filter((it) => it.type === "cancion");
-        const pos = songItems.findIndex((it) => it.songId === openSong.id);
+        const pos = openSong.itemId != null
+          ? songItems.findIndex((it) => it.id === openSong.itemId)
+          : songItems.findIndex((it) => it.songId === openSong.id);
         const currentItem = pos >= 0 ? songItems[pos] : null;
         const baseSong = library.find((s) => s.id === openSong.id);
         const displaySong = songWithKeyOverride(baseSong, currentItem?.keyOverride);
-        const prevSongId = pos > 0 ? songItems[pos - 1].songId : null;
-        const nextSongId = pos >= 0 && pos < songItems.length - 1 ? songItems[pos + 1].songId : null;
+        const prevItem = pos > 0 ? songItems[pos - 1] : null;
+        const nextItem = pos >= 0 && pos < songItems.length - 1 ? songItems[pos + 1] : null;
+        const positionLabel = pos >= 0 && songItems.length > 1 ? `${pos + 1} de ${songItems.length}` : null;
         return (
           <SongView
-            song={displaySong} isAdminViewer={isAdminViewer}
+            song={displaySong} isAdminViewer={isAdminViewer} positionLabel={positionLabel}
             onBack={() => window.history.back()}
             onEdit={() => { setTab("canciones"); setOpenSong({ id: openSong.id, mode: "edit" }); }}
             onTranspose={transposeSong} onDelete={deleteSong}
-            onPrev={prevSongId ? () => setOpenSong({ id: prevSongId, mode: "view" }) : null}
-            onNext={nextSongId ? () => setOpenSong({ id: nextSongId, mode: "view" }) : null}
+            onPrev={prevItem ? () => setOpenSong({ id: prevItem.songId, mode: "view", itemId: prevItem.id }) : null}
+            onNext={nextItem ? () => setOpenSong({ id: nextItem.songId, mode: "view", itemId: nextItem.id }) : null}
           />
         );
       })()}
@@ -1715,7 +1721,7 @@ function badgeColor(badge) {
   return "#2E86AB"; // Estrofas: celeste
 }
 
-function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext }) {
+function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext, positionLabel }) {
   const sectionRefs = useRef({});
   const pointerStartRef = useRef(null);
   if (!song) return null;
@@ -1726,10 +1732,15 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   // Deslizar para pasar a la siguiente/anterior canción del setlist mientras se toca en vivo (solo
   // cuando esta vista viene abierta desde un Setlist, es decir cuando hay onPrev/onNext) — sin botones,
   // solo el gesto. Pointer Events en vez de Touch Events: unifica mouse/touch/lápiz y es más confiable
-  // en apps instaladas (touch events sueltos a veces no llegan a disparar en PWA/WebView). Se guarda
-  // también el Y inicial para no confundir un scroll vertical con un deslizar horizontal.
+  // en apps instaladas (touch events sueltos a veces no llegan a disparar en PWA/WebView). setPointerCapture
+  // fuerza a que este mismo elemento reciba el "up" pase lo que pase con el dedo entre medio (scroll,
+  // salirse del borde, etc.) — sin esto, en algunos navegadores el "up" se pierde y el gesto queda a medias.
+  // Se guarda también el Y inicial para no confundir un scroll vertical con un deslizar horizontal.
   const swipeHandlers = (onPrev || onNext) ? {
-    onPointerDown: (e) => { pointerStartRef.current = { x: e.clientX, y: e.clientY }; },
+    onPointerDown: (e) => {
+      pointerStartRef.current = { x: e.clientX, y: e.clientY };
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    },
     onPointerUp: (e) => {
       const start = pointerStartRef.current;
       pointerStartRef.current = null;
@@ -1776,7 +1787,10 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
       </div>
 
       <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600, margin: "0 0 4px" }}>{song.title}</h2>
-      <div style={{ fontSize: 13, color: "#64707F", marginBottom: 16 }}>{song.artist || "Unknown"} · {song.tempo} bpm</div>
+      <div style={{ fontSize: 13, color: "#64707F", marginBottom: 16 }}>
+        {song.artist || "Unknown"} · {song.tempo} bpm
+        {positionLabel && <span style={{ marginLeft: 8, fontWeight: 700, color: "#E8821E" }}>· {positionLabel} en el setlist</span>}
+      </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         {blockKeys.map((key) => {
@@ -2775,7 +2789,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                       <span style={{ width: 22, height: 22, borderRadius: "50%", border: "1px solid #C3CBD6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{effectiveKey}</span>
                     )}
                     <span style={{ fontSize: 11, color: "#64707F", background: "#EEF1F6", borderRadius: 12, padding: "3px 8px", flexShrink: 0 }}>{song.tempo} bpm</span>
-                    <span onClick={() => onOpenSong(song.id)} title="Abrir para tocar en vivo" style={{ fontSize: 13, fontWeight: 600, flex: 1, cursor: "pointer" }}>{song.title}</span>
+                    <span onClick={() => onOpenSong(song.id, item.id)} title="Abrir para tocar en vivo" style={{ fontSize: 13, fontWeight: 600, flex: 1, cursor: "pointer" }}>{song.title}</span>
                     {song.hasAttachment && <Paperclip size={14} color="#8996A6" />}
                   </>
                 ) : (
