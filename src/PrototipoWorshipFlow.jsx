@@ -492,8 +492,14 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     updateItemEncargados(itemId, (encargados) => encargados.map((m, mi) => (mi === idx ? { ...m, status } : m)));
   const setEncargadoLead = (itemId, idx) =>
     updateItemEncargados(itemId, (encargados) => encargados.map((m, mi) => (mi === idx ? { ...m, lead: !m.lead } : m)));
-  const removeEncargado = (itemId, idx) =>
-    updateItemEncargados(itemId, (encargados) => encargados.filter((_, mi) => mi !== idx));
+  const removeEncargado = (itemId, idx) => {
+    let removido = null;
+    updateItemEncargados(itemId, (encargados) => {
+      removido = encargados[idx];
+      return encargados.filter((_, mi) => mi !== idx);
+    });
+    if (removido) notificarAsignacion(removido.usuarioId, { titulo: "Te quitaron un encargo", cuerpo: `Ya no tienes un encargo en "${selectedEvent?.title}".`, eventoId: selectedEventId });
+  };
 
   // Equipo de alabanza: un solo roster de roles (Guitarra, Batería, Voz...) compartido por los bloques
   // de Alabanza y Adoración del mismo evento — por eso vive en el evento, no en cada bloque.
@@ -522,8 +528,14 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     updateWorshipRoleMembers(roleId, (members) => members.map((m, mi) => (mi === idx ? { ...m, status } : m)));
   const setWorshipRoleMemberLead = (roleId, idx) =>
     updateWorshipRoleMembers(roleId, (members) => members.map((m, mi) => (mi === idx ? { ...m, lead: !m.lead } : m)));
-  const removeWorshipRoleMember = (roleId, idx) =>
-    updateWorshipRoleMembers(roleId, (members) => members.filter((_, mi) => mi !== idx));
+  const removeWorshipRoleMember = (roleId, idx) => {
+    let removido = null;
+    updateWorshipRoleMembers(roleId, (members) => {
+      removido = members[idx];
+      return members.filter((_, mi) => mi !== idx);
+    });
+    if (removido) notificarAsignacion(removido.usuarioId, { titulo: "Te quitaron del equipo de alabanza", cuerpo: `Ya no estás en el equipo de alabanza de "${selectedEvent?.title}".`, eventoId: selectedEventId });
+  };
 
   const goto = (i) => {
     setBlanked(false);
@@ -797,11 +809,13 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     setSelectedMinistryId(newM.id);
   };
   const setMinistryLeader = (id, leaderId) => {
+    const previousLeaderId = ministries.find((m) => m.id === id)?.leaderId || null;
     const leaderName = usuariosReales.find((u) => u.id === leaderId)?.nombre || "";
     const ministryName = ministries.find((m) => m.id === id)?.name || "un grupo";
     setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, leaderId: leaderId || null, leaderName } : m)));
     actualizarLiderMinisterio(id, leaderId || null).catch((e) => window.alert("No se pudo actualizar el líder: " + e.message));
     if (leaderId) notificarAsignacion(leaderId, { titulo: "Te asignaron como líder", cuerpo: `Ahora eres líder del grupo "${ministryName}".` });
+    if (previousLeaderId && previousLeaderId !== leaderId) notificarAsignacion(previousLeaderId, { titulo: "Ya no eres líder", cuerpo: `Dejaste de ser líder del grupo "${ministryName}".` });
   };
 
   // ---- Botón "atrás" real ----
@@ -1511,7 +1525,20 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
       {pushEstado === "sin-soporte" ? (
         <NavRow icon={Bell} label="Notificaciones push no disponibles en este navegador" right={null} />
       ) : pushEstado === "activo" ? (
-        <NavRow icon={Bell} label="Notificaciones push activadas" onClick={desactivarPush} right={pushBusy ? null : <span style={{ fontSize: 11, color: "#1F8A73", fontWeight: 700 }}>Desactivar</span>} />
+        // A propósito sin un botón de un solo toque para desactivar — solo un enlace chico que primero
+        // confirma con una advertencia, para que nadie las apague sin querer o sin pensarlo.
+        <NavRow
+          icon={Bell}
+          label="Notificaciones push activadas"
+          right={pushBusy ? null : (
+            <span
+              onClick={(e) => { e.stopPropagation(); if (window.confirm("¿Seguro que quieres desactivar las notificaciones push? Podrías perderte avisos de tus asignaciones y recordatorios de eventos.")) desactivarPush(); }}
+              style={{ fontSize: 11, color: "#8996A6", fontWeight: 600, cursor: "pointer" }}
+            >
+              Desactivar
+            </span>
+          )}
+        />
       ) : pushEstado === "inactivo" ? (
         <NavRow icon={Bell} label="Activar notificaciones push" onClick={activarPush} right={pushBusy ? null : <ChevronRight size={16} color="#8996A6" />} />
       ) : null}
