@@ -313,6 +313,13 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // Canciones y Eventos arrancan vacíos y se cargan de verdad desde Supabase — ya no hay datos de
   // ejemplo del prototipo. Ministerios sigue siendo local por ahora (todavía no tiene tabla real).
   const [library, setLibrary] = useState([]);
+  // El guardado automático por atrás físico/gesto (más abajo, junto al listener de popstate) vive
+  // dentro de un efecto que se monta una sola vez, así que no puede leer `library`/`userId` del render
+  // actual sin quedarse con el valor viejo del primer render (cuando `library` todavía estaba vacío) —
+  // de ahí estas refs, mantenidas al día en cada render.
+  const libraryRef = useRef(library);
+  const userIdRef = useRef(userId);
+  useEffect(() => { libraryRef.current = library; userIdRef.current = userId; }, [library, userId]);
   const [openSong, setOpenSong] = useState(null); // null = lista; { id, mode: 'view' | 'edit' }
   const [events, setEvents] = useState([]);
   const [datosListos, setDatosListos] = useState(false);
@@ -844,12 +851,12 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   useEffect(() => {
     tabRef.current = tab; selectedEventIdRef.current = selectedEventId; openSongRef.current = openSong; selectedMinistryIdRef.current = selectedMinistryId;
   }, [tab, selectedEventId, openSong, selectedMinistryId]);
-  // Si se está editando una canción con cambios sin guardar, se pregunta si guardar o descartar antes
-  // de salir — sin importar si el "atrás" viene del botón "‹" propio, de cambiar de pestaña, o del
-  // gesto/botón físico del teléfono (los tres caminos comparten exactamente la misma confirmación).
-  // El físico/gesto ya disparó el pop del navegador cuando llega acá, así que "cancelarlo" es volver a
-  // apilar la MISMA pantalla de edición encima — recién cuando se confirma guardar/descartar se repite
-  // el "atrás" de verdad (ver exitSongEditor), y como para entonces ya no está sucio, esta vez sí pasa.
+  // Si se está editando una canción con cambios sin guardar y se sale por el botón "‹" propio o por
+  // cambiar de pestaña, se pregunta si guardar o descartar (ver requestLeaveSongEditor más abajo). Por
+  // atrás físico/gesto NO se pregunta — ya se intentó cancelar esa navegación desde JS reapilando el
+  // historial (para poder mostrar la misma alerta) y resultó poco confiable en celulares/PWA: el gesto
+  // quedaba a medias y la pantalla se trababa sin dejar salir del editor. En su lugar se guarda solo,
+  // sin preguntar, y se deja pasar la navegación normal — así nunca se pierde nada de todas formas.
   const songEditDirtyRef = useRef(false);
   const songDraftGetterRef = useRef(null);
   const [songExitPrompt, setSongExitPrompt] = useState(false);
@@ -859,10 +866,17 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       if (!e.state || e.state.screen !== "app-nav") return;
       const editingSongNow = tabRef.current === "canciones" && openSongRef.current?.mode === "edit";
       if (editingSongNow && songEditDirtyRef.current) {
-        history.pushState({ screen: "app-nav", tab: tabRef.current, selectedEventId: selectedEventIdRef.current, openSong: openSongRef.current, selectedMinistryId: selectedMinistryIdRef.current }, "");
-        pendingNavigateRef.current = () => window.history.back();
-        setSongExitPrompt(true);
-        return;
+        const draft = songDraftGetterRef.current?.();
+        if (draft) {
+          const existeEnDb = libraryRef.current.some((s) => s.id === draft.id);
+          guardarCancionDesdeEditor(draft, existeEnDb, userIdRef.current)
+            .then((idReal) => {
+              const guardado = { ...draft, id: idReal };
+              setLibrary((lib) => (existeEnDb ? lib.map((s) => (s.id === draft.id ? guardado : s)) : [...lib, guardado]));
+            })
+            .catch((e2) => window.alert("No se pudo guardar la canción: " + e2.message));
+        }
+        songEditDirtyRef.current = false;
       }
       isPoppingNavRef.current = true;
       const s = { tab: e.state.tab ?? "inicio", selectedEventId: e.state.selectedEventId ?? null, openSong: e.state.openSong ?? null, selectedMinistryId: e.state.selectedMinistryId ?? null };
