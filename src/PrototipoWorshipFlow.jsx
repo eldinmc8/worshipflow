@@ -275,7 +275,6 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       .finally(() => setDatosListos(true));
   }, []);
   const [selectedEventId, setSelectedEventId] = useState(null);
-  const [returnTab, setReturnTab] = useState(null); // pestaña a la que "atrás" debe regresar tras un salto entre pestañas
   const [activeIdx, setActiveIdx] = useState(0);
   const [blanked, setBlanked] = useState(false);
   // Contenido improvisado en vivo (versículo/canción/video que no están en el setlist): reemplaza al plan mientras esté activo.
@@ -664,6 +663,46 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     actualizarLiderMinisterio(id, leaderId || null).catch((e) => window.alert("No se pudo actualizar el líder: " + e.message));
   };
 
+  // ---- Botón "atrás" real ----
+  // Cada pantalla dentro de la app (una pestaña, un evento abierto, una canción abierta, un ministerio
+  // abierto) se empuja como su propia entrada del historial del navegador. Así, el botón/gesto "atrás"
+  // del teléfono o del navegador va regresando pantalla por pantalla — como cualquier app real — en vez
+  // de salir de la app de un solo salto. Los botones "‹ Volver" de la propia interfaz usan exactamente
+  // el mismo mecanismo (history.back()), así que ambos caminos siempre coinciden.
+  const isPoppingNavRef = useRef(false);
+  const hasMountedNavRef = useRef(false);
+  useEffect(() => {
+    const onPopState = (e) => {
+      if (!e.state || e.state.screen !== "app-nav") return;
+      isPoppingNavRef.current = true;
+      setTab(e.state.tab ?? "inicio");
+      setSelectedEventId(e.state.selectedEventId ?? null);
+      setOpenSong(e.state.openSong ?? null);
+      setSelectedMinistryId(e.state.selectedMinistryId ?? null);
+    };
+    window.addEventListener("popstate", onPopState);
+    if (!history.state || history.state.screen !== "app-nav") {
+      // Primera vez que esta pantalla existe de verdad (recién cargó la página): siembra la entrada base.
+      history.replaceState({ screen: "app-nav", tab, selectedEventId, openSong, selectedMinistryId }, "");
+    } else {
+      // Nos volvieron a montar (ej. al volver de Usuarios) con una entrada "app-nav" que ya existía en
+      // el historial — sincroniza lo que se ve en pantalla con lo que esa entrada dice de verdad, para
+      // que el historial real del navegador y la pantalla nunca queden desalineados.
+      isPoppingNavRef.current = true;
+      setTab(history.state.tab ?? "inicio");
+      setSelectedEventId(history.state.selectedEventId ?? null);
+      setOpenSong(history.state.openSong ?? null);
+      setSelectedMinistryId(history.state.selectedMinistryId ?? null);
+    }
+    return () => window.removeEventListener("popstate", onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!hasMountedNavRef.current) { hasMountedNavRef.current = true; return; }
+    if (isPoppingNavRef.current) { isPoppingNavRef.current = false; return; }
+    history.pushState({ screen: "app-nav", tab, selectedEventId, openSong, selectedMinistryId }, "");
+  }, [tab, selectedEventId, openSong, selectedMinistryId]);
+
   if (!datosListos) {
     return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", color: "#8996A6", fontFamily: "'Poppins', sans-serif", fontSize: 14 }}>Cargando…</div>;
   }
@@ -710,7 +749,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       {!["envivo", "proyeccion"].includes(tab) && (
       <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: tab === "inicio" ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {tab === "inicio" && (
-        <InicioView events={realEvents} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} isCompact={isCompact} onSelectEvent={(id) => { setSelectedEventId(id); setReturnTab("inicio"); setTab("eventos"); }} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} />
+        <InicioView events={realEvents} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} isCompact={isCompact} onSelectEvent={(id) => { setSelectedEventId(id); setTab("eventos"); }} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} />
       )}
 
       {tab === "ajustes" && (
@@ -725,7 +764,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           usuariosReales={usuariosReales}
           perfil={perfil}
           events={realEvents}
-          onSelectEvent={(id) => { setSelectedEventId(id); setReturnTab("ajustes"); setTab("eventos"); }}
+          onSelectEvent={(id) => { setSelectedEventId(id); setTab("eventos"); }}
           onGoToUsuarios={onGoToUsuarios}
         />
       )}
@@ -737,7 +776,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         <MinistryDetail
           ministry={ministries.find((m) => m.id === selectedMinistryId)}
           usuariosReales={usuariosReales}
-          onBack={() => { setSelectedMinistryId(null); if (returnTab) { setTab(returnTab); setReturnTab(null); } }}
+          onBack={() => window.history.back()}
           onAddPlanItem={() => addPlanItem(selectedMinistryId)}
           onUpdatePlanItem={(itemId, field, value) => updatePlanItem(selectedMinistryId, itemId, field, value)}
           onRemovePlanItem={(itemId) => removePlanItem(selectedMinistryId, itemId)}
@@ -751,13 +790,13 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         <CancionesList library={library} isAdminViewer={isAdminViewer} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onDelete={deleteSong} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "view" && (
-        <SongView song={library.find((s) => s.id === openSong.id)} isAdminViewer={isAdminViewer} onBack={() => setOpenSong(null)} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
+        <SongView song={library.find((s) => s.id === openSong.id)} isAdminViewer={isAdminViewer} onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "edit" && (
         <SongEditor
           song={openSong.id ? library.find((s) => s.id === openSong.id) : null}
           isAdminViewer={isAdminViewer}
-          onCancel={() => setOpenSong(openSong.id ? { id: openSong.id, mode: "view" } : null)}
+          onCancel={() => window.history.back()}
           onSave={saveSong}
         />
       )}
@@ -771,7 +810,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
           isLive={selectedEvent.id === liveEventId} canControlLive={canControlLive} isAdminViewer={isAdminViewer}
           userId={userId} usuariosReales={usuariosReales}
-          onBack={() => { setSelectedEventId(null); if (returnTab) { setTab(returnTab); setReturnTab(null); } }}
+          onBack={() => window.history.back()}
           onStart={() => startEvent(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
           onAddSong={addSong} onAddSeccion={addSeccion}
           onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)}
@@ -782,7 +821,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           canAddSermonPoints={canAddSermonPoints()}
           onAddEncargado={addEncargado} onSetEncargadoStatus={setEncargadoStatus} onSetEncargadoLead={setEncargadoLead} onRemoveEncargado={removeEncargado}
           onAddWorshipRole={addWorshipRole} onRemoveWorshipRole={removeWorshipRole} onAddWorshipRoleMember={addWorshipRoleMember} onSetWorshipRoleMemberStatus={setWorshipRoleMemberStatus} onSetWorshipRoleMemberLead={setWorshipRoleMemberLead} onRemoveWorshipRoleMember={removeWorshipRoleMember}
-          onViewMinistry={(id) => { setReturnTab("eventos"); setTab("ministerios"); setSelectedMinistryId(id); }}
+          onViewMinistry={(id) => { setTab("ministerios"); setSelectedMinistryId(id); }}
           showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
           showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
           showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
@@ -919,7 +958,7 @@ function InicioView({ events, favoritesCount, memberCount, liveEventId, onSelect
   const nextIsLive = nextEvent && nextEvent.id === liveEventId;
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", padding: "22px 24px", boxSizing: "border-box", overflow: isCompact ? "auto" : "hidden" }}>
+    <div className="screen-enter" style={{ height: "100%", display: "flex", flexDirection: "column", padding: "22px 24px", boxSizing: "border-box", overflow: isCompact ? "auto" : "hidden" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 16, flexShrink: 0 }}>
         <div>
           <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600 }}>{greetingWord()}</div>
@@ -1063,7 +1102,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
   };
 
   return (
-    <div style={{ padding: 20, maxWidth: 640, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 640, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, marginBottom: 18 }}>Ajustes</h2>
 
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 18 }}>
@@ -1169,7 +1208,7 @@ function MinistriesList({ ministries, usuariosReales, onSelect, onCreate }) {
   };
 
   return (
-    <div style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Ministerios</h2>
         <button onClick={() => setShowForm(true)} style={{ ...iconGhost, width: 30, height: 30, background: "#EEF1F6", border: "1px solid #C7D0DD" }}><Plus size={16} /></button>
@@ -1225,7 +1264,7 @@ function MinistryDetail({ ministry, usuariosReales, onBack, onAddPlanItem, onUpd
   };
 
   return (
-    <div style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <button onClick={onBack} style={{ ...iconGhost, marginBottom: 10 }}><ArrowLeft size={16} /></button>
       <div style={{ borderRadius: 12, background: `linear-gradient(135deg, ${ministry.color}33, #EEF1F6)`, padding: 20, marginBottom: 20 }}>
         <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, marginBottom: 8 }}>{ministry.name}</div>
@@ -1289,10 +1328,10 @@ function CancionesList({ library, isAdminViewer, onToggleFavorite, onOpen, onNew
   const [query, setQuery] = useState("");
   const filtered = library.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
   return (
-    <div style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>{library.length} Canciones</h2>
-        <button onClick={onNew} style={{ ...iconGhost, width: 30, height: 30, background: "#EEF1F6", border: "1px solid #C7D0DD" }}><Plus size={16} /></button>
+        {isAdminViewer && <button onClick={onNew} style={{ ...iconGhost, width: 30, height: 30, background: "#EEF1F6", border: "1px solid #C7D0DD" }}><Plus size={16} /></button>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
         <Search size={15} color="#8996A6" />
@@ -1376,7 +1415,7 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete }
   const keyChoices = KEY_OPTIONS.filter((k) => k.endsWith("m") === isMinorKey);
 
   return (
-    <div style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1784,7 +1823,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
 
   if (isPlantillaMode) {
     return (
-      <div style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+      <div className="screen-enter" style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 12 }}>
           <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Plantillas</h2>
           <button onClick={() => setViewMode("eventos")} style={ghostToggleBtn}>← Ver eventos</button>
@@ -1814,7 +1853,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
   }
 
   return (
-    <div style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12 }}>
         <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Eventos</h2>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1888,10 +1927,12 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
         );
       })}
 
-      {/* Botón flotante circular para crear evento */}
-      <button onClick={openCreate} style={{ position: "fixed", right: 20, bottom: 92, width: 54, height: 54, borderRadius: "50%", background: "#E8821E", border: "none", boxShadow: "0 8px 18px rgba(232,130,30,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 41 }}>
-        <Plus size={24} color="#16324F" />
-      </button>
+      {/* Botón flotante circular para crear evento — solo administradores */}
+      {isAdminViewer && (
+        <button onClick={openCreate} style={{ position: "fixed", right: 20, bottom: 92, width: 54, height: 54, borderRadius: "50%", background: "#E8821E", border: "none", boxShadow: "0 8px 18px rgba(232,130,30,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 41 }}>
+          <Plus size={24} color="#16324F" />
+        </button>
+      )}
 
       {step === "template" && (
         <ModalShell title="Selecciona plantilla" icon={ListMusic} color="#5661B3" onClose={() => setStep(null)}>
@@ -1943,7 +1984,7 @@ function EventDetail({
   showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint,
 }) {
   return (
-    <div style={{ width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <div className="screen-enter" style={{ width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "20px 20px 0", maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
@@ -2097,6 +2138,27 @@ function WorshipRolesEditor({ roles, canEdit, allUsuarios, onAddRole, onRemoveRo
   );
 }
 
+// Encabezado de la sección de encargados/roles dentro de un bloque expandido: de solo lectura hasta
+// que se toque "Editar"; "Guardar" solo regresa a la vista de solo lectura (ya se guardó solo).
+function EncargadosSectionHeader({ label, canEdit, isEditing, onToggle }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F" }}>{label}</div>
+      {canEdit && (
+        isEditing ? (
+          <button onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 4, background: "#E9F7EF", border: "1px solid #1F8A73", borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: "#1F8A73", cursor: "pointer" }}>
+            <Check size={12} /> Guardar
+          </button>
+        ) : (
+          <button onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 4, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: "#33415A", cursor: "pointer" }}>
+            <Pencil size={11} /> Editar
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
 // Botón "Encargados": ícono de personas con una insignia del conteo actual — es el punto de entrada
 // para agregar/gestionar a los encargados de este ítem del Setlist, sin necesitar una pantalla aparte.
 function EncargadosToggleButton({ count, onClick }) {
@@ -2135,6 +2197,10 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
     .some((it) => it.ministryId && ministries.find((m) => m.id === it.ministryId)?.leaderId === userId);
   const [query, setQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({});
+  // Encargados/roles quedan de solo lectura hasta que se toque "Editar" — "Guardar" solo regresa a esa
+  // vista de solo lectura (los cambios ya se guardaron solos en cuanto se hicieron).
+  const [editingAssignments, setEditingAssignments] = useState({});
+  const toggleEditingAssignments = (itemId) => setEditingAssignments((e) => ({ ...e, [itemId]: !e[itemId] }));
   const [showLibrary, setShowLibrary] = useState(!isCompact);
   const [showSeccionForm, setShowSeccionForm] = useState(false);
   const [seccionDraft, setSeccionDraft] = useState({ title: "", description: "" });
@@ -2288,10 +2354,15 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                     )}
                     {isWorshipBlock(item) ? (
                       <>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>EQUIPO DE ALABANZA (compartido con Alabanza/Adoración)</div>
+                        <EncargadosSectionHeader
+                          label="EQUIPO DE ALABANZA (compartido con Alabanza/Adoración)"
+                          canEdit={canEditWorshipRoles}
+                          isEditing={!!editingAssignments[item.id]}
+                          onToggle={() => toggleEditingAssignments(item.id)}
+                        />
                         <WorshipRolesEditor
                           roles={event.worshipRoles || []}
-                          canEdit={canEditWorshipRoles}
+                          canEdit={canEditWorshipRoles && !!editingAssignments[item.id]}
                           allUsuarios={usuariosReales}
                           onAddRole={onAddWorshipRole}
                           onRemoveRole={onRemoveWorshipRole}
@@ -2303,10 +2374,15 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                       </>
                     ) : (
                       <>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>ENCARGADOS DE ESTE BLOQUE</div>
+                        <EncargadosSectionHeader
+                          label="ENCARGADOS DE ESTE BLOQUE"
+                          canEdit={canEdit}
+                          isEditing={!!editingAssignments[item.id]}
+                          onToggle={() => toggleEditingAssignments(item.id)}
+                        />
                         <EncargadosList
                           encargados={item.encargados || []}
-                          canEdit={canEdit}
+                          canEdit={canEdit && !!editingAssignments[item.id]}
                           allUsuarios={usuariosReales}
                           onAddEncargado={(usuario) => onAddEncargado(item.id, usuario)}
                           onSetStatus={(mi, status) => onSetEncargadoStatus(item.id, mi, status)}
@@ -2371,10 +2447,15 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
               </div>
               {isExpanded && (
                 <div style={{ background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 8, padding: "10px 12px", marginTop: -2 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>ENCARGADOS</div>
+                  <EncargadosSectionHeader
+                    label="ENCARGADOS"
+                    canEdit={canEdit}
+                    isEditing={!!editingAssignments[item.id]}
+                    onToggle={() => toggleEditingAssignments(item.id)}
+                  />
                   <EncargadosList
                     encargados={item.encargados || []}
-                    canEdit={canEdit}
+                    canEdit={canEdit && !!editingAssignments[item.id]}
                     allUsuarios={usuariosReales}
                     onAddEncargado={(usuario) => onAddEncargado(item.id, usuario)}
                     onSetStatus={(mi, status) => onSetEncargadoStatus(item.id, mi, status)}

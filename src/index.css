@@ -7,4 +7,44 @@
 body {
   margin: 0;
   font-family: 'Poppins', sans-serif;
+  /* Que se sienta como una app instalada, no una página web: sin el "rebote" de scroll del navegador
+     ni el gesto de "pull to refresh" que recarga la página sin querer al arrastrar hacia abajo. */
+  overscroll-behavior: none;
+  /* Quita el resplandor azul/gris que Chrome/Android muestra al tocar botones y enlaces. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Nadie puede seleccionar/copiar texto de la interfaz (títulos, botones, listas, letras de
+   canciones en modo lectura, etc.) — así se siente como una app real y no como una página web.
+   Los campos donde SÍ se escribe (inputs, textareas, o cualquier cosa marcada como editable)
+   quedan exceptuados: ahí la selección de texto debe funcionar normal para poder editar/copiar. */
+html {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none; /* iOS: sin el menú de "Copiar/Buscar" al mantener presionado */
+}
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* Evita arrastrar imágenes/íconos con el dedo o el mouse (otro gesto típico de página web). */
+img, svg {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+/* Transición al entrar a cualquier pantalla (cambiar de pestaña, abrir un evento/canción/perfil...):
+   un fundido + deslizamiento sutil hacia arriba, igual en escritorio y en teléfono. Como cada pantalla
+   se monta/desmonta con el cambio de estado de React, la animación se reproduce sola cada vez. */
+@keyframes screenEnter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.screen-enter {
+  animation: screenEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen-enter { animation: none; }
 }

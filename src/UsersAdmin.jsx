@@ -74,7 +74,7 @@ function UserProfile({ user, myEmail, busy, onBack, onUpdateField, onResetPasswo
   const isSelf = user.email === myEmail;
 
   return (
-    <div style={{ maxWidth: 480, margin: "0 auto" }}>
+    <div className="screen-enter" style={{ maxWidth: 480, margin: "0 auto" }}>
       <button onClick={onBack} style={{ ...ghostBtn, marginBottom: 14 }}>← Volver a Usuarios</button>
 
       <div style={{ textAlign: "center", marginBottom: 18 }}>
@@ -196,6 +196,21 @@ export default function UsersAdmin({ myEmail, onExit }) {
   const [draft, setDraft] = useState({ nombre: "", email: "", rol: "miembro" });
   const [selectedUserId, setSelectedUserId] = useState(null);
 
+  // Abrir el perfil de alguien empuja su propia entrada del historial ("usuarios-profile") — así el
+  // botón/gesto "atrás" regresa a la lista de Usuarios en vez de salir de la app de un salto.
+  useEffect(() => {
+    const onPopState = (e) => {
+      if (e.state?.screen !== "usuarios-profile" && e.state?.screen !== "usuarios-root") return;
+      setSelectedUserId(e.state.screen === "usuarios-profile" ? e.state.selectedUserId : null);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+  const openUserProfile = (id) => {
+    window.history.pushState({ screen: "usuarios-profile", selectedUserId: id }, "");
+    setSelectedUserId(id);
+  };
+
   const load = async () => {
     setError("");
     const { data, error } = await supabase.from("usuarios").select("*").order("created_at", { ascending: true });
@@ -266,10 +281,10 @@ export default function UsersAdmin({ myEmail, onExit }) {
               <button onClick={onExit} style={ghostBtn}>← Volver a la app</button>
             </div>
             {error && <div style={{ background: "#FDECEA", border: "1px solid #C23B32", color: "#8A2A24", borderRadius: 8, padding: "8px 12px", fontSize: 13, marginBottom: 14 }}>{error}</div>}
-            <UserProfile user={selectedUser} myEmail={myEmail} busy={busy} onBack={() => setSelectedUserId(null)} onUpdateField={updateField} onResetPassword={resetPassword} onRemoveUser={removeUser} />
+            <UserProfile user={selectedUser} myEmail={myEmail} busy={busy} onBack={() => window.history.back()} onUpdateField={updateField} onResetPassword={resetPassword} onRemoveUser={removeUser} />
           </>
         ) : (
-          <>
+          <div className="screen-enter">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, color: "#16324F", margin: 0 }}>Usuarios</h1>
               <button onClick={onExit} style={ghostBtn}>← Volver a la app</button>
@@ -300,7 +315,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
               {rows === null && <div style={{ padding: 20, color: "#8996A6", fontSize: 13 }}>Cargando…</div>}
               {rows?.length === 0 && <div style={{ padding: 20, color: "#8996A6", fontSize: 13 }}>Todavía no hay usuarios.</div>}
               {rows?.map((row) => (
-                <button key={row.id} onClick={() => setSelectedUserId(row.id)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "none", border: "none", padding: "12px 16px", borderBottom: "1px solid #EEF1F6", cursor: "pointer" }}>
+                <button key={row.id} onClick={() => openUserProfile(row.id)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "none", border: "none", padding: "12px 16px", borderBottom: "1px solid #EEF1F6", cursor: "pointer" }}>
                   <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
                     {row.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
                   </div>
@@ -313,7 +328,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
                 </button>
               ))}
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

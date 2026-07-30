@@ -33,6 +33,23 @@ export default function AuthGate() {
       .then(({ data }) => setPerfil(data ?? null));
   }, [session]);
 
+  // Ir a Usuarios empuja su propia entrada del historial ("usuarios-root") — así el botón/gesto
+  // "atrás" regresa a la app en vez de salir de golpe. El propio WorshipFlowPrototype maneja sus
+  // entradas "app-nav"; aquí solo nos importa distinguir "estamos en Usuarios" de "estamos en la app".
+  useEffect(() => {
+    const onPopState = (e) => {
+      const screen = e.state?.screen;
+      if (!screen) return;
+      if (screen === "usuarios-root" || screen === "usuarios-profile") setView("usuarios");
+      else if (screen === "app-root" || screen === "app-nav") setView("app");
+    };
+    window.addEventListener("popstate", onPopState);
+    if (!window.history.state?.screen) {
+      window.history.replaceState({ screen: "app-root" }, "");
+    }
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
   if (session === undefined) {
     // Antes esto se quedaba en blanco para siempre si getSession() fallaba (sin mensaje ni forma de
     // saber qué pasó) — ahora, pasados unos segundos sin respuesta, se ve al menos un aviso.
@@ -59,9 +76,13 @@ export default function AuthGate() {
   const esAdmin = perfil?.rol === "admin";
 
   return view === "usuarios" && esAdmin ? (
-    <UsersAdmin myEmail={session.user.email} onExit={() => setView("app")} />
+    <UsersAdmin myEmail={session.user.email} onExit={() => window.history.back()} />
   ) : (
-    <PrototipoWorshipFlow userId={session.user.id} perfil={perfil} onGoToUsuarios={esAdmin ? () => setView("usuarios") : null} />
+    <PrototipoWorshipFlow
+      userId={session.user.id}
+      perfil={perfil}
+      onGoToUsuarios={esAdmin ? () => { window.history.pushState({ screen: "usuarios-root" }, ""); setView("usuarios"); } : null}
+    />
   );
 }
 
@@ -90,7 +111,7 @@ function SetPassword({ onDone }) {
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", fontFamily: "'Poppins', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Poppins:wght@400;500;600;700&display=swap');`}</style>
-      <div style={{ width: 360, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
+      <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 16 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#E8821E", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16324F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
