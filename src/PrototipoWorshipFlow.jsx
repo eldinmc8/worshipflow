@@ -262,6 +262,38 @@ function isWorshipBlock(item) {
 function isBibleReadingBlock(item) {
   return item.type === "seccion" && /lectura|oraci[oó]n/i.test(item.title || "");
 }
+// Limpieza es un privilegio aparte del resto del equipo: quien está asignado a este bloque solo ve
+// este bloque, nada del resto del Setlist (ver CleaningOnlyPanel).
+function isCleaningBlock(item) {
+  return item.type === "seccion" && /limpieza/i.test(item.title || "");
+}
+// Vista reducida para quien solo tiene el privilegio de Limpieza en este evento: ni el Setlist
+// completo, ni la biblioteca de canciones, ni botones de agregar — solo su propio bloque, de solo
+// lectura (encargados incluidos), tal como se ve el resto de bloques cuando no se pueden editar.
+function CleaningOnlyPanel({ block }) {
+  return (
+    <div style={{ flex: 1, padding: 20, display: "flex", justifyContent: "center" }}>
+      <div style={{ width: "100%", maxWidth: 480, background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#64707F", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><Sparkles size={13} color="#5661B3" /> TU PRIVILEGIO EN ESTE EVENTO</div>
+        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, marginBottom: 4 }}>{block.title}</div>
+        {block.description && <div style={{ fontSize: 13, color: "#33415A", marginBottom: 16 }}>{block.description}</div>}
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 8 }}>EQUIPO ASIGNADO</div>
+        {(block.encargados || []).length === 0 ? (
+          <div style={{ color: "#8996A6", fontSize: 13 }}>Nadie asignado todavía.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {block.encargados.map((m, i) => (
+              <div key={m.id || i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0 }}>{m.n.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</div>
+                <span style={{ fontSize: 13 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "#E8821E", fontWeight: 700 }}> · Encargado</span>}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios }) {
   const isCompact = useIsCompact(); // vista de celular: en pantallas angostas se activan los layouts compactos y se oculta Multimedia
@@ -967,7 +999,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         <EventDetail
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
           isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={isAdminViewer}
-          usuariosReales={usuariosReales}
+          userId={userId} usuariosReales={usuariosReales}
           onBack={() => window.history.back()}
           onStart={() => startEvent(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
           onAddSong={addSong} onAddSeccion={addSeccion}
@@ -2301,7 +2333,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
 
 // ---------------- DETALLE DE EVENTO ----------------
 function EventDetail({
-  event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, usuariosReales, onBack, onStart, onGoLive, onDelete,
+  event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, userId, usuariosReales, onBack, onStart, onGoLive, onDelete,
   onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onMove, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
@@ -2342,7 +2374,7 @@ function EventDetail({
         )}
       </div>
       <SetlistPane
-        event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer} usuariosReales={usuariosReales}
+        event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer} userId={userId} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onAddSeccion={onAddSeccion}
         onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick}
         onRemove={onRemove} onMove={onMove} onDuplicate={onDuplicate} onReorder={onReorder}
@@ -2501,7 +2533,7 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onMove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onMove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
   // el encargado de ese bloque de Lectura bíblica/Oración (ver canAddBibleReading más arriba).
@@ -2526,6 +2558,14 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, usu
   // es el ícono para no interferir con selects/botones dentro de la fila.
   const [dragIndex, setDragIndex] = useState(null);
   const [overIndex, setOverIndex] = useState(null);
+  // Limpieza es un privilegio aparte: quien está asignado a un bloque de Limpieza en este evento (y no
+  // es administrador) solo ve ESE bloque — nada del resto del Setlist (canciones, otros bloques). Va
+  // DESPUÉS de todos los hooks de arriba: un return anticipado antes de un useState rompe las reglas de
+  // hooks en cuanto ese mismo componente vuelva a renderizar con myCleaningBlock en falso.
+  const myCleaningBlock = !isAdminViewer ? event.serviceOrder.find((it) => isCleaningBlock(it) && (it.encargados || []).some((m) => m.usuarioId === userId)) : null;
+  if (myCleaningBlock) {
+    return <CleaningOnlyPanel block={myCleaningBlock} />;
+  }
   const dragHandleProps = (idx) => ({
     draggable: true,
     onDragStart: (e) => {
