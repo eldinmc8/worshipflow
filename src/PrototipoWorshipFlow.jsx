@@ -193,7 +193,7 @@ const nextId = () => crypto.randomUUID();
 const nextSongId = () => crypto.randomUUID();
 
 // ---------- Equipo / iglesia ----------
-const TEAM_NAME = "Iglesia Jesús el buen";
+const TEAM_NAME = "Iglesia Jesús El Buen Pastor";
 
 // ---------- Convierte una canción + estructura en diapositivas proyectables (planeada o improvisada) ----------
 function songToSlides(idPrefix, song, structure) {
@@ -716,6 +716,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const isRootState = (s) => !s.selectedEventId && !s.openSong && !s.selectedMinistryId;
   // true mientras estemos parados exactamente en Inicio-raíz sin haber avanzado a otra pestaña todavía.
   const isAtHomeRootRef = useRef(true);
+  // Última combinación tab/evento/ministerio/canción que de verdad se apiló o reemplazó — se usa para
+  // detectar un "movimiento lateral" (deslizar/Siguiente a OTRA canción dentro del mismo lector) y así
+  // decidir reemplazar en vez de apilar (ver más abajo).
+  const prevNavRef = useRef({ tab, selectedEventId, openSong, selectedMinistryId });
   // El listener de "popstate" se registra UNA sola vez (deps: []), así que su closure nunca ve valores
   // actualizados de tab/openSong/etc. — estos refs, sincronizados en cada render, son cómo lee los
   // valores VIGENTES al momento real en que se dispara el evento (ej. para el guard de SongEditor abajo).
@@ -747,6 +751,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       isPoppingNavRef.current = true;
       const s = { tab: e.state.tab ?? "inicio", selectedEventId: e.state.selectedEventId ?? null, openSong: e.state.openSong ?? null, selectedMinistryId: e.state.selectedMinistryId ?? null };
       isAtHomeRootRef.current = s.tab === "inicio" && isRootState(s);
+      prevNavRef.current = s;
       setTab(s.tab);
       setSelectedEventId(s.selectedEventId);
       setOpenSong(s.openSong);
@@ -763,6 +768,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       isPoppingNavRef.current = true;
       const s = { tab: history.state.tab ?? "inicio", selectedEventId: history.state.selectedEventId ?? null, openSong: history.state.openSong ?? null, selectedMinistryId: history.state.selectedMinistryId ?? null };
       isAtHomeRootRef.current = s.tab === "inicio" && isRootState(s);
+      prevNavRef.current = s;
       setTab(s.tab);
       setSelectedEventId(s.selectedEventId);
       setOpenSong(s.openSong);
@@ -774,6 +780,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   useEffect(() => {
     if (!hasMountedNavRef.current) { hasMountedNavRef.current = true; return; }
     if (isPoppingNavRef.current) { isPoppingNavRef.current = false; return; }
+    const prev = prevNavRef.current;
     const next = { screen: "app-nav", tab, selectedEventId, openSong, selectedMinistryId };
     if (isRootState(next)) {
       // Cambiar de pestaña SIN entrar a nada (Eventos → Canciones → Ajustes, todas en su lista raíz) no
@@ -787,10 +794,20 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       }
       isAtHomeRootRef.current = tab === "inicio";
     } else {
-      // Entrar a un evento/canción/ministerio SÍ es un paso real: se apila para poder volver.
-      history.pushState(next, "");
+      // Moverse de UNA canción abierta a OTRA sin cambiar de evento/pestaña/ministerio (deslizar o
+      // "Siguiente" dentro del lector abierto desde un Setlist) reemplaza en vez de apilar — si no,
+      // "atrás" iría regresando canción por canción en vez de volver de un solo golpe al Setlist/lista
+      // de donde se abrió la primera. Cualquier OTRO tipo de entrada (evento, ministerio, o la primera
+      // canción que se abre) sigue apilando normalmente.
+      const isLateralSongSwap = !!prev.openSong && !!openSong && prev.tab === tab && prev.selectedEventId === selectedEventId && prev.selectedMinistryId === selectedMinistryId;
+      if (isLateralSongSwap) {
+        history.replaceState(next, "");
+      } else {
+        history.pushState(next, "");
+      }
       isAtHomeRootRef.current = false;
     }
+    prevNavRef.current = next;
   }, [tab, selectedEventId, openSong, selectedMinistryId]);
 
   // Punto único por el que sale cualquier navegación que podría abandonar el editor de canciones (el
