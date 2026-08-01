@@ -1,7 +1,7 @@
 {
-  "name": "WorshipFlow — Pantalla",
+  "name": "JBP App — Pantalla",
   "short_name": "Pantalla",
-  "description": "Pantalla de proyección de WorshipFlow para la iglesia",
+  "description": "Pantalla de proyección de JBP App para la iglesia",
   "lang": "es",
   "start_url": "/?screen=publico",
   "display": "standalone",

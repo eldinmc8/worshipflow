@@ -1011,7 +1011,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
             <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
               <img src="/pwa-192x192.png" alt="Iglesia Jesús El Buen Pastor" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             </div>
-            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "#fff" }}>WorshipFlow</span>
+            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "#fff" }}>JBP App</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {liveEvent && (
@@ -1661,7 +1661,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
 
       {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
 
-      <div style={{ textAlign: "center", fontSize: 11, color: "#C3CBD6", marginTop: 20 }}>WorshipFlow</div>
+      <div style={{ textAlign: "center", fontSize: 11, color: "#C3CBD6", marginTop: 20 }}>JBP App</div>
     </div>
   );
 }

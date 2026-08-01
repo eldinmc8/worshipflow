@@ -12,14 +12,14 @@ self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim(
 // Notificación push real (Web Push / VAPID) — la manda notificar-asignacion o procesar-recordatorios
 // desde el servidor. El payload es JSON simple: { title, body, url? }.
 self.addEventListener("push", (event) => {
-  let data = { title: "WorshipFlow", body: "" };
+  let data = { title: "JBP App", body: "" };
   try {
     if (event.data) data = { ...data, ...event.data.json() };
   } catch {
     if (event.data) data.body = event.data.text();
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || "WorshipFlow", {
+    self.registration.showNotification(data.title || "JBP App", {
       body: data.body || "",
       icon: "/pwa-192x192.png",
       badge: "/pwa-192x192.png",

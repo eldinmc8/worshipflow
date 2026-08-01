@@ -20,8 +20,8 @@ export default defineConfig({
       // enlazado dinámicamente desde main.jsx) para poder instalarse como app independiente en un
       // dispositivo fijo junto al proyector que abre directo en la vista en vivo, sin pasar por el login.
       manifest: {
-        name: 'WorshipFlow',
-        short_name: 'WorshipFlow',
+        name: 'JBP App',
+        short_name: 'JBP App',
         description: 'Presentación y gestión para tu iglesia',
         lang: 'es',
         start_url: '/',

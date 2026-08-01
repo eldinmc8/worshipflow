@@ -124,7 +124,7 @@ function SetPassword({ onDone }) {
       <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 16 }}>
           <img src="/logo-iglesia.png" alt="Iglesia Jesús El Buen Pastor" style={{ width: 180, maxWidth: "100%", height: "auto" }} />
-          <span style={{ fontFamily: "'Fraunces', serif", fontSize: 14, fontWeight: 600, color: "#16324F" }}>WorshipFlow</span>
+          <span style={{ fontFamily: "'Fraunces', serif", fontSize: 14, fontWeight: 600, color: "#16324F" }}>JBP App</span>
         </div>
         <div style={{ fontSize: 14, fontWeight: 700, color: "#16233A", marginBottom: 4 }}>¡Bienvenido/a!</div>
         <div style={{ fontSize: 12, color: "#64707F", marginBottom: 16 }}>Elige tu contraseña para terminar de activar tu cuenta.</div>
