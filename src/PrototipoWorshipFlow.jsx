@@ -588,7 +588,18 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       window.alert("No se detectó una segunda pantalla conectada. Conecta el proyector/monitor y vuelve a intentar para que se abra ahí solo.");
       return;
     }
-    window.open(url, PROYECCION_WINDOW_NAME, `${PROYECCION_WINDOW_FEATURES},left=${otherScreen.left},top=${otherScreen.top},width=${otherScreen.width},height=${otherScreen.height}`);
+    const popup = window.open(url, PROYECCION_WINDOW_NAME, `${PROYECCION_WINDOW_FEATURES},left=${otherScreen.left},top=${otherScreen.top},width=${otherScreen.width},height=${otherScreen.height}`);
+    // Pedir pantalla completa DESDE ACÁ (el opener, justo tras window.open, todavía con el gesto del
+    // clic activo) es más confiable que pedirla desde dentro de la propia ventana emergente una vez
+    // cargada — el "activation" del clic no siempre le alcanza a su propio script para cuando termina
+    // de montar React. Este es el patrón que la documentación de Chrome recomienda para abrir una
+    // ventana en pantalla completa sobre un segundo monitor. PublicScreen.jsx igual mantiene su propio
+    // intento + un botón de respaldo por si el navegador bloquea esto (Firefox, popup reutilizado, etc).
+    if (popup) {
+      const requestFs = () => popup.document?.documentElement?.requestFullscreen?.().catch(() => {});
+      if (popup.document?.readyState === "complete") requestFs();
+      else popup.addEventListener("load", requestFs, { once: true });
+    }
   };
   const startPresentation = async () => {
     if (!("getScreenDetails" in window)) {
