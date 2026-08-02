@@ -200,8 +200,20 @@ const TEAM_NAME = "Iglesia Jesús El Buen Pastor";
 // ---------- Convierte una canción + estructura en diapositivas proyectables (planeada o improvisada) ----------
 function songToSlides(idPrefix, song, structure) {
   const out = [];
-  (structure || song.defaultStructure).forEach((blockKey, i) => {
+  // "structure" (el orden guardado en el Setlist) o song.defaultStructure (pestaña Estructura de la
+  // canción) pueden venir vacíos — ej. una canción a la que nunca se le llenó "Estructura" guarda un
+  // arreglo [] ahí, y como [] es verdadero en JS, el "||" de abajo nunca caía al respaldo: la canción
+  // quedaba SIN diapositivas en vivo aunque su pestaña Letra sí tuviera contenido. Si ambos vienen
+  // vacíos, se usan todas las secciones que la canción sí tenga (en el orden en que existen) — mejor
+  // un orden razonable por defecto que una canción muda en la proyección.
+  const order = structure && structure.length > 0
+    ? structure
+    : song.defaultStructure && song.defaultStructure.length > 0
+      ? song.defaultStructure
+      : Object.keys(song.blocks || {});
+  order.forEach((blockKey, i) => {
     const block = song.blocks[blockKey];
+    if (!block) return;
     const slideGroups = (song.letra && song.letra[blockKey]) || [block.lines.map(stripChords)];
     slideGroups.forEach((lines, si) => {
       out.push({
