@@ -214,11 +214,17 @@ function songToSlides(idPrefix, song, structure) {
   order.forEach((blockKey, i) => {
     const block = song.blocks[blockKey];
     if (!block) return;
-    const slideGroups = (song.letra && song.letra[blockKey]) || [block.lines.map(stripChords)];
-    slideGroups.forEach((lines, si) => {
+    // song.letra[blockKey] puede venir como [] a propósito (el usuario borró todas las diapositivas de
+    // esa sección, ej. un instrumental que no debe proyectar nada) — el "||" NO debe caer al respaldo en
+    // ese caso ([] es verdadero en JS), así que solo se usa cuando la clave no existe en absoluto.
+    const slideGroups = song.letra && blockKey in song.letra ? song.letra[blockKey] : [block.lines.map(stripChords)];
+    // Además, cualquier diapositiva que haya quedado en blanco (todas sus líneas vacías) nunca se
+    // proyecta — así una diapositiva vacía olvidada no interrumpe la presentación en vivo.
+    const nonBlankGroups = slideGroups.filter((lines) => lines.some((l) => l && l.trim()));
+    nonBlankGroups.forEach((lines, si) => {
       out.push({
         slideId: `${idPrefix}-${i}-${si}`, type: "cancion", songTitle: song.title,
-        blockLabel: slideGroups.length > 1 ? `${block.label} (${si + 1}/${slideGroups.length})` : block.label,
+        blockLabel: nonBlankGroups.length > 1 ? `${block.label} (${si + 1}/${nonBlankGroups.length})` : block.label,
         lines,
       });
     });
@@ -2135,9 +2141,10 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
     group.splice(afterIdx + 1, 0, [""]);
     return { ...d, letra: { ...d.letra, [key]: group } };
   });
+  // Se permite borrar incluso la última diapositiva de una sección (queda con 0) — por ejemplo,
+  // secciones que no llevan letra en pantalla (instrumental, respiro) y no deben proyectar nada.
   const removeSlide = (key, slideIdx) => setDraft((d) => {
     const group = [...d.letra[key]];
-    if (group.length <= 1) return d;
     group.splice(slideIdx, 1);
     return { ...d, letra: { ...d.letra, [key]: group } };
   });
@@ -2343,6 +2350,9 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
                       <button onClick={() => addSlide(key, si)} className="hoverable" style={{ ...miniBtnStyle, width: "100%", justifyContent: "center", marginTop: 8 }}><Plus size={12} /> Diapositiva después</button>
                     </div>
                   ))}
+                  {slideGroup.length === 0 && (
+                    <button onClick={() => addSlide(key, -1)} className="hoverable" style={{ ...addBtnStyle, justifyContent: "center" }}><Plus size={13} /> Agregar diapositiva</button>
+                  )}
                 </div>
               </div>
             );

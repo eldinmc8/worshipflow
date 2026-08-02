@@ -93,10 +93,16 @@ export function cancionCompletaAFormatoEditor({ cancion, secciones, estructura, 
     if (!letra[d.seccion_clave]) letra[d.seccion_clave] = [];
     letra[d.seccion_clave].push((d.texto || "").split("\n"));
   });
-  // Si una sección no tiene diapositivas guardadas todavía, se deriva una sola a partir del contenido.
-  Object.keys(blocks).forEach((k) => {
-    if (!letra[k] || letra[k].length === 0) letra[k] = [blocks[k].lines.map(stripChordsLocal)];
-  });
+  // El respaldo "derivar una diapositiva del Contenido" solo aplica si la canción JAMÁS ha pasado por
+  // el editor de Letra (cero diapositivas guardadas en TODA la canción — típico de canciones de antes
+  // de que existiera esta pestaña). Si ya se guardó aunque sea una vez, una sección sin diapositivas
+  // significa que el usuario las borró todas a propósito (ej. una sección instrumental que no debe
+  // proyectar nada) — no hay que resucitarlas solas en cada recarga.
+  if (diapositivas.length === 0) {
+    Object.keys(blocks).forEach((k) => { letra[k] = [blocks[k].lines.map(stripChordsLocal)]; });
+  } else {
+    Object.keys(blocks).forEach((k) => { if (!letra[k]) letra[k] = []; });
+  }
   return {
     id: cancion.id, title: cancion.titulo, key: cancion.tonalidad, tempo: cancion.tempo || "",
     artist: cancion.artista || "", themes: cancion.temas || "", category: cancion.categoria,
