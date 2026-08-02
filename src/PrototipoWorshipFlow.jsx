@@ -200,16 +200,18 @@ const TEAM_NAME = "Iglesia Jesús El Buen Pastor";
 // ---------- Convierte una canción + estructura en diapositivas proyectables (planeada o improvisada) ----------
 function songToSlides(idPrefix, song, structure) {
   const out = [];
-  // "structure" (el orden guardado en el Setlist) o song.defaultStructure (pestaña Estructura de la
-  // canción) pueden venir vacíos — ej. una canción a la que nunca se le llenó "Estructura" guarda un
-  // arreglo [] ahí, y como [] es verdadero en JS, el "||" de abajo nunca caía al respaldo: la canción
-  // quedaba SIN diapositivas en vivo aunque su pestaña Letra sí tuviera contenido. Si ambos vienen
-  // vacíos, se usan todas las secciones que la canción sí tenga (en el orden en que existen) — mejor
-  // un orden razonable por defecto que una canción muda en la proyección.
-  const order = structure && structure.length > 0
-    ? structure
-    : song.defaultStructure && song.defaultStructure.length > 0
-      ? song.defaultStructure
+  // song.defaultStructure (la pestaña Estructura de la canción, la fuente de verdad actual) manda
+  // SIEMPRE que tenga contenido. "structure" es una foto fija del Estructura que se tomó el día que
+  // esta canción se agregó a ESTE Setlist — no hay ninguna pantalla para editarla aparte, así que si
+  // luego se ajusta la Estructura de la canción (agregar repeticiones, reordenar...), esa foto vieja se
+  // queda desactualizada para siempre y terminaba ganándole a la Estructura real. Solo se usa esa foto
+  // como respaldo si la canción HOY no tiene ninguna Estructura propia; y si ninguna de las dos existe,
+  // se usan todas las secciones que la canción tenga (en el orden en que existen) — mejor un orden
+  // razonable por defecto que una canción muda en la proyección.
+  const order = song.defaultStructure && song.defaultStructure.length > 0
+    ? song.defaultStructure
+    : structure && structure.length > 0
+      ? structure
       : Object.keys(song.blocks || {});
   order.forEach((blockKey, i) => {
     const block = song.blocks[blockKey];
@@ -1965,12 +1967,14 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   // Lo que de verdad debe leer el músico es la canción EN ORDEN DE EJECUCIÓN — la Estructura, repitiendo
   // cada sección las veces que corresponda (V1, V2, V1, Coro...) — no una lista de secciones únicas en
   // el orden en que se crearon, que es lo que mostraba antes (la Estructura quedaba sin ningún efecto
-  // real para quien toca). Prioridad: la estructura propia de este ítem del Setlist (si el evento la
-  // personalizó) > la Estructura general de la canción >, si ninguna existe, las secciones únicas.
-  const order = structureOverride && structureOverride.length > 0
-    ? structureOverride
-    : song.defaultStructure && song.defaultStructure.length > 0
-      ? song.defaultStructure
+  // real para quien toca). La Estructura ACTUAL de la canción manda siempre que exista: structureOverride
+  // es solo una foto fija tomada el día que se agregó al Setlist (no hay pantalla para editarla aparte),
+  // así que si después se ajusta la Estructura de la canción, esa foto vieja no debe ganarle. Solo se usa
+  // como respaldo si la canción hoy no tiene ninguna Estructura propia; y si ninguna existe, las secciones únicas.
+  const order = song.defaultStructure && song.defaultStructure.length > 0
+    ? song.defaultStructure
+    : structureOverride && structureOverride.length > 0
+      ? structureOverride
       : blockKeys;
   const scrollTo = (key) => sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
   const isMinorKey = song.key.endsWith("m");
