@@ -1208,6 +1208,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           <SongView
             key={currentItem?.id ?? openSong.id}
             song={displaySong} isAdminViewer={isAdminViewer} positionLabel={positionLabel}
+            structureOverride={currentItem?.structure}
             enterDirection={openSong.enterDir}
             onBack={() => window.history.back()}
             onEdit={() => { setTab("canciones"); setOpenSong({ id: openSong.id, mode: "edit" }); }}
@@ -1941,7 +1942,7 @@ function badgeColor(badge) {
   return "#2E86AB"; // Estrofas: celeste
 }
 
-function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext, positionLabel, enterDirection }) {
+function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext, positionLabel, enterDirection, structureOverride }) {
   const sectionRefs = useRef({});
   const containerRef = useRef(null);
   const pointerStartRef = useRef(null);
@@ -1955,6 +1956,16 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   const [phase, setPhase] = useState("idle"); // idle | dragging | exiting
   if (!song) return null;
   const blockKeys = Object.keys(song.blocks);
+  // Lo que de verdad debe leer el músico es la canción EN ORDEN DE EJECUCIÓN — la Estructura, repitiendo
+  // cada sección las veces que corresponda (V1, V2, V1, Coro...) — no una lista de secciones únicas en
+  // el orden en que se crearon, que es lo que mostraba antes (la Estructura quedaba sin ningún efecto
+  // real para quien toca). Prioridad: la estructura propia de este ítem del Setlist (si el evento la
+  // personalizó) > la Estructura general de la canción >, si ninguna existe, las secciones únicas.
+  const order = structureOverride && structureOverride.length > 0
+    ? structureOverride
+    : song.defaultStructure && song.defaultStructure.length > 0
+      ? song.defaultStructure
+      : blockKeys;
   const scrollTo = (key) => sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
   const isMinorKey = song.key.endsWith("m");
   const keyChoices = KEY_OPTIONS.filter((k) => k.endsWith("m") === isMinorKey);
@@ -2063,17 +2074,18 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
         })}
       </div>
 
-      {blockKeys.map((key) => {
+      {order.map((key, i) => {
         const b = song.blocks[key];
+        if (!b) return null;
         const color = badgeColor(b.badge);
         return (
-          <div key={key} ref={(el) => { sectionRefs.current[key] = el; }} style={{ marginBottom: 16 }}>
+          <div key={`${key}-${i}`} ref={(el) => { if (!sectionRefs.current[key]) sectionRefs.current[key] = el; }} style={{ marginBottom: 16 }}>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${color}22`, borderRadius: 20, padding: "5px 12px", marginBottom: 10 }}>
               <span style={{ width: 22, height: 22, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{b.badge}</span>
               <span style={{ fontSize: 13, fontWeight: 700 }}>{b.label}</span>
             </div>
             <div style={{ background: "#EEF1F6", borderRadius: 10, padding: 16 }}>
-              {b.lines.map((l, i) => <ChordsAboveLyrics key={i} raw={l} />)}
+              {b.lines.map((l, i2) => <ChordsAboveLyrics key={i2} raw={l} />)}
             </div>
           </div>
         );
