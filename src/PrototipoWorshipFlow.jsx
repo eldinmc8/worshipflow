@@ -125,12 +125,13 @@ const KEY_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#",
 
 // ---------- Librería de canciones (estado inicial) ----------
 // Clasificación de la canción: determina a qué bloque del Setlist se manda automáticamente al agregarla
-// (ver addSong) — Himno/Corito/Canto especial van al "Bloque de Alabanza"; Adoración va al "Bloque de Adoración".
+// (ver addSong) — todas las categorías van al mismo "Bloque de Alabanza" (antes Adoración creaba su
+// propio bloque aparte; se unificó a pedido para que cualquier canción caiga siempre en uno solo).
 const SONG_CATEGORIES = {
   himno: { label: "Himno", block: "Alabanza" },
   corito: { label: "Corito", block: "Alabanza" },
   especial: { label: "Canto especial", block: "Alabanza" },
-  adoracion: { label: "Adoración", block: "Adoración" },
+  adoracion: { label: "Adoración", block: "Alabanza" },
 };
 // Versiones disponibles a través de la Biblia completa y buscable (ver BibleModal). "RVR1960"/"NVI"/"NTV" son
 // las que pediste; "TLA"/"DHH" no están disponibles en la fuente de datos gratuita usada por el prototipo, así
