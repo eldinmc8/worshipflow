@@ -29,6 +29,16 @@ html {
   user-select: none;
   -webkit-touch-callout: none; /* iOS: sin el menú de "Copiar/Buscar" al mantener presionado */
 }
+/* "Exportar Setlist a PDF" no genera un archivo aparte — usa el propio diálogo de impresión del
+   navegador ("Guardar como PDF" ya está ahí en Chrome/Safari/Android, de escritorio y de celular),
+   apuntado solo a una vista limpia oculta en el DOM (.print-only) en vez de a toda la app. */
+.print-only { display: none; }
+@media print {
+  body * { visibility: hidden; }
+  .print-only, .print-only * { visibility: visible; }
+  .print-only { display: block; position: absolute; top: 0; left: 0; width: 100%; padding: 0; }
+}
+
 input, textarea, [contenteditable="true"] {
   -webkit-user-select: text;
   user-select: text;

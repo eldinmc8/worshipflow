@@ -18,6 +18,7 @@ import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotific
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } from "./lib/pwaInstall.js";
 import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FULL, MONTH_ABBR, DOW_LABELS, monthKey, monthLabelFromKey, formatFullDate, buildMonthWeeks } from "./lib/dates.js";
+import { saveCache, loadCache } from "./lib/offlineCache.js";
 
 // ---------- Vista de celular: se activa sola según el ancho real de la pantalla, no un dispositivo fijo ----------
 const MOBILE_BREAKPOINT = 768;
@@ -344,14 +345,31 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const [openSong, setOpenSong] = useState(null); // null = lista; { id, mode: 'view' | 'edit' }
   const [events, setEvents] = useState([]);
   const [datosListos, setDatosListos] = useState(false);
+  // Red de seguridad si no hay internet al cargar (o se cae justo en ese momento): en vez de dejar la
+  // app en blanco, se usa la última copia que sí se guardó localmente la vez que hubo conexión. Es de
+  // solo lectura — los intentos de guardar algo mientras no hay señal van a fallar igual (ya lo avisan
+  // las alertas de "No se pudo guardar..." que ya existían), esto solo evita la pantalla vacía.
+  const [usingCachedData, setUsingCachedData] = useState(false);
   const reloadLibrary = () => listCancionesCompletas().then(setLibrary).catch((e) => window.alert("No se pudo cargar el cancionero: " + e.message));
   useEffect(() => {
     Promise.all([
-      listCancionesCompletas().then(setLibrary),
-      listEventosCompletos().then(setEvents),
-      listMinisteriosCompletos().then(setMinistries),
+      listCancionesCompletas().then((data) => { setLibrary(data); saveCache("canciones", data); }),
+      listEventosCompletos().then((data) => { setEvents(data); saveCache("eventos", data); }),
+      listMinisteriosCompletos().then((data) => { setMinistries(data); saveCache("ministerios", data); }),
     ])
-      .catch((e) => window.alert("No se pudieron cargar los datos: " + e.message))
+      .catch((e) => {
+        const cachedLibrary = loadCache("canciones");
+        const cachedEvents = loadCache("eventos");
+        const cachedMinistries = loadCache("ministerios");
+        if (cachedLibrary || cachedEvents) {
+          setLibrary(cachedLibrary || []);
+          setEvents(cachedEvents || []);
+          setMinistries(cachedMinistries || []);
+          setUsingCachedData(true);
+        } else {
+          window.alert("No se pudieron cargar los datos: " + e.message);
+        }
+      })
       .finally(() => setDatosListos(true));
   }, []);
   const [selectedEventId, setSelectedEventId] = useState(null);
@@ -1034,6 +1052,12 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         .navitem:active { transform: scale(0.92); }
         input, textarea, select { font-family: inherit; }
       `}</style>
+
+      {usingCachedData && (
+        <div style={{ background: "#E8821E", color: "#16233A", fontSize: 12, fontWeight: 700, textAlign: "center", padding: "6px 10px", flexShrink: 0 }}>
+          Sin conexión — mostrando la última versión guardada en este dispositivo. Los cambios no se guardarán hasta que vuelva el internet.
+        </div>
+      )}
 
       {/* Header: borde inferior curvo, sin pestañas — la navegación vive abajo, flotante */}
       <div style={{ background: "#16324F", padding: "16px 20px 26px", borderRadius: "0 0 28px 28px", position: "relative", overflow: "hidden" }}>
@@ -1957,6 +1981,11 @@ function badgeColor(badge) {
 
 function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext, positionLabel, enterDirection, structureOverride }) {
   const sectionRefs = useRef({});
+  // Ref aparte, por POSICIÓN en el orden (no por clave de sección): si una sección se repite (V1, V2,
+  // V1, Coro...) sectionRefs solo guarda la primera aparición (para los pills de arriba, que son un
+  // índice de secciones únicas) — pero el auto-avance de Modo Músico necesita saber a cuál repetición
+  // exacta saltar, así que usa este mapa indexado por posición.
+  const indexRefs = useRef({});
   const containerRef = useRef(null);
   const pointerStartRef = useRef(null);
   const draggingRef = useRef(false); // true una vez que el gesto se confirmó horizontal (no scroll vertical)
@@ -1967,8 +1996,10 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   // el lado opuesto. Si no pasó el umbral, vuelve a 0 con transición (como soltar una foto a medio camino).
   const [dragX, setDragX] = useState(0);
   const [phase, setPhase] = useState("idle"); // idle | dragging | exiting
-  if (!song) return null;
-  const blockKeys = Object.keys(song.blocks);
+  // blockKeys/order se calculan ANTES del "if (!song) return null" de abajo porque los hooks de Modo
+  // Músico (justo debajo) los necesitan, y los hooks no se pueden llamar condicionalmente ni después
+  // de un return — con song en null, quedan en su valor vacío por defecto sin romper nada.
+  const blockKeys = song ? Object.keys(song.blocks) : [];
   // Lo que de verdad debe leer el músico es la canción EN ORDEN DE EJECUCIÓN — la Estructura, repitiendo
   // cada sección las veces que corresponda (V1, V2, V1, Coro...) — no una lista de secciones únicas en
   // el orden en que se crearon, que es lo que mostraba antes (la Estructura quedaba sin ningún efecto
@@ -1976,11 +2007,50 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   // es solo una foto fija tomada el día que se agregó al Setlist (no hay pantalla para editarla aparte),
   // así que si después se ajusta la Estructura de la canción, esa foto vieja no debe ganarle. Solo se usa
   // como respaldo si la canción hoy no tiene ninguna Estructura propia; y si ninguna existe, las secciones únicas.
-  const order = song.defaultStructure && song.defaultStructure.length > 0
-    ? song.defaultStructure
-    : structureOverride && structureOverride.length > 0
-      ? structureOverride
-      : blockKeys;
+  const order = !song
+    ? []
+    : song.defaultStructure && song.defaultStructure.length > 0
+      ? song.defaultStructure
+      : structureOverride && structureOverride.length > 0
+        ? structureOverride
+        : blockKeys;
+  // ---- Modo Músico: acordes + letra con auto-avance calculado por tempo (BPM) × compases de cada
+  // sección, con "tap tempo" para recalibrar en vivo, y control manual siempre disponible como
+  // override (tocar un pill, o ‹ ›, salta ahí de una vez y el auto-avance sigue desde ese punto). ----
+  const [autoMode, setAutoMode] = useState(false);
+  const [liveBpm, setLiveBpm] = useState(Number(song?.tempo) || 120);
+  const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
+  const tapTimesRef = useRef([]);
+  const goToSectionIdx = (i) => {
+    const clamped = Math.max(0, Math.min(order.length - 1, i));
+    setCurrentSectionIdx(clamped);
+    indexRefs.current[clamped]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const handleTap = () => {
+    const now = Date.now();
+    const recent = tapTimesRef.current.filter((t) => now - t < 3000).concat(now).slice(-8);
+    tapTimesRef.current = recent;
+    if (recent.length >= 2) {
+      const intervals = recent.slice(1).map((t, i) => t - recent[i]);
+      const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      setLiveBpm(Math.round(60000 / avgMs));
+    }
+  };
+  useEffect(() => {
+    if (!autoMode || !song) return;
+    const key = order[currentSectionIdx];
+    const block = song.blocks[key];
+    if (!block) return;
+    const beatsPerBar = 4;
+    const durationMs = Math.max(1500, ((block.bars || 8) * beatsPerBar / liveBpm) * 60000);
+    const timer = setTimeout(() => {
+      if (currentSectionIdx >= order.length - 1) { setAutoMode(false); return; } // se acabó la canción
+      goToSectionIdx(currentSectionIdx + 1);
+    }, durationMs);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoMode, currentSectionIdx, liveBpm, order, song]);
+  if (!song) return null;
   const scrollTo = (key) => sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
   const isMinorKey = song.key.endsWith("m");
   const keyChoices = KEY_OPTIONS.filter((k) => k.endsWith("m") === isMinorKey);
@@ -2077,12 +2147,22 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
         {positionLabel && <span style={{ marginLeft: 8, fontWeight: 700, color: "#E8821E" }}>· {positionLabel} en el setlist</span>}
       </div>
 
+      <div style={{ display: "flex", alignItems: "center", gap: 8, background: autoMode ? "#FFF4E8" : "#F4F6FA", border: `1px solid ${autoMode ? "#E8821E" : "#DDE3ED"}`, borderRadius: 12, padding: "8px 10px", marginBottom: 16, flexWrap: "wrap" }}>
+        <button onClick={() => setAutoMode((v) => !v)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: autoMode ? "#E8821E" : "#FFFFFF", color: autoMode ? "#16233A" : "#16233A", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          {autoMode ? <><Radio size={13} /> Modo Músico: ON</> : <><Play size={13} /> Modo Músico</>}
+        </button>
+        <button onClick={() => goToSectionIdx(currentSectionIdx - 1)} disabled={currentSectionIdx === 0} style={{ ...iconGhost, opacity: currentSectionIdx === 0 ? 0.4 : 1 }}><ChevronLeft size={16} /></button>
+        <button onClick={() => goToSectionIdx(currentSectionIdx + 1)} disabled={currentSectionIdx >= order.length - 1} style={{ ...iconGhost, opacity: currentSectionIdx >= order.length - 1 ? 0.4 : 1 }}><ChevronRight size={16} /></button>
+        <button onClick={handleTap} className="hoverable" style={{ background: "#FFFFFF", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, color: "#16233A", cursor: "pointer" }}>TAP</button>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "#64707F" }}>{liveBpm} bpm</span>
+      </div>
+
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         {blockKeys.map((key) => {
           const b = song.blocks[key];
           const color = badgeColor(b.badge);
           return (
-            <button key={key} onClick={() => scrollTo(key)} className="hoverable" style={{ width: 40, height: 40, borderRadius: "50%", border: `1.5px solid ${color}`, background: "transparent", color, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            <button key={key} onClick={() => { scrollTo(key); goToSectionIdx(order.indexOf(key)); }} className="hoverable" style={{ width: 40, height: 40, borderRadius: "50%", border: `1.5px solid ${color}`, background: "transparent", color, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
               {b.badge}
             </button>
           );
@@ -2093,8 +2173,13 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
         const b = song.blocks[key];
         if (!b) return null;
         const color = badgeColor(b.badge);
+        const isActive = autoMode && i === currentSectionIdx;
         return (
-          <div key={`${key}-${i}`} ref={(el) => { if (!sectionRefs.current[key]) sectionRefs.current[key] = el; }} style={{ marginBottom: 16 }}>
+          <div
+            key={`${key}-${i}`}
+            ref={(el) => { if (!sectionRefs.current[key]) sectionRefs.current[key] = el; indexRefs.current[i] = el; }}
+            style={{ marginBottom: 16, borderRadius: 10, outline: isActive ? "2px solid #E8821E" : "none", outlineOffset: 3 }}
+          >
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${color}22`, borderRadius: 20, padding: "5px 12px", marginBottom: 10 }}>
               <span style={{ width: 22, height: 22, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{b.badge}</span>
               <span style={{ fontSize: 13, fontWeight: 700 }}>{b.label}</span>
@@ -2674,6 +2759,46 @@ function EventDetail({
           </div>
           <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600, marginBottom: 4 }}>{event.title}</div>
           {!event.esPlantilla && <div style={{ fontSize: 13, color: "#C8CDD6" }}>{event.location}</div>}
+        </div>
+
+        <button onClick={() => window.print()} className="hoverable" style={{ ...addBtnStyle, marginBottom: 16, justifyContent: "center" }}>
+          <Download size={14} color="#16324F" /> Exportar Setlist a PDF
+        </button>
+
+        {/* Oculta en pantalla (ver .print-only en index.css) — solo aparece al imprimir/"Guardar como
+            PDF", como respaldo en papel del Setlist si algún día falla la app o el internet en pleno culto. */}
+        <div className="print-only" style={{ padding: 28, fontFamily: "'Poppins', sans-serif", color: "#111" }}>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, marginBottom: 2 }}>{event.title}</div>
+          <div style={{ fontSize: 12, color: "#444", marginBottom: 20 }}>
+            {(formatFullDate(event.date) || event.dateLabel || "")}{event.hora ? ` · ${event.hora}` : ""}
+          </div>
+          <ol style={{ paddingLeft: 20, margin: 0 }}>
+            {event.serviceOrder.map((item) => {
+              if (item.type === "seccion") {
+                const names = isWorshipBlock(item)
+                  ? (event.worshipRoles || []).flatMap((r) => r.members.map((m) => `${m.n} (${r.name})`)).join(", ")
+                  : (item.encargados || []).map((m) => m.n).join(", ");
+                return (
+                  <li key={item.id} style={{ marginBottom: 10, fontSize: 14 }}>
+                    <strong>{item.title}</strong>{item.description ? ` — ${item.description}` : ""}
+                    {names && <div style={{ fontSize: 12, color: "#444" }}>Encargado(s): {names}</div>}
+                  </li>
+                );
+              }
+              if (item.type === "cancion") {
+                const song = library.find((s) => s.id === item.songId);
+                return (
+                  <li key={item.id} style={{ marginBottom: 6, fontSize: 14 }}>
+                    {song ? `${song.title} — ${item.keyOverride || song.key}, ${song.tempo} bpm` : "Canción"}
+                  </li>
+                );
+              }
+              if (item.type === "biblia") {
+                return <li key={item.id} style={{ marginBottom: 6, fontSize: 14 }}>{item.reference} ({item.version})</li>;
+              }
+              return <li key={item.id} style={{ marginBottom: 6, fontSize: 14 }}>{item.title || "Slide"}{item.subtitle ? ` — ${item.subtitle}` : ""}</li>;
+            })}
+          </ol>
         </div>
 
         {isAdminViewer && (
