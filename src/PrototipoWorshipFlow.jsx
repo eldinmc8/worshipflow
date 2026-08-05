@@ -484,7 +484,6 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const updateSeccionText = (itemId, field, value) => updateOrder((o) => o.map((i) => (i.id === itemId ? { ...i, [field]: value } : i)));
   const setSongKey = (itemId, key, defaultKey) => updateOrder((o) => o.map((i) => (i.id === itemId ? { ...i, keyOverride: key === defaultKey ? null : key } : i)));
   const removeItem = (id) => updateOrder((o) => o.filter((i) => i.id !== id));
-  const move = (idx, dir) => updateOrder((o) => { const arr = [...o]; const j = idx + dir; if (j < 0 || j >= arr.length) return arr; [arr[idx], arr[j]] = [arr[j], arr[idx]]; return arr; });
   // Arrastrar y soltar desde el ícono de 6 puntos: saca el elemento de su posición y lo inserta donde se soltó.
   const reorderItem = (fromIdx, toIdx) => updateOrder((o) => {
     if (fromIdx === toIdx) return o;
@@ -1182,7 +1181,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           onStart={() => startEvent(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
           onAddSong={addSong} onAddSeccion={addSeccion}
           onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)}
-          onRemove={removeItem} onMove={move} onDuplicate={duplicateItem} onReorder={reorderItem}
+          onRemove={removeItem} onDuplicate={duplicateItem} onReorder={reorderItem}
           onLinkMinistry={linkMinistry} onUpdateSeccionText={updateSeccionText}
           onSetSongKey={setSongKey}
           canAddBibleReading={canAddBibleReading()}
@@ -2643,7 +2642,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
 // ---------------- DETALLE DE EVENTO ----------------
 function EventDetail({
   event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, userId, usuariosReales, onBack, onStart, onGoLive, onDelete,
-  onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onMove, onDuplicate, onReorder,
+  onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
@@ -2717,7 +2716,7 @@ function EventDetail({
         event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer} userId={userId} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onAddSeccion={onAddSeccion}
         onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick}
-        onRemove={onRemove} onMove={onMove} onDuplicate={onDuplicate} onReorder={onReorder}
+        onRemove={onRemove} onDuplicate={onDuplicate} onReorder={onReorder}
         onLinkMinistry={onLinkMinistry} onUpdateSeccionText={onUpdateSeccionText}
         onSetSongKey={onSetSongKey}
         canAddBibleReading={canAddBibleReading} canAddSermonPoints={canAddSermonPoints}
@@ -2892,7 +2891,7 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onMove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
   // el encargado de ese bloque de Lectura bíblica/Oración (ver canAddBibleReading más arriba).
@@ -2919,10 +2918,18 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
     setSeccionDraft({ title: "", description: "" });
     setShowSeccionForm(false);
   };
-  // Reordenar arrastrando desde el ícono de 6 puntos: se arrastra la fila completa, pero el "asa" (handle)
-  // es el ícono para no interferir con selects/botones dentro de la fila.
+  // Reordenar presionando y arrastrando el ícono de 6 puntos. Antes esto usaba drag-and-drop nativo de
+  // HTML5 (draggable + dragstart/dragover/drop) — que los navegadores NO disparan con el dedo en un
+  // celular, solo con mouse, así que en el teléfono el arrastre simplemente no hacía nada. Ahora usa
+  // Pointer Events (mouse/touch/lápiz unificado, mismo enfoque que el swipe del lector de canciones):
+  // se captura el puntero en el ícono al presionar, así se sigue recibiendo el movimiento aunque el
+  // dedo se salga de la fila, y se calcula sobre qué fila está el dedo midiendo su posición real en
+  // pantalla en vez de depender de eventos de "arrastre" que el navegador no siempre entrega.
   const [dragIndex, setDragIndex] = useState(null);
   const [overIndex, setOverIndex] = useState(null);
+  const [dragTranslateY, setDragTranslateY] = useState(0);
+  const rowRefs = useRef({});
+  const dragStartYRef = useRef(0);
   // Limpieza es un privilegio aparte: quien está asignado a un bloque de Limpieza en este evento (y no
   // es administrador) solo ve ESE bloque — nada del resto del Setlist (canciones, otros bloques). Va
   // DESPUÉS de todos los hooks de arriba: un return anticipado antes de un useState rompe las reglas de
@@ -2931,23 +2938,38 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
   if (myCleaningBlock) {
     return <CleaningOnlyPanel block={myCleaningBlock} />;
   }
+  const findRowIndexAtY = (y) => {
+    const indices = Object.keys(rowRefs.current).map(Number).sort((a, b) => a - b);
+    for (const idx of indices) {
+      const el = rowRefs.current[idx];
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (y < rect.top + rect.height / 2) return idx;
+    }
+    return indices.length ? indices[indices.length - 1] : 0;
+  };
   const dragHandleProps = (idx) => ({
-    draggable: canEditNow,
-    onDragStart: (e) => {
-      // Firefox (y algunos navegadores) cancelan el arrastre en silencio si no se llama a setData —
-      // sin esto, el drag ni siquiera empieza a verse aunque el resto del código esté bien.
-      e.dataTransfer.setData("text/plain", String(idx));
-      e.dataTransfer.effectAllowed = "move";
+    onPointerDown: (e) => {
+      if (!canEditNow) return;
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      dragStartYRef.current = e.clientY;
       setDragIndex(idx);
+      setOverIndex(idx);
+      setDragTranslateY(0);
     },
-    onDragEnd: () => { setDragIndex(null); setOverIndex(null); },
-    style: { cursor: "grab", flexShrink: 0, touchAction: "none" },
+    onPointerMove: (e) => {
+      if (dragIndex === null) return;
+      setDragTranslateY(e.clientY - dragStartYRef.current);
+      setOverIndex(findRowIndexAtY(e.clientY));
+    },
+    onPointerUp: () => {
+      if (dragIndex !== null && overIndex !== null && overIndex !== dragIndex) onReorder(dragIndex, overIndex);
+      setDragIndex(null); setOverIndex(null); setDragTranslateY(0);
+    },
+    onPointerCancel: () => { setDragIndex(null); setOverIndex(null); setDragTranslateY(0); },
+    style: { cursor: canEditNow ? "grab" : "default", flexShrink: 0, touchAction: "none" },
   });
-  const dragRowProps = (idx) => ({
-    onDragEnter: (e) => e.preventDefault(),
-    onDragOver: (e) => { if (dragIndex === null) return; e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (overIndex !== idx) setOverIndex(idx); },
-    onDrop: (e) => { e.preventDefault(); if (dragIndex !== null && dragIndex !== idx) onReorder(dragIndex, idx); setDragIndex(null); setOverIndex(null); },
-  });
+  const rowRefProp = (idx) => (el) => { rowRefs.current[idx] = el; };
   const filtered = library.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
   return (
     <div style={{ display: "flex", flexDirection: isCompact ? "column" : "row", flex: 1, minHeight: 0 }}>
@@ -3024,8 +3046,13 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
             const canEdit = canEditItem(idx);
             return (
               <div
-                key={item.id} {...dragRowProps(idx)}
-                style={{ background: "rgba(124,140,216,0.16)", border: overIndex === idx && dragIndex !== null && dragIndex !== idx ? "2px solid #E8821E" : "1px solid #5661B3", borderRadius: 10, padding: "12px 14px", marginBottom: 8, opacity: dragIndex === idx ? 0.4 : 1 }}
+                key={item.id} ref={rowRefProp(idx)}
+                style={{
+                  background: "rgba(124,140,216,0.16)", border: overIndex === idx && dragIndex !== null && dragIndex !== idx ? "2px solid #E8821E" : "1px solid #5661B3", borderRadius: 10, padding: "12px 14px", marginBottom: 8,
+                  transform: dragIndex === idx ? `translateY(${dragTranslateY}px)` : undefined,
+                  position: dragIndex === idx ? "relative" : undefined, zIndex: dragIndex === idx ? 5 : undefined,
+                  boxShadow: dragIndex === idx ? "0 10px 24px rgba(22,50,79,0.35)" : undefined,
+                }}
               >
                 <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                   <GripVertical size={14} color="#5661B3" {...handleProps} style={{ ...handleProps.style, marginTop: 3 }} />
@@ -3053,8 +3080,6 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                     />
                     {canEditNow && (
                       <>
-                        <button onClick={() => onMove(idx, -1)} style={iconGhost}><ChevronUp size={14} /></button>
-                        <button onClick={() => onMove(idx, 1)} style={iconGhost}><ChevronDown size={14} /></button>
                         <button onClick={() => onDuplicate(item.id)} title="Duplicar" style={iconGhost}><Copy size={14} /></button>
                         <button onClick={() => onRemove(item.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>
                       </>
@@ -3130,13 +3155,16 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
           const song = item.type === "cancion" ? library.find((s) => s.id === item.songId) : null;
           const effectiveKey = song ? item.keyOverride || song.key : null;
           const Icon = meta.icon;
-          const isExpanded = !!expandedSections[item.id];
           const canEdit = canEditItem(idx);
           return (
             <div key={item.id} style={{ marginBottom: 8 }}>
               <div
-                {...dragRowProps(idx)}
-                style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, background: "#FFFFFF", border: overIndex === idx && dragIndex !== null && dragIndex !== idx ? "2px solid #E8821E" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", opacity: dragIndex === idx ? 0.4 : 1 }}
+                ref={rowRefProp(idx)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, background: "#FFFFFF", border: overIndex === idx && dragIndex !== null && dragIndex !== idx ? "2px solid #E8821E" : "none", boxShadow: dragIndex === idx ? "0 10px 24px rgba(22,50,79,0.35)" : "0 3px 14px rgba(22,50,79,0.09)",
+                  transform: dragIndex === idx ? `translateY(${dragTranslateY}px)` : undefined,
+                  position: dragIndex === idx ? "relative" : undefined, zIndex: dragIndex === idx ? 5 : undefined,
+                }}
               >
                 <GripVertical size={14} color="#C3CBD6" {...handleProps} />
                 {item.type === "cancion" && song ? (
@@ -3164,37 +3192,16 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                     {item.isSermonPoint && <span style={{ fontSize: 9, fontWeight: 700, color: "#16324F", background: "#EEF1F6", borderRadius: 10, padding: "2px 8px", flexShrink: 0 }}>BOSQUEJO</span>}
                   </>
                 )}
-                <div style={{ display: "flex", gap: 2 }}>
-                  <EncargadosToggleButton count={(item.encargados || []).length} onClick={() => setExpandedSections((e) => ({ ...e, [item.id]: !e[item.id] }))} />
-                  {canEditNow && (
-                    <>
-                      <button onClick={() => onMove(idx, -1)} style={iconGhost}><ChevronUp size={14} /></button>
-                      <button onClick={() => onMove(idx, 1)} style={iconGhost}><ChevronDown size={14} /></button>
-                      <button onClick={() => onDuplicate(item.id)} title="Duplicar" style={iconGhost}><Copy size={14} /></button>
-                      <button onClick={() => onRemove(item.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>
-                    </>
-                  )}
-                </div>
+                {/* Asignar encargados (Encargados) es solo de bloques — una canción/versículo/slide
+                    individual ya no lo ofrece, no tiene sentido asignar una persona "responsable" de
+                    proyectar una diapositiva puntual. */}
+                {canEditNow && (
+                  <div style={{ display: "flex", gap: 2 }}>
+                    <button onClick={() => onDuplicate(item.id)} title="Duplicar" style={iconGhost}><Copy size={14} /></button>
+                    <button onClick={() => onRemove(item.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>
+                  </div>
+                )}
               </div>
-              {isExpanded && (
-                <div style={{ background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 8, padding: "10px 12px", marginTop: -2 }}>
-                  <EncargadosSectionHeader
-                    label="ENCARGADOS"
-                    canEdit={canEdit}
-                    isEditing={!!editingAssignments[item.id]}
-                    onToggle={() => toggleEditingAssignments(item.id)}
-                  />
-                  <EncargadosList
-                    encargados={item.encargados || []}
-                    canEdit={canEdit && !!editingAssignments[item.id]}
-                    allUsuarios={usuariosReales}
-                    onAddEncargado={(usuario) => onAddEncargado(item.id, usuario)}
-                    onSetStatus={(mi, status) => onSetEncargadoStatus(item.id, mi, status)}
-                    onSetLead={(mi) => onSetEncargadoLead(item.id, mi)}
-                    onRemove={(mi) => onRemoveEncargado(item.id, mi)}
-                  />
-                </div>
-              )}
             </div>
           );
         })}
