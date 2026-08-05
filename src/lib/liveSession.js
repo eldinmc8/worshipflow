@@ -31,3 +31,29 @@ export function subscribeLiveSession(onChange) {
     .subscribe();
   return () => { supabase.removeChannel(channel); };
 }
+
+// ---- Canal directo dentro del MISMO navegador (control + proyección en la misma computadora — el
+// caso típico: laptop del operador con el TV conectado por HDMI como segunda pantalla) — cambia la
+// diapositiva al instante, sin pasar por internet, igual de rápido que un presentador local (tipo
+// PowerPoint). Supabase Realtime arriba sigue siendo el camino real para cuando la proyección está en
+// OTRO dispositivo de verdad (o si BroadcastChannel no está disponible) — ninguno de los dos casos se
+// rompe, la pantalla aplica lo que le llegue primero por cualquiera de los dos caminos.
+const BROADCAST_CHANNEL_NAME = "worshipflow-live-broadcast";
+let liveBroadcastChannel = null;
+function getLiveBroadcastChannel() {
+  if (typeof BroadcastChannel === "undefined") return null;
+  if (!liveBroadcastChannel) liveBroadcastChannel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
+  return liveBroadcastChannel;
+}
+
+export function broadcastLiveSession(fila) {
+  getLiveBroadcastChannel()?.postMessage(fila);
+}
+
+export function subscribeLiveBroadcast(onChange) {
+  const channel = getLiveBroadcastChannel();
+  if (!channel) return () => {};
+  const listener = (e) => onChange(e.data);
+  channel.addEventListener("message", listener);
+  return () => channel.removeEventListener("message", listener);
+}

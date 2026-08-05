@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ProjectionPanel } from "./PrototipoWorshipFlow.jsx";
-import { getLiveSession, subscribeLiveSession } from "./lib/liveSession.js";
+import { getLiveSession, subscribeLiveSession, subscribeLiveBroadcast } from "./lib/liveSession.js";
 
 const CURSOR_IDLE_MS = 3000;
 
@@ -10,14 +10,18 @@ export default function PublicScreen() {
   const [needsTapToFullscreen, setNeedsTapToFullscreen] = useState(false);
   const idleTimerRef = useRef(null);
 
-  // Ya no BroadcastChannel (solo servía dentro del mismo navegador): ahora se lee la sesión en vivo
-  // de Supabase al entrar y se sigue en tiempo real con Realtime — funciona aunque esta pantalla esté
-  // en una computadora distinta a la del panel de control.
+  // Dos caminos a la vez: BroadcastChannel llega al instante (sin depender de internet) cuando esta
+  // pantalla está en la MISMA computadora que el panel de control — el caso típico: TV conectado por
+  // HDMI como segunda pantalla, igual que un presentador local (tipo PowerPoint). Supabase Realtime
+  // sigue siendo el camino real cuando esta pantalla está en otro dispositivo de verdad — se lee la
+  // sesión en vivo al entrar y se sigue seguido por Realtime, más lento si el internet del lugar anda
+  // mal, pero funciona aunque control y proyección estén en computadoras distintas.
   useEffect(() => {
     const aplicar = (fila) => setLive({ slide: fila.slide_actual, blanked: fila.blanked, liveStyle: fila.estilo_en_vivo || { theme: "stage", font: "elegante" } });
     getLiveSession().then(aplicar).catch(() => {});
-    const unsubscribe = subscribeLiveSession(aplicar);
-    return unsubscribe;
+    const unsubscribeRealtime = subscribeLiveSession(aplicar);
+    const unsubscribeBroadcast = subscribeLiveBroadcast(aplicar);
+    return () => { unsubscribeRealtime(); unsubscribeBroadcast(); };
   }, []);
 
   useEffect(() => {

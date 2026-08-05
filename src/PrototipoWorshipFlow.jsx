@@ -12,7 +12,7 @@ import {
   listEventosCompletos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento,
 } from "./lib/eventos.js";
 import { listMinisteriosCompletos, crearMinisterio, actualizarLiderMinisterio, sincronizarPlan, sincronizarRecursos } from "./lib/ministerios.js";
-import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession } from "./lib/liveSession.js";
+import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession } from "./lib/liveSession.js";
 import { sincronizarRecordatorios } from "./lib/recordatorios.js";
 import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotificaciones, suscribirPush, desuscribirPush, estaSuscritoPush } from "./lib/notificaciones.js";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
@@ -793,8 +793,13 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // observando "En vivo" encendido en su teléfono pisaría por accidente lo que Multimedia proyecta).
   useEffect(() => {
     if (!liveEventId || userId !== liveOwnerId) return;
-    updateLiveSession({ evento_id: liveEventId, liderado_por: userId, slide_actual: current || null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null })
-      .catch((e) => window.alert("No se pudo actualizar la proyección: " + e.message));
+    const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: current || null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null };
+    // Se manda por las dos vías a la vez: BroadcastChannel llega al instante si la pantalla de
+    // proyección está en la MISMA computadora (caso típico: TV por HDMI como segunda pantalla) — así el
+    // cambio de diapositiva no depende del internet del lugar, igual que un presentador local. Supabase
+    // sigue siendo el camino real cuando la proyección de verdad está en otro dispositivo aparte.
+    broadcastLiveSession(fila);
+    updateLiveSession(fila).catch((e) => window.alert("No se pudo actualizar la proyección: " + e.message));
   }, [current, blanked, liveStyle, liveEventId, liveOwnerId, adHoc, userId]);
 
   // ---- Sincroniza EN TIEMPO REAL, en todos los dispositivos, si hay un evento en vivo ahora mismo y
