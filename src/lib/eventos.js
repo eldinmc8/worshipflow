@@ -98,7 +98,7 @@ function filaAItemServicio(row, encargadosPorItem) {
   if (row.tipo === "bloque") return { ...base, type: "seccion", title: row.titulo, description: row.descripcion || "", ministryId: row.ministerio_id || null };
   if (row.tipo === "cancion") return { ...base, type: "cancion", songId: row.cancion_id, structure: row.estructura && row.estructura.length ? row.estructura : undefined, keyOverride: row.tonalidad_override || null };
   if (row.tipo === "biblia") return { ...base, type: "biblia", reference: row.referencia, version: row.version_biblia, text: row.texto_biblia, bookId: row.libro_id || undefined, bookName: row.libro_nombre || undefined, chapter: row.capitulo || undefined, verseStart: row.versiculo_inicio || undefined, verseEnd: row.versiculo_fin || undefined };
-  return { ...base, type: "slide", title: row.titulo || "", subtitle: row.subtitulo || "", bg: row.fondo_color || "#1B2029", bgType: row.fondo_tipo || "color", videoUrl: row.fondo_video_url || "", isSermonPoint: row.es_punto_bosquejo || undefined };
+  return { ...base, type: "slide", title: row.titulo || "", subtitle: row.subtitulo || "", bg: row.fondo_color || "#1B2029", bgType: row.fondo_tipo || "color", videoUrl: row.fondo_video_url || "", imageUrl: row.fondo_imagen_url || "", isSermonPoint: row.es_punto_bosquejo || undefined };
 }
 
 function itemServicioAFila(item, eventoId, orden) {
@@ -118,7 +118,7 @@ function itemServicioAFila(item, eventoId, orden) {
   if (item.type === "seccion") return { ...base, tipo: "bloque", titulo: item.title, descripcion: item.description || "", ministerio_id: item.ministryId || null };
   if (item.type === "cancion") return { ...base, tipo: "cancion", cancion_id: item.songId, tonalidad_override: item.keyOverride || null };
   if (item.type === "biblia") return { ...base, tipo: "biblia", referencia: item.reference, version_biblia: item.version, texto_biblia: item.text, libro_id: item.bookId ?? null, libro_nombre: item.bookName ?? null, capitulo: item.chapter ?? null, versiculo_inicio: item.verseStart ?? null, versiculo_fin: item.verseEnd ?? null };
-  return { ...base, tipo: "slide", titulo: item.title || "", subtitulo: item.subtitle || "", fondo_color: item.bg || "#1B2029", fondo_video_url: item.videoUrl || null };
+  return { ...base, tipo: "slide", titulo: item.title || "", subtitulo: item.subtitle || "", fondo_color: item.bg || "#1B2029", fondo_video_url: item.videoUrl || null, fondo_imagen_url: item.imageUrl || null };
 }
 
 // "Encargados" de un ítem del Setlist (bloque, canción, versículo o slide) — reemplaza el antiguo roster

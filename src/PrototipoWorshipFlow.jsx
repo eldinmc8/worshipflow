@@ -245,7 +245,7 @@ function buildSlides(serviceOrder, library) {
     } else if (item.type === "biblia") {
       slides.push({ slideId: item.id, type: "biblia", reference: item.reference, version: item.version, text: item.text, bookId: item.bookId, bookName: item.bookName, chapter: item.chapter, verseStart: item.verseStart, verseEnd: item.verseEnd });
     } else if (item.type === "slide") {
-      slides.push({ slideId: item.id, type: "slide", title: item.title, subtitle: item.subtitle, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl });
+      slides.push({ slideId: item.id, type: "slide", title: item.title, subtitle: item.subtitle, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl, imageUrl: item.imageUrl });
     }
   });
   return slides;
@@ -362,7 +362,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const [adHocIdx, setAdHocIdx] = useState(0);
   const [showBibleForm, setShowBibleForm] = useState(false);
   const [showSlideForm, setShowSlideForm] = useState(false);
-  const [slideDraft, setSlideDraft] = useState({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "" });
+  const [slideDraft, setSlideDraft] = useState({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" });
   const [showSermonForm, setShowSermonForm] = useState(false);
   const [sermonPointText, setSermonPointText] = useState("");
 
@@ -466,9 +466,9 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   };
   const addBible = (b) => { updateOrder((o) => [...o, { id: nextId(), type: "biblia", reference: b.ref, version: b.version, text: b.text, bookId: b.bookId, bookName: b.bookName, chapter: b.chapter, verseStart: b.verseStart, verseEnd: b.verseEnd }]); setShowBibleForm(false); };
   const addSlide = () => {
-    if (!slideDraft.title && !(slideDraft.bgType === "video" && slideDraft.videoUrl)) return; // se permite solo-video sin texto
+    if (!slideDraft.title && !(slideDraft.bgType === "video" && slideDraft.videoUrl) && !(slideDraft.bgType === "imagen" && slideDraft.imageUrl)) return; // se permite solo-video/solo-imagen sin texto
     updateOrder((o) => [...o, { id: nextId(), type: "slide", ...slideDraft }]);
-    setSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "" });
+    setSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" });
     setShowSlideForm(false);
   };
   const addSeccion = (title, description) => updateOrder((o) => [...o, { id: nextId(), type: "seccion", title: title.trim() || "Nuevo bloque", description: description.trim(), ministryId: null }]);
@@ -2896,7 +2896,13 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
   // el encargado de ese bloque de Lectura bíblica/Oración (ver canAddBibleReading más arriba).
-  const canEditItem = () => isAdminViewer;
+  // Además de eso, el Setlist se ve de solo lectura (sin agregar/quitar/mover nada) hasta tocar "Editar"
+  // — mismo candado visual que ya tenían Encargados/equipo de alabanza — para que no se mueva nada por
+  // accidente en medio de un culto. Los cambios se siguen guardando solos apenas se hacen; "Guardar"
+  // solo regresa a la vista de solo lectura.
+  const [editingSetlist, setEditingSetlist] = useState(false);
+  const canEditNow = isAdminViewer && editingSetlist;
+  const canEditItem = () => canEditNow;
   const canEditWorshipRoles = isAdminViewer;
   const [query, setQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({});
@@ -2926,7 +2932,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
     return <CleaningOnlyPanel block={myCleaningBlock} />;
   }
   const dragHandleProps = (idx) => ({
-    draggable: true,
+    draggable: canEditNow,
     onDragStart: (e) => {
       // Firefox (y algunos navegadores) cancelan el arrastre en silencio si no se llama a setData —
       // sin esto, el drag ni siquiera empieza a verse aunque el resto del código esté bien.
@@ -2945,13 +2951,16 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
   const filtered = library.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
   return (
     <div style={{ display: "flex", flexDirection: isCompact ? "column" : "row", flex: 1, minHeight: 0 }}>
-      {isCompact && (
+      {/* La única excepción que puede seguir agregando sin tocar "Editar" (que ni ve, es de admin): quien
+          esté asignado como encargado de un bloque de Lectura bíblica/Oración, agregando su propio
+          versículo — igual que ya funcionaba antes de este candado. */}
+      {isCompact && (editingSetlist || (!isAdminViewer && canAddBibleReading)) && (
         <button onClick={() => setShowLibrary((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "#EEF1F6", border: "none", borderBottom: "1px solid #DDE3ED", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: "#16233A", cursor: "pointer" }}>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}><ListMusic size={14} /> Biblioteca y agregar elementos</span>
           {showLibrary ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
         </button>
       )}
-      {(showLibrary || !isCompact) && (
+      {(showLibrary || !isCompact) && (editingSetlist || (!isAdminViewer && canAddBibleReading)) && (
       <div style={{ width: isCompact ? "100%" : 270, borderRight: isCompact ? "none" : "1px solid #DDE3ED", borderBottom: isCompact ? "1px solid #DDE3ED" : "none", padding: 14, flexShrink: 0, overflowY: "auto", maxHeight: isCompact ? 320 : "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#64707F", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><ListMusic size={13} /> BIBLIOTECA DE CANCIONES</div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 8, padding: "7px 10px", marginBottom: 10 }}>
@@ -2984,9 +2993,20 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
       )}
 
       <div style={{ flex: 1, padding: 16, overflowY: "auto" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, gap: 8 }}>
           <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 20, margin: 0 }}>Setlist</h2>
-          <span style={{ fontSize: 12, color: "#8996A6" }}>{formatFullDate(event.date) || event.dateLabel}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <span style={{ fontSize: 12, color: "#8996A6" }}>{formatFullDate(event.date) || event.dateLabel}</span>
+            {isAdminViewer && (
+              <button
+                onClick={() => setEditingSetlist((v) => !v)}
+                className="hoverable"
+                style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 14, border: "none", cursor: "pointer", background: editingSetlist ? "#1F8A73" : "#EEF1F6", color: editingSetlist ? "#fff" : "#16233A" }}
+              >
+                {editingSetlist ? <><Check size={12} /> Guardar</> : <><Pencil size={12} /> Editar</>}
+              </button>
+            )}
+          </div>
         </div>
         <div style={{ fontSize: 12, color: "#64707F", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
           <Sparkles size={13} color="#E8821E" /> Solo se agrega en orden — las canciones ya traen su letra lista para proyectar.
@@ -3031,7 +3051,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                       count={isWorshipBlock(item) ? (event.worshipRoles || []).reduce((acc, r) => acc + r.members.length, 0) : (item.encargados || []).length}
                       onClick={() => setExpandedSections((e) => ({ ...e, [item.id]: !e[item.id] }))}
                     />
-                    {isAdminViewer && (
+                    {canEditNow && (
                       <>
                         <button onClick={() => onMove(idx, -1)} style={iconGhost}><ChevronUp size={14} /></button>
                         <button onClick={() => onMove(idx, 1)} style={iconGhost}><ChevronDown size={14} /></button>
@@ -3044,7 +3064,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
 
                 {isExpanded && (
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(124,140,216,0.3)" }}>
-                    {isAdminViewer && (
+                    {canEditNow && (
                       <>
                         <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>VINCULAR A UN MINISTERIO</div>
                         <select value={item.ministryId || ""} onChange={(e) => onLinkMinistry(item.id, e.target.value)} style={{ ...inputStyle, marginBottom: linkedMinistry ? 10 : 0 }}>
@@ -3146,7 +3166,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                 )}
                 <div style={{ display: "flex", gap: 2 }}>
                   <EncargadosToggleButton count={(item.encargados || []).length} onClick={() => setExpandedSections((e) => ({ ...e, [item.id]: !e[item.id] }))} />
-                  {isAdminViewer && (
+                  {canEditNow && (
                     <>
                       <button onClick={() => onMove(idx, -1)} style={iconGhost}><ChevronUp size={14} /></button>
                       <button onClick={() => onMove(idx, 1)} style={iconGhost}><ChevronDown size={14} /></button>
@@ -3238,7 +3258,10 @@ async function fetchAdjacentBibleVerse(version, bookId, chapter, fromVerse, dire
   return { chapter: targetChapter, verse: v.verse, text: v.text.replace(/\s+/g, " ").trim(), bookName: book.name };
 }
 
-function BibleModal({ onClose, onAdd, title = "Agregar versículo", submitLabel = "Agregar al servicio", splitVersesIndividually = false }) {
+// Cuerpo del buscador de Biblia, sin el modal alrededor — se reutiliza tal cual dentro de un <ModalShell>
+// (Setlist: "Agregar versículo") y también suelto dentro de un panel lateral angosto (En vivo: versículo
+// improvisado), que es justo la manera compacta en la que se quería ver esto en el dashboard en vivo.
+function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", splitVersesIndividually = false }) {
   const [mode, setMode] = useState("browse"); // browse: biblia completa en vivo · manual: escribir a mano
   const [version, setVersion] = useState(BIBLE_VERSIONS[0].code);
   const [books, setBooks] = useState(null);
@@ -3290,7 +3313,7 @@ function BibleModal({ onClose, onAdd, title = "Agregar versículo", submitLabel 
   const filteredBooks = books ? books.filter((b) => b.name.toLowerCase().includes(bookFilter.toLowerCase())) : [];
 
   return (
-    <ModalShell title={title} icon={BookOpen} color="#2F5FA8" onClose={onClose}>
+    <>
       <div style={{ display: "flex", gap: 3, background: "#EEF1F6", padding: 3, borderRadius: 8, marginBottom: 12, width: "fit-content" }}>
         {[["browse", "Buscar en la Biblia"], ["manual", "Escribir manualmente"]].map(([val, label]) => (
           <button key={val} onClick={() => setMode(val)} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", background: mode === val ? "#2F5FA8" : "transparent", color: mode === val ? "#fff" : "#64707F" }}>{label}</button>
@@ -3390,6 +3413,13 @@ function BibleModal({ onClose, onAdd, title = "Agregar versículo", submitLabel 
           )}
         </>
       )}
+    </>
+  );
+}
+function BibleModal({ onClose, onAdd, title = "Agregar versículo", submitLabel = "Agregar al servicio", splitVersesIndividually = false }) {
+  return (
+    <ModalShell title={title} icon={BookOpen} color="#2F5FA8" onClose={onClose}>
+      <BibleBrowserBody onAdd={onAdd} submitLabel={submitLabel} splitVersesIndividually={splitVersesIndividually} />
     </ModalShell>
   );
 }
@@ -3397,27 +3427,49 @@ function SlideModal({ draft, setDraft, onClose, onAdd, title = "Slide personaliz
   const bgOptions = ["#1B2029", "#2A1F33", "#1F2A2C", "#332420"];
   const bgType = draft.bgType || "color";
   const videoFileInputRef = useRef(null);
+  const imageFileInputRef = useRef(null);
   const uploadVideoFile = (file) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => setDraft((d) => ({ ...d, videoUrl: reader.result }));
     reader.readAsDataURL(file);
   };
+  const uploadImageFile = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setDraft((d) => ({ ...d, imageUrl: reader.result }));
+    reader.readAsDataURL(file);
+  };
   return (
     <ModalShell title={title} icon={ImgIcon} color="#B15EA0" onClose={onClose}>
-      <input placeholder="Título (opcional si es solo video)" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} style={inputStyle} />
+      <input placeholder="Título (opcional si es solo video/imagen)" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} style={inputStyle} />
       <input placeholder="Subtítulo (opcional)" value={draft.subtitle} onChange={(e) => setDraft({ ...draft, subtitle: e.target.value })} style={{ ...inputStyle, marginTop: 8 }} />
       <div style={{ fontSize: 11, color: "#64707F", fontWeight: 700, margin: "14px 0 8px" }}>FONDO</div>
       <div style={{ display: "flex", gap: 3, background: "#EEF1F6", padding: 3, borderRadius: 8, marginBottom: 10, width: "fit-content" }}>
-        {[["color", "Color"], ["video", "Video"]].map(([val, label]) => (
+        {[["color", "Color"], ["imagen", "Imagen"], ["video", "Video"]].map(([val, label]) => (
           <button key={val} onClick={() => setDraft({ ...draft, bgType: val })} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", background: bgType === val ? "#B15EA0" : "transparent", color: bgType === val ? "#fff" : "#64707F" }}>{label}</button>
         ))}
       </div>
-      {bgType === "color" ? (
+      {bgType === "color" && (
         <div style={{ display: "flex", gap: 8 }}>
           {bgOptions.map((c) => (<button key={c} onClick={() => setDraft({ ...draft, bg: c })} style={{ width: 34, height: 34, borderRadius: 8, background: c, border: draft.bg === c ? "2px solid #E8821E" : "1px solid #C7D0DD", cursor: "pointer" }} />))}
         </div>
-      ) : (
+      )}
+      {bgType === "imagen" && (
+        <div>
+          <button onClick={() => imageFileInputRef.current?.click()} className="hoverable" style={addBtnStyle}>
+            {draft.imageUrl ? (
+              <span style={{ width: 16, height: 16, borderRadius: 4, backgroundImage: `url(${draft.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />
+            ) : (
+              <ImgIcon size={13} color="#8996A6" />
+            )}
+            <span>{draft.imageUrl ? "Imagen cargada — tocar para cambiar" : "Subir imagen desde este dispositivo"}</span>
+          </button>
+          <input ref={imageFileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { uploadImageFile(e.target.files?.[0]); e.target.value = ""; }} />
+          <div style={{ fontSize: 11, color: "#8996A6", marginTop: 6 }}>Se estira para cubrir toda la pantalla. Si dejas el título vacío, se proyecta a pantalla completa sin texto encima.</div>
+        </div>
+      )}
+      {bgType === "video" && (
         <div>
           <div style={{ display: "flex", gap: 8 }}>
             <input placeholder="https://... (mp4 de fondo)" value={draft.videoUrl || ""} onChange={(e) => setDraft({ ...draft, videoUrl: e.target.value })} style={{ ...inputStyle, flex: 1 }} />
@@ -3495,13 +3547,13 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
   const [showAdHocSong, setShowAdHocSong] = useState(false);
   const [showAdHocVideo, setShowAdHocVideo] = useState(false);
   const [showAddSlide, setShowAddSlide] = useState(false);
-  const [newSlideDraft, setNewSlideDraft] = useState({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "" });
+  const [newSlideDraft, setNewSlideDraft] = useState({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" });
   // Editar una diapositiva ya agregada (versículo/slide/punto del bosquejo) por si algo se escribió mal.
   const [editingSlide, setEditingSlide] = useState(null); // la slide original que se está editando, o null
   const [editDraft, setEditDraft] = useState(null);
   const startEditingSlide = (s) => {
     setEditingSlide(s);
-    setEditDraft(s.type === "biblia" ? { reference: s.reference, text: s.text } : { title: s.title, subtitle: s.subtitle || "", bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "" });
+    setEditDraft(s.type === "biblia" ? { reference: s.reference, text: s.text } : { title: s.title, subtitle: s.subtitle || "", bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "" });
   };
   const saveSlideEdit = () => {
     if (!editingSlide) return;
@@ -3525,6 +3577,23 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
   const customBgType = liveStyle.customBgType || "imagen";
   const fontScale = liveStyle.fontScale ?? 1;
   const navIdx = adHoc ? adHocIdx : activeIdx;
+
+  // Flechas del teclado para cambiar de diapositiva sin soltar el mouse — como en PowerPoint. Izquierda/
+  // derecha avanzan por el plan (igual que los botones ‹ ›); arriba/abajo avanzan versículo por versículo
+  // SOLO cuando lo que está en vivo es una lectura bíblica navegable (viene de "Buscar en la Biblia", no
+  // escrita a mano). Se ignora si el foco está en un campo de texto, para no pisar lo que se esté escribiendo.
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      const el = document.activeElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      if (e.key === "ArrowRight") { e.preventDefault(); goto(navIdx + 1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); goto(navIdx - 1); }
+      else if (e.key === "ArrowDown" && current?.type === "biblia" && current.bookId) { e.preventDefault(); onNavigateBibleVerse(1); }
+      else if (e.key === "ArrowUp" && current?.type === "biblia" && current.bookId) { e.preventDefault(); onNavigateBibleVerse(-1); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [navIdx, current, goto, onNavigateBibleVerse]);
 
   // Saltar a una sección (Coro/Puente/Estrofa…) de la canción que está sonando ahora — como el panel "Current" de FreeShow.
   // Funciona igual para el plan y para una canción improvisada (fuera del plan): busca en la lista que
@@ -3572,7 +3641,15 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
       )}
 
       {showStyle && (
-        <div style={{ margin: "0 16px 14px", background: "#F4F6FA", border: "1px solid #DDE3ED", borderRadius: 12, padding: 12 }}>
+        // Panel flotante a un lado (no un bloque en el flujo normal) — así abrir Estilo nunca empuja ni
+        // achica la grilla de diapositivas ni la vista previa de al lado, se queda encima nada más.
+        <>
+          <div onClick={() => setShowStyle(false)} style={{ position: "fixed", inset: 0, background: "rgba(11,15,22,0.35)", zIndex: 60 }} />
+          <div style={{ position: "fixed", top: 0, bottom: 0, right: 0, width: 320, maxWidth: "88vw", background: "#F4F6FA", borderLeft: "1px solid #DDE3ED", boxShadow: "-10px 0 28px rgba(22,50,79,0.22)", zIndex: 61, overflowY: "auto", padding: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#16233A" }}>🎨 Estilo de la proyección</span>
+            <button onClick={() => setShowStyle(false)} style={iconGhost}><X size={16} /></button>
+          </div>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>FONDO DE LA PROYECCIÓN</div>
           <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
             {Object.entries(LIVE_THEMES).map(([key, t]) => (
@@ -3619,7 +3696,8 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
               <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, font: key }))} style={{ padding: "5px 10px", borderRadius: 8, border: liveStyle.font === key ? "2px solid #B15EA0" : "1px solid #C7D0DD", cursor: "pointer", background: "#fff", fontFamily: f.family, fontWeight: f.weight, fontStyle: f.italic ? "italic" : "normal", textTransform: f.transform, fontSize: 12 }}>{f.label}</button>
             ))}
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Cuerpo: grid de diapositivas (izquierda) + panel de vista previa y controles (derecha), como FreeShow */}
@@ -3628,7 +3706,7 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ fontSize: 11, color: "#64707F", fontWeight: 700 }}>TODAS LAS SLIDES</span>
             <button
-              onClick={() => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "" }); setShowAddSlide(true); }}
+              onClick={() => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); }}
               title="Agregar una diapositiva al plan en vivo (ej. un anuncio que se quedó fuera)"
               style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#2F5FA8", background: "#EAF0FA", border: "none", borderRadius: 14, padding: "4px 10px", cursor: "pointer" }}
             ><Plus size={13} /> Agregar diapositiva</button>
@@ -3748,12 +3826,18 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
       </div>
 
       {showAdHocBible && (
-        <BibleModal
-          title="Proyectar versículo improvisado"
-          submitLabel="Proyectar ahora"
-          onClose={() => setShowAdHocBible(false)}
-          onAdd={(b) => { onStartAdHocBible(b); setShowAdHocBible(false); }}
-        />
+        // Panel lateral compacto (no un modal que tape toda la pantalla) — para proyectar de una vez un
+        // versículo que no estaba planificado, sin perder de vista la grilla de diapositivas de atrás.
+        <>
+          <div onClick={() => setShowAdHocBible(false)} style={{ position: "fixed", inset: 0, background: "rgba(11,15,22,0.35)", zIndex: 60 }} />
+          <div style={{ position: "fixed", top: 0, bottom: 0, right: 0, width: 380, maxWidth: "92vw", background: "#fff", borderLeft: "1px solid #DDE3ED", boxShadow: "-10px 0 28px rgba(22,50,79,0.22)", zIndex: 61, overflowY: "auto", padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#16233A", display: "flex", alignItems: "center", gap: 6 }}><BookOpen size={14} color="#2F5FA8" /> Versículo improvisado</span>
+              <button onClick={() => setShowAdHocBible(false)} style={iconGhost}><X size={16} /></button>
+            </div>
+            <BibleBrowserBody submitLabel="Proyectar ahora" onAdd={(b) => { onStartAdHocBible(b); setShowAdHocBible(false); }} />
+          </div>
+        </>
       )}
       {showAdHocSong && <AdHocSongModal library={library} onClose={() => setShowAdHocSong(false)} onPick={(song) => { onStartAdHocSong(song); setShowAdHocSong(false); }} />}
       {showAdHocVideo && <AdHocVideoModal onClose={() => setShowAdHocVideo(false)} onPlay={(url) => { onStartAdHocVideo(url); setShowAdHocVideo(false); }} />}
@@ -3761,7 +3845,7 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
         <SlideModal
           draft={newSlideDraft} setDraft={setNewSlideDraft}
           onClose={() => setShowAddSlide(false)}
-          onAdd={() => { if (!newSlideDraft.title && !(newSlideDraft.bgType === "video" && newSlideDraft.videoUrl)) return; onAddLiveSlide(newSlideDraft); setShowAddSlide(false); }}
+          onAdd={() => { if (!newSlideDraft.title && !(newSlideDraft.bgType === "video" && newSlideDraft.videoUrl) && !(newSlideDraft.bgType === "imagen" && newSlideDraft.imageUrl)) return; onAddLiveSlide(newSlideDraft); setShowAddSlide(false); }}
         />
       )}
       {editingSlide && editingSlide.type === "biblia" && (
@@ -3828,13 +3912,16 @@ function AutoFitText({ lines, targetRatio, minPx = 14, style, maxWidth }) {
 export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeight, adHocLabel, thumbnail }) {
   const font = LIVE_FONTS[liveStyle?.font || "elegante"];
   const scale = liveStyle?.fontScale ?? 1;
-  // Prioridad de fondo: video propio de esta slide > video de fondo global (Estilo > Video) > imagen > tema de color.
+  // Prioridad de fondo: video propio de esta slide > video de fondo global (Estilo > Video) > imagen
+  // propia de esta slide > imagen de fondo global (Estilo > Imagen) > tema de color.
   const slideVideoBg = slide?.type === "slide" && slide.bgType === "video" && slide.videoUrl;
   const globalVideoBg = !slideVideoBg && liveStyle?.theme === "custom" && liveStyle.customVideo;
   const videoSrc = slideVideoBg ? slide.videoUrl : globalVideoBg ? liveStyle.customVideo : null;
-  const isCustomImage = !videoSrc && liveStyle?.theme === "custom" && liveStyle.customImage;
-  const theme = videoSrc || isCustomImage ? null : LIVE_THEMES[liveStyle?.theme || "stage"];
-  const bg = videoSrc ? "#000" : isCustomImage ? `center / cover no-repeat url(${liveStyle.customImage})` : theme.bg;
+  const slideImageBg = !videoSrc && slide?.type === "slide" && slide.bgType === "imagen" && slide.imageUrl;
+  const globalImageBg = !videoSrc && !slideImageBg && liveStyle?.theme === "custom" && liveStyle.customImage;
+  const imageSrc = slideImageBg || globalImageBg || null;
+  const theme = videoSrc || imageSrc ? null : LIVE_THEMES[liveStyle?.theme || "stage"];
+  const bg = videoSrc ? "#000" : imageSrc ? `center / cover no-repeat url(${imageSrc})` : theme.bg;
   // El tamaño de letra "deseado" viene del slider (liveStyle.fontScale) multiplicando una proporción del
   // alto del contenedor (ver AutoFitText) en vez de un px fijo — así se ve igual de grande en la
   // mini-preview y en la pantalla real, y ese mismo % sigue aplicando de una diapositiva a la siguiente
@@ -3858,7 +3945,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
               <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 0 }} />
             </>
           )}
-          {isCustomImage && <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 0 }} />}
+          {imageSrc && <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 0 }} />}
           {!videoSrc && <div className="spotlight-glow" style={{ position: "absolute", width: thumbnail ? 140 : 420, height: thumbnail ? 140 : 420, borderRadius: "50%", background: `radial-gradient(circle, ${TYPE_META[slide.type].color}22 0%, transparent 70%)` }} />}
           {slide.type === "cancion" && (
             <>
