@@ -25,7 +25,11 @@ export default defineConfig({
         description: 'Presentación y gestión para tu iglesia',
         lang: 'es',
         start_url: '/',
-        display: 'standalone',
+        // 'fullscreen' (no 'standalone'): que se quede fija en pantalla completa siempre al abrirla
+        // instalada, sin ninguna barra del sistema — igual en Android y en iPhone (que además necesita
+        // sus propias etiquetas <meta apple-mobile-web-app-*> en index.html, ya que ignora este manifest).
+        display: 'fullscreen',
+        display_override: ['fullscreen', 'standalone'],
         background_color: '#F4F6FA',
         theme_color: '#16324F',
         icons: [

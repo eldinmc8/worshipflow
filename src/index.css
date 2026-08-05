@@ -12,6 +12,12 @@ body {
   overscroll-behavior: none;
   /* Quita el resplandor azul/gris que Chrome/Android muestra al tocar botones y enlaces. */
   -webkit-tap-highlight-color: transparent;
+  /* Con viewport-fit=cover (necesario para que la app instalada en iPhone use la pantalla completa de
+     borde a borde, notch incluido) el contenido puede quedar debajo de la muesca o la barra de gestos
+     si no se respeta el área segura del dispositivo. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  box-sizing: border-box;
+  min-height: 100vh;
 }
 
 /* Nadie puede seleccionar/copiar texto de la interfaz (títulos, botones, listas, letras de

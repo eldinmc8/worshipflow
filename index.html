@@ -5,7 +5,13 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+    <!-- Sin esto, "Agregar a inicio" en iPhone abre como una pestaña normal de Safari (con su barra de
+         herramientas) y a veces con un zoom raro que obliga a alejar la vista para ver todo completo —
+         iOS ignora por completo el manifest.json para esto, necesita sus propias etiquetas. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="JBP App" />
     <title>JBP App</title>
   </head>
   <body>
