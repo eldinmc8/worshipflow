@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient.js";
+import { esperarCreacionEvento } from "./eventos.js";
 
 export async function listRecordatorios(eventoId) {
   const { data, error } = await supabase
@@ -16,6 +17,7 @@ export async function listRecordatorios(eventoId) {
 // como false siempre) — si no, cada vez que se agrega/edita un recordatorio se reescribirían TODOS
 // como "no enviado" y procesar-recordatorios los volvería a mandar aunque ya se hubieran enviado.
 export async function sincronizarRecordatorios(eventoId, reminders) {
+  await esperarCreacionEvento(eventoId);
   const { error: delErr } = await supabase.from("recordatorios_evento").delete().eq("evento_id", eventoId);
   if (delErr) throw delErr;
   if (!reminders.length) return;

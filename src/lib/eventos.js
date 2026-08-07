@@ -13,6 +13,18 @@ function encolar(key, tarea) {
   return siguiente;
 }
 
+// Un evento recién creado navega a su pantalla de inmediato (para que se sienta instantáneo), pero el
+// INSERT de la fila en `eventos` sigue en vuelo — si el admin agrega un bloque/canción o cambia algo en
+// Ajustes en ese primer instante, esa escritura puede llegar a Supabase ANTES que la fila del evento:
+// un INSERT en items_servicio con una FK inexistente falla, y un UPDATE sobre una fila que no existe
+// simplemente no hace nada — en ambos casos el cambio se pierde en silencio ("se borra de la nada").
+// Este mapa deja que cualquier operación sobre un evento espere a que termine de crearse primero.
+const creacionesPendientes = new Map();
+export async function esperarCreacionEvento(eventoId) {
+  const p = creacionesPendientes.get(eventoId);
+  if (p) await p.catch(() => {});
+}
+
 export async function listEventos() {
   const { data, error } = await supabase.from("eventos").select("*").order("fecha", { ascending: true, nullsFirst: false });
   if (error) throw error;
@@ -26,6 +38,7 @@ export async function createEvento(datos, creadoPor) {
 }
 
 export async function updateEvento(id, datos) {
+  await esperarCreacionEvento(id);
   const { error } = await supabase.from("eventos").update(datos).eq("id", id);
   if (error) throw error;
 }
@@ -179,6 +192,7 @@ export async function listEventosCompletos() {
 // en memoria. Borrar items_servicio arrastra en cascada (on delete cascade) los miembros_rol que
 // apuntaban a ellos por item_servicio_id, así que basta con reinsertar ambas tablas en orden.
 async function sincronizarServiceOrderInterno(eventoId, serviceOrder) {
+  await esperarCreacionEvento(eventoId);
   const { error: delErr } = await supabase.from("items_servicio").delete().eq("evento_id", eventoId);
   if (delErr) throw delErr;
   if (!serviceOrder.length) return;
@@ -198,6 +212,7 @@ export function sincronizarServiceOrder(eventoId, serviceOrder) {
 
 // Reemplaza TODOS los roles del equipo de alabanza (roles_evento + miembros_rol por rol_id) de un evento.
 async function sincronizarWorshipRolesInterno(eventoId, worshipRoles) {
+  await esperarCreacionEvento(eventoId);
   const { error: delErr } = await supabase.from("roles_evento").delete().eq("evento_id", eventoId);
   if (delErr) throw delErr;
   if (!worshipRoles.length) return;
@@ -223,12 +238,20 @@ export function sincronizarWorshipRoles(eventoId, worshipRoles) {
 // Crea un evento nuevo completo (datos + setlist + roles de alabanza + recordatorios) desde el
 // formato en memoria del prototipo.
 export async function crearEventoCompleto(evento, userId) {
-  const { error } = await supabase.from("eventos").insert({
+  const insercion = supabase.from("eventos").insert({
     id: evento.id, titulo: evento.title, fecha: evento.date || null, fecha_label: evento.dateLabel || null,
     hora: evento.hora || null,
     ubicacion: evento.location || null, creado_por: userId, es_plantilla: !!evento.esPlantilla,
-  });
-  if (error) throw error;
+  }).then(({ error }) => { if (error) throw error; });
+  // Registrado ANTES del await: la app navega a la pantalla del evento de inmediato tras llamar a esta
+  // función, así que cualquier escritura que el admin dispare en ese mismo instante (agregar un bloque,
+  // cambiar la hora en Ajustes...) debe poder encontrar esta promesa y esperarla — ver esperarCreacionEvento.
+  creacionesPendientes.set(evento.id, insercion);
+  try {
+    await insercion;
+  } finally {
+    creacionesPendientes.delete(evento.id);
+  }
   await Promise.all([
     sincronizarServiceOrder(evento.id, evento.serviceOrder),
     sincronizarWorshipRoles(evento.id, evento.worshipRoles || []),
