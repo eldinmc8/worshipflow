@@ -697,6 +697,11 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     setOpenSong(null);
     deleteCancion(song.id).catch((e) => window.alert("No se pudo eliminar la canción: " + e.message));
   };
+  // Cuando un evento nace clonado de una plantilla, se marca como "recién armado" (solo en memoria,
+  // nada nuevo en la base de datos) para que EventDetail le muestre el botón "Publicar evento" — un
+  // simple "ya terminé de configurar esto" que regresa a la lista, ya que el evento se fue guardando
+  // solo desde el instante en que se creó (mismo patrón de autoguardado que ya usa toda la app).
+  const [draftFromTemplateId, setDraftFromTemplateId] = useState(null);
   const createEvent = ({ templateId, title, dateLabel, date, hora, location, esPlantilla }) => {
     const template = events.find((e) => e.id === templateId);
     const newEvent = {
@@ -712,6 +717,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     setEvents((evs) => [...evs, newEvent]);
     crearEventoCompleto(newEvent, userId).catch((e) => window.alert("No se pudo guardar el evento: " + e.message));
     setSelectedEventId(newEvent.id);
+    if (template && !esPlantilla) setDraftFromTemplateId(newEvent.id);
   };
   const deleteEvent = (event) => {
     if (event.id === liveEventId) { window.alert("No puedes eliminar un evento que está en vivo — finalízalo primero."); return; }
@@ -1210,6 +1216,8 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={isAdminViewer}
           userId={userId} usuariosReales={usuariosReales}
           onBack={() => window.history.back()}
+          isDraftFromTemplate={selectedEvent.id === draftFromTemplateId}
+          onPublish={() => { setDraftFromTemplateId(null); window.history.back(); }}
           onStart={() => startEvent(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
           onAddSong={addSong} onAddSeccion={addSeccion}
           onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)}
@@ -2538,16 +2546,13 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
     setStep(isPlantillaMode ? "details" : "template");
   };
   const confirmTemplate = () => setStep("details");
-  // Tocar una plantilla en la lista NO debe abrirla como si fuera un evento ya decidido — arranca de
-  // una vez el mismo formulario de "Detalles del evento" (título editable, precargado con el nombre de
-  // la plantilla, fecha en blanco por llenar) que usa "+ Crear evento"; nada se guarda hasta que se
-  // confirme ahí ("Crear evento" = publicar). Editar el contenido propio de la plantilla (su Setlist
-  // base) sigue siendo el lápiz aparte en cada fila.
+  // Tocar una plantilla en la lista NO debe abrirla como si fuera un evento ya decidido, ni pasar por
+  // un formulario/modal intermedio — clona la plantilla de una vez como evento real (autoguardado,
+  // igual que cualquier otro cambio en esta app) y navega directo a su pantalla completa: Setlist ya
+  // cargado y editable ahí mismo, título/fecha/hora editables en Ajustes sin ventanas emergentes.
+  // Editar el contenido propio de la plantilla (su Setlist base) sigue siendo el lápiz aparte en cada fila.
   const useTemplate = (pl) => {
-    setTemplateId(pl.id);
-    setForm({ title: pl.title, dateLabel: "", date: "", hora: "", location: "" });
-    setStep("details");
-    setViewMode("eventos");
+    onCreate({ templateId: pl.id, title: pl.title, dateLabel: "", date: null, hora: null, location: pl.location || "Por definir", esPlantilla: false });
   };
   const confirmCreate = () => {
     if (!form.title.trim() || (!isPlantillaMode && !form.date)) return;
@@ -2752,6 +2757,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
 // ---------------- DETALLE DE EVENTO ----------------
 function EventDetail({
   event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, userId, usuariosReales, onBack, onStart, onGoLive, onDelete,
+  isDraftFromTemplate, onPublish,
   onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
@@ -2949,6 +2955,13 @@ function EventDetail({
           isLive && <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#E8821E", marginBottom: 14 }}><span className="live-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "#E8821E" }} /> Este evento está en vivo ahora mismo.</div>
         )}
       </div>
+      {isDraftFromTemplate && isAdminViewer && (
+        <div style={{ padding: "0 20px", maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box", flexShrink: 0 }}>
+          <button onClick={onPublish} className="hoverable" style={{ ...primaryBtn, width: "100%", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#1F8A73", color: "#fff" }}>
+            <Check size={15} /> Publicar evento
+          </button>
+        </div>
+      )}
       <SetlistPane
         event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer} userId={userId} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onAddSeccion={onAddSeccion}
