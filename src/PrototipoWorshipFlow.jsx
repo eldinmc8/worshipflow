@@ -3108,7 +3108,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
         </button>
       )}
       {(showLibrary || !isCompact) && (editingSetlist || (!isAdminViewer && canAddBibleReading)) && (
-      <div style={{ width: isCompact ? "100%" : 270, borderRight: isCompact ? "none" : "1px solid #DDE3ED", borderBottom: isCompact ? "1px solid #DDE3ED" : "none", padding: 14, flexShrink: 0, overflowY: "auto", maxHeight: isCompact ? 320 : "none" }}>
+      <div style={{ width: isCompact ? "100%" : 270, margin: isCompact ? 0 : "14px 0 14px 14px", background: isCompact ? "transparent" : "#fff", boxShadow: isCompact ? "none" : "0 3px 14px rgba(22,50,79,0.09)", borderRadius: isCompact ? 0 : 16, borderBottom: isCompact ? "1px solid #DDE3ED" : "none", padding: 14, boxSizing: "border-box", flexShrink: 0, overflowY: "auto", maxHeight: isCompact ? 320 : "70vh" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#64707F", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><ListMusic size={13} /> BIBLIOTECA DE CANCIONES</div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 8, padding: "7px 10px", marginBottom: 10 }}>
           <Search size={13} color="#8996A6" />
