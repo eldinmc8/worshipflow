@@ -3818,22 +3818,27 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
   const fontScale = liveStyle.fontScale ?? 1;
   const navIdx = adHoc ? adHocIdx : activeIdx;
 
-  // Flechas del teclado para cambiar de diapositiva sin soltar el mouse — como en PowerPoint. Izquierda/
-  // derecha avanzan por el plan (igual que los botones ‹ ›); arriba/abajo avanzan versículo por versículo
-  // SOLO cuando lo que está en vivo es una lectura bíblica navegable (viene de "Buscar en la Biblia", no
-  // escrita a mano). Se ignora si el foco está en un campo de texto, para no pisar lo que se esté escribiendo.
+  // Flechas del teclado para cambiar de diapositiva sin soltar el mouse — como en PowerPoint. Arriba/
+  // abajo SIEMPRE avanzan versículo por versículo cuando lo que está en vivo es una lectura bíblica
+  // navegable (viene de "Buscar en la Biblia", no escrita a mano). Izquierda/derecha avanzan por el plan
+  // — EXCEPTO en modo improvisado con un versículo navegable y sin otra diapositiva a la que ir (el caso
+  // típico: "Proyectar ahora" desde el buscador, fuera de la planificación), donde también avanzan
+  // versículo por versículo — así cualquiera de las dos flechas funciona ahí, no solo arriba/abajo.
+  // Se ignora si el foco está en un campo de texto, para no pisar lo que se esté escribiendo.
   useEffect(() => {
     const onKeyDown = (e) => {
       const el = document.activeElement;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
-      if (e.key === "ArrowRight") { e.preventDefault(); goto(navIdx + 1); }
-      else if (e.key === "ArrowLeft") { e.preventDefault(); goto(navIdx - 1); }
-      else if (e.key === "ArrowDown" && current?.type === "biblia" && current.bookId) { e.preventDefault(); onNavigateBibleVerse(1); }
-      else if (e.key === "ArrowUp" && current?.type === "biblia" && current.bookId) { e.preventDefault(); onNavigateBibleVerse(-1); }
+      const isNavigableBible = current?.type === "biblia" && current.bookId;
+      const noOtherSlideToGo = adHoc && adHoc.slides.length === 1;
+      if (e.key === "ArrowRight") { e.preventDefault(); if (isNavigableBible && noOtherSlideToGo) onNavigateBibleVerse(1); else goto(navIdx + 1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); if (isNavigableBible && noOtherSlideToGo) onNavigateBibleVerse(-1); else goto(navIdx - 1); }
+      else if (e.key === "ArrowDown" && isNavigableBible) { e.preventDefault(); onNavigateBibleVerse(1); }
+      else if (e.key === "ArrowUp" && isNavigableBible) { e.preventDefault(); onNavigateBibleVerse(-1); }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [navIdx, current, goto, onNavigateBibleVerse]);
+  }, [navIdx, current, adHoc, goto, onNavigateBibleVerse]);
 
   // Saltar a una sección (Coro/Puente/Estrofa…) de la canción que está sonando ahora — como el panel "Current" de FreeShow.
   // Funciona igual para el plan y para una canción improvisada (fuera del plan): busca en la lista que
@@ -4203,9 +4208,13 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
                 lines={`"${slide.text}"`} targetRatio={bibliaRatio} minPx={thumbnail ? 7 : 14} maxWidth="90%"
                 style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, textAlign: "center", zIndex: 1, lineHeight: 1.4, fontStyle: font.italic || font.family.includes("Fraunces") ? "italic" : "normal", color: "#fff" }}
               />
-              <div style={{ marginTop: thumbnail ? 6 : 16, fontSize: thumbnail ? 10 : 14, color: "#6E9BD1", fontWeight: 700, zIndex: 1, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              {/* La cita ("Génesis 6:6") tiene que leerse desde lejos SIN necesidad de escuchar — hay gente
+                  que sigue con su propia Biblia en mano y solo mira la pantalla para ubicar el pasaje.
+                  Por eso escala con el alto real de la pantalla (clamp en vh), no un tamaño fijo chiquito
+                  pensado para la mini-preview del panel de control. */}
+              <div style={{ marginTop: thumbnail ? 6 : 28, fontSize: thumbnail ? 10 : "clamp(22px, 4.2vh, 56px)", color: "#6E9BD1", fontWeight: 800, zIndex: 1, display: "flex", alignItems: "center", gap: "0.3em", flexShrink: 0 }}>
                 {slide.reference}
-                {!thumbnail && slide.version && <span style={{ fontSize: 11, background: "rgba(110,155,209,0.2)", borderRadius: 6, padding: "2px 7px" }}>{slide.version}</span>}
+                {!thumbnail && slide.version && <span style={{ fontSize: "0.4em", background: "rgba(110,155,209,0.2)", borderRadius: 6, padding: "0.2em 0.6em" }}>{slide.version}</span>}
               </div>
             </>
           )}
