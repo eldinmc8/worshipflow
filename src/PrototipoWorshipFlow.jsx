@@ -3108,19 +3108,21 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
         </button>
       )}
       {(showLibrary || !isCompact) && (editingSetlist || (!isAdminViewer && canAddBibleReading)) && (
-      <div style={{ width: isCompact ? "100%" : 270, margin: isCompact ? 0 : "14px 0 14px 14px", background: isCompact ? "transparent" : "#fff", boxShadow: isCompact ? "none" : "0 3px 14px rgba(22,50,79,0.09)", borderRadius: isCompact ? 0 : 16, borderBottom: isCompact ? "1px solid #DDE3ED" : "none", padding: 14, boxSizing: "border-box", flexShrink: 0, overflowY: "auto", maxHeight: isCompact ? 320 : "70vh" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#64707F", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><ListMusic size={13} /> BIBLIOTECA DE CANCIONES</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 8, padding: "7px 10px", marginBottom: 10 }}>
-          <Search size={13} color="#8996A6" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "#16233A", fontSize: 12, width: "100%" }} />
+      <div style={{ width: isCompact ? "100%" : 270, margin: isCompact ? 0 : "14px 0 14px 14px", background: isCompact ? "transparent" : "#fff", boxShadow: isCompact ? "none" : "0 3px 14px rgba(22,50,79,0.09)", borderRadius: isCompact ? 0 : 16, borderBottom: isCompact ? "1px solid #DDE3ED" : "none", padding: 14, boxSizing: "border-box", flexShrink: 0, display: "flex", flexDirection: "column" }}>
+        <div style={{ overflowY: "auto", maxHeight: isCompact ? 260 : "55vh" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#64707F", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><ListMusic size={13} /> BIBLIOTECA DE CANCIONES</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 8, padding: "7px 10px", marginBottom: 10 }}>
+            <Search size={13} color="#8996A6" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "#16233A", fontSize: 12, width: "100%" }} />
+          </div>
+          {filtered.map((s) => (
+            <button key={s.id} onClick={() => onAddSong(s.id)} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 6, borderRadius: 8, background: "transparent", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{s.key} · {s.tempo} bpm</div></div>
+              <Plus size={15} color="#E8821E" />
+            </button>
+          ))}
         </div>
-        {filtered.map((s) => (
-          <button key={s.id} onClick={() => onAddSong(s.id)} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 6, borderRadius: 8, background: "transparent", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{s.key} · {s.tempo} bpm</div></div>
-            <Plus size={15} color="#E8821E" />
-          </button>
-        ))}
-        <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
           {isAdminViewer ? (
             <button onClick={() => setShowSeccionForm(true)} className="hoverable" style={addBtnStyle}><ListMusic size={14} color="#5661B3" /> Agregar bloque del culto</button>
           ) : (
