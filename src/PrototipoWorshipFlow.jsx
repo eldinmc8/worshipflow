@@ -2768,14 +2768,110 @@ function EventDetail({
     setShowReminderForm(false);
   };
   // Editar título/fecha/hora/ubicación DESPUÉS de creado — antes solo se fijaban una vez al crear el
-  // evento/la plantilla y no había forma de corregirlos. editForm no nulo = modal abierto.
-  const [editForm, setEditForm] = useState(null);
-  const openEditEvent = () => setEditForm({ title: event.title, dateLabel: event.dateLabel || "", date: event.date || "", hora: event.hora || "", location: event.location || "" });
-  const confirmEditEvent = () => {
-    if (!editForm.title.trim() || (!event.esPlantilla && !editForm.date)) return;
-    onUpdateEventDetails({ title: editForm.title.trim(), dateLabel: editForm.dateLabel, date: event.esPlantilla ? null : (editForm.date || null), hora: editForm.hora || null, location: editForm.location });
-    setEditForm(null);
-  };
+  // evento/la plantilla y no había forma de corregirlos. Pantalla completa "Ajustes del evento"
+  // (separada del Setlist), guarda en vivo campo por campo — mismo patrón que ya usa el título de
+  // cada bloque del Setlist (onChange directo, sin botón "Guardar" ni validación bloqueante).
+  const [showEventSettings, setShowEventSettings] = useState(false);
+  const patchEvent = (patch) => onUpdateEventDetails({ title: event.title, dateLabel: event.dateLabel || "", date: event.date || null, hora: event.hora || null, location: event.location || "", ...patch });
+
+  if (showEventSettings) {
+    return (
+      <div className="screen-enter" style={{ width: "100%", flex: 1, minHeight: 0, overflowY: "auto" }}>
+        <div style={{ padding: 20, maxWidth: 640, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+            <button onClick={() => setShowEventSettings(false)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: "4px 6px 4px 0", borderRadius: 8 }}>
+              <ArrowLeft size={18} color="#16233A" />
+              <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "#16233A" }}>Ajustes del evento</span>
+            </button>
+            {isAdminViewer && (
+              <button onClick={() => onDelete(event)} title="Eliminar evento" style={iconGhost}>
+                <Trash2 size={16} color="#C23B32" />
+              </button>
+            )}
+          </div>
+
+          <Field label={event.esPlantilla ? "Nombre de la plantilla" : "Nombre del evento"}>
+            <input value={event.title} onChange={(e) => patchEvent({ title: e.target.value })} style={inputStyle} />
+          </Field>
+
+          {!event.esPlantilla && (
+            <>
+              <div style={{ marginTop: 14 }}>
+                <Field label="Ubicación del evento">
+                  <input value={event.location || ""} onChange={(e) => patchEvent({ location: e.target.value })} placeholder="Ej. Pastores, Sacatepéquez" style={inputStyle} />
+                </Field>
+              </div>
+              <div style={{ display: "flex", gap: 12, marginTop: 14 }}>
+                <div style={{ flex: 1 }}>
+                  <Field label="Fecha">
+                    <input type="date" value={event.date || ""} onChange={(e) => patchEvent({ date: e.target.value || null })} style={inputStyle} />
+                  </Field>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <Field label="Hora">
+                    <input type="time" value={event.hora || ""} onChange={(e) => patchEvent({ hora: e.target.value || null })} style={inputStyle} />
+                  </Field>
+                </div>
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <Field label="Hora o nota (opcional)">
+                  <input value={event.dateLabel || ""} onChange={(e) => patchEvent({ dateLabel: e.target.value })} placeholder="Ej. 10:00 am" style={inputStyle} />
+                </Field>
+              </div>
+            </>
+          )}
+
+          {isAdminViewer && (
+            <div style={{ marginTop: 22, background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><Bell size={14} color="#E8821E" /> Recordatorios</div>
+                <button onClick={() => setShowReminderForm(true)} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar</button>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: event.esPlantilla ? 0 : 10 }}>
+                {(event.reminders || []).length === 0 && <div style={{ color: "#8996A6", fontSize: 12 }}>Sin recordatorios configurados{event.esPlantilla ? " en esta plantilla" : ""}.</div>}
+                {(event.reminders || []).map((r) => (
+                  <span key={r.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "#EEF1F6", borderRadius: 20, padding: "5px 6px 5px 12px", fontSize: 12, fontWeight: 600 }}>
+                    {r.cantidad} {r.unidad === "horas" ? (r.cantidad === 1 ? "hora" : "horas") : (r.cantidad === 1 ? "día" : "días")} antes
+                    <button onClick={() => onRemoveReminder(r.id)} style={{ ...iconGhost, width: 18, height: 18 }}><X size={11} /></button>
+                  </span>
+                ))}
+              </div>
+              {!event.esPlantilla && (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#64707F" }}>HORA DEL EVENTO</span>
+                    <input type="time" value={event.hora || ""} onChange={(e) => onSetHora(e.target.value)} style={{ ...inputStyle, width: "auto", padding: "5px 8px", fontSize: 12 }} />
+                  </div>
+                  {!event.hora && <div style={{ fontSize: 11, color: "#8996A6", marginTop: 6 }}>Sin hora definida, los recordatorios "por horas" no se pueden calcular con precisión.</div>}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {showReminderForm && (
+          <ModalShell title="Agregar recordatorio" icon={Bell} color="#E8821E" onClose={() => setShowReminderForm(false)}>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+              <Field label="Cantidad">
+                <input type="number" min={1} value={reminderDraft.cantidad} onChange={(e) => setReminderDraft({ ...reminderDraft, cantidad: e.target.value })} style={inputStyle} />
+              </Field>
+              <Field label="Unidad">
+                <select value={reminderDraft.unidad} onChange={(e) => setReminderDraft({ ...reminderDraft, unidad: e.target.value })} style={inputStyle}>
+                  <option value="dias">Días antes</option>
+                  <option value="horas">Horas antes</option>
+                </select>
+              </Field>
+            </div>
+            {reminderDraft.unidad === "horas" && !event.hora && (
+              <div style={{ fontSize: 11, color: "#C23B32", marginTop: 8 }}>Este evento todavía no tiene hora definida — este recordatorio no se enviará hasta que se le asigne una.</div>
+            )}
+            <button onClick={confirmAddReminder} style={{ ...primaryBtn, marginTop: 14 }}>Agregar recordatorio</button>
+          </ModalShell>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="screen-enter" style={{ width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "20px 20px 0", maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box", flexShrink: 0 }}>
@@ -2783,8 +2879,8 @@ function EventDetail({
           <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
           {isAdminViewer && (
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={openEditEvent} title={event.esPlantilla ? "Editar plantilla" : "Editar evento"} style={iconGhost}>
-                <Pencil size={16} color="#16324F" />
+              <button onClick={() => setShowEventSettings(true)} title={event.esPlantilla ? "Ajustes de la plantilla" : "Ajustes del evento"} style={iconGhost}>
+                <Settings size={16} color="#16324F" />
               </button>
               <button onClick={() => onDelete(event)} title="Eliminar evento" style={iconGhost}>
                 <Trash2 size={16} color="#C23B32" />
@@ -2840,29 +2936,6 @@ function EventDetail({
           </ol>
         </div>
 
-        {isAdminViewer && (
-          <div style={{ background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: 14, marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><Bell size={14} color="#E8821E" /> Recordatorios</div>
-              <button onClick={() => setShowReminderForm(true)} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar</button>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-              {(event.reminders || []).length === 0 && <div style={{ color: "#8996A6", fontSize: 12 }}>Sin recordatorios configurados{event.esPlantilla ? " en esta plantilla" : ""}.</div>}
-              {(event.reminders || []).map((r) => (
-                <span key={r.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "#EEF1F6", borderRadius: 20, padding: "5px 6px 5px 12px", fontSize: 12, fontWeight: 600 }}>
-                  {r.cantidad} {r.unidad === "horas" ? (r.cantidad === 1 ? "hora" : "horas") : (r.cantidad === 1 ? "día" : "días")} antes
-                  <button onClick={() => onRemoveReminder(r.id)} style={{ ...iconGhost, width: 18, height: 18 }}><X size={11} /></button>
-                </span>
-              ))}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#64707F" }}>HORA DEL EVENTO</span>
-              <input type="time" value={event.hora || ""} onChange={(e) => onSetHora(e.target.value)} style={{ ...inputStyle, width: "auto", padding: "5px 8px", fontSize: 12 }} />
-            </div>
-            {!event.hora && <div style={{ fontSize: 11, color: "#8996A6", marginTop: 6 }}>Sin hora definida, los recordatorios "por horas" no se pueden calcular con precisión.</div>}
-          </div>
-        )}
-
         {event.esPlantilla ? (
           <div style={{ fontSize: 12, color: "#8996A6", marginBottom: 14 }}>Esta es una plantilla — no se transmite en vivo, solo sirve como base para nuevos eventos ("Selecciona plantilla" al crear uno).</div>
         ) : canStartLive ? (
@@ -2891,46 +2964,6 @@ function EventDetail({
         showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
         showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
       />
-      {showReminderForm && (
-        <ModalShell title="Agregar recordatorio" icon={Bell} color="#E8821E" onClose={() => setShowReminderForm(false)}>
-          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-            <Field label="Cantidad">
-              <input type="number" min={1} value={reminderDraft.cantidad} onChange={(e) => setReminderDraft({ ...reminderDraft, cantidad: e.target.value })} style={inputStyle} />
-            </Field>
-            <Field label="Unidad">
-              <select value={reminderDraft.unidad} onChange={(e) => setReminderDraft({ ...reminderDraft, unidad: e.target.value })} style={inputStyle}>
-                <option value="dias">Días antes</option>
-                <option value="horas">Horas antes</option>
-              </select>
-            </Field>
-          </div>
-          {reminderDraft.unidad === "horas" && !event.hora && (
-            <div style={{ fontSize: 11, color: "#C23B32", marginTop: 8 }}>Este evento todavía no tiene hora definida — este recordatorio no se enviará hasta que se le asigne una.</div>
-          )}
-          <button onClick={confirmAddReminder} style={{ ...primaryBtn, marginTop: 14 }}>Agregar recordatorio</button>
-        </ModalShell>
-      )}
-
-      {editForm && (
-        <ModalShell title={event.esPlantilla ? "Editar plantilla" : "Editar evento"} icon={Pencil} color="#16324F" onClose={() => setEditForm(null)}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <Field label={event.esPlantilla ? "Nombre de la plantilla" : "Título"} required>
-              <input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} style={inputStyle} autoFocus />
-            </Field>
-            {!event.esPlantilla && (
-              <>
-                <Field label="Fecha del calendario" required>
-                  <input type="date" value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} style={inputStyle} />
-                </Field>
-                <Field label="Hora o nota (opcional)"><input value={editForm.dateLabel} onChange={(e) => setEditForm({ ...editForm, dateLabel: e.target.value })} placeholder="Ej. 10:00 am" style={inputStyle} /></Field>
-                <Field label="Hora exacta (opcional)"><input type="time" value={editForm.hora} onChange={(e) => setEditForm({ ...editForm, hora: e.target.value })} style={inputStyle} /></Field>
-                <Field label="Ubicación"><input value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} style={inputStyle} /></Field>
-              </>
-            )}
-          </div>
-          <button onClick={confirmEditEvent} disabled={!editForm.title.trim() || (!event.esPlantilla && !editForm.date)} style={{ ...primaryBtn, marginTop: 14, opacity: editForm.title.trim() && (event.esPlantilla || editForm.date) ? 1 : 0.4 }}>Guardar cambios</button>
-        </ModalShell>
-      )}
     </div>
   );
 }
