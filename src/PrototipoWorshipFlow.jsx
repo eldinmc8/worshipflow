@@ -738,6 +738,14 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     setEvents((evs) => evs.map((e) => (e.id === eventId ? { ...e, hora: hora || null } : e)));
     updateEvento(eventId, { hora: hora || null }).catch((e) => window.alert("No se pudo guardar la hora: " + e.message));
   };
+  // Edita los datos propios del evento/plantilla (título, fecha, hora, ubicación) DESPUÉS de creado —
+  // antes solo se podían fijar una vez, al crearlo, y no había forma de corregirlos ni de renombrar
+  // una plantilla ya armada.
+  const updateEventDetails = (eventId, { title, dateLabel, date, hora, location }) => {
+    setEvents((evs) => evs.map((e) => (e.id === eventId ? { ...e, title, dateLabel: dateLabel || "", date: date || null, hora: hora || null, location: location || "" } : e)));
+    updateEvento(eventId, { titulo: title, fecha_label: dateLabel || null, fecha: date || null, hora: hora || null, ubicacion: location || null })
+      .catch((e) => window.alert("No se pudo guardar el evento: " + e.message));
+  };
 
   const favoritesCount = library.filter((s) => s.favorite).length;
   // Las plantillas son eventos normales marcados con esPlantilla: no aparecen en el feed de cultos
@@ -1217,6 +1225,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           onAddReminder={(cantidad, unidad) => addReminder(selectedEvent.id, cantidad, unidad)}
           onRemoveReminder={(reminderId) => removeReminder(selectedEvent.id, reminderId)}
           onSetHora={(hora) => setEventHora(selectedEvent.id, hora)}
+          onUpdateEventDetails={(details) => updateEventDetails(selectedEvent.id, details)}
           showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
           showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
           showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
@@ -2529,6 +2538,17 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
     setStep(isPlantillaMode ? "details" : "template");
   };
   const confirmTemplate = () => setStep("details");
+  // Tocar una plantilla en la lista NO debe abrirla como si fuera un evento ya decidido — arranca de
+  // una vez el mismo formulario de "Detalles del evento" (título editable, precargado con el nombre de
+  // la plantilla, fecha en blanco por llenar) que usa "+ Crear evento"; nada se guarda hasta que se
+  // confirme ahí ("Crear evento" = publicar). Editar el contenido propio de la plantilla (su Setlist
+  // base) sigue siendo el lápiz aparte en cada fila.
+  const useTemplate = (pl) => {
+    setTemplateId(pl.id);
+    setForm({ title: pl.title, dateLabel: "", date: "", hora: "", location: "" });
+    setStep("details");
+    setViewMode("eventos");
+  };
   const confirmCreate = () => {
     if (!form.title.trim() || (!isPlantillaMode && !form.date)) return;
     onCreate({ templateId: templateId === "blank" ? null : templateId, title: form.title, dateLabel: form.dateLabel || "", date: form.date || null, hora: form.hora || null, location: form.location || "Por definir", esPlantilla: isPlantillaMode });
@@ -2579,13 +2599,18 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
         <div style={{ fontSize: 12, color: "#64707F", marginBottom: 16 }}>Arma aquí bloques ya establecidos (orden del culto) que cualquier administrador podrá usar como base al crear un evento nuevo.</div>
         {plantillas.length === 0 && <div style={{ textAlign: "center", color: "#8996A6", fontSize: 13, padding: "40px 0" }}>Todavía no hay plantillas — crea la primera con el botón +.</div>}
         {plantillas.map((pl) => (
-          <button key={pl.id} onClick={() => onSelect(pl.id)} className="hoverable" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", background: "#FFFFFF", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 16, padding: 14, marginBottom: 10, cursor: "pointer" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div key={pl.id} style={{ display: "flex", alignItems: "center", gap: 4, width: "100%", background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 16, padding: 10, marginBottom: 10 }}>
+            <button onClick={() => useTemplate(pl)} className="hoverable" title="Crear un evento con esta base" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, textAlign: "left", background: "transparent", border: "none", borderRadius: 10, padding: 4, cursor: "pointer" }}>
               <div style={{ width: 34, height: 34, borderRadius: 10, background: "#EEF1F6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ListMusic size={16} color="#5661B3" /></div>
-              <div style={{ fontSize: 14, fontWeight: 700 }}>{pl.title}</div>
-            </div>
-            <span style={{ fontSize: 11, color: "#8996A6" }}>{pl.serviceOrder.length} elementos</span>
-          </button>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pl.title}</div>
+                <div style={{ fontSize: 11, color: "#8996A6" }}>{pl.serviceOrder.length} elementos · toca para crear un evento</div>
+              </div>
+            </button>
+            <button onClick={() => onSelect(pl.id)} className="hoverable" title="Editar el contenido de la plantilla" style={{ ...iconGhost, flexShrink: 0 }}>
+              <Pencil size={15} color="#5661B3" />
+            </button>
+          </div>
         ))}
         <button onClick={openCreate} style={{ position: "fixed", right: 20, bottom: 92, width: 54, height: 54, borderRadius: "50%", background: "#5661B3", border: "none", boxShadow: "0 8px 18px rgba(86,97,179,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 41 }}>
           <Plus size={24} color="#fff" />
@@ -2731,7 +2756,7 @@ function EventDetail({
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
-  onViewMinistry, onOpenSong, onAddReminder, onRemoveReminder, onSetHora,
+  onViewMinistry, onOpenSong, onAddReminder, onRemoveReminder, onSetHora, onUpdateEventDetails,
   showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide,
   showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint,
 }) {
@@ -2742,15 +2767,29 @@ function EventDetail({
     setReminderDraft({ cantidad: 1, unidad: "dias" });
     setShowReminderForm(false);
   };
+  // Editar título/fecha/hora/ubicación DESPUÉS de creado — antes solo se fijaban una vez al crear el
+  // evento/la plantilla y no había forma de corregirlos. editForm no nulo = modal abierto.
+  const [editForm, setEditForm] = useState(null);
+  const openEditEvent = () => setEditForm({ title: event.title, dateLabel: event.dateLabel || "", date: event.date || "", hora: event.hora || "", location: event.location || "" });
+  const confirmEditEvent = () => {
+    if (!editForm.title.trim() || (!event.esPlantilla && !editForm.date)) return;
+    onUpdateEventDetails({ title: editForm.title.trim(), dateLabel: editForm.dateLabel, date: event.esPlantilla ? null : (editForm.date || null), hora: editForm.hora || null, location: editForm.location });
+    setEditForm(null);
+  };
   return (
     <div className="screen-enter" style={{ width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "20px 20px 0", maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
           {isAdminViewer && (
-            <button onClick={() => onDelete(event)} title="Eliminar evento" style={iconGhost}>
-              <Trash2 size={16} color="#C23B32" />
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={openEditEvent} title={event.esPlantilla ? "Editar plantilla" : "Editar evento"} style={iconGhost}>
+                <Pencil size={16} color="#16324F" />
+              </button>
+              <button onClick={() => onDelete(event)} title="Eliminar evento" style={iconGhost}>
+                <Trash2 size={16} color="#C23B32" />
+              </button>
+            </div>
           )}
         </div>
         <div style={{ borderRadius: 12, background: "linear-gradient(135deg, #2A3B4D, #EEF1F6)", padding: 20, marginBottom: 16 }}>
@@ -2869,6 +2908,27 @@ function EventDetail({
             <div style={{ fontSize: 11, color: "#C23B32", marginTop: 8 }}>Este evento todavía no tiene hora definida — este recordatorio no se enviará hasta que se le asigne una.</div>
           )}
           <button onClick={confirmAddReminder} style={{ ...primaryBtn, marginTop: 14 }}>Agregar recordatorio</button>
+        </ModalShell>
+      )}
+
+      {editForm && (
+        <ModalShell title={event.esPlantilla ? "Editar plantilla" : "Editar evento"} icon={Pencil} color="#16324F" onClose={() => setEditForm(null)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Field label={event.esPlantilla ? "Nombre de la plantilla" : "Título"} required>
+              <input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} style={inputStyle} autoFocus />
+            </Field>
+            {!event.esPlantilla && (
+              <>
+                <Field label="Fecha del calendario" required>
+                  <input type="date" value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} style={inputStyle} />
+                </Field>
+                <Field label="Hora o nota (opcional)"><input value={editForm.dateLabel} onChange={(e) => setEditForm({ ...editForm, dateLabel: e.target.value })} placeholder="Ej. 10:00 am" style={inputStyle} /></Field>
+                <Field label="Hora exacta (opcional)"><input type="time" value={editForm.hora} onChange={(e) => setEditForm({ ...editForm, hora: e.target.value })} style={inputStyle} /></Field>
+                <Field label="Ubicación"><input value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} style={inputStyle} /></Field>
+              </>
+            )}
+          </div>
+          <button onClick={confirmEditEvent} disabled={!editForm.title.trim() || (!event.esPlantilla && !editForm.date)} style={{ ...primaryBtn, marginTop: 14, opacity: editForm.title.trim() && (event.esPlantilla || editForm.date) ? 1 : 0.4 }}>Guardar cambios</button>
         </ModalShell>
       )}
     </div>
