@@ -78,9 +78,16 @@ function UserProfile({ user, myEmail, busy, onBack, onUpdateField, onResetPasswo
       <button onClick={onBack} style={{ ...ghostBtn, marginBottom: 14 }}>← Volver a Usuarios</button>
 
       <div style={{ textAlign: "center", marginBottom: 18 }}>
-        <div style={{ width: 74, height: 74, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 auto 10px" }}>{initials}</div>
+        {user.foto_url ? (
+          <img src={user.foto_url} alt="" style={{ width: 74, height: 74, borderRadius: "50%", objectFit: "cover", margin: "0 auto 10px", display: "block" }} />
+        ) : (
+          <div style={{ width: 74, height: 74, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 auto 10px" }}>{initials}</div>
+        )}
         <div style={{ fontSize: 17, fontWeight: 700, color: "#16233A" }}>{user.nombre}</div>
         <span style={{ display: "inline-block", marginTop: 4, background: "#E8F1FB", border: "1px solid #2F5FA8", borderRadius: 20, padding: "2px 12px", fontSize: 11, fontWeight: 700, color: "#2F5FA8" }}>{roleLabel(user.rol).toUpperCase()}</span>
+        {!user.perfil_completo && (
+          <div style={{ marginTop: 8, fontSize: 11, color: "#8A4F0E", background: "#FFF4E8", border: "1px solid #E8821E", borderRadius: 20, padding: "3px 12px", display: "inline-block" }}>Todavía no completó su perfil — este nombre es provisional</div>
+        )}
       </div>
 
       <div style={{ display: "flex", background: "#EEF1F6", borderRadius: 10, padding: 4, marginBottom: 16 }}>
@@ -193,7 +200,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [draft, setDraft] = useState({ nombre: "", email: "", rol: "miembro" });
+  const [draft, setDraft] = useState({ email: "", rol: "miembro" });
   const [selectedUserId, setSelectedUserId] = useState(null);
 
   // Abrir el perfil de alguien empuja su propia entrada del historial ("usuarios-profile") — así el
@@ -226,7 +233,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
     setBusy(true); setError("");
     try {
       await callUsersFunction("crear-usuario", draft);
-      setDraft({ nombre: "", email: "", rol: "miembro" });
+      setDraft({ email: "", rol: "miembro" });
       await load();
     } catch (err) {
       setError(err.message);
@@ -293,11 +300,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
             {error && <div style={{ background: "#FDECEA", border: "1px solid #C23B32", color: "#8A2A24", borderRadius: 8, padding: "8px 12px", fontSize: 13, marginBottom: 14 }}>{error}</div>}
 
             <form onSubmit={addUser} style={{ background: "#FFFFFF", borderRadius: 12, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: 16, marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
-              <div style={{ flex: "1 1 140px" }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "#64707F" }}>Nombre</label>
-                <input required value={draft.nombre} onChange={(e) => setDraft({ ...draft, nombre: e.target.value })} style={inputStyle} />
-              </div>
-              <div style={{ flex: "1 1 180px" }}>
+              <div style={{ flex: "1 1 220px" }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: "#64707F" }}>Correo</label>
                 <input type="email" required value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} style={inputStyle} />
               </div>
@@ -309,18 +312,25 @@ export default function UsersAdmin({ myEmail, onExit }) {
               </div>
               <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Enviando…" : "✉ Invitar por correo"}</button>
             </form>
-            <div style={{ fontSize: 11, color: "#8996A6", marginTop: -12, marginBottom: 20 }}>Le llegará un correo para crear su propia contraseña y activar su cuenta.</div>
+            <div style={{ fontSize: 11, color: "#8996A6", marginTop: -12, marginBottom: 20 }}>Le llegará un correo para crear su propia contraseña y elegir su nombre (y foto, si entra con Google) al aceptar.</div>
 
             <div style={{ background: "#FFFFFF", borderRadius: 12, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", overflow: "hidden" }}>
               {rows === null && <div style={{ padding: 20, color: "#8996A6", fontSize: 13 }}>Cargando…</div>}
               {rows?.length === 0 && <div style={{ padding: 20, color: "#8996A6", fontSize: 13 }}>Todavía no hay usuarios.</div>}
               {rows?.map((row) => (
                 <button key={row.id} onClick={() => openUserProfile(row.id)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "none", border: "none", padding: "12px 16px", borderBottom: "1px solid #EEF1F6", cursor: "pointer" }}>
-                  <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
-                    {row.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
-                  </div>
+                  {row.foto_url ? (
+                    <img src={row.foto_url} alt="" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                  ) : (
+                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+                      {row.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+                    </div>
+                  )}
                   <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#16233A" }}>{row.nombre} {row.email === myEmail && <span style={{ fontSize: 10, color: "#8996A6" }}>(tú)</span>}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#16233A" }}>
+                      {row.nombre} {row.email === myEmail && <span style={{ fontSize: 10, color: "#8996A6" }}>(tú)</span>}
+                      {!row.perfil_completo && <span title="Todavía no completó su perfil" style={{ fontSize: 9, fontWeight: 700, color: "#8A4F0E", background: "#FFF4E8", border: "1px solid #E8821E", borderRadius: 10, padding: "1px 6px", marginLeft: 6 }}>PENDIENTE</span>}
+                    </div>
                     <div style={{ fontSize: 12, color: "#64707F", overflow: "hidden", textOverflow: "ellipsis" }}>{row.email}</div>
                   </div>
                   <span style={{ fontSize: 11, fontWeight: 700, color: "#2F5FA8", background: "#E8F1FB", border: "1px solid #2F5FA8", borderRadius: 20, padding: "2px 10px", flexShrink: 0 }}>{roleLabel(row.rol)}</span>

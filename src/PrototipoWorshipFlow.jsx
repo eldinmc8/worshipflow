@@ -811,7 +811,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const [nameOverride, setNameOverride] = useState(null);
   const [usuariosReales, setUsuariosReales] = useState([]); // lista real de miembros ya registrados (RLS: cualquier autenticado puede leerla)
   useEffect(() => {
-    supabase.from("usuarios").select("id, nombre, rol").order("nombre").then(({ data }) => setUsuariosReales(data || []));
+    supabase.from("usuarios").select("id, nombre, rol, foto_url").order("nombre").then(({ data }) => setUsuariosReales(data || []));
   }, []);
 
   // ---- Notificaciones (campanita del header): carga las propias al entrar y se suscribe en tiempo
@@ -1697,7 +1697,11 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
       <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, marginBottom: 18 }}>Ajustes</h2>
 
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 18 }}>
-        <div style={{ width: 66, height: 66, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700, flexShrink: 0, color: "#fff" }}>{initials}</div>
+        {perfil?.foto_url ? (
+          <img src={perfil.foto_url} alt="" style={{ width: 66, height: 66, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+        ) : (
+          <div style={{ width: 66, height: 66, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700, flexShrink: 0, color: "#fff" }}>{initials}</div>
+        )}
         <div>
           <div style={{ fontSize: 17, fontWeight: 700 }}>{myName || "Sin nombre"}</div>
           {perfil?.email && <div style={{ fontSize: 12, color: "#64707F" }}>{perfil.email}</div>}
@@ -1785,9 +1789,13 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: "60vh", overflowY: "auto" }}>
             {usuariosReales.map((u) => (
               <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 2px", borderBottom: "1px solid #EEF1F6" }}>
-                <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
-                  {u.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
-                </div>
+                {u.foto_url ? (
+                  <img src={u.foto_url} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                ) : (
+                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+                    {u.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+                  </div>
+                )}
                 <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{u.nombre}</span>
                 {u.rol === "admin" && <span style={{ fontSize: 10, fontWeight: 700, color: "#2F5FA8", background: "#E8F1FB", border: "1px solid #2F5FA8", borderRadius: 12, padding: "2px 8px" }}>ADMIN</span>}
               </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "./lib/supabaseClient.js";
+import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { suscribirPush } from "./lib/notificaciones.js";
 import Login from "./Login.jsx";
 import UsersAdmin from "./UsersAdmin.jsx";
@@ -99,6 +99,19 @@ export default function AuthGate() {
     );
   }
 
+  // Un admin puede invitar solo con correo+rol, sin nombre — falta que la propia persona lo complete
+  // antes de dejarla entrar a la app (ver Edge Function completar-perfil). Si entró con Google, se le
+  // sugiere su nombre y foto de ahí de una vez; si no, escribe su nombre a mano y se queda sin foto
+  // (las iniciales de respaldo se ven bien igual).
+  if (perfil && !perfil.perfil_completo) {
+    return (
+      <CompleteProfile
+        session={session}
+        onDone={(actualizado) => { setPerfil(actualizado); setShowPushPrompt(true); }}
+      />
+    );
+  }
+
   if (showPushPrompt) {
     return <PushPrompt userId={session.user.id} onDone={() => setShowPushPrompt(false)} />;
   }
@@ -153,6 +166,54 @@ function SetPassword({ onDone }) {
           <input type="password" required placeholder="Confirmar contraseña" value={confirm} onChange={(e) => setConfirm(e.target.value)} style={inputStyle} />
           {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
           <button type="submit" disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.6 : 1, marginTop: 4 }}>{loading ? "Guardando…" : "Guardar y entrar"}</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Cuando un admin invita solo con correo+rol (sin nombre), esto es lo primero que ve la persona al
+// entrar (después de elegir contraseña, si vino por invitación por correo). Si la sesión trae datos de
+// Google (entró con "Continuar con Google" o los vinculó), se le sugiere su nombre y foto de ahí de
+// una — nada más tiene que confirmar. Si no, escribe su nombre a mano y se queda sin foto.
+function CompleteProfile({ session, onDone }) {
+  const meta = session.user.user_metadata || {};
+  const fotoGoogle = meta.avatar_url || meta.picture || "";
+  const [nombre, setNombre] = useState(meta.full_name || meta.name || "");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!nombre.trim()) { setError("Escribe tu nombre."); return; }
+    setLoading(true); setError("");
+    try {
+      const { usuario } = await callUsersFunction("completar-perfil", { nombre: nombre.trim(), foto_url: fotoGoogle || null });
+      onDone(usuario);
+    } catch (e) {
+      setError(e.message);
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", fontFamily: "'Poppins', sans-serif" }}>
+      <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          {fotoGoogle ? (
+            <img src={fotoGoogle} alt="" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover" }} />
+          ) : (
+            <img src="/logo-iglesia.png" alt="Iglesia Jesús El Buen Pastor" style={{ width: 140, maxWidth: "100%", height: "auto" }} />
+          )}
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#16233A", marginBottom: 4 }}>Ya casi — ¿cómo te llamas?</div>
+        <div style={{ fontSize: 12, color: "#64707F", marginBottom: 16 }}>
+          {fotoGoogle ? "Tomamos tu foto de Google — puedes ajustar tu nombre si hace falta." : "Este va a ser el nombre que vea el resto del equipo."}
+        </div>
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <input required autoFocus placeholder="Tu nombre completo" value={nombre} onChange={(e) => setNombre(e.target.value)} style={inputStyle} />
+          {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
+          <button type="submit" disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.6 : 1, marginTop: 4 }}>{loading ? "Guardando…" : "Continuar"}</button>
         </form>
       </div>
     </div>

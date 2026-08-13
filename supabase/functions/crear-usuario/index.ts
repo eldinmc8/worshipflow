@@ -18,6 +18,14 @@ const ROLES_VALIDOS = ["admin", "multimedia", "musico", "miembro"];
 // de la URL) — ahí AuthGate.jsx detecta type=invite y pide elegir contraseña antes de entrar a la app.
 const APP_URL = "https://worshipflow-pearl.vercel.app/";
 
+// Nombre temporal cuando el admin invita solo con correo (ej. "juan.perez99@gmail.com" → "Juan Perez99")
+// — se reemplaza por el nombre real apenas la persona completa su perfil.
+function nombreProvisionalDesdeCorreo(email: string): string {
+  const local = email.split("@")[0] || "";
+  const partes = local.split(/[._-]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1));
+  return partes.join(" ") || "Sin nombre";
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -55,14 +63,20 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // 3. Leer los datos del formulario
+    // 3. Leer los datos del formulario. El nombre es opcional — un admin solo tiene que dar correo y
+    // rol; la propia persona invitada completa su nombre (y foto, si entra con Google) al aceptar la
+    // invitación (ver Edge Function completar-perfil y AuthGate.jsx → CompleteProfile). Mientras tanto
+    // se guarda un nombre provisional derivado del correo, para que ninguna pantalla que asuma un
+    // nombre no vacío (iniciales del avatar, listas...) se rompa antes de que lo complete.
     const body = await req.json();
     const email = String(body.email || "").trim().toLowerCase();
-    const nombre = String(body.nombre || "").trim();
+    const nombreInput = String(body.nombre || "").trim();
     const rol = isBootstrap ? "admin" : (ROLES_VALIDOS.includes(body.rol) ? body.rol : "miembro");
 
     if (!email) return json({ error: "El correo es obligatorio." }, 400);
-    if (!nombre) return json({ error: "El nombre es obligatorio." }, 400);
+    if (isBootstrap && !nombreInput) return json({ error: "El nombre es obligatorio." }, 400);
+    const nombre = nombreInput || nombreProvisionalDesdeCorreo(email);
+    const perfilCompleto = isBootstrap || !!nombreInput;
 
     // 4. Revisar que el correo no exista ya
     const { data: yaExiste } = await admin
@@ -95,7 +109,7 @@ Deno.serve(async (req: Request) => {
 
     // 6. Guardar la fila en usuarios (mismo id que auth.users, por eso el insert lo trae explícito)
     const { error: insertError } = await admin.from("usuarios").insert({
-      id: newUserId, email, nombre, rol, estado: "activo",
+      id: newUserId, email, nombre, rol, estado: "activo", perfil_completo: perfilCompleto,
     });
     if (insertError) {
       await admin.auth.admin.deleteUser(newUserId);
