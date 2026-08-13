@@ -151,6 +151,9 @@ const BIBLE_QUICK = [
   { ref: "Isaías 41:10", version: "RV1960", text: "No temas, porque yo estoy contigo; te sostengo con mi mano derecha." },
 ];
 
+// Umbral para dar por abandonada una sesión en vivo que nadie finalizó — ver el useEffect que llama a getLiveSession().
+const LIVE_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
+
 const TYPE_META = {
   cancion: { label: "Canción", color: "#E8821E", icon: Music },
   biblia: { label: "Versículo", color: "#2F5FA8", icon: BookOpen },
@@ -826,7 +829,21 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // solo se enteraba de un evento en vivo si ÉL MISMO lo había iniciado.
   useEffect(() => {
     getLiveSession()
-      .then((fila) => { setLiveEventId(fila?.evento_id || null); setLiveOwnerId(fila?.liderado_por || null); })
+      .then((fila) => {
+        // Si a alguien se le olvidó tocar "Finalizar evento" (ej. se cerró la compu al terminar el
+        // culto), la sesión se queda marcada en vivo para SIEMPRE — cualquiera que abra la app un día
+        // después (o meses después) la hereda como si el culto siguiera transmitiendo. Un día entero sin
+        // ningún cambio (updateLiveSession se llama en cada diapositiva/estilo mientras alguien la está
+        // usando de verdad) es buena señal de que quedó abandonada, así que el primer dispositivo que
+        // abre la app después de eso la cierra sola, sin pedirle nada a nadie.
+        const abandonada = fila?.evento_id && fila?.updated_at && (Date.now() - new Date(fila.updated_at).getTime() > LIVE_SESSION_STALE_MS);
+        if (abandonada) {
+          clearLiveSession().catch(() => {});
+          setLiveEventId(null); setLiveOwnerId(null);
+          return;
+        }
+        setLiveEventId(fila?.evento_id || null); setLiveOwnerId(fila?.liderado_por || null);
+      })
       .catch(() => {});
     const unsubscribe = subscribeLiveSession((fila) => {
       setLiveEventId(fila.evento_id || null);
