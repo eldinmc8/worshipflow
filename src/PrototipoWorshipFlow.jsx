@@ -3520,6 +3520,19 @@ async function fetchBibleChapter(version, bookId, chapter) {
   if (!res.ok) throw new Error("No se pudo cargar el capítulo.");
   return res.json();
 }
+// Busca la FRASE (no palabras sueltas) dentro del texto de los versículos de una versión — para cuando
+// el operador solo recuerda un pedazo de una cita y necesita encontrarla rápido en vivo, sin saber en qué
+// libro/capítulo está. match_whole=true en la API de bolls.life es justamente "coincidencia de frase
+// completa" (respeta el orden de las palabras), no "palabra completa" como sugeriría el nombre.
+async function searchBibleVerses(version, query) {
+  const res = await fetch(`https://bolls.life/v2/find/${version}?search=${encodeURIComponent(query)}&match_case=false&match_whole=true`);
+  if (!res.ok) throw new Error("No se pudo buscar en la Biblia.");
+  const data = await res.json();
+  return data.results || [];
+}
+// La API devuelve <mark> alrededor de las palabras encontradas y a veces <br> dentro del texto (saltos de
+// línea de poesía) — se limpia para mostrarlo como texto plano, igual que el resto de la app.
+const stripBibleSearchMarkup = (text) => text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 // Para "Siguiente/Anterior versículo" en vivo: busca el versículo justo después (direction=1) o antes
 // (direction=-1) de fromVerse, cruzando al capítulo siguiente/anterior del mismo libro si hace falta.
 // Devuelve null cuando ya no hay más (por ejemplo, se llegó al final del libro).
@@ -3836,18 +3849,40 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
   const [selectedChapter, setSelectedChapter] = useState(1);
   const [verses, setVerses] = useState(null);
   const [loadingChapter, setLoadingChapter] = useState(false);
+  // Búsqueda de frase dentro del texto (no solo nombre de libro): mientras hay una búsqueda activa, la
+  // columna 3 muestra los versículos encontrados en TODA la Biblia en vez del capítulo seleccionado.
+  const [searchResults, setSearchResults] = useState(null); // null = sin búsqueda activa; [] = sin resultados
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
 
   useEffect(() => {
     setLoadError("");
     fetchBibleBooks(version).then(setBooks).catch((e) => setLoadError(e.message));
   }, [version]);
 
+  // Con al menos 3 caracteres busca la frase completa en el texto de los versículos — con menos, se
+  // asume que todavía está escribiendo el nombre de un libro y no vale la pena golpear la API.
+  // Debounce de 400ms: no dispara una búsqueda por cada tecla mientras escribe.
+  useEffect(() => {
+    const query = bookFilter.trim();
+    if (query.length < 3) { setSearchResults(null); setSearchError(""); return; }
+    setSearching(true); setSearchError("");
+    const timer = setTimeout(() => {
+      searchBibleVerses(version, query)
+        .then((results) => setSearchResults(results.slice(0, 60)))
+        .catch((e) => { setSearchError(e.message); setSearchResults([]); })
+        .finally(() => setSearching(false));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [bookFilter, version]);
+
   const loadChapter = (bookId, chapter, v) => {
     setLoadingChapter(true); setLoadError("");
     fetchBibleChapter(v || version, bookId, chapter).then(setVerses).catch((e) => setLoadError(e.message)).finally(() => setLoadingChapter(false));
   };
-  const openBook = (book) => { setSelectedBook(book); setSelectedChapter(1); loadChapter(book.bookid, 1); };
-  const openChapter = (chapter) => { setSelectedChapter(chapter); loadChapter(selectedBook.bookid, chapter); };
+  // Elegir un libro/capítulo a mano siempre gana sobre una búsqueda de frase que haya quedado pendiente.
+  const openBook = (book) => { setSearchResults(null); setSelectedBook(book); setSelectedChapter(1); loadChapter(book.bookid, 1); };
+  const openChapter = (chapter) => { setSearchResults(null); setSelectedChapter(chapter); loadChapter(selectedBook.bookid, chapter); };
   const changeVersion = (v) => { setVersion(v); if (selectedBook) loadChapter(selectedBook.bookid, selectedChapter, v); };
 
   const rememberAndProject = (entry) => {
@@ -3868,6 +3903,20 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
     if (entry.version !== version) setVersion(entry.version);
     loadChapter(entry.bookId, entry.chapter, entry.version);
   };
+  // Elegir un resultado de búsqueda: proyecta ese versículo Y salta a su capítulo completo (limpiando la
+  // búsqueda), para poder seguir leyendo alrededor de ese versículo con la vista normal de capítulo.
+  const pickSearchResult = (r) => {
+    const book = books?.find((b) => b.bookid === r.book);
+    const bookName = book?.name || `Libro ${r.book}`;
+    rememberAndProject({
+      ref: `${bookName} ${r.chapter}:${r.verse}`, version, text: stripBibleSearchMarkup(r.text),
+      bookId: r.book, bookName, chapter: r.chapter, verseStart: r.verse, verseEnd: r.verse,
+    });
+    if (book) setSelectedBook(book);
+    setSelectedChapter(r.chapter);
+    loadChapter(r.book, r.chapter);
+    setBookFilter(""); setSearchResults(null);
+  };
 
   const matchesFilter = (name) => !bookFilter || name.toLowerCase().includes(bookFilter.toLowerCase());
   const oldTestament = books ? books.filter((b) => b.bookid <= 39 && matchesFilter(b.name)) : [];
@@ -3880,8 +3929,8 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
       <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 9px", marginBottom: 8, flexShrink: 0 }}>
           <Search size={12} color="#8996A6" />
-          <input value={bookFilter} onChange={(e) => setBookFilter(e.target.value)} placeholder="Filtrar libros…" style={{ background: "transparent", border: "none", outline: "none", color: "#16233A", fontSize: 11.5, width: "100%" }} />
-          {bookFilter && <button onClick={() => setBookFilter("")} style={iconGhost}><X size={12} /></button>}
+          <input value={bookFilter} onChange={(e) => setBookFilter(e.target.value)} placeholder="Libro, o una frase del versículo…" style={{ background: "transparent", border: "none", outline: "none", color: "#16233A", fontSize: 11.5, width: "100%" }} />
+          {bookFilter && <button onClick={() => { setBookFilter(""); setSearchResults(null); }} style={iconGhost}><X size={12} /></button>}
         </div>
         {loadError && <div style={{ fontSize: 11, color: "#C23B32", marginBottom: 8 }}>{loadError}</div>}
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
@@ -3938,22 +3987,49 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
         )}
       </div>
 
-      {/* Columna 3: capítulo completo — clic en un versículo proyecta al instante */}
+      {/* Columna 3: resultados de búsqueda de frase (si hay una activa), si no el capítulo completo —
+          en ambos casos, clic en un versículo proyecta al instante */}
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: "auto" }}>
-        {!selectedBook && <div style={{ fontSize: 12, color: "#8996A6", padding: "20px 0", textAlign: "center" }}>Elige un libro y capítulo para ver los versículos.</div>}
-        {selectedBook && <div style={{ fontSize: 13, fontWeight: 700, color: "#16233A", marginBottom: 8 }}>{selectedBook.name} {selectedChapter}</div>}
-        {loadingChapter && <div style={{ fontSize: 12, color: "#8996A6", padding: "20px 0", textAlign: "center" }}>Cargando…</div>}
-        {!loadingChapter && verses && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {verses.map((v) => {
-              const isLive = liveVerse && liveVerse.bookId === selectedBook.bookid && liveVerse.chapter === selectedChapter && liveVerse.verseStart === v.verse && liveVerse.version === version;
-              return (
-                <button key={v.verse} onClick={() => pickVerse(v)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 8, border: "none", background: isLive ? "#DDE3ED" : "transparent", cursor: "pointer", fontSize: 13, color: "#16233A", lineHeight: 1.5 }}>
-                  <b style={{ color: "#2F5FA8" }}>{v.verse}</b> {v.text}
-                </button>
-              );
-            })}
-          </div>
+        {searchResults !== null ? (
+          <>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#16233A", marginBottom: 8 }}>
+              {searching ? "Buscando…" : `"${bookFilter.trim()}" · ${searchResults.length} versículo${searchResults.length === 1 ? "" : "s"}`}
+            </div>
+            {searchError && <div style={{ fontSize: 12, color: "#C23B32", padding: "10px 0" }}>{searchError} Revisa tu conexión a internet e intenta de nuevo.</div>}
+            {!searching && !searchError && searchResults.length === 0 && (
+              <div style={{ fontSize: 12, color: "#8996A6", padding: "20px 0", textAlign: "center" }}>No se encontró ningún versículo con esa frase en {version}.</div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {searchResults.map((r) => {
+                const bookName = books?.find((b) => b.bookid === r.book)?.name || `Libro ${r.book}`;
+                const isLive = liveVerse && liveVerse.bookId === r.book && liveVerse.chapter === r.chapter && liveVerse.verseStart === r.verse && liveVerse.version === version;
+                return (
+                  <button key={r.pk} onClick={() => pickSearchResult(r)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 8, border: "none", background: isLive ? "#DDE3ED" : "transparent", cursor: "pointer", fontSize: 13, color: "#16233A", lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#2F5FA8", marginBottom: 2 }}>{bookName} {r.chapter}:{r.verse}</div>
+                    {stripBibleSearchMarkup(r.text)}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            {!selectedBook && <div style={{ fontSize: 12, color: "#8996A6", padding: "20px 0", textAlign: "center" }}>Elige un libro y capítulo para ver los versículos.</div>}
+            {selectedBook && <div style={{ fontSize: 13, fontWeight: 700, color: "#16233A", marginBottom: 8 }}>{selectedBook.name} {selectedChapter}</div>}
+            {loadingChapter && <div style={{ fontSize: 12, color: "#8996A6", padding: "20px 0", textAlign: "center" }}>Cargando…</div>}
+            {!loadingChapter && verses && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {verses.map((v) => {
+                  const isLive = liveVerse && liveVerse.bookId === selectedBook.bookid && liveVerse.chapter === selectedChapter && liveVerse.verseStart === v.verse && liveVerse.version === version;
+                  return (
+                    <button key={v.verse} onClick={() => pickVerse(v)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 8, border: "none", background: isLive ? "#DDE3ED" : "transparent", cursor: "pointer", fontSize: 13, color: "#16233A", lineHeight: 1.5 }}>
+                      <b style={{ color: "#2F5FA8" }}>{v.verse}</b> {v.text}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
