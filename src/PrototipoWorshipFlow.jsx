@@ -11,7 +11,7 @@ import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion } from
 import {
   listEventosCompletos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento,
 } from "./lib/eventos.js";
-import { listMinisteriosCompletos, crearMinisterio, actualizarLiderMinisterio, sincronizarPlan, sincronizarRecursos } from "./lib/ministerios.js";
+import { listMinisteriosCompletos, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos } from "./lib/ministerios.js";
 import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession } from "./lib/liveSession.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { sincronizarRecordatorios } from "./lib/recordatorios.js";
@@ -957,6 +957,23 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     if (leaderId) notificarAsignacion(leaderId, { titulo: "Te asignaron como líder", cuerpo: `Ahora eres líder del grupo "${ministryName}".` });
     if (previousLeaderId && previousLeaderId !== leaderId) notificarAsignacion(previousLeaderId, { titulo: "Ya no eres líder", cuerpo: `Dejaste de ser líder del grupo "${ministryName}".` });
   };
+  const setMinistryName = (id, name) => {
+    setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, name } : m)));
+    actualizarNombreMinisterio(id, name).catch((e) => window.alert("No se pudo actualizar el nombre: " + e.message));
+  };
+  const setMinistryColor = (id, color) => {
+    setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, color } : m)));
+    actualizarColorMinisterio(id, color).catch((e) => window.alert("No se pudo actualizar el color: " + e.message));
+  };
+  // Borrar un ministerio deja sin vincular (no borra) cualquier bloque del Setlist que lo usaba —
+  // items_servicio.ministerio_id tiene ON DELETE SET NULL — así que ningún evento pasado se rompe,
+  // solo deja de traer la planificación automática y vuelve a mostrar su descripción escrita a mano.
+  const deleteMinistry = (ministry) => {
+    if (!window.confirm(`¿Eliminar el grupo "${ministry.name}"? Esto no se puede deshacer. Los bloques del Setlist que lo tenían vinculado dejarán de traer su planificación sola.`)) return;
+    setMinistries((ms) => ms.filter((m) => m.id !== ministry.id));
+    setSelectedMinistryId(null);
+    eliminarMinisterio(ministry.id).catch((e) => window.alert("No se pudo eliminar el grupo: " + e.message));
+  };
 
   // ---- Botón "atrás" real ----
   // Cada pantalla dentro de la app (una pestaña, un evento abierto, una canción abierta, un ministerio
@@ -1236,6 +1253,9 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           onAddResource={(resource) => addResource(selectedMinistryId, resource)}
           onRemoveResource={(resourceId) => removeResource(selectedMinistryId, resourceId)}
           onSetLeader={(leaderId) => setMinistryLeader(selectedMinistryId, leaderId)}
+          onSetName={(name) => setMinistryName(selectedMinistryId, name)}
+          onSetColor={(color) => setMinistryColor(selectedMinistryId, color)}
+          onDelete={() => deleteMinistry(ministries.find((m) => m.id === selectedMinistryId))}
         />
       )}
 
@@ -1947,7 +1967,7 @@ function MinistriesList({ ministries, usuariosReales, isAdminViewer, onSelect, o
   );
 }
 
-function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBack, onAddPlanItem, onUpdatePlanItem, onRemovePlanItem, onAddResource, onRemoveResource, onSetLeader }) {
+function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBack, onAddPlanItem, onUpdatePlanItem, onRemovePlanItem, onAddResource, onRemoveResource, onSetLeader, onSetName, onSetColor, onDelete }) {
   const [showResourceForm, setShowResourceForm] = useState(false);
   const [resourceDraft, setResourceDraft] = useState({ title: "", link: "" });
   if (!ministry) return null;
@@ -1961,10 +1981,23 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
 
   return (
     <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
-      <button onClick={onBack} style={{ ...iconGhost, marginBottom: 10 }}><ArrowLeft size={16} /></button>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
+        {/* Borrar un grupo es más consecuente que editarlo (afecta a los bloques del Setlist vinculados
+            en cualquier evento), así que se restringe a administradores — el líder puede editar nombre/
+            color/líder pero no borrar el grupo entero. */}
+        {isAdminViewer && <button onClick={onDelete} title="Eliminar grupo" style={iconGhost}><Trash2 size={16} color="#C23B32" /></button>}
+      </div>
       <div style={{ borderRadius: 12, background: `linear-gradient(135deg, ${ministry.color}33, #EEF1F6)`, padding: 20, marginBottom: 20 }}>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, marginBottom: 8 }}>{ministry.name}</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#33415A" }}>
+        {isAdminViewer ? (
+          <input
+            value={ministry.name} onChange={(e) => onSetName(e.target.value)}
+            style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, marginBottom: 8, border: "none", background: "transparent", outline: "none", width: "100%", padding: 0 }}
+          />
+        ) : (
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, marginBottom: 8 }}>{ministry.name}</div>
+        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#33415A", marginBottom: isAdminViewer ? 10 : 0 }}>
           Líder:
           {isAdminViewer ? (
             <select value={ministry.leaderId || ""} onChange={(e) => onSetLeader(e.target.value || null)} style={{ ...inputStyle, width: "auto", padding: "4px 8px", fontSize: 12 }}>
@@ -1975,6 +2008,13 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
             <span style={{ fontWeight: 700 }}>{ministry.leaderName || "Sin asignar"}</span>
           )}
         </div>
+        {isAdminViewer && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {MINISTRY_COLORS.map((c) => (
+              <button key={c} onClick={() => onSetColor(c)} title="Color del grupo" style={{ width: 22, height: 22, borderRadius: "50%", background: c, border: ministry.color === c ? "2px solid #16233A" : "1px solid rgba(0,0,0,0.15)", cursor: "pointer" }} />
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>

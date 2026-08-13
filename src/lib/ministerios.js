@@ -53,6 +53,16 @@ export async function actualizarLiderMinisterio(id, leaderId) {
   if (error) throw error;
 }
 
+export async function actualizarNombreMinisterio(id, nombre) {
+  const { error } = await supabase.from("ministerios").update({ nombre }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function actualizarColorMinisterio(id, color) {
+  const { error } = await supabase.from("ministerios").update({ color }).eq("id", id);
+  if (error) throw error;
+}
+
 export async function eliminarMinisterio(id) {
   const { error } = await supabase.from("ministerios").delete().eq("id", id);
   if (error) throw error;
