@@ -3488,8 +3488,16 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                       style={{ border: "none", background: "transparent", outline: "none", fontSize: 14, fontWeight: 700, color: "#16233A", width: "100%", padding: 0, fontFamily: "inherit" }}
                     />
                     {linkedMinistry ? (
-                      <div style={{ fontSize: 12, color: "#33415A", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isExpanded ? "normal" : "nowrap" }}>
-                        {currentPlan ? `${currentPlan.title} — ${currentPlan.detail}` : planStatusText}
+                      // Solo el título de la planificación acá (no el detalle completo, que sería
+                      // ilegible en una sola línea) — tocarlo despliega el bosquejo completo y los
+                      // recursos del ministerio abajo, mismo interruptor que el botón de encargados.
+                      <div
+                        onClick={() => setExpandedSections((e) => ({ ...e, [item.id]: !e[item.id] }))}
+                        title={isExpanded ? "Ocultar planificación" : "Ver planificación"}
+                        style={{ fontSize: 12, color: "#33415A", marginTop: 2, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}
+                      >
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{currentPlan ? currentPlan.title : planStatusText}</span>
+                        {isExpanded ? <ChevronUp size={12} style={{ flexShrink: 0 }} /> : <ChevronDown size={12} style={{ flexShrink: 0 }} />}
                       </div>
                     ) : (
                       <input
@@ -3532,6 +3540,30 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                           <div style={{ fontSize: 11, color: "#64707F" }}>Líder: {linkedMinistry.leaderName || "Sin asignar"}</div>
                         </div>
                         <button onClick={() => onViewMinistry(linkedMinistry.id)} style={{ fontSize: 11, fontWeight: 700, color: "#2F5FA8", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>Ver ministerio <ExternalLink size={12} /></button>
+                      </div>
+                    )}
+                    {/* Bosquejo completo de la semana — el título ya se ve arriba sin desplegar, acá va
+                        el detalle completo para quien esté encargado de este bloque. */}
+                    {linkedMinistry && currentPlan?.detail && (
+                      <div style={{ background: "#FFFFFF", borderRadius: 8, padding: "10px 12px", marginBottom: 10, boxShadow: "0 3px 14px rgba(22,50,79,0.09)" }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 4 }}>PLANIFICACIÓN DE ESTA SEMANA</div>
+                        <div style={{ fontSize: 12.5, color: "#33415A", whiteSpace: "pre-line", lineHeight: 1.5 }}>{currentPlan.detail}</div>
+                      </div>
+                    )}
+                    {/* Recursos del ministerio (enlaces a documentos, videos, etc.) — antes solo se veían
+                        entrando al ministerio; ahora quien lleva este bloque los tiene aquí mismo. */}
+                    {linkedMinistry && linkedMinistry.resources.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>RECURSOS</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {linkedMinistry.resources.map((r) => (
+                            <a key={r.id} href={r.link || undefined} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, background: "#FFFFFF", borderRadius: 8, padding: "8px 10px", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", textDecoration: "none", color: "#16233A", fontSize: 12, fontWeight: 600 }}>
+                              <FolderOpen size={13} color="#8996A6" />
+                              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</span>
+                              {r.link && <ExternalLink size={12} color="#2F5FA8" style={{ flexShrink: 0 }} />}
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     )}
                     {isWorshipBlock(item) ? (
