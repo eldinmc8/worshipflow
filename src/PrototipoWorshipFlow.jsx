@@ -936,9 +936,13 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     if (nuevo.plan !== anterior.plan) sincronizarPlan(id, nuevo.plan).catch((e) => window.alert("No se pudo guardar la planificación: " + e.message));
     if (nuevo.resources !== anterior.resources) sincronizarRecursos(id, nuevo.resources).catch((e) => window.alert("No se pudo guardar el recurso: " + e.message));
   };
-  const addPlanItem = (id) => updateMinistry(id, (m) => ({ ...m, plan: [...m.plan, { id: nextMinistryChildId(), date: "", title: "", detail: "" }] }));
-  const updatePlanItem = (id, itemId, field, value) => updateMinistry(id, (m) => ({ ...m, plan: m.plan.map((p) => (p.id === itemId ? { ...p, [field]: value } : p)) }));
-  const removePlanItem = (id, itemId) => updateMinistry(id, (m) => ({ ...m, plan: m.plan.filter((p) => p.id !== itemId) }));
+  // La planificación se edita como borrador local dentro de MinistryDetail (ver planDraft ahí) y solo
+  // llega hasta acá cuando se toca "Guardar planificación" — un solo guardado con todo el arreglo final,
+  // no uno por cada tecla, para no chocar con el refresco de sincronizarTableChanges (ver realtime.js).
+  const savePlanForMinistry = async (id, plan) => {
+    setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, plan } : m)));
+    await sincronizarPlan(id, plan);
+  };
   const addResource = (id, resource) => updateMinistry(id, (m) => ({ ...m, resources: [...m.resources, { id: nextMinistryChildId(), ...resource }] }));
   const removeResource = (id, resourceId) => updateMinistry(id, (m) => ({ ...m, resources: m.resources.filter((r) => r.id !== resourceId) }));
   const createMinistry = ({ name, leaderId, color }) => {
@@ -1247,9 +1251,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           isAdminViewer={isAdminViewer}
           canEdit={isAdminViewer || ministries.find((m) => m.id === selectedMinistryId)?.leaderId === userId}
           onBack={() => window.history.back()}
-          onAddPlanItem={() => addPlanItem(selectedMinistryId)}
-          onUpdatePlanItem={(itemId, field, value) => updatePlanItem(selectedMinistryId, itemId, field, value)}
-          onRemovePlanItem={(itemId) => removePlanItem(selectedMinistryId, itemId)}
+          onSavePlan={(plan) => savePlanForMinistry(selectedMinistryId, plan)}
           onAddResource={(resource) => addResource(selectedMinistryId, resource)}
           onRemoveResource={(resourceId) => removeResource(selectedMinistryId, resourceId)}
           onSetLeader={(leaderId) => setMinistryLeader(selectedMinistryId, leaderId)}
@@ -1967,10 +1969,39 @@ function MinistriesList({ ministries, usuariosReales, isAdminViewer, onSelect, o
   );
 }
 
-function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBack, onAddPlanItem, onUpdatePlanItem, onRemovePlanItem, onAddResource, onRemoveResource, onSetLeader, onSetName, onSetColor, onDelete }) {
+function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBack, onSavePlan, onAddResource, onRemoveResource, onSetLeader, onSetName, onSetColor, onDelete }) {
   const [showResourceForm, setShowResourceForm] = useState(false);
   const [resourceDraft, setResourceDraft] = useState({ title: "", link: "" });
+
+  // La planificación se edita en un borrador LOCAL, no letra por letra contra Supabase — antes cada
+  // tecla disparaba un guardado (borra-todo-y-reinserta) que la sincronización en tiempo real podía
+  // llegar a pisar a mitad de camino (llega un refresco de otro dispositivo mientras el guardado de ESTE
+  // todavía va de salida, y agarra la base de datos en el instante en que ya se borró lo viejo pero
+  // todavía no se insertó lo nuevo). Ahora nada se manda hasta tocar "Guardar planificación".
+  const [planDraft, setPlanDraft] = useState(ministry?.plan || []);
+  const [planDirty, setPlanDirty] = useState(false);
+  const [savingPlan, setSavingPlan] = useState(false);
+  useEffect(() => {
+    if (!planDirty) setPlanDraft(ministry?.plan || []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ministry?.id, ministry?.plan]);
+
   if (!ministry) return null;
+
+  const addDraftPlanItem = () => { setPlanDraft((plan) => [...plan, { id: nextMinistryChildId(), date: "", title: "", detail: "" }]); setPlanDirty(true); };
+  const updateDraftPlanItem = (itemId, field, value) => { setPlanDraft((plan) => plan.map((p) => (p.id === itemId ? { ...p, [field]: value } : p))); setPlanDirty(true); };
+  const removeDraftPlanItem = (itemId) => { setPlanDraft((plan) => plan.filter((p) => p.id !== itemId)); setPlanDirty(true); };
+  const savePlan = async () => {
+    setSavingPlan(true);
+    try {
+      await onSavePlan(planDraft);
+      setPlanDirty(false);
+    } catch (e) {
+      window.alert("No se pudo guardar la planificación: " + e.message);
+    } finally {
+      setSavingPlan(false);
+    }
+  };
 
   const submitResource = () => {
     if (!resourceDraft.title.trim()) return;
@@ -2019,21 +2050,32 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><ClipboardList size={15} color={ministry.color} /> Planificación del mes</div>
-        {canEdit && <button onClick={onAddPlanItem} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar fecha</button>}
+        {canEdit && <button onClick={addDraftPlanItem} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar fecha</button>}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 22 }}>
-        {ministry.plan.map((p) => (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+        {planDraft.map((p) => (
           <div key={p.id} style={{ background: "#FFFFFF", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 10, padding: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <input type="date" disabled={!canEdit} title="Fecha del domingo (o día) al que corresponde esta planificación" value={p.date || ""} onChange={(e) => onUpdatePlanItem(p.id, "date", e.target.value)} style={{ ...inputStyle, width: 150, fontSize: 12, fontWeight: 700, flexShrink: 0 }} />
-              <input disabled={!canEdit} value={p.title} onChange={(e) => onUpdatePlanItem(p.id, "title", e.target.value)} placeholder="Título de la semana" style={{ ...inputStyle, flex: 1, fontWeight: 700 }} />
-              {canEdit && <button onClick={() => onRemovePlanItem(p.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>}
+              <input type="date" disabled={!canEdit} title="Fecha del domingo (o día) al que corresponde esta planificación" value={p.date || ""} onChange={(e) => updateDraftPlanItem(p.id, "date", e.target.value)} style={{ ...inputStyle, width: 150, fontSize: 12, fontWeight: 700, flexShrink: 0 }} />
+              <input disabled={!canEdit} value={p.title} onChange={(e) => updateDraftPlanItem(p.id, "title", e.target.value)} placeholder="Título de la semana" style={{ ...inputStyle, flex: 1, fontWeight: 700 }} />
+              {canEdit && <button onClick={() => removeDraftPlanItem(p.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>}
             </div>
-            <textarea disabled={!canEdit} value={p.detail} onChange={(e) => onUpdatePlanItem(p.id, "detail", e.target.value)} placeholder="Detalle, recursos necesarios, responsables..." rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+            <textarea disabled={!canEdit} value={p.detail} onChange={(e) => updateDraftPlanItem(p.id, "detail", e.target.value)} placeholder="Detalle, recursos necesarios, responsables..." rows={2} style={{ ...inputStyle, resize: "vertical" }} />
           </div>
         ))}
-        {ministry.plan.length === 0 && <div style={{ color: "#8996A6", fontSize: 13 }}>Aún no hay planificación este mes.</div>}
+        {planDraft.length === 0 && <div style={{ color: "#8996A6", fontSize: 13 }}>Aún no hay planificación este mes.</div>}
       </div>
+      {/* Nada de lo de arriba se guarda solo — a propósito, para no disparar un guardado por cada tecla
+          (ver el comentario junto al estado planDraft). Este botón es el único momento en que se manda
+          todo a Supabase de una vez. */}
+      {canEdit && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
+          <button onClick={savePlan} disabled={!planDirty || savingPlan} className="hoverable" style={{ ...primaryBtn, width: "auto", padding: "9px 18px", opacity: planDirty && !savingPlan ? 1 : 0.5, cursor: planDirty && !savingPlan ? "pointer" : "default" }}>
+            {savingPlan ? "Guardando…" : "Guardar planificación"}
+          </button>
+          {planDirty && !savingPlan && <span style={{ fontSize: 11, color: "#E8821E", fontWeight: 700 }}>● Cambios sin guardar</span>}
+        </div>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><FolderOpen size={15} color={ministry.color} /> Recursos</div>
