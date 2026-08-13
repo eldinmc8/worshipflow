@@ -192,6 +192,15 @@ const LIVE_FONTS = {
   script: { label: "Script", family: "'Dancing Script', cursive", weight: 700, transform: "none", tracking: "normal" },
   monoespaciada: { label: "Monoespaciada", family: "'JetBrains Mono', monospace", weight: 600, transform: "none", tracking: "0.5px" },
 };
+// Color del texto principal en pantalla (letra de canción, cita bíblica, título de slide) — todos
+// pensados para buen contraste sobre los fondos oscuros de LIVE_THEMES/imágenes/video.
+const LIVE_TEXT_COLORS = {
+  blanco: { label: "Blanco", value: "#FFFFFF" },
+  crema: { label: "Crema", value: "#F5EFE0" },
+  amarillo: { label: "Amarillo suave", value: "#F5D67B" },
+  celeste: { label: "Celeste", value: "#BFE3FF" },
+  dorado: { label: "Dorado", value: "#E8C77E" },
+};
 
 // UUIDs reales (no ids falsos tipo "it301"): así cualquier fila creada en el cliente ya sirve
 // directo como primary key real en Supabase, sin tener que "reconciliar" un id falso con el real
@@ -4104,6 +4113,15 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
                 <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, font: key }))} style={{ padding: "5px 10px", borderRadius: 8, border: liveStyle.font === key ? "2px solid #B15EA0" : "1px solid #C7D0DD", cursor: "pointer", background: "#fff", fontFamily: f.family, fontWeight: f.weight, fontStyle: f.italic ? "italic" : "normal", textTransform: f.transform, fontSize: 12 }}>{f.label}</button>
               ))}
             </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>COLOR DE LETRA</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+              {Object.entries(LIVE_TEXT_COLORS).map(([key, c]) => (
+                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, textColor: c.value }))} title={c.label} style={{ width: 28, height: 28, borderRadius: "50%", background: c.value, border: (liveStyle.textColor || "#FFFFFF") === c.value ? "2px solid #B15EA0" : "1px solid #C7D0DD", cursor: "pointer", padding: 0 }} />
+              ))}
+              <label title="Elegir otro color" style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid #C7D0DD", cursor: "pointer", padding: 0, position: "relative", overflow: "hidden", background: !Object.values(LIVE_TEXT_COLORS).some((c) => c.value === (liveStyle.textColor || "#FFFFFF")) ? (liveStyle.textColor || "#FFFFFF") : "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)", display: "flex" }}>
+                <input type="color" value={liveStyle.textColor || "#FFFFFF"} onChange={(e) => setLiveStyle((s) => ({ ...s, textColor: e.target.value }))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+              </label>
+            </div>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>TAMAÑO DE LETRA</div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: "#8996A6" }}>A</span>
@@ -4296,8 +4314,11 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // (liveStyle.fontScale es un solo valor compartido, no por diapositiva) sin nunca desbordarse, porque
   // AutoFitText siempre lo achica más si hace falta para esa diapositiva en particular.
   const cancionRatio = 0.16 * scale;
-  const bibliaRatio = 0.12 * scale;
+  // Antes 0.12 — bastante más chica que la letra de canción (0.16), lo que la hacía difícil de leer
+  // desde lejos en la pantalla real, incluso para quienes siguen con su propia Biblia en mano.
+  const bibliaRatio = 0.155 * scale;
   const slideRatio = 0.18 * scale;
+  const textColor = liveStyle?.textColor || "#FFFFFF";
   return (
     <div style={{ flex: thumbnail ? "none" : compactHeight ? "none" : split ? 1.3 : 1, width: thumbnail ? "100%" : "auto", height: thumbnail ? "100%" : compactHeight || "auto", minHeight: thumbnail ? "auto" : compactHeight || "auto", background: bg, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", position: "relative", padding: thumbnail ? 10 : 32, minWidth: thumbnail ? 0 : 320, overflow: "hidden" }}>
       {!thumbnail && <div style={{ position: "absolute", top: 18, left: 22, display: "flex", alignItems: "center", gap: 6, color: "#5B6472", fontSize: 11, fontWeight: 700, letterSpacing: 1, zIndex: 2 }}><Radio size={12} /> PANTALLA DE PROYECCIÓN</div>}
@@ -4320,7 +4341,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
               <div style={{ fontSize: thumbnail ? 9 : 12, fontWeight: 700, letterSpacing: thumbnail ? 1 : 2, color: "#E8821E", marginBottom: thumbnail ? 6 : 14, zIndex: 1 }}>{slide.blockLabel.toUpperCase()}</div>
               <AutoFitText
                 lines={slide.lines} targetRatio={cancionRatio} minPx={thumbnail ? 7 : 15} maxWidth="90%"
-                style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", textAlign: "center", zIndex: 1, lineHeight: 1.35, color: "#fff" }}
+                style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", textAlign: "center", zIndex: 1, lineHeight: 1.35, color: textColor }}
               />
               {!thumbnail && <div style={{ position: "absolute", bottom: 18, display: "flex", alignItems: "center", gap: 8, color: "#5B6472", fontSize: 12, zIndex: 1 }}><Music size={12} /> {slide.songTitle}</div>}
             </>
@@ -4329,7 +4350,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
             <>
               <AutoFitText
                 lines={`"${slide.text}"`} targetRatio={bibliaRatio} minPx={thumbnail ? 7 : 14} maxWidth="90%"
-                style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, textAlign: "center", zIndex: 1, lineHeight: 1.4, fontStyle: font.italic || font.family.includes("Fraunces") ? "italic" : "normal", color: "#fff" }}
+                style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, textAlign: "center", zIndex: 1, lineHeight: 1.4, fontStyle: font.italic || font.family.includes("Fraunces") ? "italic" : "normal", color: textColor }}
               />
               {/* La cita ("Génesis 6:6") tiene que leerse desde lejos SIN necesidad de escuchar — hay gente
                   que sigue con su propia Biblia en mano y solo mira la pantalla para ubicar el pasaje.
@@ -4345,7 +4366,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
             <div style={{ textAlign: "center", zIndex: 1, width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               <AutoFitText
                 lines={slide.title} targetRatio={slideRatio} minPx={thumbnail ? 8 : 16} maxWidth="90%"
-                style={{ fontFamily: font.family, fontWeight: Math.max(font.weight, 600), textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", color: "#fff" }}
+                style={{ fontFamily: font.family, fontWeight: Math.max(font.weight, 600), textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", color: textColor }}
               />
               {slide.subtitle && !thumbnail && <div style={{ fontSize: 15, color: "#B7BEC9", marginTop: 8, flexShrink: 0 }}>{slide.subtitle}</div>}
             </div>
