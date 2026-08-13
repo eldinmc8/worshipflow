@@ -2092,10 +2092,41 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   const [liveBpm, setLiveBpm] = useState(Number(song?.tempo) || 120);
   const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
   const tapTimesRef = useRef([]);
+
+  // ---- Sincroniza Modo Músico entre los dispositivos de todos los que tengan ESTA MISMA canción
+  // abierta (canal por song.id) — así cuando alguien lo activa, marca el tempo, o salta de sección, se
+  // ve igual en todos de una, sin que cada músico tenga que activarlo y calibrar el tempo por su cuenta.
+  // No hay un solo "dueño": cualquiera que active/ajuste algo se transmite a los demás, y el avance
+  // automático de cada dispositivo corre local a partir del último estado sincronizado (ver el useEffect
+  // de abajo) — si el que lo iba llevando cierra la app, cualquier otro sigue empujando el siguiente paso.
+  const musicoChannelRef = useRef(null);
+  useEffect(() => {
+    if (!song) return;
+    const channel = supabase.channel(`musico-${song.id}`);
+    channel.on("broadcast", { event: "sync" }, ({ payload }) => {
+      setAutoMode(payload.autoMode);
+      setLiveBpm(payload.liveBpm);
+      setCurrentSectionIdx(payload.currentSectionIdx);
+      indexRefs.current[payload.currentSectionIdx]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }).subscribe();
+    musicoChannelRef.current = channel;
+    return () => { supabase.removeChannel(channel); musicoChannelRef.current = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [song?.id]);
+  const broadcastMusico = (patch) => {
+    musicoChannelRef.current?.send({ type: "broadcast", event: "sync", payload: { autoMode, liveBpm, currentSectionIdx, ...patch } });
+  };
+
   const goToSectionIdx = (i) => {
     const clamped = Math.max(0, Math.min(order.length - 1, i));
     setCurrentSectionIdx(clamped);
     indexRefs.current[clamped]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    broadcastMusico({ currentSectionIdx: clamped });
+  };
+  const toggleAutoMode = () => {
+    const next = !autoMode;
+    setAutoMode(next);
+    broadcastMusico({ autoMode: next });
   };
   const handleTap = () => {
     const now = Date.now();
@@ -2104,7 +2135,9 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
     if (recent.length >= 2) {
       const intervals = recent.slice(1).map((t, i) => t - recent[i]);
       const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-      setLiveBpm(Math.round(60000 / avgMs));
+      const bpm = Math.round(60000 / avgMs);
+      setLiveBpm(bpm);
+      broadcastMusico({ liveBpm: bpm });
     }
   };
   useEffect(() => {
@@ -2115,7 +2148,7 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
     const beatsPerBar = 4;
     const durationMs = Math.max(1500, ((block.bars || 8) * beatsPerBar / liveBpm) * 60000);
     const timer = setTimeout(() => {
-      if (currentSectionIdx >= order.length - 1) { setAutoMode(false); return; } // se acabó la canción
+      if (currentSectionIdx >= order.length - 1) { setAutoMode(false); broadcastMusico({ autoMode: false }); return; } // se acabó la canción
       goToSectionIdx(currentSectionIdx + 1);
     }, durationMs);
     return () => clearTimeout(timer);
@@ -2219,7 +2252,7 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, background: autoMode ? "#FFF4E8" : "#F4F6FA", border: `1px solid ${autoMode ? "#E8821E" : "#DDE3ED"}`, borderRadius: 12, padding: "8px 10px", marginBottom: 16, flexWrap: "wrap" }}>
-        <button onClick={() => setAutoMode((v) => !v)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: autoMode ? "#E8821E" : "#FFFFFF", color: autoMode ? "#16233A" : "#16233A", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+        <button onClick={toggleAutoMode} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: autoMode ? "#E8821E" : "#FFFFFF", color: autoMode ? "#16233A" : "#16233A", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
           {autoMode ? <><Radio size={13} /> Modo Músico: ON</> : <><Play size={13} /> Modo Músico</>}
         </button>
         <button onClick={() => goToSectionIdx(currentSectionIdx - 1)} disabled={currentSectionIdx === 0} style={{ ...iconGhost, opacity: currentSectionIdx === 0 ? 0.4 : 1 }}><ChevronLeft size={16} /></button>
