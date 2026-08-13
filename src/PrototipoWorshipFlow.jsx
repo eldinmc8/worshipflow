@@ -5,7 +5,7 @@ import {
   MonitorOff, X, Search, Sparkles, Calendar, MapPin, Users, Check,
   UserPlus, Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download,
-  ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell,
+  ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion } from "./lib/canciones.js";
 import {
@@ -436,20 +436,6 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       applyBibleSlidePatch({ reference: `${bookName} ${result.chapter}:${result.verse}`, text: result.text, chapter: result.chapter, verseStart: result.verse, verseEnd: result.verse, bookName });
     } catch {
       window.alert("No se pudo cargar el versículo. Revisa tu conexión a internet.");
-    }
-  };
-  const changeBibleVersion = async (newVersion) => {
-    if (!current || current.type !== "biblia" || !current.bookId || current.version === newVersion) return;
-    try {
-      const [books, chapterVerses] = await Promise.all([fetchBibleBooks(newVersion), fetchBibleChapter(newVersion, current.bookId, current.chapter)]);
-      const book = books.find((b) => b.bookid === current.bookId);
-      const bookName = book?.name || current.bookName;
-      const picked = chapterVerses.filter((v) => v.verse >= current.verseStart && v.verse <= current.verseEnd);
-      const text = picked.map((v) => v.text.replace(/\s+/g, " ").trim()).join(" ");
-      const ref = current.verseStart === current.verseEnd ? `${bookName} ${current.chapter}:${current.verseStart}` : `${bookName} ${current.chapter}:${current.verseStart}-${current.verseEnd}`;
-      applyBibleSlidePatch({ version: newVersion, reference: ref, text, bookName });
-    } catch {
-      window.alert("No se pudo cargar esa versión en este momento. Revisa tu conexión a internet.");
     }
   };
 
@@ -1276,14 +1262,14 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       )}
 
       {tab === "envivo" && liveEvent && (
-        <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: 1, minHeight: 0, display: "flex" }}>
+        <div style={{ width: "100%", flex: 1, minHeight: 0, display: "flex" }}>
           <MultimediaControl
             eventTitle={liveEvent.title} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
             goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}
             onEnd={endEvent} canEnd={userId === liveOwnerId} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
             adHoc={adHoc} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
             onOpenPublicScreen={startPresentation}
-            onNavigateBibleVerse={navigateBibleVerse} onChangeBibleVersion={changeBibleVersion}
+            onNavigateBibleVerse={navigateBibleVerse}
             onAddLiveSlide={addLiveSlide} onEditLiveSlide={editLiveSlide}
           />
         </div>
@@ -3779,11 +3765,155 @@ function ModalShell({ title, icon: Icon, color, onClose, children }) {
   );
 }
 
+// ---------------- BIBLIA EN VIVO (estilo Proyektor: 3 columnas, clic en un versículo proyecta al instante) ----------------
+// Columna 1: libros divididos en Antiguo/Nuevo Testamento (bookid 1-39 = AT, 40-66 = NT en bolls.life).
+// Columna 2: versión arriba, capítulos del libro elegido, e historial de versículos ya proyectados esta
+// sesión — así el operador vuelve rápido a un pasaje que el pastor ya citó antes, sin tener que buscarlo
+// de nuevo. Columna 3: el capítulo completo; tocar un versículo lo proyecta de inmediato, sin botón de
+// confirmación (a diferencia del buscador del Setlist, aquí no se arma un rango: es lectura en vivo).
+function BibleLivePanel({ version, setVersion, history, setHistory, onProject, liveVerse }) {
+  const [books, setBooks] = useState(null);
+  const [loadError, setLoadError] = useState("");
+  const [bookFilter, setBookFilter] = useState("");
+  const [selectedBook, setSelectedBook] = useState(null);
+  const [selectedChapter, setSelectedChapter] = useState(1);
+  const [verses, setVerses] = useState(null);
+  const [loadingChapter, setLoadingChapter] = useState(false);
+
+  useEffect(() => {
+    setLoadError("");
+    fetchBibleBooks(version).then(setBooks).catch((e) => setLoadError(e.message));
+  }, [version]);
+
+  const loadChapter = (bookId, chapter, v) => {
+    setLoadingChapter(true); setLoadError("");
+    fetchBibleChapter(v || version, bookId, chapter).then(setVerses).catch((e) => setLoadError(e.message)).finally(() => setLoadingChapter(false));
+  };
+  const openBook = (book) => { setSelectedBook(book); setSelectedChapter(1); loadChapter(book.bookid, 1); };
+  const openChapter = (chapter) => { setSelectedChapter(chapter); loadChapter(selectedBook.bookid, chapter); };
+  const changeVersion = (v) => { setVersion(v); if (selectedBook) loadChapter(selectedBook.bookid, selectedChapter, v); };
+
+  const rememberAndProject = (entry) => {
+    onProject(entry);
+    setHistory((h) => [entry, ...h.filter((x) => x.ref !== entry.ref || x.version !== entry.version)].slice(0, 25));
+  };
+  const pickVerse = (v) => {
+    rememberAndProject({
+      ref: `${selectedBook.name} ${selectedChapter}:${v.verse}`, version, text: v.text.replace(/\s+/g, " ").trim(),
+      bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: v.verse, verseEnd: v.verse,
+    });
+  };
+  const openHistoryEntry = (entry) => {
+    rememberAndProject(entry);
+    const book = books?.find((b) => b.bookid === entry.bookId);
+    if (book) setSelectedBook(book);
+    setSelectedChapter(entry.chapter);
+    if (entry.version !== version) setVersion(entry.version);
+    loadChapter(entry.bookId, entry.chapter, entry.version);
+  };
+
+  const matchesFilter = (name) => !bookFilter || name.toLowerCase().includes(bookFilter.toLowerCase());
+  const oldTestament = books ? books.filter((b) => b.bookid <= 39 && matchesFilter(b.name)) : [];
+  const newTestament = books ? books.filter((b) => b.bookid >= 40 && matchesFilter(b.name)) : [];
+  const bookListStyle = (b) => ({ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", padding: "3px 4px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: selectedBook?.bookid === b.bookid ? 700 : 500, color: selectedBook?.bookid === b.bookid ? "#E8821E" : "#2F5FA8" });
+
+  return (
+    <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0 }}>
+      {/* Columna 1: libros AT/NT */}
+      <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 9px", marginBottom: 8, flexShrink: 0 }}>
+          <Search size={12} color="#8996A6" />
+          <input value={bookFilter} onChange={(e) => setBookFilter(e.target.value)} placeholder="Filtrar libros…" style={{ background: "transparent", border: "none", outline: "none", color: "#16233A", fontSize: 11.5, width: "100%" }} />
+          {bookFilter && <button onClick={() => setBookFilter("")} style={iconGhost}><X size={12} /></button>}
+        </div>
+        {loadError && <div style={{ fontSize: 11, color: "#C23B32", marginBottom: 8 }}>{loadError}</div>}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ position: "sticky", top: 0, background: "#F4F6FA", fontSize: 10, fontWeight: 700, color: "#64707F", padding: "2px 0 6px" }}>ANTIGUO TESTAMENTO</div>
+              {oldTestament.map((b) => (<button key={b.bookid} onClick={() => openBook(b)} style={bookListStyle(b)}>{b.name}</button>))}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ position: "sticky", top: 0, background: "#F4F6FA", fontSize: 10, fontWeight: 700, color: "#64707F", padding: "2px 0 6px" }}>NUEVO TESTAMENTO</div>
+              {newTestament.map((b) => (<button key={b.bookid} onClick={() => openBook(b)} style={bookListStyle(b)}>{b.name}</button>))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Columna 2: versión, capítulos, historial */}
+      <div style={{ width: 210, flexShrink: 0, minHeight: 0, overflowY: "auto" }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>VERSIÓN</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 14 }}>
+          {BIBLE_VERSIONS.map((v) => (
+            <button key={v.code} onClick={() => changeVersion(v.code)} title={v.label} style={{ fontSize: 10.5, fontWeight: 700, padding: "4px 7px", borderRadius: 6, border: version === v.code ? "2px solid #2F5FA8" : "1px solid #C7D0DD", background: version === v.code ? "#EAF0FA" : "#fff", color: "#16233A", cursor: "pointer" }}>{v.code}</button>
+          ))}
+        </div>
+
+        {selectedBook ? (
+          <>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>CAPÍTULOS DE {selectedBook.name.toUpperCase()}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4, marginBottom: 14 }}>
+              {Array.from({ length: selectedBook.chapters }, (_, i) => i + 1).map((c) => (
+                <button key={c} onClick={() => openChapter(c)} style={{ padding: "6px 0", borderRadius: 6, border: "none", background: selectedChapter === c ? "#16324F" : "#EEF1F6", color: selectedChapter === c ? "#fff" : "#16233A", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{c}</button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: 11, color: "#8996A6", marginBottom: 14 }}>Elige un libro para ver sus capítulos.</div>
+        )}
+
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>HISTORIAL</div>
+        {history.length === 0 ? (
+          <div style={{ fontSize: 11, color: "#8996A6" }}>Los versículos que proyectes van a aparecer aquí para volver rápido a ellos.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {history.map((h) => {
+              const isLive = liveVerse && liveVerse.ref === h.ref && liveVerse.version === h.version;
+              return (
+                <button key={`${h.ref}-${h.version}`} onClick={() => openHistoryEntry(h)} style={{ textAlign: "left", background: isLive ? "#FFF4E8" : "#fff", border: isLive ? "1px solid #E8821E" : "1px solid transparent", borderRadius: 6, padding: "5px 7px", cursor: "pointer", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#16233A" }}>{h.ref} <span style={{ color: "#2F5FA8", fontWeight: 700 }}>· {h.version}</span></div>
+                  <div style={{ fontSize: 10.5, color: "#64707F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.text}</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Columna 3: capítulo completo — clic en un versículo proyecta al instante */}
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: "auto" }}>
+        {!selectedBook && <div style={{ fontSize: 12, color: "#8996A6", padding: "20px 0", textAlign: "center" }}>Elige un libro y capítulo para ver los versículos.</div>}
+        {selectedBook && <div style={{ fontSize: 13, fontWeight: 700, color: "#16233A", marginBottom: 8 }}>{selectedBook.name} {selectedChapter}</div>}
+        {loadingChapter && <div style={{ fontSize: 12, color: "#8996A6", padding: "20px 0", textAlign: "center" }}>Cargando…</div>}
+        {!loadingChapter && verses && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {verses.map((v) => {
+              const isLive = liveVerse && liveVerse.bookId === selectedBook.bookid && liveVerse.chapter === selectedChapter && liveVerse.verseStart === v.verse && liveVerse.version === version;
+              return (
+                <button key={v.verse} onClick={() => pickVerse(v)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 8, border: "none", background: isLive ? "#DDE3ED" : "transparent", cursor: "pointer", fontSize: 13, color: "#16233A", lineHeight: 1.5 }}>
+                  <b style={{ color: "#2F5FA8" }}>{v.verse}</b> {v.text}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onChangeBibleVersion, onAddLiveSlide, onEditLiveSlide }) {
-  const [showStyle, setShowStyle] = useState(false);
-  const [showAdHocBible, setShowAdHocBible] = useState(false);
+function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide }) {
+  // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
+  // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
+  // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
+  const [mmPanel, setMmPanel] = useState("transmision"); // "biblia" | "transmision" | "estilo"
+  // Versión e historial de la Biblia en vivo: se guardan aquí (no dentro de BibleLivePanel) para que
+  // sobrevivan al cambiar de pestaña e ir a Estilo/Transmisión y volver a Biblia.
+  const [bibleVersion, setBibleVersion] = useState(BIBLE_VERSIONS[0].code);
+  const [bibleHistory, setBibleHistory] = useState([]);
   const [showAdHocSong, setShowAdHocSong] = useState(false);
   const [showAdHocVideo, setShowAdHocVideo] = useState(false);
   const [showAddSlide, setShowAddSlide] = useState(false);
@@ -3871,11 +4001,10 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
       </div>
       {!canEnd && <div style={{ padding: "0 16px 6px", fontSize: 10, color: "#8996A6" }}>Solo {liveOwner} puede finalizar esta transmisión.</div>}
 
-      {/* Barra de herramientas: pantalla 2, negro, estilo */}
+      {/* Barra de herramientas: pantalla 2, negro */}
       <div style={{ display: "flex", gap: 8, padding: "8px 16px 10px", flexWrap: "wrap" }}>
         <button onClick={onOpenPublicScreen} style={{ ...ctrlBtn, background: "#16324F", color: "#fff" }}><Radio size={14} /> Reabrir proyección</button>
         <button onClick={() => setBlanked((b) => !b)} style={{ ...ctrlBtn, background: blanked ? "#C23B32" : "#EEF1F6", color: blanked ? "#fff" : "#16233A" }}><MonitorOff size={14} /> {blanked ? "Reanudar" : "Pantalla en negro"}</button>
-        <button onClick={() => setShowStyle((s) => !s)} style={{ ...ctrlBtn, background: showStyle ? "#B15EA0" : "#EEF1F6", color: showStyle ? "#fff" : "#16233A" }}>🎨 Estilo</button>
       </div>
 
       {adHoc && (
@@ -3885,68 +4014,95 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
         </div>
       )}
 
-      {showStyle && (
-        // Panel flotante a un lado (no un bloque en el flujo normal) — así abrir Estilo nunca empuja ni
-        // achica la grilla de diapositivas ni la vista previa de al lado, se queda encima nada más.
-        <>
-          <div onClick={() => setShowStyle(false)} style={{ position: "fixed", inset: 0, background: "rgba(11,15,22,0.35)", zIndex: 60 }} />
-          <div style={{ position: "fixed", top: 0, bottom: 0, right: 0, width: 320, maxWidth: "88vw", background: "#F4F6FA", borderLeft: "1px solid #DDE3ED", boxShadow: "-10px 0 28px rgba(22,50,79,0.22)", zIndex: 61, overflowY: "auto", padding: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#16233A" }}>🎨 Estilo de la proyección</span>
-            <button onClick={() => setShowStyle(false)} style={iconGhost}><X size={16} /></button>
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>FONDO DE LA PROYECCIÓN</div>
-          <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
-            {Object.entries(LIVE_THEMES).map(([key, t]) => (
-              <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, theme: key }))} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: 8, border: liveStyle.theme === key ? "2px solid #B15EA0" : "1px solid #C7D0DD", cursor: "pointer", background: "#fff" }}>
-                <span style={{ width: 16, height: 16, borderRadius: 4, background: t.bg }} />
-                <span style={{ fontSize: 11, fontWeight: 600 }}>{t.label}</span>
-              </button>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 3, background: "#EEF1F6", padding: 3, borderRadius: 8, marginBottom: 8, width: "fit-content" }}>
-            <button onClick={() => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen" }))} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "imagen" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "imagen" ? "#fff" : "#64707F" }}><ImgIcon size={12} /> Imagen</button>
-            <button onClick={() => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video" }))} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "video" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "video" ? "#fff" : "#64707F" }}><Play size={12} /> Video (movimiento)</button>
-          </div>
-          {customBgType === "imagen" ? (
-            <button onClick={() => bgFileInputRef.current?.click()} className="hoverable" style={{ ...addBtnStyle, marginBottom: 12 }}>
-              {liveStyle.customImage ? (
-                <span style={{ width: 16, height: 16, borderRadius: 4, backgroundImage: `url(${liveStyle.customImage})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />
-              ) : (
-                <ImgIcon size={13} color="#8996A6" />
-              )}
-              <span>{liveStyle.customImage ? "Imagen cargada — tocar para cambiar" : "Subir imagen de fondo"}</span>
-            </button>
-          ) : (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ display: "flex", gap: 6 }}>
-                <input
-                  placeholder="https://... (mp4 de fondo con movimiento)"
-                  value={liveStyle.customVideo && !liveStyle.customVideo.startsWith("data:") ? liveStyle.customVideo : ""}
-                  onChange={(e) => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", customVideo: e.target.value }))}
-                  style={{ ...inputStyle, flex: 1 }}
-                />
-                <button onClick={() => bgVideoFileInputRef.current?.click()} style={{ ...addBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}><Paperclip size={13} color="#B15EA0" /> Subir</button>
-                <input ref={bgVideoFileInputRef} type="file" accept="video/*" style={{ display: "none" }} onChange={(e) => { uploadBgVideo(e.target.files?.[0]); e.target.value = ""; }} />
-              </div>
-              {liveStyle.customVideo && (
-                <div style={{ fontSize: 11, color: "#1F8A73", marginTop: 6 }}>{liveStyle.customVideo.startsWith("data:") ? "Video propio cargado ✓" : "Video de fondo configurado ✓"} — se reproduce en bucle detrás de toda la letra/versículos.</div>
-              )}
-            </div>
-          )}
-          <input ref={bgFileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { uploadBgImage(e.target.files?.[0]); e.target.value = ""; }} />
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>TIPOGRAFÍA</div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {Object.entries(LIVE_FONTS).map(([key, f]) => (
-              <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, font: key }))} style={{ padding: "5px 10px", borderRadius: 8, border: liveStyle.font === key ? "2px solid #B15EA0" : "1px solid #C7D0DD", cursor: "pointer", background: "#fff", fontFamily: f.family, fontWeight: f.weight, fontStyle: f.italic ? "italic" : "normal", textTransform: f.transform, fontSize: 12 }}>{f.label}</button>
-            ))}
-          </div>
-          </div>
-        </>
-      )}
-
-      {/* Cuerpo: grid de diapositivas (izquierda) + panel de vista previa y controles (derecha), como FreeShow */}
+      {/* Cuerpo: riel de íconos + panel principal (izquierda) + vista previa y controles (derecha), estilo Proyektor */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 16, padding: "0 16px 16px" }}>
+        {/* Riel de íconos: cambia qué panel se ve a la izquierda sin tocar la vista previa/controles de la derecha */}
+        <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, paddingTop: 2 }}>
+          {[
+            { key: "biblia", icon: BookOpen, title: "Biblia" },
+            { key: "transmision", icon: ListMusic, title: "Transmisión" },
+            { key: "estilo", icon: Palette, title: "Estilo" },
+          ].map(({ key, icon: Icon, title }) => (
+            <button
+              key={key} onClick={() => setMmPanel(key)} title={title}
+              style={{ width: 40, height: 40, borderRadius: 12, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: mmPanel === key ? "#E8821E" : "#EEF1F6", color: mmPanel === key ? "#fff" : "#64707F", boxShadow: mmPanel === key ? "0 3px 10px rgba(232,130,30,0.35)" : "none" }}
+            ><Icon size={18} /></button>
+          ))}
+        </div>
+
+        {mmPanel === "biblia" && (
+          <BibleLivePanel
+            version={bibleVersion} setVersion={setBibleVersion}
+            history={bibleHistory} setHistory={setBibleHistory}
+            onProject={(b) => onStartAdHocBible(b)}
+            liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart } : null}
+          />
+        )}
+
+        {mmPanel === "estilo" && (
+          <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>FONDO DE LA PROYECCIÓN</div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+              {Object.entries(LIVE_THEMES).map(([key, t]) => (
+                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, theme: key }))} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: 8, border: liveStyle.theme === key ? "2px solid #B15EA0" : "1px solid #C7D0DD", cursor: "pointer", background: "#fff" }}>
+                  <span style={{ width: 16, height: 16, borderRadius: 4, background: t.bg }} />
+                  <span style={{ fontSize: 11, fontWeight: 600 }}>{t.label}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 3, background: "#EEF1F6", padding: 3, borderRadius: 8, marginBottom: 8, width: "fit-content" }}>
+              <button onClick={() => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen" }))} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "imagen" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "imagen" ? "#fff" : "#64707F" }}><ImgIcon size={12} /> Imagen</button>
+              <button onClick={() => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video" }))} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "video" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "video" ? "#fff" : "#64707F" }}><Play size={12} /> Video (movimiento)</button>
+            </div>
+            {customBgType === "imagen" ? (
+              <button onClick={() => bgFileInputRef.current?.click()} className="hoverable" style={{ ...addBtnStyle, marginBottom: 12 }}>
+                {liveStyle.customImage ? (
+                  <span style={{ width: 16, height: 16, borderRadius: 4, backgroundImage: `url(${liveStyle.customImage})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />
+                ) : (
+                  <ImgIcon size={13} color="#8996A6" />
+                )}
+                <span>{liveStyle.customImage ? "Imagen cargada — tocar para cambiar" : "Subir imagen de fondo"}</span>
+              </button>
+            ) : (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    placeholder="https://... (mp4 de fondo con movimiento)"
+                    value={liveStyle.customVideo && !liveStyle.customVideo.startsWith("data:") ? liveStyle.customVideo : ""}
+                    onChange={(e) => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", customVideo: e.target.value }))}
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                  <button onClick={() => bgVideoFileInputRef.current?.click()} style={{ ...addBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}><Paperclip size={13} color="#B15EA0" /> Subir</button>
+                  <input ref={bgVideoFileInputRef} type="file" accept="video/*" style={{ display: "none" }} onChange={(e) => { uploadBgVideo(e.target.files?.[0]); e.target.value = ""; }} />
+                </div>
+                {liveStyle.customVideo && (
+                  <div style={{ fontSize: 11, color: "#1F8A73", marginTop: 6 }}>{liveStyle.customVideo.startsWith("data:") ? "Video propio cargado ✓" : "Video de fondo configurado ✓"} — se reproduce en bucle detrás de toda la letra/versículos.</div>
+                )}
+              </div>
+            )}
+            <input ref={bgFileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { uploadBgImage(e.target.files?.[0]); e.target.value = ""; }} />
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>TIPOGRAFÍA</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+              {Object.entries(LIVE_FONTS).map(([key, f]) => (
+                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, font: key }))} style={{ padding: "5px 10px", borderRadius: 8, border: liveStyle.font === key ? "2px solid #B15EA0" : "1px solid #C7D0DD", cursor: "pointer", background: "#fff", fontFamily: f.family, fontWeight: f.weight, fontStyle: f.italic ? "italic" : "normal", textTransform: f.transform, fontSize: 12 }}>{f.label}</button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>TAMAÑO DE LETRA</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#8996A6" }}>A</span>
+              <input
+                type="range" min={0.6} max={1.8} step={0.05}
+                value={fontScale}
+                onChange={(e) => setLiveStyle((s) => ({ ...s, fontScale: parseFloat(e.target.value) }))}
+                style={{ flex: 1, accentColor: "#E8821E", cursor: "pointer" }}
+              />
+              <span style={{ fontSize: 19, fontWeight: 700, color: "#8996A6" }}>A</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#16233A", width: 34, textAlign: "right" }}>{Math.round(fontScale * 100)}%</span>
+            </div>
+          </div>
+        )}
+
+        {mmPanel === "transmision" && (
         <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ fontSize: 11, color: "#64707F", fontWeight: 700 }}>TODAS LAS SLIDES</span>
@@ -3985,6 +4141,7 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
             })}
           </div>
         </div>
+        )}
 
         <div style={{ width: 250, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
           {/* Fija arriba (no se va con el scroll): así siempre puedes ver cuánto estás agrandando la letra
@@ -4002,42 +4159,6 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
             <button onClick={() => goto(navIdx - 1)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><ChevronLeft size={16} /></button>
             <button onClick={() => goto(navIdx + 1)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><ChevronRight size={16} /></button>
             <button onClick={() => goto(Infinity)} style={{ ...ctrlBtn, width: 38, justifyContent: "center", padding: "9px 0" }}><SkipForward size={15} /></button>
-          </div>
-
-          {/* Solo aparece cuando lo que está en vivo es un versículo elegido con el buscador de la Biblia
-              (trae bookId/chapter) — permite seguir leyendo versículo por versículo y cambiar de versión
-              sin volver a abrir el buscador, para cuando el pastor lee varios versículos seguidos. */}
-          {current?.type === "biblia" && current.bookId && (
-            <div style={{ background: "#F4F6FA", border: "1px solid #DDE3ED", borderRadius: 12, padding: "10px 12px" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", letterSpacing: 0.4, marginBottom: 8 }}>LECTURA BÍBLICA EN VIVO</div>
-              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                <button onClick={() => onNavigateBibleVerse(-1)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><ChevronLeft size={14} /> Anterior</button>
-                <button onClick={() => onNavigateBibleVerse(1)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}>Siguiente <ChevronRight size={14} /></button>
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {BIBLE_VERSIONS.map((v) => (
-                  <button key={v.code} onClick={() => onChangeBibleVersion(v.code)} title={v.label} style={{ fontSize: 11, fontWeight: 700, padding: "4px 9px", borderRadius: 8, border: current.version === v.code ? "2px solid #2F5FA8" : "1px solid #C7D0DD", background: current.version === v.code ? "#EAF0FA" : "#fff", color: "#16233A", cursor: "pointer" }}>{v.code}</button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Control de tamaño de letra: un solo slider para arrastrar, aplica de una vez en la pantalla real */}
-          <div style={{ background: "#F4F6FA", border: "1px solid #DDE3ED", borderRadius: 12, padding: "10px 12px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#64707F", letterSpacing: 0.4 }}>TAMAÑO DE LETRA</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#16233A" }}>{Math.round(fontScale * 100)}%</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#8996A6" }}>A</span>
-              <input
-                type="range" min={0.6} max={1.8} step={0.05}
-                value={fontScale}
-                onChange={(e) => setLiveStyle((s) => ({ ...s, fontScale: parseFloat(e.target.value) }))}
-                style={{ flex: 1, accentColor: "#E8821E", cursor: "pointer" }}
-              />
-              <span style={{ fontSize: 19, fontWeight: 700, color: "#8996A6" }}>A</span>
-            </div>
           </div>
 
           {currentSongSections.length > 0 && (
@@ -4061,29 +4182,14 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
           <div>
             <div style={{ fontSize: 11, color: "#64707F", fontWeight: 700, marginBottom: 6 }}>IMPROVISAR</div>
             <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={() => setShowAdHocBible(true)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><BookOpen size={13} /></button>
-              <button onClick={() => setShowAdHocSong(true)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><Music size={13} /></button>
-              <button onClick={() => setShowAdHocVideo(true)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><ImgIcon size={13} /></button>
+              <button onClick={() => setShowAdHocSong(true)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><Music size={13} /> Canción</button>
+              <button onClick={() => setShowAdHocVideo(true)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><ImgIcon size={13} /> Video</button>
             </div>
           </div>
           </div>
         </div>
       </div>
 
-      {showAdHocBible && (
-        // Panel lateral compacto (no un modal que tape toda la pantalla) — para proyectar de una vez un
-        // versículo que no estaba planificado, sin perder de vista la grilla de diapositivas de atrás.
-        <>
-          <div onClick={() => setShowAdHocBible(false)} style={{ position: "fixed", inset: 0, background: "rgba(11,15,22,0.35)", zIndex: 60 }} />
-          <div style={{ position: "fixed", top: 0, bottom: 0, right: 0, width: 380, maxWidth: "92vw", background: "#fff", borderLeft: "1px solid #DDE3ED", boxShadow: "-10px 0 28px rgba(22,50,79,0.22)", zIndex: 61, overflowY: "auto", padding: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#16233A", display: "flex", alignItems: "center", gap: 6 }}><BookOpen size={14} color="#2F5FA8" /> Versículo improvisado</span>
-              <button onClick={() => setShowAdHocBible(false)} style={iconGhost}><X size={16} /></button>
-            </div>
-            <BibleBrowserBody submitLabel="Proyectar ahora" onAdd={(b) => { onStartAdHocBible(b); setShowAdHocBible(false); }} />
-          </div>
-        </>
-      )}
       {showAdHocSong && <AdHocSongModal library={library} onClose={() => setShowAdHocSong(false)} onPick={(song) => { onStartAdHocSong(song); setShowAdHocSong(false); }} />}
       {showAdHocVideo && <AdHocVideoModal onClose={() => setShowAdHocVideo(false)} onPlay={(url) => { onStartAdHocVideo(url); setShowAdHocVideo(false); }} />}
       {showAddSlide && (
