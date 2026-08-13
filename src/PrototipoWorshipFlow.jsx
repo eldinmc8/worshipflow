@@ -201,6 +201,10 @@ const LIVE_TEXT_COLORS = {
   celeste: { label: "Celeste", value: "#BFE3FF" },
   dorado: { label: "Dorado", value: "#E8C77E" },
 };
+// Objeto "evento" liviano para cuando se transmite sin un evento del calendario detrás (ver
+// startFreeEvent) — referencia estable a nivel de módulo para no invalidar el useMemo de `slides` en
+// cada render con un objeto nuevo. serviceOrder vacío: no hay plan, todo el contenido es improvisado.
+const EVENTO_LIBRE = { id: null, title: "Transmisión libre", serviceOrder: [] };
 
 // UUIDs reales (no ids falsos tipo "it301"): así cualquier fila creada en el cliente ya sirve
 // directo como primary key real en Supabase, sin tener que "reconciliar" un id falso con el real
@@ -399,7 +403,11 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const selectedEvent = events.find((e) => e.id === selectedEventId);
   const [liveEventId, setLiveEventId] = useState(null);
   const [liveOwnerId, setLiveOwnerId] = useState(null); // usuario que inició la transmisión; solo esa persona puede finalizarla
-  const liveEvent = events.find((e) => e.id === liveEventId);
+  // "En vivo sin evento": transmisión libre, sin ningún plan/setlist detrás — solo contenido improvisado
+  // (Biblia/canción/video/slide). liveEventId se queda en null en este caso, igual que cuando no hay nada
+  // en vivo, así que se necesita esta bandera aparte para distinguir ambos casos.
+  const [liveLibre, setLiveLibre] = useState(false);
+  const liveEvent = liveLibre ? EVENTO_LIBRE : events.find((e) => e.id === liveEventId);
   const slides = useMemo(() => (liveEvent ? buildSlides(liveEvent.serviceOrder, library) : []), [liveEvent, library]);
   const current = adHoc ? adHoc.slides[adHocIdx] : slides[activeIdx];
   const next = adHoc ? adHoc.slides[adHocIdx + 1] : slides[activeIdx + 1];
@@ -639,17 +647,29 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       window.alert("No se pudo detectar las pantallas conectadas (permiso denegado). Conecta el proyector/monitor y vuelve a intentar.");
     }
   };
+  // Si ya hay algo en vivo (un evento real o una transmisión libre) y se va a reemplazar por otra cosa,
+  // confirma antes — mismo diálogo para las tres combinaciones (evento→evento, evento→libre, libre→evento).
+  const confirmReplaceLive = (excludeEventId) => {
+    if (!liveEventId && !liveLibre) return true;
+    if (liveEventId && liveEventId === excludeEventId) return true;
+    const otherTitle = liveLibre ? "Transmisión libre" : events.find((e) => e.id === liveEventId)?.title;
+    return window.confirm(`"${otherTitle}" ya está en vivo. ¿Finalizarlo e iniciar esto en su lugar?`);
+  };
   const startEvent = (eventId) => {
-    if (liveEventId && liveEventId !== eventId) {
-      const otherTitle = events.find((e) => e.id === liveEventId)?.title;
-      const ok = window.confirm(`"${otherTitle}" ya está en vivo. ¿Finalizarlo e iniciar este evento en su lugar?`);
-      if (!ok) return;
-    }
-    setLiveEventId(eventId); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setTab("envivo");
+    if (!confirmReplaceLive(eventId)) return;
+    setLiveEventId(eventId); setLiveLibre(false); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setTab("envivo");
     startPresentation(); // abre/enfoca la pantalla de proyección de una vez, sin paso manual extra
   };
+  // Transmitir sin un evento del calendario detrás — para anuncios, oración u otro contenido suelto que
+  // no amerita crear/usar un evento planificado. Todo el contenido sale de "Improvisar" (Biblia/canción/
+  // video/slide) ya que no hay ningún setlist: EVENTO_LIBRE trae serviceOrder vacío.
+  const startFreeEvent = () => {
+    if (!confirmReplaceLive(null)) return;
+    setLiveEventId(null); setLiveLibre(true); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setTab("envivo");
+    startPresentation();
+  };
   const endEvent = () => {
-    setLiveEventId(null); setLiveOwnerId(null); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setTab("eventos");
+    setLiveEventId(null); setLiveLibre(false); setLiveOwnerId(null); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setTab("eventos");
     clearLiveSession().catch((e) => window.alert("No se pudo cerrar la sesión en vivo: " + e.message));
   };
 
@@ -798,10 +818,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // Administrador y Multimedia controlan la transmisión en vivo — así ningún músico o miembro puede
   // detenerla por accidente desde su teléfono (ver Ajustes → "Rol de este dispositivo").
   const canControlLive = myRole === "Administrador" || myRole === "Multimedia";
-  // Iniciar la transmisión es más delicado que solo controlarla ya en marcha: únicamente Multimedia
-  // (ni Administrador) ve el botón "Iniciar evento", y únicamente desde un escritorio — nunca desde un
-  // teléfono, ni para Multimedia ni para nadie, para que solo se inicie desde el equipo conectado de verdad.
-  const canStartLive = myRole === "Multimedia" && !isCompact;
+  // Iniciar la transmisión es más delicado que solo controlarla ya en marcha: Multimedia y Administrador
+  // ven el botón "Iniciar evento", y únicamente desde un escritorio — nunca desde un teléfono, para que
+  // solo se inicie desde el equipo conectado de verdad.
+  const canStartLive = (myRole === "Multimedia" || myRole === "Administrador") && !isCompact;
   const myName = realIsAdmin && nameOverride ? nameOverride : realName;
   const isAdminViewer = realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride)?.rol === "admin" : realIsAdmin;
   // Agregar versículos al Setlist es de administradores, con una sola excepción: quien esté asignado
@@ -821,15 +841,15 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // evento en vivo Y este dispositivo es quien lo está llevando (si no, un músico que solo está
   // observando "En vivo" encendido en su teléfono pisaría por accidente lo que Multimedia proyecta).
   useEffect(() => {
-    if (!liveEventId || userId !== liveOwnerId) return;
-    const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: current || null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null };
+    if ((!liveEventId && !liveLibre) || userId !== liveOwnerId) return;
+    const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: current || null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null, libre: liveLibre };
     // Se manda por las dos vías a la vez: BroadcastChannel llega al instante si la pantalla de
     // proyección está en la MISMA computadora (caso típico: TV por HDMI como segunda pantalla) — así el
     // cambio de diapositiva no depende del internet del lugar, igual que un presentador local. Supabase
     // sigue siendo el camino real cuando la proyección de verdad está en otro dispositivo aparte.
     broadcastLiveSession(fila);
     updateLiveSession(fila).catch((e) => window.alert("No se pudo actualizar la proyección: " + e.message));
-  }, [current, blanked, liveStyle, liveEventId, liveOwnerId, adHoc, userId]);
+  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId]);
 
   // ---- Sincroniza EN TIEMPO REAL, en todos los dispositivos, si hay un evento en vivo ahora mismo y
   // quién lo está llevando — así el indicador "En vivo" (pestaña, franja de Inicio, tarjeta del evento)
@@ -845,18 +865,19 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         // ningún cambio (updateLiveSession se llama en cada diapositiva/estilo mientras alguien la está
         // usando de verdad) es buena señal de que quedó abandonada, así que el primer dispositivo que
         // abre la app después de eso la cierra sola, sin pedirle nada a nadie.
-        const abandonada = fila?.evento_id && fila?.updated_at && (Date.now() - new Date(fila.updated_at).getTime() > LIVE_SESSION_STALE_MS);
+        const abandonada = (fila?.evento_id || fila?.libre) && fila?.updated_at && (Date.now() - new Date(fila.updated_at).getTime() > LIVE_SESSION_STALE_MS);
         if (abandonada) {
           clearLiveSession().catch(() => {});
-          setLiveEventId(null); setLiveOwnerId(null);
+          setLiveEventId(null); setLiveOwnerId(null); setLiveLibre(false);
           return;
         }
-        setLiveEventId(fila?.evento_id || null); setLiveOwnerId(fila?.liderado_por || null);
+        setLiveEventId(fila?.evento_id || null); setLiveOwnerId(fila?.liderado_por || null); setLiveLibre(!!fila?.libre);
       })
       .catch(() => {});
     const unsubscribe = subscribeLiveSession((fila) => {
       setLiveEventId(fila.evento_id || null);
       setLiveOwnerId(fila.liderado_por || null);
+      setLiveLibre(!!fila.libre);
     });
     return unsubscribe;
   }, []);
@@ -1146,7 +1167,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       {!["envivo", "proyeccion"].includes(tab) && (
       <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: tab === "inicio" ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {tab === "inicio" && (
-        <InicioView events={realEvents} library={library} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} isCompact={isCompact} onSelectEvent={goToEvent} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} />
+        <InicioView events={realEvents} library={library} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} />
       )}
 
       {tab === "ajustes" && (
@@ -1219,7 +1240,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       )}
 
       {tab === "eventos" && !selectedEvent && (
-        <EventList events={realEvents} plantillas={plantillas} isAdminViewer={isAdminViewer} liveEventId={liveEventId} onSelect={setSelectedEventId} onCreate={createEvent} />
+        <EventList events={realEvents} plantillas={plantillas} isAdminViewer={isAdminViewer} liveEventId={liveEventId} liveLibre={liveLibre} onSelect={setSelectedEventId} onCreate={createEvent} canStartLive={canStartLive} onStartFree={startFreeEvent} />
       )}
 
       {tab === "eventos" && selectedEvent && !openSong && (
@@ -1290,7 +1311,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       {tab === "envivo" && liveEvent && (
         <div style={{ width: "100%", flex: 1, minHeight: 0, display: "flex" }}>
           <MultimediaControl
-            eventTitle={liveEvent.title} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
+            eventTitle={liveEvent.title} isFreeSession={liveLibre} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
             goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}
             onEnd={endEvent} canEnd={userId === liveOwnerId} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
             adHoc={adHoc} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
@@ -1405,8 +1426,8 @@ function nextUpcomingEvent(events, liveEventId) {
     .sort(compareByDay)[0];
 }
 
-function InicioView({ events, library, favoritesCount, memberCount, liveEventId, onSelectEvent, onGoToTeam, onOpenSong, isCompact }) {
-  const liveEvent = events.find((e) => e.id === liveEventId);
+function InicioView({ events, library, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact }) {
+  const liveEvent = liveLibre ? EVENTO_LIBRE : events.find((e) => e.id === liveEventId);
   const [showFavorites, setShowFavorites] = useState(false);
   const favoriteSongs = library.filter((s) => s.favorite);
   const today = todayLocal();
@@ -1432,7 +1453,7 @@ function InicioView({ events, library, favoritesCount, memberCount, liveEventId,
           <div style={{ fontSize: 13, color: "#64707F", marginTop: 2 }}>{TEAM_NAME}</div>
         </div>
         {liveEvent && (
-          <button onClick={() => onSelectEvent(liveEvent.id)} style={{ display: "flex", alignItems: "center", gap: 8, background: "#16324F", borderRadius: 20, padding: "9px 16px", border: "none", cursor: "pointer", flexShrink: 0 }}>
+          <button onClick={() => (liveLibre ? onGoLive() : onSelectEvent(liveEvent.id))} style={{ display: "flex", alignItems: "center", gap: 8, background: "#16324F", borderRadius: 20, padding: "9px 16px", border: "none", cursor: "pointer", flexShrink: 0 }}>
             <span className="live-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "#E8821E" }} />
             <span style={{ color: "#fff", fontWeight: 700, fontSize: 12 }}>En vivo: {liveEvent.title}</span>
             <ChevronRight size={14} color="rgba(255,255,255,0.7)" />
@@ -2542,7 +2563,7 @@ function MiniTicket({ ev, isLive, onClick }) {
   );
 }
 
-function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, onCreate }) {
+function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, onSelect, onCreate, canStartLive, onStartFree }) {
   const [viewMode, setViewMode] = useState("eventos"); // eventos | plantillas (solo administradores alternan)
   const [step, setStep] = useState(null); // null | 'template' | 'details'
   const [templateId, setTemplateId] = useState("blank");
@@ -2660,6 +2681,16 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, onSelect, o
           </select>
         </div>
       </div>
+
+      {canStartLive && (
+        <button onClick={onStartFree} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: liveLibre ? "#FFF4E8" : "#FFFFFF", border: liveLibre ? "1px solid #E8821E" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 14, padding: "12px 14px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: liveLibre ? "#E8821E" : "#EEF1F6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Radio size={16} color={liveLibre ? "#fff" : "#C23B32"} /></div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{liveLibre ? "Transmisión libre en vivo" : "Transmitir sin evento"}</div>
+            <div style={{ fontSize: 11, color: "#8996A6" }}>{liveLibre ? 'Toca "En vivo" abajo para controlarla' : "Para anuncios, oración u otro contenido suelto sin un evento planificado"}</div>
+          </div>
+        </button>
+      )}
 
       {hero && (
         <div style={{ position: "relative", marginBottom: 26 }}>
@@ -3931,7 +3962,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide }) {
+function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -4141,12 +4172,20 @@ function MultimediaControl({ eventTitle, library, slides, activeIdx, adHocIdx, g
         <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ fontSize: 11, color: "#64707F", fontWeight: 700 }}>TODAS LAS SLIDES</span>
-            <button
-              onClick={() => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); }}
-              title="Agregar una diapositiva al plan en vivo (ej. un anuncio que se quedó fuera)"
-              style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#2F5FA8", background: "#EAF0FA", border: "none", borderRadius: 14, padding: "4px 10px", cursor: "pointer" }}
-            ><Plus size={13} /> Agregar diapositiva</button>
+            {/* Sin evento no hay setlist al cual agregar/guardar esta diapositiva — "Agregar diapositiva"
+                solo tiene sentido cuando hay un plan real detrás. En una transmisión libre, todo el
+                contenido sale de Biblia/Improvisar (canción/video), que no dependen de ningún evento. */}
+            {!isFreeSession && (
+              <button
+                onClick={() => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); }}
+                title="Agregar una diapositiva al plan en vivo (ej. un anuncio que se quedó fuera)"
+                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#2F5FA8", background: "#EAF0FA", border: "none", borderRadius: 14, padding: "4px 10px", cursor: "pointer" }}
+              ><Plus size={13} /> Agregar diapositiva</button>
+            )}
           </div>
+          {isFreeSession && slides.length === 0 && (
+            <div style={{ fontSize: 12, color: "#8996A6", padding: "20px 10px", textAlign: "center" }}>Esta es una transmisión sin evento — no hay un plan aquí. Usa las pestañas Biblia o "Improvisar" (abajo, a la derecha) para proyectar canciones, versículos o videos.</div>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
             {slides.map((s, i) => {
               const color = sectionColorFor(s);

@@ -19,7 +19,7 @@ export async function updateLiveSession(patch) {
 }
 
 export function clearLiveSession() {
-  return updateLiveSession({ evento_id: null, liderado_por: null, slide_actual: null, blanked: false, estilo_en_vivo: null, ad_hoc_label: null });
+  return updateLiveSession({ evento_id: null, liderado_por: null, slide_actual: null, blanked: false, estilo_en_vivo: null, ad_hoc_label: null, libre: false });
 }
 
 // Se suscribe a los cambios de la sesión en vivo; llama a onChange(fila) cada vez que se actualiza.
