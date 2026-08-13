@@ -3520,19 +3520,25 @@ async function fetchBibleChapter(version, bookId, chapter) {
   if (!res.ok) throw new Error("No se pudo cargar el capítulo.");
   return res.json();
 }
-// Busca la FRASE (no palabras sueltas) dentro del texto de los versículos de una versión — para cuando
-// el operador solo recuerda un pedazo de una cita y necesita encontrarla rápido en vivo, sin saber en qué
-// libro/capítulo está. match_whole=true en la API de bolls.life es justamente "coincidencia de frase
-// completa" (respeta el orden de las palabras), no "palabra completa" como sugeriría el nombre.
-async function searchBibleVerses(version, query) {
-  const res = await fetch(`https://bolls.life/v2/find/${version}?search=${encodeURIComponent(query)}&match_case=false&match_whole=true`);
-  if (!res.ok) throw new Error("No se pudo buscar en la Biblia.");
-  const data = await res.json();
-  return data.results || [];
-}
 // La API devuelve <mark> alrededor de las palabras encontradas y a veces <br> dentro del texto (saltos de
 // línea de poesía) — se limpia para mostrarlo como texto plano, igual que el resto de la app.
 const stripBibleSearchMarkup = (text) => text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+// Quita tildes/diacríticos para comparar sin importar si se escribieron o no (ej. "oracion" debe
+// encontrar "oración"). NFD separa la tilde como marca combinante aparte y este regex la descarta.
+const foldAccents = (text) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+// Busca la FRASE (no palabras sueltas) dentro del texto de los versículos de una versión — para cuando
+// el operador solo recuerda un pedazo de una cita y necesita encontrarla rápido en vivo, sin saber en qué
+// libro/capítulo está. La API (bolls.life) solo ignora tildes en su modo "por palabra" (sin match_whole);
+// su modo de frase exacta (match_whole=true) SÍ distingue tildes, así que se pide en modo por palabra
+// (más resultados, pero cualquier verso con la frase exacta queda adentro sí o sí) y la frase exacta —
+// sin importar tildes de ningún lado — se filtra acá mismo, sobre esos resultados.
+async function searchBibleVerses(version, query) {
+  const res = await fetch(`https://bolls.life/v2/find/${version}?search=${encodeURIComponent(query)}&match_case=false`);
+  if (!res.ok) throw new Error("No se pudo buscar en la Biblia.");
+  const data = await res.json();
+  const needle = foldAccents(query);
+  return (data.results || []).filter((r) => foldAccents(stripBibleSearchMarkup(r.text)).includes(needle));
+}
 // Para "Siguiente/Anterior versículo" en vivo: busca el versículo justo después (direction=1) o antes
 // (direction=-1) de fromVerse, cruzando al capítulo siguiente/anterior del mismo libro si hace falta.
 // Devuelve null cuando ya no hay más (por ejemplo, se llegó al final del libro).
