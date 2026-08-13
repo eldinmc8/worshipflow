@@ -3854,8 +3854,10 @@ function SlideModal({ draft, setDraft, onClose, onAdd, title = "Slide personaliz
   };
   return (
     <ModalShell title={title} icon={ImgIcon} color="#B15EA0" onClose={onClose}>
-      <input placeholder="Título (opcional si es solo video/imagen)" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} style={inputStyle} />
-      <input placeholder="Subtítulo (opcional)" value={draft.subtitle} onChange={(e) => setDraft({ ...draft, subtitle: e.target.value })} style={{ ...inputStyle, marginTop: 8 }} />
+      {/* Textarea, no input: para un texto largo se puede tocar Enter y armar el salto de línea a mano
+          (dónde se corta cada línea en la proyección), en vez de dejarlo todo al ajuste automático. */}
+      <textarea placeholder="Título (opcional si es solo video/imagen) — Enter para salto de línea" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} style={{ ...inputStyle, height: 70, resize: "none" }} />
+      <textarea placeholder="Subtítulo (opcional)" value={draft.subtitle} onChange={(e) => setDraft({ ...draft, subtitle: e.target.value })} style={{ ...inputStyle, height: 44, resize: "none", marginTop: 8 }} />
       <div style={{ fontSize: 11, color: "#64707F", fontWeight: 700, margin: "14px 0 8px" }}>FONDO</div>
       <div style={{ display: "flex", gap: 3, background: "#EEF1F6", padding: 3, borderRadius: 8, marginBottom: 10, width: "fit-content" }}>
         {[["color", "Color"], ["imagen", "Imagen"], ["video", "Video"]].map(([val, label]) => (
@@ -4549,6 +4551,10 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // desde lejos en la pantalla real, incluso para quienes siguen con su propia Biblia en mano.
   const bibliaRatio = 0.155 * scale;
   const slideRatio = 0.18 * scale;
+  // La cita ("Génesis 6:6:") tiene que verse casi tan grande como el propio versículo, no como una
+  // etiqueta chiquita aparte — 70% del tamaño del versículo, y crece/encoge junto con él al mover el
+  // slider de Tamaño de letra (antes era un tamaño fijo en vh que no reaccionaba al slider para nada).
+  const referenciaVh = (bibliaRatio * 0.7 * 100).toFixed(2);
   const textColor = liveStyle?.textColor || "#FFFFFF";
   return (
     <div style={{ flex: thumbnail ? "none" : compactHeight ? "none" : split ? 1.3 : 1, width: thumbnail ? "100%" : "auto", height: thumbnail ? "100%" : compactHeight || "auto", minHeight: thumbnail ? "auto" : compactHeight || "auto", background: bg, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", position: "relative", padding: thumbnail ? 10 : 32, minWidth: thumbnail ? 0 : 320, overflow: "hidden" }}>
@@ -4585,9 +4591,9 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
               />
               {/* La cita ("Génesis 6:6") tiene que leerse desde lejos SIN necesidad de escuchar — hay gente
                   que sigue con su propia Biblia en mano y solo mira la pantalla para ubicar el pasaje.
-                  Por eso escala con el alto real de la pantalla (clamp en vh), no un tamaño fijo chiquito
-                  pensado para la mini-preview del panel de control. */}
-              <div style={{ marginTop: thumbnail ? 6 : 28, fontSize: thumbnail ? 10 : "clamp(22px, 4.2vh, 56px)", color: "#6E9BD1", fontWeight: 800, zIndex: 1, display: "flex", alignItems: "center", gap: "0.3em", flexShrink: 0 }}>
+                  Por eso escala con el alto real de la pantalla (clamp en vh) Y con el slider de Tamaño
+                  de letra (referenciaVh), no un tamaño fijo chiquito pensado solo para la mini-preview. */}
+              <div style={{ marginTop: thumbnail ? 6 : 28, fontSize: thumbnail ? 10 : `clamp(${Math.round(20 * scale)}px, ${referenciaVh}vh, ${Math.round(140 * scale)}px)`, color: "#6E9BD1", fontWeight: 800, zIndex: 1, display: "flex", alignItems: "center", gap: "0.3em", flexShrink: 0 }}>
                 {slide.reference}
                 {!thumbnail && slide.version && <span style={{ fontSize: "0.4em", background: "rgba(110,155,209,0.2)", borderRadius: 6, padding: "0.2em 0.6em" }}>{slide.version}</span>}
               </div>
@@ -4596,10 +4602,10 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           {slide.type === "slide" && (
             <div style={{ textAlign: "center", zIndex: 1, width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               <AutoFitText
-                lines={slide.title} targetRatio={slideRatio} minPx={thumbnail ? 8 : 16} maxWidth="90%"
+                lines={(slide.title || "").split("\n")} targetRatio={slideRatio} minPx={thumbnail ? 8 : 16} maxWidth="90%"
                 style={{ fontFamily: font.family, fontWeight: Math.max(font.weight, 600), textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", color: textColor }}
               />
-              {slide.subtitle && !thumbnail && <div style={{ fontSize: 15, color: "#B7BEC9", marginTop: 8, flexShrink: 0 }}>{slide.subtitle}</div>}
+              {slide.subtitle && !thumbnail && <div style={{ fontSize: 15, color: "#B7BEC9", marginTop: 8, flexShrink: 0, whiteSpace: "pre-line" }}>{slide.subtitle}</div>}
             </div>
           )}
         </>
