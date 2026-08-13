@@ -13,6 +13,7 @@ import {
 } from "./lib/eventos.js";
 import { listMinisteriosCompletos, crearMinisterio, actualizarLiderMinisterio, sincronizarPlan, sincronizarRecursos } from "./lib/ministerios.js";
 import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession } from "./lib/liveSession.js";
+import { subscribeTableChanges } from "./lib/realtime.js";
 import { sincronizarRecordatorios } from "./lib/recordatorios.js";
 import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotificaciones, suscribirPush, desuscribirPush, estaSuscritoPush } from "./lib/notificaciones.js";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
@@ -387,6 +388,26 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         }
       })
       .finally(() => setDatosListos(true));
+  }, []);
+  // Sincroniza Canciones/Eventos/Ministerios EN TIEMPO REAL entre dispositivos — antes cada uno se
+  // cargaba una sola vez al abrir la app y quien lo tuviera abierto no se enteraba de cambios hechos
+  // desde otro celular/computadora hasta recargar la página a mano. Cada dominio se re-lee completo
+  // (mismo listXCompletos que ya usa la carga inicial) apenas Supabase avisa que algo cambió — ver
+  // subscribeTableChanges para el debounce y la pausa mientras alguien está escribiendo.
+  useEffect(() => {
+    const unsubCanciones = subscribeTableChanges(
+      "rt-canciones", ["canciones", "secciones_cancion", "diapositivas_letra", "estructura_cancion"],
+      () => listCancionesCompletas().then((data) => { setLibrary(data); saveCache("canciones", data); }).catch(() => {})
+    );
+    const unsubEventos = subscribeTableChanges(
+      "rt-eventos", ["eventos", "items_servicio", "roles_evento", "miembros_rol", "recordatorios_evento"],
+      () => listEventosCompletos().then((data) => { setEvents(data); saveCache("eventos", data); }).catch(() => {})
+    );
+    const unsubMinisterios = subscribeTableChanges(
+      "rt-ministerios", ["ministerios", "planificacion_ministerio", "recursos_ministerio"],
+      () => listMinisteriosCompletos().then((data) => { setMinistries(data); saveCache("ministerios", data); }).catch(() => {})
+    );
+    return () => { unsubCanciones(); unsubEventos(); unsubMinisterios(); };
   }, []);
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [activeIdx, setActiveIdx] = useState(0);
