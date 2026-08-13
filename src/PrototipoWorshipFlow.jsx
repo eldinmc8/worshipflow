@@ -793,11 +793,6 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   };
 
   const favoritesCount = library.filter((s) => s.favorite).length;
-  // Las plantillas son eventos normales marcados con esPlantilla: no aparecen en el feed de cultos
-  // reales (Inicio, Eventos, Mi Horario), solo en el selector "crear desde plantilla" y en la vista
-  // de administración de plantillas — ambas armadas por administradores generales.
-  const realEvents = events.filter((e) => !e.esPlantilla);
-  const plantillas = events.filter((e) => e.esPlantilla);
 
   // ---- Identidad y control de acceso REALES: vienen de la cuenta con la que iniciaste sesión (perfil,
   // desde AuthGate) — ya no un selector que cualquiera podía cambiarse solo. Un rol lo asigna un
@@ -845,6 +840,22 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const canStartLive = (myRole === "Multimedia" || myRole === "Administrador") && !isCompact;
   const myName = realIsAdmin && nameOverride ? nameOverride : realName;
   const isAdminViewer = realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride)?.rol === "admin" : realIsAdmin;
+  // Al simular otra identidad (ver "Simular identidad" en Ajustes) los eventos visibles también deben
+  // ser los de ESA persona, no los del admin real — si no, probar "¿ve Miembro X solo lo suyo?" no
+  // serviría de nada.
+  const myUserId = realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride)?.id : userId;
+  // Un evento está "asignado a mí" si me pusieron como encargado de algún bloque/canción/versículo del
+  // Setlist, o si estoy en el roster del equipo de alabanza de ese evento (ej. "Guitarra").
+  const isEventAssignedToMe = (event, uid) =>
+    (event.serviceOrder || []).some((item) => (item.encargados || []).some((m) => m.usuarioId === uid)) ||
+    (event.worshipRoles || []).some((r) => (r.members || []).some((m) => m.usuarioId === uid));
+  // Las plantillas son eventos normales marcados con esPlantilla: no aparecen en el feed de cultos
+  // reales (Inicio, Eventos, Mi Horario), solo en el selector "crear desde plantilla" y en la vista
+  // de administración de plantillas — ambas armadas por administradores generales. Además, solo
+  // administradores ven TODOS los eventos reales sin filtro — todos los demás (Multimedia, Músico,
+  // Miembro) solo ven aquellos a los que efectivamente se les asignó algo.
+  const realEvents = events.filter((e) => !e.esPlantilla && (isAdminViewer || isEventAssignedToMe(e, myUserId)));
+  const plantillas = events.filter((e) => e.esPlantilla);
   // Agregar versículos al Setlist es de administradores, con una sola excepción: quien esté asignado
   // como encargado de un bloque de Lectura bíblica/Oración EN ESTE EVENTO puede agregar su propio
   // versículo para esa lectura, aunque no sea administrador.
