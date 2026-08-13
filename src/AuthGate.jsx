@@ -23,6 +23,12 @@ export default function AuthGate() {
   // tener que encontrar el botón en Ajustes por su cuenta (donde muchos nunca lo harían).
   const [showPushPrompt, setShowPushPrompt] = useState(false);
 
+  // Se enciende si alguien logra obtener una sesión válida de Supabase (típicamente iniciando con
+  // Google) sin tener una fila en "usuarios" — o sea, sin que un administrador lo haya invitado antes.
+  // El acceso sigue siendo de lista cerrada aunque se agregue "Continuar con Google": esa sesión se
+  // cierra de una y se explica por qué, en vez de dejarlo entrar a la app sin rol.
+  const [accessDenied, setAccessDenied] = useState(false);
+
   const [errorSesion, setErrorSesion] = useState("");
   useEffect(() => {
     supabase.auth.getSession()
@@ -35,7 +41,10 @@ export default function AuthGate() {
   useEffect(() => {
     if (!session) { setPerfil(null); return; }
     supabase.from("usuarios").select("*").eq("id", session.user.id).single()
-      .then(({ data }) => setPerfil(data ?? null));
+      .then(({ data }) => {
+        if (!data) { setAccessDenied(true); supabase.auth.signOut(); return; }
+        setPerfil(data);
+      });
   }, [session]);
 
   // Ir a Usuarios empuja su propia entrada del historial ("usuarios-root") — así el botón/gesto
@@ -62,6 +71,17 @@ export default function AuthGate() {
       <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", fontFamily: "'Poppins', sans-serif", fontSize: 13, color: "#8996A6", flexDirection: "column", gap: 8, padding: 20, textAlign: "center" }}>
         <div>Cargando…</div>
         {errorSesion && <div style={{ color: "#C23B32", maxWidth: 320 }}>No se pudo conectar: {errorSesion}</div>}
+      </div>
+    );
+  }
+  if (accessDenied) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", fontFamily: "'Poppins', sans-serif", padding: 20 }}>
+        <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#16233A", marginBottom: 8 }}>Todavía no tienes acceso</div>
+          <div style={{ fontSize: 13, color: "#64707F", lineHeight: 1.5, marginBottom: 18 }}>Un administrador tiene que invitarte primero, con este mismo correo, desde Usuarios en la app.</div>
+          <button onClick={() => setAccessDenied(false)} style={primaryBtn}>Volver</button>
+        </div>
       </div>
     );
   }

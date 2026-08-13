@@ -1622,6 +1622,35 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
   const [pushEstado, setPushEstado] = useState("cargando"); // cargando | activo | inactivo | sin-soporte
   const [pushBusy, setPushBusy] = useState(false);
   const install = useInstallState();
+  // "Continuar con Google" en Ajustes: vincula/desvincula Google como método alterno de inicio de
+  // sesión para ESTA cuenta ya invitada — no reemplaza la invitación, solo evita tener que escribir la
+  // contraseña la próxima vez. Ver AuthGate.jsx para el resguardo de que nadie sin invitación entre así.
+  const [googleLinked, setGoogleLinked] = useState(null); // null: cargando · true/false
+  const [googleBusy, setGoogleBusy] = useState(false);
+  useEffect(() => {
+    supabase.auth.getUserIdentities()
+      .then(({ data }) => setGoogleLinked(!!data?.identities?.some((i) => i.provider === "google")))
+      .catch(() => setGoogleLinked(false));
+  }, []);
+  const vincularGoogle = async () => {
+    setGoogleBusy(true);
+    const { error } = await supabase.auth.linkIdentity({ provider: "google", options: { redirectTo: window.location.origin } });
+    if (error) { window.alert("No se pudo vincular Google: " + error.message); setGoogleBusy(false); }
+    // si no hay error, el navegador redirige a Google — vuelve solo a esta pantalla ya vinculada
+  };
+  const desvincularGoogle = async () => {
+    if (!window.confirm("¿Dejar de poder entrar con Google? Vas a seguir pudiendo entrar con tu correo y contraseña.")) return;
+    setGoogleBusy(true);
+    try {
+      const { data } = await supabase.auth.getUserIdentities();
+      const identidad = data?.identities?.find((i) => i.provider === "google");
+      if (identidad) { await supabase.auth.unlinkIdentity(identidad); setGoogleLinked(false); }
+    } catch (e) {
+      window.alert("No se pudo desvincular: " + e.message);
+    } finally {
+      setGoogleBusy(false);
+    }
+  };
   useEffect(() => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
       setPushEstado("sin-soporte");
@@ -1789,6 +1818,14 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
 
       <SectionLabel>CUENTA</SectionLabel>
       <NavRow icon={KeyRound} label="Cambiar contraseña" onClick={() => setShowChangePassword(true)} right={<ChevronRight size={16} color="#8996A6" />} />
+      {googleLinked === true ? (
+        <NavRow
+          icon={Check} label="Puedes entrar con Google"
+          right={googleBusy ? null : <span onClick={(e) => { e.stopPropagation(); desvincularGoogle(); }} style={{ fontSize: 11, color: "#8996A6", fontWeight: 600, cursor: "pointer" }}>Desvincular</span>}
+        />
+      ) : googleLinked === false ? (
+        <NavRow icon={KeyRound} label="Entrar con Google" onClick={googleBusy ? undefined : vincularGoogle} right={googleBusy ? null : <ChevronRight size={16} color="#8996A6" />} />
+      ) : null}
       <NavRow icon={LogOut} label="Cerrar sesión" danger onClick={signOut} />
 
       {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
