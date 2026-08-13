@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { ProjectionPanel } from "./PrototipoWorshipFlow.jsx";
 import { getLiveSession, subscribeLiveSession, subscribeLiveBroadcast } from "./lib/liveSession.js";
 
@@ -32,8 +33,20 @@ export default function PublicScreen() {
     };
     resetIdle();
     window.addEventListener("mousemove", resetIdle);
-    return () => { window.removeEventListener("mousemove", resetIdle); clearTimeout(idleTimerRef.current); };
+    window.addEventListener("touchstart", resetIdle); // esta pantalla no siempre tiene mouse (TV/tablet táctil)
+    return () => { window.removeEventListener("mousemove", resetIdle); window.removeEventListener("touchstart", resetIdle); clearTimeout(idleTimerRef.current); };
   }, []);
+
+  // Esta pantalla es deliberadamente de solo lectura, sin ningún botón ni navegación — pensada para un
+  // dispositivo fijo junto al proyector que nunca debería necesitar interacción. Pero si un dispositivo
+  // termina acá por error (ej. se instaló la PWA desde la URL ?screen=publico en vez de la del panel de
+  // control), antes no había NINGUNA forma de salir desde la propia app — la única opción era desinstalar
+  // y reinstalar. Este botón resuelve eso: se esconde solo junto con el cursor (igual que arriba), así
+  // que la congregación nunca lo ve, pero aparece apenas alguien toca/mueve el mouse si lo necesita.
+  const salirDePantallaPublica = () => {
+    document.exitFullscreen?.().catch(() => {});
+    window.location.href = window.location.origin + window.location.pathname;
+  };
 
   // Se intenta pantalla completa sola apenas se monta (a veces alcanza a contar como "gesto de usuario"
   // porque esta ventana se abrió con window.open desde el clic de "Iniciar evento"/"Reabrir proyección",
@@ -57,6 +70,13 @@ export default function PublicScreen() {
   return (
     <div style={{ height: "100vh", display: "flex", cursor: cursorHidden ? "none" : "default" }}>
       <ProjectionPanel slide={live.slide} blanked={live.blanked} split={false} liveStyle={live.liveStyle} />
+      {!cursorHidden && (
+        <button
+          onClick={salirDePantallaPublica}
+          title="Salir de la pantalla de proyección"
+          style={{ position: "fixed", top: 10, right: 10, width: 30, height: 30, borderRadius: "50%", background: "rgba(255,255,255,0.12)", border: "none", color: "rgba(255,255,255,0.55)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 1000 }}
+        ><X size={15} /></button>
+      )}
       {needsTapToFullscreen && (
         <button
           onClick={tapToFullscreen}
