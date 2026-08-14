@@ -2231,6 +2231,13 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
   const tapTimesRef = useRef([]);
 
+  // ---- Capo: sube/baja medio tono a la vez SOLO en lo que ve este dispositivo — a diferencia de
+  // "Transportar" (arriba, solo administradores, cambia la tonalidad guardada de la canción para
+  // TODOS), esto es del músico, no se guarda en ningún lado, y se resetea solo al salir de la canción.
+  // Como un capo físico: no cambia qué suena la canción, solo con qué acordes la tocas tú.
+  const [capoSemitones, setCapoSemitones] = useState(0);
+  const capoResultKey = song && capoSemitones ? transposeChordToken(song.key, capoSemitones) : null;
+
   // ---- Sincroniza Modo Músico entre los dispositivos de todos los que tengan ESTA MISMA canción
   // abierta (canal por song.id) — así cuando alguien lo activa, marca el tempo, o salta de sección, se
   // ve igual en todos de una, sin que cada músico tenga que activarlo y calibrar el tempo por su cuenta.
@@ -2397,6 +2404,17 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
         <button onClick={() => goToSectionIdx(currentSectionIdx + 1)} disabled={currentSectionIdx >= order.length - 1} style={{ ...iconGhost, opacity: currentSectionIdx >= order.length - 1 ? 0.4 : 1 }}><ChevronRight size={16} /></button>
         <button onClick={handleTap} className="hoverable" style={{ background: "#FFFFFF", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, color: "#16233A", cursor: "pointer" }}>TAP</button>
         <span style={{ fontSize: 12, fontWeight: 700, color: "#64707F" }}>{liveBpm} bpm</span>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 2, background: "#FFFFFF", border: "1px solid #C7D0DD", borderRadius: 8, padding: "3px 4px", marginLeft: "auto" }} title="Sube o baja medio tono a la vez, como mover un capo — no cambia la tonalidad guardada de la canción, solo cómo la ves en este dispositivo.">
+          <button onClick={() => setCapoSemitones((s) => s - 1)} className="hoverable" style={{ ...iconGhost, width: 22, height: 22 }}><Minus size={12} /></button>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#16233A", minWidth: 74, textAlign: "center" }}>
+            Capo {capoSemitones > 0 ? `+${capoSemitones}` : capoSemitones}{capoResultKey ? ` (${capoResultKey})` : ""}
+          </span>
+          <button onClick={() => setCapoSemitones((s) => s + 1)} className="hoverable" style={{ ...iconGhost, width: 22, height: 22 }}><Plus size={12} /></button>
+          {capoSemitones !== 0 && (
+            <button onClick={() => setCapoSemitones(0)} title="Quitar capo" className="hoverable" style={{ ...iconGhost, width: 22, height: 22 }}><RefreshCw size={11} /></button>
+          )}
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
@@ -2427,7 +2445,7 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
               <span style={{ fontSize: 13, fontWeight: 700 }}>{b.label}</span>
             </div>
             <div style={{ background: "#EEF1F6", borderRadius: 10, padding: 16 }}>
-              {b.lines.map((l, i2) => <ChordsAboveLyrics key={i2} raw={l} />)}
+              {b.lines.map((l, i2) => <ChordsAboveLyrics key={i2} raw={l} semitones={capoSemitones} />)}
             </div>
           </div>
         );
