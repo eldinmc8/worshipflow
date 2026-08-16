@@ -2609,32 +2609,10 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
       )}
 
       {subTab === "contenido" && (
-        <div>
-          <div style={{ fontSize: 12, color: "#64707F", marginBottom: 10 }}>Escribe la letra con los acordes en formato <code style={{ color: "#1F8A73" }}>[Acorde]</code> justo antes de la sílaba, o toca un acorde de abajo para insertarlo donde esté el cursor. Esto es lo que ve el músico.</div>
+        <div style={{ paddingBottom: draft.key ? 166 : 0 }}>
+          <div style={{ fontSize: 12, color: "#64707F", marginBottom: 14 }}>Escribe la letra con los acordes en formato <code style={{ color: "#1F8A73" }}>[Acorde]</code> justo antes de la sílaba, o toca un acorde de la barra de abajo para insertarlo donde esté el cursor. Esto es lo que ve el músico.</div>
 
-          {draft.key ? (
-            <div style={{ background: "#FFFFFF", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 10, padding: "10px 12px", marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F" }}>ACORDES DE {draft.key.toUpperCase()} — toca uno para insertarlo</div>
-                <div style={{ display: "flex", gap: 3, background: "#EEF1F6", padding: 2, borderRadius: 6 }}>
-                  {[["triadas", "Triadas"], ["septimas", "Con séptima"]].map(([val, label]) => (
-                    <button key={val} onClick={() => setChordMode(val)} style={{ fontSize: 10, fontWeight: 700, padding: "4px 8px", borderRadius: 5, border: "none", cursor: "pointer", background: chordMode === val ? "#1F8A73" : "transparent", color: chordMode === val ? "#0D1410" : "#64707F" }}>{label}</button>
-                  ))}
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
-                {diatonicChords(draft.key).map((c) => {
-                  const label = chordMode === "septimas" ? c.chord7 : c.chord;
-                  return (
-                    <button key={c.roman} onClick={() => insertChord(label)} className="hoverable" style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 8, padding: "8px 12px", cursor: "pointer" }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{label}</span>
-                      <span style={{ fontSize: 10, color: "#8996A6" }}>{c.roman}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
+          {!draft.key && (
             <div style={{ fontSize: 12, color: "#8996A6", marginBottom: 14 }}>Elige una tonalidad en "Detalles" para ver aquí los acordes que puedes usar.</div>
           )}
 
@@ -2742,6 +2720,36 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
               </div>
             ))}
             {blockKeys.length === 0 && <div style={{ color: "#8996A6", fontSize: 12 }}>Primero agrega secciones en la pestaña Contenido.</div>}
+          </div>
+        </div>
+      )}
+
+      {/* Barra de acordes: fija arriba de la nav, como una barra de accesorios de teclado (estilo
+          OnStage). No vive en el flujo normal a propósito — así el scroll de las secciones de la
+          canción nunca la arrastra, y siempre queda lista para tocar un acorde. Se desliza en
+          horizontal con el dedo (overflowX) en vez de envolver en varias líneas. */}
+      {subTab === "contenido" && draft.key && (
+        <div style={{ position: "fixed", left: 0, right: 0, bottom: 78, background: "#FFFFFF", borderTop: "1px solid #DDE3ED", boxShadow: "0 -4px 14px rgba(22,50,79,0.1)", padding: "8px 0 10px", zIndex: 45 }}>
+          <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 12px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#64707F" }}>ACORDES DE {draft.key.toUpperCase()}</div>
+              <div style={{ display: "flex", gap: 3, background: "#EEF1F6", padding: 2, borderRadius: 6 }}>
+                {[["triadas", "Triadas"], ["septimas", "Con séptima"]].map(([val, label]) => (
+                  <button key={val} onClick={() => setChordMode(val)} style={{ fontSize: 10, fontWeight: 700, padding: "4px 8px", borderRadius: 5, border: "none", cursor: "pointer", background: chordMode === val ? "#1F8A73" : "transparent", color: chordMode === val ? "#0D1410" : "#64707F" }}>{label}</button>
+                ))}
+              </div>
+            </div>
+            <div className="chordbar-scroll" style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              {diatonicChords(draft.key).map((c) => {
+                const label = chordMode === "septimas" ? c.chord7 : c.chord;
+                return (
+                  <button key={c.roman} onClick={() => insertChord(label)} className="hoverable" style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 8, padding: "8px 12px", cursor: "pointer" }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{label}</span>
+                    <span style={{ fontSize: 10, color: "#8996A6" }}>{c.roman}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

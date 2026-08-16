@@ -84,3 +84,12 @@ img, svg {
 @media (prefers-reduced-motion: reduce) {
   .song-slide-in-right, .song-slide-in-left { animation: none; }
 }
+
+/* Barra de acordes del editor de canciones: fija arriba de la nav/teclado, se desliza en horizontal
+   con el dedo como una barra de accesorios de teclado (estilo OnStage) y no debe mostrar su
+   scrollbar para sentirse como parte del teclado y no como una lista con scroll normal. */
+.chordbar-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.chordbar-scroll::-webkit-scrollbar { display: none; }
