@@ -4627,7 +4627,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
 // Multimedia define el tamaño DESEADO, pero este componente lo mide contra el espacio real disponible y
 // lo va reduciendo hasta que quepa entero — así, sin importar cuántas líneas tenga la diapositiva ni qué
 // tan arriba se suba el slider, el texto nunca se corta ni se sale de la pantalla.
-function AutoFitText({ lines, targetRatio, minPx = 14, style, maxWidth }) {
+function AutoFitText({ lines, targetRatio, minPx = 14, style, maxWidth, onFontSize }) {
   const containerRef = useRef(null);
   const textRef = useRef(null);
   const [fontPx, setFontPx] = useState(minPx);
@@ -4652,6 +4652,7 @@ function AutoFitText({ lines, targetRatio, minPx = 14, style, maxWidth }) {
         guard++;
       }
       setFontPx(size);
+      if (onFontSize) onFontSize(size);
     };
     fit();
     const ro = new ResizeObserver(fit);
@@ -4671,6 +4672,11 @@ function AutoFitText({ lines, targetRatio, minPx = 14, style, maxWidth }) {
 export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeight, adHocLabel, thumbnail }) {
   const font = LIVE_FONTS[liveStyle?.font || "elegante"];
   const scale = liveStyle?.fontScale ?? 1;
+  // Tamaño real (medido, en px) al que AutoFitText terminó dejando el texto del versículo después de
+  // achicarlo para que quepa — puede ser bastante menor que el "deseado" (bibliaRatio) si el versículo
+  // es largo. La cita se calcula a partir de ESTE valor medido (no del tamaño deseado) para que nunca
+  // pueda verse más grande que el propio versículo, sin importar cuánto se haya tenido que achicar.
+  const [bibliaFontPx, setBibliaFontPx] = useState(null);
   // Prioridad de fondo: video propio de esta slide > video de fondo global (Estilo > Video) > imagen
   // propia de esta slide > imagen de fondo global (Estilo > Imagen) > tema de color.
   const slideVideoBg = slide?.type === "slide" && slide.bgType === "video" && slide.videoUrl;
@@ -4691,10 +4697,6 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // desde lejos en la pantalla real, incluso para quienes siguen con su propia Biblia en mano.
   const bibliaRatio = 0.155 * scale;
   const slideRatio = 0.18 * scale;
-  // La cita ("Génesis 6:6:") tiene que verse casi tan grande como el propio versículo, no como una
-  // etiqueta chiquita aparte — 70% del tamaño del versículo, y crece/encoge junto con él al mover el
-  // slider de Tamaño de letra (antes era un tamaño fijo en vh que no reaccionaba al slider para nada).
-  const referenciaVh = (bibliaRatio * 0.7 * 100).toFixed(2);
   const textColor = liveStyle?.textColor || "#FFFFFF";
   return (
     <div style={{ flex: thumbnail ? "none" : compactHeight ? "none" : split ? 1.3 : 1, width: thumbnail ? "100%" : "auto", height: thumbnail ? "100%" : compactHeight || "auto", minHeight: thumbnail ? "auto" : compactHeight || "auto", background: bg, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", position: "relative", padding: thumbnail ? 10 : 32, minWidth: thumbnail ? 0 : 320, overflow: "hidden" }}>
@@ -4727,13 +4729,16 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
             <>
               <AutoFitText
                 lines={`"${slide.text}"`} targetRatio={bibliaRatio} minPx={thumbnail ? 7 : 14} maxWidth="90%"
+                onFontSize={setBibliaFontPx}
                 style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, textAlign: "center", zIndex: 1, lineHeight: 1.4, fontStyle: font.italic || font.family.includes("Fraunces") ? "italic" : "normal", color: textColor }}
               />
               {/* La cita ("Génesis 6:6") tiene que leerse desde lejos SIN necesidad de escuchar — hay gente
                   que sigue con su propia Biblia en mano y solo mira la pantalla para ubicar el pasaje.
-                  Por eso escala con el alto real de la pantalla (clamp en vh) Y con el slider de Tamaño
-                  de letra (referenciaVh), no un tamaño fijo chiquito pensado solo para la mini-preview. */}
-              <div style={{ marginTop: thumbnail ? 6 : 28, fontSize: thumbnail ? 10 : `clamp(${Math.round(20 * scale)}px, ${referenciaVh}vh, ${Math.round(140 * scale)}px)`, color: "#6E9BD1", fontWeight: 800, zIndex: 1, display: "flex", alignItems: "center", gap: "0.3em", flexShrink: 0 }}>
+                  Pero nunca debe verse MÁS grande que el propio versículo: en vez de un tamaño calculado
+                  aparte (que no sabía cuánto se había achicado el versículo para caber), se deriva del
+                  tamaño ya medido de arriba (bibliaFontPx) — así siempre queda un porcentaje fijo de él,
+                  se achique lo que se achique el versículo. */}
+              <div style={{ marginTop: thumbnail ? 6 : 28, fontSize: thumbnail ? 10 : Math.round((bibliaFontPx || 20) * 0.62), color: "#6E9BD1", fontWeight: 800, zIndex: 1, display: "flex", alignItems: "center", gap: "0.3em", flexShrink: 0 }}>
                 {slide.reference}
                 {!thumbnail && slide.version && <span style={{ fontSize: "0.4em", background: "rgba(110,155,209,0.2)", borderRadius: 6, padding: "0.2em 0.6em" }}>{slide.version}</span>}
               </div>
