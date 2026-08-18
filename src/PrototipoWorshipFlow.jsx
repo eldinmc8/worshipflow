@@ -467,6 +467,13 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // slideId que son directamente el id del elemento del plan (biblia/slide), no a las de canción (que
   // vienen de la estructura de la canción, no del evento).
   const editLiveSlide = (slideId, patch) => updateLiveOrder((o) => o.map((item) => (item.id === slideId ? { ...item, ...patch } : item)));
+  // Borrar una diapositiva agregada a mano por error — si era la que estaba en pantalla, activeIdx se
+  // recorta para no quedar apuntando más allá del final del plan (pantalla en negro hasta elegir otra).
+  const removeLiveSlide = (slideId) => {
+    let nuevaLongitud = 0;
+    updateLiveOrder((o) => { const filtrado = o.filter((item) => item.id !== slideId); nuevaLongitud = filtrado.length; return filtrado; });
+    setActiveIdx((i) => Math.min(i, Math.max(0, nuevaLongitud - 1)));
+  };
   const applyBibleSlidePatch = (patch) => {
     if (adHoc) {
       setAdHoc((a) => ({ ...a, slides: a.slides.map((s, i) => (i === adHocIdx ? { ...s, ...patch } : s)) }));
@@ -1378,7 +1385,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
             adHoc={adHoc} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
             onOpenPublicScreen={startPresentation}
             onNavigateBibleVerse={navigateBibleVerse}
-            onAddLiveSlide={addLiveSlide} onEditLiveSlide={editLiveSlide}
+            onAddLiveSlide={addLiveSlide} onEditLiveSlide={editLiveSlide} onRemoveLiveSlide={removeLiveSlide}
           />
         </div>
       )}
@@ -4301,7 +4308,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide }) {
+function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -4389,6 +4396,9 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
     });
     return [...seen.entries()];
   }, [activeSongSlides, current]);
+  // Diapositivas agregadas a mano vía "Improvisar" (ver DIAPOSITIVAS más abajo) — se identifican solo
+  // por ser type "slide" dentro del plan en vivo, ya sea el de un evento real o el de una libre.
+  const customSlides = slides.filter((s) => s.type === "slide");
 
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, flex: 1 }}>
@@ -4598,15 +4608,39 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
 
           <div>
             <div style={{ fontSize: 11, color: "#64707F", fontWeight: 700, marginBottom: 6 }}>IMPROVISAR</div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={() => setShowAdHocSong(true)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><Music size={13} /> Canción</button>
-              <button onClick={() => setShowAdHocVideo(true)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><ImgIcon size={13} /> Video</button>
+            {/* Grid en vez de una sola fila: "Diapositiva" no cabía junto a Canción/Video sin desbordar
+                el ancho fijo de esta columna y obligar a hacer scroll horizontal para verla completa. */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <button onClick={() => setShowAdHocSong(true)} style={{ ...ctrlBtn, justifyContent: "center" }}><Music size={13} /> Canción</button>
+              <button onClick={() => setShowAdHocVideo(true)} style={{ ...ctrlBtn, justifyContent: "center" }}><ImgIcon size={13} /> Video</button>
               {/* A diferencia de Canción/Video (que se proyectan una vez y no quedan en ningún lado),
                   "Diapositiva" usa el mismo "Agregar diapositiva" de la pestaña Transmisión — queda fija
-                  en TODAS LAS SLIDES para poder volver a mandarla a proyección cuando haga falta. */}
-              <button onClick={() => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); }} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><Type size={13} /> Diapositiva</button>
+                  aquí mismo (ver DIAPOSITIVAS abajo) para poder volver a mandarla a proyección. */}
+              <button onClick={() => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); }} style={{ ...ctrlBtn, justifyContent: "center", gridColumn: "1 / -1" }}><Type size={13} /> Diapositiva</button>
             </div>
           </div>
+
+          {/* Diapositivas agregadas a mano (título de la predica, avisos...) — se quedan listadas aquí
+              mismo, en el mismo panel donde se crean (Biblia/Improvisar), sin tener que ir a la pestaña
+              Transmisión a buscarlas. Tocar el nombre la vuelve a mandar a proyección; la X la borra. */}
+          {customSlides.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, color: "#64707F", fontWeight: 700, marginBottom: 6 }}>DIAPOSITIVAS</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {customSlides.map((s) => {
+                  const isLive = !adHoc && current?.slideId === s.slideId;
+                  return (
+                    <div key={s.slideId} style={{ display: "flex", alignItems: "center", gap: 6, background: isLive ? "#FFF4E8" : "#fff", border: isLive ? "1px solid #E8821E" : "1px solid transparent", borderRadius: 8, padding: "5px 6px", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
+                      <button onClick={() => gotoPlanSlide(slides.findIndex((x) => x.slideId === s.slideId))} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#16233A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {s.title || "(sin título)"}
+                      </button>
+                      <button onClick={() => onRemoveLiveSlide(s.slideId)} title="Borrar esta diapositiva" style={{ ...iconGhost, color: "#C23B32", flexShrink: 0 }}><X size={13} /></button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           </div>
         </div>
       </div>
