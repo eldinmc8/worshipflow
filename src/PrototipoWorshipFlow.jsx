@@ -6,6 +6,7 @@ import {
   UserPlus, Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette,
+  Type,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion } from "./lib/canciones.js";
 import {
@@ -619,6 +620,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const startAdHocBible = (b) => { setAdHoc({ label: `Versículo improvisado: ${b.ref}`, slides: [{ slideId: "adhoc-biblia", type: "biblia", reference: b.ref, version: b.version, text: b.text, bookId: b.bookId, bookName: b.bookName, chapter: b.chapter, verseStart: b.verseStart, verseEnd: b.verseEnd }] }); setAdHocIdx(0); setBlanked(false); };
   const startAdHocSong = (song) => { setAdHoc({ label: `Canción improvisada: ${song.title}`, slides: songToSlides("adhoc-cancion", song, song.defaultStructure) }); setAdHocIdx(0); setBlanked(false); };
   const startAdHocVideo = (url) => { setAdHoc({ label: "Video improvisado", slides: [{ slideId: "adhoc-video", type: "slide", title: "", subtitle: "", bg: "#000", bgType: "video", videoUrl: url }] }); setAdHocIdx(0); setBlanked(false); };
+  // Enviar un texto suelto a la pantalla (ej. el título de la predica, un anuncio de último momento) sin
+  // pasar por el editor completo de diapositivas (fondo/imagen/video) — reutiliza el mismo tipo "slide"
+  // de siempre, solo con el fondo por defecto, para que se vea con la tipografía/color en vivo elegidos.
+  const startAdHocText = (text) => { setAdHoc({ label: "Texto improvisado", slides: [{ slideId: "adhoc-texto", type: "slide", title: text, subtitle: "", bg: "#1B2029", bgType: "color" }] }); setAdHocIdx(0); setBlanked(false); };
   // Como PowerPoint: la proyección solo se abre si hay una segunda pantalla (proyector/monitor)
   // realmente conectada y detectada — si no hay una, no se abre nada (nunca sobre la misma pantalla
   // del panel de control). Requiere Chrome/Edge (Window Management API).
@@ -1368,7 +1373,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
             eventTitle={liveEvent.title} isFreeSession={liveLibre} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
             goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}
             onEnd={endEvent} canEnd={userId === liveOwnerId} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
-            adHoc={adHoc} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
+            adHoc={adHoc} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo} onStartAdHocText={startAdHocText}
             onOpenPublicScreen={startPresentation}
             onNavigateBibleVerse={navigateBibleVerse}
             onAddLiveSlide={addLiveSlide} onEditLiveSlide={editLiveSlide}
@@ -4079,6 +4084,19 @@ function AdHocVideoModal({ onClose, onPlay }) {
     </ModalShell>
   );
 }
+// Enviar un texto suelto a la pantalla (título de la predica, un anuncio, una frase) sin pasar por el
+// editor completo de diapositivas — solo el texto, con el fondo/tipografía/color que ya estén elegidos
+// en vivo (ver Estilo). No se guarda en ningún lado: se proyecta y ya.
+function AdHocTextModal({ onClose, onSend }) {
+  const [text, setText] = useState("");
+  return (
+    <ModalShell title="Proyectar texto" icon={Type} color="#2F5FA8" onClose={onClose}>
+      <div style={{ fontSize: 11, color: "#64707F", marginBottom: 10 }}>Por ejemplo, el título de la predica o un aviso. Se proyecta de inmediato, sin agregarse al setlist.</div>
+      <textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Escribe el texto a proyectar…" style={{ ...inputStyle, height: 90, resize: "none" }} />
+      <button onClick={() => text.trim() && onSend(text.trim())} disabled={!text.trim()} style={{ ...primaryBtn, marginTop: 14, opacity: text.trim() ? 1 : 0.4, cursor: text.trim() ? "pointer" : "not-allowed" }}>Proyectar ahora</button>
+    </ModalShell>
+  );
+}
 function ModalShell({ title, icon: Icon, color, onClose, children }) {
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(8,10,14,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
@@ -4155,6 +4173,10 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
   };
   const openHistoryEntry = (entry) => {
     rememberAndProject(entry);
+    // Igual que abrir un libro/capítulo a mano: si había quedado una búsqueda de frase activa, se
+    // limpia — si no, la columna 3 se quedaba mostrando esos resultados viejos en vez del capítulo
+    // completo del versículo que se acaba de elegir del historial.
+    setBookFilter(""); setSearchResults(null);
     const book = books?.find((b) => b.bookid === entry.bookId);
     if (book) setSelectedBook(book);
     setSelectedChapter(entry.chapter);
@@ -4296,17 +4318,22 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide }) {
+function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onStartAdHocText, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
   const [mmPanel, setMmPanel] = useState("transmision"); // "biblia" | "transmision" | "estilo"
   // Versión e historial de la Biblia en vivo: se guardan aquí (no dentro de BibleLivePanel) para que
-  // sobrevivan al cambiar de pestaña e ir a Estilo/Transmisión y volver a Biblia.
-  const [bibleVersion, setBibleVersion] = useState(BIBLE_VERSIONS[0].code);
-  const [bibleHistory, setBibleHistory] = useState([]);
+  // sobrevivan al cambiar de pestaña e ir a Estilo/Transmisión y volver a Biblia — y también en
+  // localStorage (mismo mecanismo que offlineCache) para que sobrevivan a salir de "En vivo" del todo
+  // (MultimediaControl se desmonta con la pestaña) o recargar la app a medio culto.
+  const [bibleVersion, setBibleVersion] = useState(() => loadCache("bible_version") || BIBLE_VERSIONS[0].code);
+  const [bibleHistory, setBibleHistory] = useState(() => loadCache("bible_historial") || []);
+  useEffect(() => { saveCache("bible_version", bibleVersion); }, [bibleVersion]);
+  useEffect(() => { saveCache("bible_historial", bibleHistory); }, [bibleHistory]);
   const [showAdHocSong, setShowAdHocSong] = useState(false);
   const [showAdHocVideo, setShowAdHocVideo] = useState(false);
+  const [showAdHocText, setShowAdHocText] = useState(false);
   const [showAddSlide, setShowAddSlide] = useState(false);
   const [newSlideDraft, setNewSlideDraft] = useState({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" });
   // Editar una diapositiva ya agregada (versículo/slide/punto del bosquejo) por si algo se escribió mal.
@@ -4398,10 +4425,15 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
         <button onClick={() => setBlanked((b) => !b)} style={{ ...ctrlBtn, background: blanked ? "#C23B32" : "#EEF1F6", color: blanked ? "#fff" : "#16233A" }}><MonitorOff size={14} /> {blanked ? "Reanudar" : "Pantalla en negro"}</button>
       </div>
 
+      {/* "Volver al plan" solo tiene sentido para una canción improvisada (existe un plan real de
+          canciones al que volver). Biblia/Texto/Video nunca fueron parte del plan del Setlist — no hay
+          "plan" al que regresar, así que ahí se deja solo el indicador de qué está en vivo. */}
       {adHoc && (
         <div style={{ margin: "0 16px 10px", background: "#FFF4E8", border: "1px solid #E8821E", borderRadius: 10, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#8A4F0E" }}>● {adHoc.label}</span>
-          <button onClick={onExitAdHoc} style={{ fontSize: 11, fontWeight: 700, color: "#8A4F0E", background: "transparent", border: "1px solid #E8821E", borderRadius: 14, padding: "3px 8px", cursor: "pointer", flexShrink: 0 }}>Volver al plan</button>
+          {adHoc.slides[0]?.type === "cancion" && (
+            <button onClick={onExitAdHoc} style={{ fontSize: 11, fontWeight: 700, color: "#8A4F0E", background: "transparent", border: "1px solid #E8821E", borderRadius: 14, padding: "3px 8px", cursor: "pointer", flexShrink: 0 }}>Volver al plan</button>
+          )}
         </div>
       )}
 
@@ -4592,6 +4624,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
             <div style={{ display: "flex", gap: 6 }}>
               <button onClick={() => setShowAdHocSong(true)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><Music size={13} /> Canción</button>
               <button onClick={() => setShowAdHocVideo(true)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><ImgIcon size={13} /> Video</button>
+              <button onClick={() => setShowAdHocText(true)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><Type size={13} /> Texto</button>
             </div>
           </div>
           </div>
@@ -4600,6 +4633,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
 
       {showAdHocSong && <AdHocSongModal library={library} onClose={() => setShowAdHocSong(false)} onPick={(song) => { onStartAdHocSong(song); setShowAdHocSong(false); }} />}
       {showAdHocVideo && <AdHocVideoModal onClose={() => setShowAdHocVideo(false)} onPlay={(url) => { onStartAdHocVideo(url); setShowAdHocVideo(false); }} />}
+      {showAdHocText && <AdHocTextModal onClose={() => setShowAdHocText(false)} onSend={(text) => { onStartAdHocText(text); setShowAdHocText(false); }} />}
       {showAddSlide && (
         <SlideModal
           draft={newSlideDraft} setDraft={setNewSlideDraft}

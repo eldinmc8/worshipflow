@@ -12,10 +12,18 @@ export function todayLocal() {
   const t = new Date();
   return new Date(t.getFullYear(), t.getMonth(), t.getDate());
 }
+// No basta con comparar el día: si el evento es hoy y ya tiene hora definida, deja de ser "próximo"
+// en cuanto esa hora pasa (ej. domingo con dos servicios — el de las 10am no debe seguir apareciendo
+// como "el siguiente" hasta medianoche, tiene que ceder el lugar al de la tarde apenas empieza).
 export function isUpcoming(ev) {
   const d = parseIsoDateLocal(ev.date);
   if (!d) return true; // sin fecha asignada todavía: se muestra en "Próximos" para que no se pierda de vista
-  return d >= todayLocal();
+  const today = todayLocal();
+  if (d.getTime() !== today.getTime()) return d > today;
+  if (!ev.hora) return true; // hoy, sin hora definida: no hay forma de saber si ya pasó, se deja mostrar
+  const [hh, mm] = ev.hora.split(":").map(Number);
+  const startsAt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh || 0, mm || 0);
+  return new Date() < startsAt;
 }
 export function compareByDay(a, b) {
   const da = parseIsoDateLocal(a.date);
@@ -23,7 +31,8 @@ export function compareByDay(a, b) {
   if (!da && !db) return 0;
   if (!da) return 1; // sin fecha: al final
   if (!db) return -1;
-  return da - db;
+  if (da.getTime() !== db.getTime()) return da - db;
+  return (a.hora || "").localeCompare(b.hora || ""); // mismo día, ej. dos servicios el domingo: el de más temprano primero
 }
 export const MONTH_NAMES_FULL = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 export const MONTH_ABBR = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];

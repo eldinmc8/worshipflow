@@ -71,7 +71,12 @@ Deno.serve(async (req: Request) => {
       // Sin hora definida en el evento, un recordatorio por horas no se puede calcular con
       // precisión — se deja pendiente (no se marca enviado) hasta que se le asigne una hora.
       if (r.unidad === "horas" && !ev.hora) continue;
-      const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}`).getTime();
+      // Sin offset explícito, "YYYY-MM-DDTHH:mm:ss" se interpreta como hora LOCAL DEL SERVIDOR (que en
+      // Supabase Edge Functions corre en UTC) — no como la hora de la iglesia. Eso hacía que un evento
+      // a las 10am (hora de Guatemala/El Salvador/Honduras, UTC-6) se calculara como si fuera 10am UTC,
+      // es decir 6 horas antes de lo real, y los recordatorios avisaran mucho antes de tiempo. Con el
+      // offset fijo -06:00 (estos países no usan horario de verano) el cálculo queda en la hora real.
+      const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}-06:00`).getTime();
       const msAntes = r.cantidad * (r.unidad === "horas" ? 3_600_000 : 86_400_000);
       if (ahora < inicio - msAntes) continue; // todavía no toca avisar
 
