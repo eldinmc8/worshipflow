@@ -429,7 +429,12 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // (Biblia/canción/video/slide). liveEventId se queda en null en este caso, igual que cuando no hay nada
   // en vivo, así que se necesita esta bandera aparte para distinguir ambos casos.
   const [liveLibre, setLiveLibre] = useState(false);
-  const liveEvent = liveLibre ? EVENTO_LIBRE : events.find((e) => e.id === liveEventId);
+  // Diapositivas agregadas a mano durante una transmisión libre (ej. el título de la predica) — no hay
+  // ningún evento real al que guardarlas en Supabase, así que viven solo en memoria mientras dura esta
+  // transmisión (se limpian al iniciar/terminar una), pero SÍ quedan fijas ahí (reseleccionables) en vez
+  // de proyectarse una sola vez y desaparecer, igual que cualquier diapositiva agregada a un evento real.
+  const [libreServiceOrder, setLibreServiceOrder] = useState([]);
+  const liveEvent = liveLibre ? { ...EVENTO_LIBRE, serviceOrder: libreServiceOrder } : events.find((e) => e.id === liveEventId);
   const slides = useMemo(() => (liveEvent ? buildSlides(liveEvent.serviceOrder, library) : []), [liveEvent, library]);
   const current = adHoc ? adHoc.slides[adHocIdx] : slides[activeIdx];
   const next = adHoc ? adHoc.slides[adHocIdx + 1] : slides[activeIdx + 1];
@@ -441,6 +446,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // se actualiza al instante (para que la operación en vivo se sienta rápida) y la persistencia real
   // pasa por detrás, sin bloquear la interacción.
   const updateLiveOrder = (fn) => {
+    if (liveLibre) { setLibreServiceOrder((o) => fn(o)); return; } // sin evento real, no hay nada que guardar en Supabase
     let nuevoOrden = null;
     setEvents((evs) => evs.map((e) => {
       if (e.id !== liveEventId) return e;
@@ -620,10 +626,6 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const startAdHocBible = (b) => { setAdHoc({ label: `Versículo improvisado: ${b.ref}`, slides: [{ slideId: "adhoc-biblia", type: "biblia", reference: b.ref, version: b.version, text: b.text, bookId: b.bookId, bookName: b.bookName, chapter: b.chapter, verseStart: b.verseStart, verseEnd: b.verseEnd }] }); setAdHocIdx(0); setBlanked(false); };
   const startAdHocSong = (song) => { setAdHoc({ label: `Canción improvisada: ${song.title}`, slides: songToSlides("adhoc-cancion", song, song.defaultStructure) }); setAdHocIdx(0); setBlanked(false); };
   const startAdHocVideo = (url) => { setAdHoc({ label: "Video improvisado", slides: [{ slideId: "adhoc-video", type: "slide", title: "", subtitle: "", bg: "#000", bgType: "video", videoUrl: url }] }); setAdHocIdx(0); setBlanked(false); };
-  // Enviar un texto suelto a la pantalla (ej. el título de la predica, un anuncio de último momento) sin
-  // pasar por el editor completo de diapositivas (fondo/imagen/video) — reutiliza el mismo tipo "slide"
-  // de siempre, solo con el fondo por defecto, para que se vea con la tipografía/color en vivo elegidos.
-  const startAdHocText = (text) => { setAdHoc({ label: "Texto improvisado", slides: [{ slideId: "adhoc-texto", type: "slide", title: text, subtitle: "", bg: "#1B2029", bgType: "color" }] }); setAdHocIdx(0); setBlanked(false); };
   // Como PowerPoint: la proyección solo se abre si hay una segunda pantalla (proyector/monitor)
   // realmente conectada y detectada — si no hay una, no se abre nada (nunca sobre la misma pantalla
   // del panel de control). Requiere Chrome/Edge (Window Management API).
@@ -688,14 +690,14 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   };
   // Transmitir sin un evento del calendario detrás — para anuncios, oración u otro contenido suelto que
   // no amerita crear/usar un evento planificado. Todo el contenido sale de "Improvisar" (Biblia/canción/
-  // video/slide) ya que no hay ningún setlist: EVENTO_LIBRE trae serviceOrder vacío.
+  // video) o de diapositivas agregadas a mano (ver libreServiceOrder) — nunca de un setlist real.
   const startFreeEvent = () => {
     if (!confirmReplaceLive(null)) return;
-    setLiveEventId(null); setLiveLibre(true); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setTab("envivo");
+    setLiveEventId(null); setLiveLibre(true); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); setTab("envivo");
     startPresentation();
   };
   const endEvent = () => {
-    setLiveEventId(null); setLiveLibre(false); setLiveOwnerId(null); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setTab("eventos");
+    setLiveEventId(null); setLiveLibre(false); setLiveOwnerId(null); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); setTab("eventos");
     clearLiveSession().catch((e) => window.alert("No se pudo cerrar la sesión en vivo: " + e.message));
   };
 
@@ -1373,7 +1375,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
             eventTitle={liveEvent.title} isFreeSession={liveLibre} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
             goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}
             onEnd={endEvent} canEnd={userId === liveOwnerId} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
-            adHoc={adHoc} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo} onStartAdHocText={startAdHocText}
+            adHoc={adHoc} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
             onOpenPublicScreen={startPresentation}
             onNavigateBibleVerse={navigateBibleVerse}
             onAddLiveSlide={addLiveSlide} onEditLiveSlide={editLiveSlide}
@@ -1475,6 +1477,9 @@ function eventsByDay(events, year, month) {
     if (!d || d.getFullYear() !== year || d.getMonth() !== month) return;
     (map[d.getDate()] = map[d.getDate()] || []).push(ev);
   });
+  // Con dos servicios el mismo día (ej. domingo AM/PM), que el más temprano salga primero en el
+  // selector — no en el orden en que hayan llegado de la base de datos.
+  Object.values(map).forEach((list) => list.sort((a, b) => (a.hora || "").localeCompare(b.hora || "")));
   return map;
 }
 function nextUpcomingEvent(events, liveEventId) {
@@ -1489,6 +1494,10 @@ function InicioView({ events, library, favoritesCount, memberCount, liveEventId,
   const liveEvent = liveLibre ? EVENTO_LIBRE : events.find((e) => e.id === liveEventId);
   const [showFavorites, setShowFavorites] = useState(false);
   const favoriteSongs = library.filter((s) => s.favorite);
+  // Tocar un día del calendario con un solo evento entra directo a él (atajo rápido, el caso normal).
+  // Con 2+ (ej. domingo con culto AM y PM) ya no hay forma de adivinar cuál quiso abrir, así que se
+  // muestra esta lista chiquita para que elija — antes entraba siempre al primero programado.
+  const [dayEventsPicker, setDayEventsPicker] = useState(null);
   const today = todayLocal();
   // Mes que se está viendo en el calendario — arranca en el mes real de hoy, navegable con ‹ ›.
   const [viewedMonth, setViewedMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
@@ -1551,7 +1560,7 @@ function InicioView({ events, library, favoritesCount, memberCount, liveEventId,
                     <button
                       key={di}
                       disabled={dayEvents.length === 0}
-                      onClick={() => dayEvents[0] && onSelectEvent(dayEvents[0].id)}
+                      onClick={() => { if (dayEvents.length === 1) onSelectEvent(dayEvents[0].id); else if (dayEvents.length > 1) setDayEventsPicker(dayEvents); }}
                       className={dayEvents.length && !isNext ? "hoverable" : undefined}
                       style={{
                         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
@@ -1617,6 +1626,22 @@ function InicioView({ events, library, favoritesCount, memberCount, liveEventId,
               ))}
             </div>
           )}
+        </ModalShell>
+      )}
+
+      {dayEventsPicker && (
+        <ModalShell title="Eventos de ese día" icon={Calendar} color="#2F5FA8" onClose={() => setDayEventsPicker(null)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {dayEventsPicker.map((ev) => (
+              <button key={ev.id} onClick={() => { setDayEventsPicker(null); onSelectEvent(ev.id); }} className="hoverable" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", background: "#EEF1F6", border: "none", borderRadius: 8, padding: "10px 12px", cursor: "pointer" }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{ev.title}</div>
+                  <div style={{ fontSize: 11, color: "#64707F" }}>{ev.hora ? `${ev.hora} · ` : ""}{ev.location}</div>
+                </div>
+                <ChevronRight size={14} color="#8996A6" />
+              </button>
+            ))}
+          </div>
         </ModalShell>
       )}
     </div>
@@ -3258,8 +3283,10 @@ const STATUS_STYLE = {
 // texto libre). Solo quien tiene permiso sobre este bloque (admin, o el líder del ministerio vinculado)
 // puede editar la lista — para los demás se muestra de solo lectura.
 function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLead, onAddEncargado, onRemove }) {
-  const [selectedUserId, setSelectedUserId] = useState("");
-  const disponibles = allUsuarios.filter((u) => !encargados.some((m) => m.usuarioId === u.id));
+  const [addQuery, setAddQuery] = useState("");
+  const disponibles = allUsuarios
+    .filter((u) => !encargados.some((m) => m.usuarioId === u.id))
+    .filter((u) => u.nombre.toLowerCase().includes(addQuery.toLowerCase()));
   return (
     <div>
       {encargados.map((m, i) => {
@@ -3288,19 +3315,22 @@ function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLe
         );
       })}
       {encargados.length === 0 && <div style={{ color: "#8996A6", fontSize: 12, padding: "6px 0" }}>Nadie asignado todavía.</div>}
+      {/* Tocar el nombre agrega a esa persona de una vez — sin un segundo botón "Añadir" aparte, que
+          antes se prestaba a elegir a alguien del selector y no darle a añadir, dejando la impresión
+          de que la asignación "no se guardó". */}
       {canEdit && (
-        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-          <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
-            <option value="">Elegir persona...</option>
-            {disponibles.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-          </select>
-          <button
-            onClick={() => { const u = disponibles.find((d) => d.id === selectedUserId); if (u) { onAddEncargado(u); setSelectedUserId(""); } }}
-            disabled={!selectedUserId}
-            style={{ ...addBtnStyle, width: "auto", padding: "0 12px", color: "#2F5FA8", opacity: selectedUserId ? 1 : 0.5 }}
-          >
-            <UserPlus size={14} color="#2F5FA8" /> Añadir
-          </button>
+        <div style={{ marginTop: 10 }}>
+          {allUsuarios.length > 6 && (
+            <input value={addQuery} onChange={(e) => setAddQuery(e.target.value)} placeholder="Buscar persona..." style={{ ...inputStyle, marginBottom: 6 }} />
+          )}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {disponibles.map((u) => (
+              <button key={u.id} onClick={() => { onAddEncargado(u); setAddQuery(""); }} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 5, background: "#EAF0FA", border: "1px solid #C7D0DD", borderRadius: 20, padding: "5px 10px", fontSize: 12, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>
+                <UserPlus size={12} /> {u.nombre}
+              </button>
+            ))}
+            {disponibles.length === 0 && <div style={{ color: "#8996A6", fontSize: 12 }}>{addQuery ? "Nadie coincide con esa búsqueda." : "No hay más personas disponibles para agregar."}</div>}
+          </div>
         </div>
       )}
     </div>
@@ -3353,27 +3383,6 @@ function WorshipRolesEditor({ roles, canEdit, allUsuarios, onAddRole, onRemoveRo
   );
 }
 
-// Encabezado de la sección de encargados/roles dentro de un bloque expandido: de solo lectura hasta
-// que se toque "Editar"; "Guardar" solo regresa a la vista de solo lectura (ya se guardó solo).
-function EncargadosSectionHeader({ label, canEdit, isEditing, onToggle }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F" }}>{label}</div>
-      {canEdit && (
-        isEditing ? (
-          <button onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 4, background: "#E9F7EF", border: "1px solid #1F8A73", borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: "#1F8A73", cursor: "pointer" }}>
-            <Check size={12} /> Guardar
-          </button>
-        ) : (
-          <button onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 4, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: "#33415A", cursor: "pointer" }}>
-            <Pencil size={11} /> Editar
-          </button>
-        )
-      )}
-    </div>
-  );
-}
-
 // Botón "Encargados": ícono de personas con una insignia del conteo actual — es el punto de entrada
 // para agregar/gestionar a los encargados de este ítem del Setlist, sin necesitar una pantalla aparte.
 function EncargadosToggleButton({ count, onClick }) {
@@ -3393,19 +3402,16 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
   // el encargado de ese bloque de Lectura bíblica/Oración (ver canAddBibleReading más arriba).
   // Además de eso, el Setlist se ve de solo lectura (sin agregar/quitar/mover nada) hasta tocar "Editar"
-  // — mismo candado visual que ya tenían Encargados/equipo de alabanza — para que no se mueva nada por
-  // accidente en medio de un culto. Los cambios se siguen guardando solos apenas se hacen; "Guardar"
+  // — UN SOLO candado para todo (antes Encargados/equipo de alabanza tenían su propio candado por
+  // bloque además de este, y era fácil elegir a alguien del selector sin haber destrabado ESE candado
+  // aparte, o creer que ya había quedado asignado sin haber tocado "Añadir" — de ahí que pareciera que
+  // las asignaciones "se perdían"). Los cambios se siguen guardando solos apenas se hacen; "Guardar"
   // solo regresa a la vista de solo lectura.
   const [editingSetlist, setEditingSetlist] = useState(false);
   const canEditNow = isAdminViewer && editingSetlist;
   const canEditItem = () => canEditNow;
-  const canEditWorshipRoles = isAdminViewer;
   const [query, setQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({});
-  // Encargados/roles quedan de solo lectura hasta que se toque "Editar" — "Guardar" solo regresa a esa
-  // vista de solo lectura (los cambios ya se guardaron solos en cuanto se hicieron).
-  const [editingAssignments, setEditingAssignments] = useState({});
-  const toggleEditingAssignments = (itemId) => setEditingAssignments((e) => ({ ...e, [itemId]: !e[itemId] }));
   const [showLibrary, setShowLibrary] = useState(!isCompact);
   const [showSeccionForm, setShowSeccionForm] = useState(false);
   const [seccionDraft, setSeccionDraft] = useState({ title: "", description: "" });
@@ -3641,15 +3647,10 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                     )}
                     {isWorshipBlock(item) ? (
                       <>
-                        <EncargadosSectionHeader
-                          label="EQUIPO DE ALABANZA (compartido con Alabanza/Adoración)"
-                          canEdit={canEditWorshipRoles}
-                          isEditing={!!editingAssignments[item.id]}
-                          onToggle={() => toggleEditingAssignments(item.id)}
-                        />
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>EQUIPO DE ALABANZA (compartido con Alabanza/Adoración)</div>
                         <WorshipRolesEditor
                           roles={event.worshipRoles || []}
-                          canEdit={canEditWorshipRoles && !!editingAssignments[item.id]}
+                          canEdit={canEditNow}
                           allUsuarios={usuariosReales}
                           onAddRole={onAddWorshipRole}
                           onRemoveRole={onRemoveWorshipRole}
@@ -3661,15 +3662,10 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                       </>
                     ) : (
                       <>
-                        <EncargadosSectionHeader
-                          label="ENCARGADOS DE ESTE BLOQUE"
-                          canEdit={canEdit}
-                          isEditing={!!editingAssignments[item.id]}
-                          onToggle={() => toggleEditingAssignments(item.id)}
-                        />
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 6 }}>ENCARGADOS DE ESTE BLOQUE</div>
                         <EncargadosList
                           encargados={item.encargados || []}
-                          canEdit={canEdit && !!editingAssignments[item.id]}
+                          canEdit={canEdit}
                           allUsuarios={usuariosReales}
                           onAddEncargado={(usuario) => onAddEncargado(item.id, usuario)}
                           onSetStatus={(mi, status) => onSetEncargadoStatus(item.id, mi, status)}
@@ -4084,19 +4080,6 @@ function AdHocVideoModal({ onClose, onPlay }) {
     </ModalShell>
   );
 }
-// Enviar un texto suelto a la pantalla (título de la predica, un anuncio, una frase) sin pasar por el
-// editor completo de diapositivas — solo el texto, con el fondo/tipografía/color que ya estén elegidos
-// en vivo (ver Estilo). No se guarda en ningún lado: se proyecta y ya.
-function AdHocTextModal({ onClose, onSend }) {
-  const [text, setText] = useState("");
-  return (
-    <ModalShell title="Proyectar texto" icon={Type} color="#2F5FA8" onClose={onClose}>
-      <div style={{ fontSize: 11, color: "#64707F", marginBottom: 10 }}>Por ejemplo, el título de la predica o un aviso. Se proyecta de inmediato, sin agregarse al setlist.</div>
-      <textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Escribe el texto a proyectar…" style={{ ...inputStyle, height: 90, resize: "none" }} />
-      <button onClick={() => text.trim() && onSend(text.trim())} disabled={!text.trim()} style={{ ...primaryBtn, marginTop: 14, opacity: text.trim() ? 1 : 0.4, cursor: text.trim() ? "pointer" : "not-allowed" }}>Proyectar ahora</button>
-    </ModalShell>
-  );
-}
 function ModalShell({ title, icon: Icon, color, onClose, children }) {
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(8,10,14,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
@@ -4318,7 +4301,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onStartAdHocText, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide }) {
+function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -4333,7 +4316,6 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
   useEffect(() => { saveCache("bible_historial", bibleHistory); }, [bibleHistory]);
   const [showAdHocSong, setShowAdHocSong] = useState(false);
   const [showAdHocVideo, setShowAdHocVideo] = useState(false);
-  const [showAdHocText, setShowAdHocText] = useState(false);
   const [showAddSlide, setShowAddSlide] = useState(false);
   const [newSlideDraft, setNewSlideDraft] = useState({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" });
   // Editar una diapositiva ya agregada (versículo/slide/punto del bosquejo) por si algo se escribió mal.
@@ -4538,19 +4520,14 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
         <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ fontSize: 11, color: "#64707F", fontWeight: 700 }}>TODAS LAS SLIDES</span>
-            {/* Sin evento no hay setlist al cual agregar/guardar esta diapositiva — "Agregar diapositiva"
-                solo tiene sentido cuando hay un plan real detrás. En una transmisión libre, todo el
-                contenido sale de Biblia/Improvisar (canción/video), que no dependen de ningún evento. */}
-            {!isFreeSession && (
-              <button
-                onClick={() => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); }}
-                title="Agregar una diapositiva al plan en vivo (ej. un anuncio que se quedó fuera)"
-                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#2F5FA8", background: "#EAF0FA", border: "none", borderRadius: 14, padding: "4px 10px", cursor: "pointer" }}
-              ><Plus size={13} /> Agregar diapositiva</button>
-            )}
+            <button
+              onClick={() => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); }}
+              title="Agregar una diapositiva (ej. el título de la predica o un anuncio) — queda aquí para poder volver a proyectarla"
+              style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#2F5FA8", background: "#EAF0FA", border: "none", borderRadius: 14, padding: "4px 10px", cursor: "pointer" }}
+            ><Plus size={13} /> Agregar diapositiva</button>
           </div>
           {isFreeSession && slides.length === 0 && (
-            <div style={{ fontSize: 12, color: "#8996A6", padding: "20px 10px", textAlign: "center" }}>Esta es una transmisión sin evento — no hay un plan aquí. Usa las pestañas Biblia o "Improvisar" (abajo, a la derecha) para proyectar canciones, versículos o videos.</div>
+            <div style={{ fontSize: 12, color: "#8996A6", padding: "20px 10px", textAlign: "center" }}>Esta es una transmisión sin evento — usa "Agregar diapositiva" arriba para un título/aviso, o Biblia/Improvisar (abajo, a la derecha) para versículos, canciones o videos.</div>
           )}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
             {slides.map((s, i) => {
@@ -4624,7 +4601,10 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
             <div style={{ display: "flex", gap: 6 }}>
               <button onClick={() => setShowAdHocSong(true)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><Music size={13} /> Canción</button>
               <button onClick={() => setShowAdHocVideo(true)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><ImgIcon size={13} /> Video</button>
-              <button onClick={() => setShowAdHocText(true)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><Type size={13} /> Texto</button>
+              {/* A diferencia de Canción/Video (que se proyectan una vez y no quedan en ningún lado),
+                  "Diapositiva" usa el mismo "Agregar diapositiva" de la pestaña Transmisión — queda fija
+                  en TODAS LAS SLIDES para poder volver a mandarla a proyección cuando haga falta. */}
+              <button onClick={() => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); }} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><Type size={13} /> Diapositiva</button>
             </div>
           </div>
           </div>
@@ -4633,7 +4613,6 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
 
       {showAdHocSong && <AdHocSongModal library={library} onClose={() => setShowAdHocSong(false)} onPick={(song) => { onStartAdHocSong(song); setShowAdHocSong(false); }} />}
       {showAdHocVideo && <AdHocVideoModal onClose={() => setShowAdHocVideo(false)} onPlay={(url) => { onStartAdHocVideo(url); setShowAdHocVideo(false); }} />}
-      {showAdHocText && <AdHocTextModal onClose={() => setShowAdHocText(false)} onSend={(text) => { onStartAdHocText(text); setShowAdHocText(false); }} />}
       {showAddSlide && (
         <SlideModal
           draft={newSlideDraft} setDraft={setNewSlideDraft}
