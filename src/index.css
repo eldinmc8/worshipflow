@@ -93,3 +93,14 @@ img, svg {
   -ms-overflow-style: none;
 }
 .chordbar-scroll::-webkit-scrollbar { display: none; }
+
+/* Alto de la app: 100vh en Safari de iPhone se mide contra la pantalla COMPLETA (como si la barra de
+   direcciones ya estuviera oculta), no contra lo que de verdad se ve en cada momento — así, apenas esa
+   barra aparece/desaparece al hacer scroll, todo el layout se reacomodaba de golpe (la sensación de
+   "todo se mueve"). 100dvh sigue el alto REAL visible en cada instante; se declara aparte (no como
+   fallback en la misma línea, porque en un estilo inline de React solo se puede fijar un valor) y solo
+   pisa el 100vh de base en navegadores que ya soportan dvh — los viejos se quedan con 100vh de siempre. */
+.app-shell-height { height: 100vh; }
+@supports (height: 100dvh) {
+  .app-shell-height { height: 100dvh; }
+}

@@ -1274,11 +1274,11 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const goToEvent = (id) => requestLeaveSongEditor(() => { setSelectedEventId(id); setOpenSong(null); setSelectedMinistryId(null); setTab("eventos"); });
 
   if (!datosListos) {
-    return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", color: "#8996A6", fontFamily: "'Poppins', sans-serif", fontSize: 14 }}>Cargando…</div>;
+    return <div className="app-shell-height" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", color: "#8996A6", fontFamily: "'Poppins', sans-serif", fontSize: 14 }}>Cargando…</div>;
   }
 
   return (
-    <div style={{ fontFamily: "'Poppins', sans-serif", background: "#F4F6FA", color: "#16233A", height: "100vh", display: "flex", flexDirection: "column", position: "relative" }}>
+    <div className="app-shell-height" style={{ fontFamily: "'Poppins', sans-serif", background: "#F4F6FA", color: "#16233A", display: "flex", flexDirection: "column", position: "relative", overflowX: "hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Caveat:wght@600;700&family=Playfair+Display:ital,wght@1,600&family=Montserrat:wght@300;700&family=Bebas+Neue&family=Oswald:wght@500;600&family=Quicksand:wght@500;700&family=Dancing+Script:wght@600;700&display=swap');
         @keyframes pulseDot { 0%,100% { opacity:1; } 50% { opacity:.35; } }
@@ -1356,7 +1356,12 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         </ModalShell>
       )}
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "stretch" }}>
+      {/* overflowX oculto a propósito: la animación de deslizar entre canciones (song-slide-in-right/
+          left, ver index.css) arranca el contenido FUERA de pantalla con translateX(±100%) — sin este
+          corte, el navegador cuenta ese ancho "de más" como parte de la página y el celular (sobre
+          todo iPhone) dejaba que todo se corriera/rebotara de lado, incluyendo cosas fijas como el
+          badge "EN VIVO" del header, que terminaba saliéndose del borde visible. */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", alignItems: "stretch" }}>
       {!["envivo", "proyeccion"].includes(tab) && (
       <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: tab === "inicio" ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {tab === "inicio" && (
@@ -2410,6 +2415,19 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   // exacta saltar, así que usa este mapa indexado por posición.
   const indexRefs = useRef({});
   const containerRef = useRef(null);
+  // Cada canción nueva es un montaje fresco (key distinto en el sitio donde se usa <SongView>), pero el
+  // contenedor que hace scroll de verdad es un ancestro que NO se remonta — así que si veníamos con la
+  // anterior desplazada hasta el final, la canción siguiente arrancaba también abajo del todo en vez de
+  // arriba. Se sube ese ancestro a mano (no con scrollIntoView: esta misma raíz lleva la animación de
+  // deslizar entre canciones con transform: translateX, y scrollIntoView calcula la posición CON ese
+  // transform aplicado — a mitad de la animación podía terminar calculando mal y no subir del todo).
+  useEffect(() => {
+    let el = containerRef.current?.parentElement;
+    while (el && el !== document.body) {
+      if (el.scrollHeight > el.clientHeight) { el.scrollTop = 0; break; }
+      el = el.parentElement;
+    }
+  }, []);
   const pointerStartRef = useRef(null);
   const draggingRef = useRef(false); // true una vez que el gesto se confirmó horizontal (no scroll vertical)
   // Efecto "galería de fotos": mientras se arrastra, el contenido sigue al dedo en tiempo real (sin
