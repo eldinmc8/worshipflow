@@ -3861,6 +3861,9 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
     onAddSong(songId);
   };
   const [query, setQuery] = useState("");
+  // Igual que en Canciones: poder ver solo los coros (para armar una cadena de coros seguidos), o solo
+  // los himnos disponibles, etc., en vez de buscar a ojo en toda la biblioteca mezclada.
+  const [libraryCategoryFilter, setLibraryCategoryFilter] = useState("todos");
   const [expandedSections, setExpandedSections] = useState({});
   const [showLibrary, setShowLibrary] = useState(!isCompact);
   const [showSeccionForm, setShowSeccionForm] = useState(false);
@@ -3923,7 +3926,9 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
     style: { cursor: canEditNow ? "grab" : "default", flexShrink: 0, touchAction: "none" },
   });
   const rowRefProp = (idx) => (el) => { rowRefs.current[idx] = el; };
-  const filtered = library.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
+  const filtered = library
+    .filter((s) => libraryCategoryFilter === "todos" || s.category === libraryCategoryFilter)
+    .filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
   return (
     <div style={{ display: "flex", flexDirection: isCompact ? "column" : "row", flex: 1, minHeight: 0 }}>
       {/* La única excepción que puede seguir agregando sin tocar "Editar" (que ni ve, es de admin): quien
@@ -3943,12 +3948,18 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
             <Search size={13} color="#8996A6" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "#16233A", fontSize: 12, width: "100%" }} />
           </div>
+          <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
+            {[["todos", "Todos"], ...Object.entries(SONG_CATEGORIES).map(([key, c]) => [key, c.label])].map(([key, label]) => (
+              <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 16, border: libraryCategoryFilter === key ? "1.5px solid #E8821E" : "1px solid #C7D0DD", background: libraryCategoryFilter === key ? "#FFF4E8" : "#FFFFFF", color: "#16233A", cursor: "pointer" }}>{label}</button>
+            ))}
+          </div>
           {filtered.map((s) => (
             <button key={s.id} onClick={() => handleAddSong(s.id)} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 6, borderRadius: 8, background: "transparent", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{s.key} · {s.tempo} bpm</div></div>
               <Plus size={15} color="#E8821E" />
             </button>
           ))}
+          {filtered.length === 0 && <div style={{ color: "#8996A6", fontSize: 12, padding: "6px 0" }}>Ninguna canción coincide.</div>}
         </div>
         <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
           {isAdminViewer ? (
