@@ -14,6 +14,7 @@ import {
 } from "./lib/eventos.js";
 import { listMinisteriosCompletos, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos } from "./lib/ministerios.js";
 import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession } from "./lib/liveSession.js";
+import { getMusicoLive, updateMusicoLive, clearMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { sincronizarRecordatorios } from "./lib/recordatorios.js";
 import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotificaciones, suscribirPush, desuscribirPush, estaSuscritoPush } from "./lib/notificaciones.js";
@@ -155,6 +156,29 @@ const BIBLE_QUICK = [
 
 // Umbral para dar por abandonada una sesión en vivo que nadie finalizó — ver el useEffect que llama a getLiveSession().
 const LIVE_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
+
+// ---- Modo Músico líder/seguidor durante una transmisión en vivo (ver SongView, tabla musico_en_vivo) ----
+// Identifica esta pestaña/dispositivo para saber si el líder que aparece en musico_en_vivo soy yo o
+// alguien más — se genera una sola vez por carga de página, no hace falta que sobreviva a un refresh.
+const DEVICE_ID = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `dev-${Math.random().toString(36).slice(2)}`;
+// Si el líder no manda un "sigo aquí" (heartbeat, o cualquier acción — ambos tocan la columna heartbeat)
+// en más de esto, se da por perdido: el siguiente que toque "Modo Músico" puede tomar el mando sin
+// quedar nadie bloqueado a mitad de un culto.
+const MUSICO_LEADER_STALE_MS = 10000;
+function filaAMusicoState(fila) {
+  if (!fila) return null;
+  return {
+    liderId: fila.lider_id || null,
+    songItemId: fila.song_item_id || null,
+    sectionIdx: fila.section_idx ?? 0,
+    bpm: fila.bpm || null,
+    auto: !!fila.auto,
+    heartbeat: fila.heartbeat || null,
+  };
+}
+function isMusicoLeaderFresh(musicoState) {
+  return !!(musicoState?.liderId && musicoState?.heartbeat && Date.now() - new Date(musicoState.heartbeat).getTime() < MUSICO_LEADER_STALE_MS);
+}
 
 const TYPE_META = {
   cancion: { label: "Canción", color: "#E8821E", icon: Music },
@@ -309,6 +333,30 @@ function isWorshipBlock(item) {
 function isBibleReadingBlock(item) {
   return item.type === "seccion" && /lectura|oraci[oó]n/i.test(item.title || "");
 }
+// Nombre legible de un ítem del Setlist para notificaciones y para "qué me toca" en la miniatura de un
+// evento — alguien puede tener varios cargos distintos en el mismo evento (ej. Multimedia Y una
+// canción), así que cada uno necesita decir CUÁL es, no solo "tienes un encargo".
+function serviceItemLabel(item, library) {
+  if (item.type === "seccion") return item.title || "Bloque";
+  if (item.type === "cancion") return library.find((s) => s.id === item.songId)?.title || "Canción";
+  if (item.type === "biblia") return `Lectura: ${item.reference}`;
+  if (item.type === "slide") return item.title ? `Diapositiva: ${item.title}` : "Diapositiva";
+  return "Ítem del Setlist";
+}
+// Lista de TODOS los cargos que una persona tiene en un evento (puede ser más de uno — ej. Multimedia Y
+// además una canción) para mostrar "Te toca: ..." en su miniatura, en vez de solo un ícono de personas
+// que no dice nada de qué le toca a ELLA específicamente.
+function misAsignacionesEnEvento(event, uid, library) {
+  if (!uid) return [];
+  const labels = [];
+  (event.serviceOrder || []).forEach((item) => {
+    if ((item.encargados || []).some((m) => m.usuarioId === uid)) labels.push(serviceItemLabel(item, library));
+  });
+  (event.worshipRoles || []).forEach((r) => {
+    if ((r.members || []).some((m) => m.usuarioId === uid)) labels.push(r.name);
+  });
+  return labels;
+}
 // Limpieza es un privilegio aparte del resto del equipo: quien está asignado a este bloque solo ve
 // este bloque, nada del resto del Setlist (ver CleaningOnlyPanel).
 function isCleaningBlock(item) {
@@ -350,6 +398,21 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   useEffect(() => {
     if (isCompact && (tab === "envivo" || tab === "proyeccion")) setTab("inicio");
   }, [isCompact, tab]);
+  // Publica el alto REAL de la nav flotante inferior como variable CSS (--bottom-nav-height) — así una
+  // pantalla distinta con un elemento position:fixed que necesite quedar arriba de la nav (ej. la barra
+  // de acordes del editor de canciones) puede apoyarse en el alto medido de verdad en ESTE dispositivo,
+  // en vez de un número fijo adivinado que en celulares con gesture bar (safe-area-inset-bottom más
+  // alto) dejaba ese elemento tapado detrás de la nav o fuera de la pantalla.
+  const bottomNavRef = useRef(null);
+  useEffect(() => {
+    const el = bottomNavRef.current;
+    if (!el) return;
+    const publish = () => document.documentElement.style.setProperty("--bottom-nav-height", `${el.getBoundingClientRect().height}px`);
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isCompact]);
   // Canciones y Eventos arrancan vacíos y se cargan de verdad desde Supabase — ya no hay datos de
   // ejemplo del prototipo. Ministerios sigue siendo local por ahora (todavía no tiene tabla real).
   const [library, setLibrary] = useState([]);
@@ -360,6 +423,20 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const libraryRef = useRef(library);
   const userIdRef = useRef(userId);
   useEffect(() => { libraryRef.current = library; userIdRef.current = userId; }, [library, userId]);
+  // El guardado del Setlist/roles queda en vuelo un rato (fetch de fondo) mientras la pantalla ya se ve
+  // actualizada al instante — si alguien asigna a una persona y cierra la pestaña/app de inmediato (muy
+  // común en celular, apurados a mitad de un culto), esa escritura puede quedar cortada antes de llegar
+  // a Supabase y la asignación "desaparece" la próxima vez que se entra, aunque en pantalla sí se vio
+  // agregada un instante. Este contador + el aviso nativo de "salir sin guardar" (ver más abajo) le dan
+  // al menos una oportunidad de notar que todavía hay algo guardándose antes de cerrar.
+  const pendingSavesRef = useRef(0);
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      if (pendingSavesRef.current > 0) { e.preventDefault(); e.returnValue = ""; }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
   const [openSong, setOpenSong] = useState(null); // null = lista; { id, mode: 'view' | 'edit' }
   const [events, setEvents] = useState([]);
   const [datosListos, setDatosListos] = useState(false);
@@ -425,6 +502,9 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const selectedEvent = events.find((e) => e.id === selectedEventId);
   const [liveEventId, setLiveEventId] = useState(null);
   const [liveOwnerId, setLiveOwnerId] = useState(null); // usuario que inició la transmisión; solo esa persona puede finalizarla
+  // Estado de Modo Músico líder/seguidor de la sesión en vivo (ver columnas musico_* en sesiones_en_vivo
+  // y el useEffect de subscribeLiveSession más abajo, que lo llena junto con liveEventId/liveOwnerId).
+  const [musicoState, setMusicoState] = useState(null);
   // "En vivo sin evento": transmisión libre, sin ningún plan/setlist detrás — solo contenido improvisado
   // (Biblia/canción/video/slide). liveEventId se queda en null en este caso, igual que cuando no hay nada
   // en vivo, así que se necesita esta bandera aparte para distinguir ambos casos.
@@ -453,7 +533,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       nuevoOrden = fn(e.serviceOrder);
       return { ...e, serviceOrder: nuevoOrden };
     }));
-    if (nuevoOrden) sincronizarServiceOrder(liveEventId, nuevoOrden).catch((err) => window.alert("No se pudo guardar el setlist: " + err.message));
+    if (nuevoOrden) {
+      pendingSavesRef.current++;
+      sincronizarServiceOrder(liveEventId, nuevoOrden).catch((err) => window.alert("No se pudo guardar el setlist: " + err.message)).finally(() => pendingSavesRef.current--);
+    }
   };
   // Para cuando a Multimedia se le olvidó agregar algo en el Setlist (un anuncio, etc.): agrega una slide
   // directo al plan en vivo (no al overlay "improvisado" temporal) y salta a proyectarla de inmediato.
@@ -501,7 +584,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       nuevoOrden = fn(e.serviceOrder);
       return { ...e, serviceOrder: nuevoOrden };
     }));
-    if (nuevoOrden) sincronizarServiceOrder(selectedEventId, nuevoOrden).catch((err) => window.alert("No se pudo guardar el setlist: " + err.message));
+    if (nuevoOrden) {
+      pendingSavesRef.current++;
+      sincronizarServiceOrder(selectedEventId, nuevoOrden).catch((err) => window.alert("No se pudo guardar el setlist: " + err.message)).finally(() => pendingSavesRef.current--);
+    }
   };
   // Cada canción se manda sola al bloque que le corresponde según su clasificación (Himno/Corito/Canto
   // especial → Alabanza; Adoración → Adoración) — se agrega al final de ese bloque, o se crea el bloque si
@@ -572,7 +658,9 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const addEncargado = (itemId, usuario) => {
     if (!usuario) return;
     updateItemEncargados(itemId, (encargados) => [...encargados, { id: nextId(), n: usuario.nombre, usuarioId: usuario.id, status: "pendiente", lead: false }]);
-    notificarAsignacion(usuario.id, { titulo: "Te asignaron un encargo", cuerpo: `Tienes un encargo en "${selectedEvent?.title}".`, eventoId: selectedEventId });
+    const item = selectedEvent?.serviceOrder.find((i) => i.id === itemId);
+    const label = item ? serviceItemLabel(item, library) : "un encargo";
+    notificarAsignacion(usuario.id, { titulo: `Te asignaron: ${label}`, cuerpo: `Quedaste a cargo de "${label}" en "${selectedEvent?.title}".`, eventoId: selectedEventId });
   };
   const setEncargadoStatus = (itemId, idx, status) =>
     updateItemEncargados(itemId, (encargados) => encargados.map((m, mi) => (mi === idx ? { ...m, status } : m)));
@@ -596,7 +684,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       nuevo = fn(e.worshipRoles || []);
       return { ...e, worshipRoles: nuevo };
     }));
-    if (nuevo) sincronizarWorshipRoles(selectedEventId, nuevo).catch((err) => window.alert("No se pudo guardar el equipo de alabanza: " + err.message));
+    if (nuevo) {
+      pendingSavesRef.current++;
+      sincronizarWorshipRoles(selectedEventId, nuevo).catch((err) => window.alert("No se pudo guardar el equipo de alabanza: " + err.message)).finally(() => pendingSavesRef.current--);
+    }
   };
   const addWorshipRole = (name) => {
     if (!name.trim()) return;
@@ -608,7 +699,9 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const addWorshipRoleMember = (roleId, usuario) => {
     if (!usuario) return;
     updateWorshipRoleMembers(roleId, (members) => [...members, { id: nextId(), n: usuario.nombre, usuarioId: usuario.id, status: "pendiente", lead: false }]);
-    notificarAsignacion(usuario.id, { titulo: "Te asignaron al equipo de alabanza", cuerpo: `Quedaste en el equipo de alabanza de "${selectedEvent?.title}".`, eventoId: selectedEventId });
+    const role = (selectedEvent?.worshipRoles || []).find((r) => r.id === roleId);
+    const label = role?.name || "el equipo de alabanza";
+    notificarAsignacion(usuario.id, { titulo: `Te asignaron: ${label}`, cuerpo: `Quedaste como "${label}" en "${selectedEvent?.title}".`, eventoId: selectedEventId });
   };
   const setWorshipRoleMemberStatus = (roleId, idx, status) =>
     updateWorshipRoleMembers(roleId, (members) => members.map((m, mi) => (mi === idx ? { ...m, status } : m)));
@@ -690,9 +783,31 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     const otherTitle = liveLibre ? "Transmisión libre" : events.find((e) => e.id === liveEventId)?.title;
     return window.confirm(`"${otherTitle}" ya está en vivo. ¿Finalizarlo e iniciar esto en su lugar?`);
   };
+  // Escribe el estado de Modo Músico (líder, canción/sección/tempo/auto-avance actuales) para que se
+  // vea igual en todos los dispositivos de la banda — ver SongView, que es quien de verdad decide CUÁNDO
+  // llamar esto (solo el líder escribe; los seguidores solo leen vía musicoState). Silencioso a propósito:
+  // es una señal de sincronización en vivo frecuente, no algo que merezca una alerta si falla una vez.
+  const updateMusicoState = (patch) => {
+    setMusicoState((s) => ({ ...(s || {}), ...patch }));
+    const dbPatch = {};
+    if ("liderId" in patch) dbPatch.lider_id = patch.liderId;
+    if ("songItemId" in patch) dbPatch.song_item_id = patch.songItemId;
+    if ("sectionIdx" in patch) dbPatch.section_idx = patch.sectionIdx;
+    if ("bpm" in patch) dbPatch.bpm = patch.bpm;
+    if ("auto" in patch) dbPatch.auto = patch.auto;
+    if ("heartbeat" in patch) dbPatch.heartbeat = patch.heartbeat;
+    updateMusicoLive(dbPatch).catch(() => {});
+  };
+  // Nadie hereda como "líder" de Modo Músico al culto de hoy solo porque lo fue en el anterior — se
+  // limpia al arrancar una transmisión nueva Y al finalizar una (ver endEvent), así que ni "reemplazar"
+  // una en vivo por otra sin pasar por Finalizar (confirmReplaceLive arriba) deja un líder colgado.
+  const resetMusicoLive = () => {
+    setMusicoState(null);
+    clearMusicoLive().catch(() => {});
+  };
   const startEvent = (eventId) => {
     if (!confirmReplaceLive(eventId)) return;
-    setLiveEventId(eventId); setLiveLibre(false); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setTab("envivo");
+    setLiveEventId(eventId); setLiveLibre(false); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); resetMusicoLive(); setTab("envivo");
     startPresentation(); // abre/enfoca la pantalla de proyección de una vez, sin paso manual extra
   };
   // Transmitir sin un evento del calendario detrás — para anuncios, oración u otro contenido suelto que
@@ -700,12 +815,13 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // video) o de diapositivas agregadas a mano (ver libreServiceOrder) — nunca de un setlist real.
   const startFreeEvent = () => {
     if (!confirmReplaceLive(null)) return;
-    setLiveEventId(null); setLiveLibre(true); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); setTab("envivo");
+    setLiveEventId(null); setLiveLibre(true); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); resetMusicoLive(); setTab("envivo");
     startPresentation();
   };
   const endEvent = () => {
     setLiveEventId(null); setLiveLibre(false); setLiveOwnerId(null); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); setTab("eventos");
     clearLiveSession().catch((e) => window.alert("No se pudo cerrar la sesión en vivo: " + e.message));
+    resetMusicoLive();
   };
 
   const toggleFavorite = (songId) => {
@@ -925,6 +1041,16 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       setLiveOwnerId(fila.liderado_por || null);
       setLiveLibre(!!fila.libre);
     });
+    return unsubscribe;
+  }, []);
+
+  // ---- Modo Músico líder/seguidor: estado propio (tabla musico_en_vivo, no sesiones_en_vivo — ver
+  // src/lib/musicoLive.js) para que cualquier músico pueda tomar el mando sin necesitar el permiso de
+  // escritura restringido a Multimedia. Se sincroniza siempre (no solo mientras hay un evento en vivo):
+  // el "active" real por evento lo decide cada SongView con isLiveNow, esto solo mantiene musicoState al día.
+  useEffect(() => {
+    getMusicoLive().then((fila) => setMusicoState(filaAMusicoState(fila))).catch(() => {});
+    const unsubscribe = subscribeMusicoLive((fila) => setMusicoState(filaAMusicoState(fila)));
     return unsubscribe;
   }, []);
 
@@ -1234,7 +1360,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       {!["envivo", "proyeccion"].includes(tab) && (
       <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: tab === "inicio" ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {tab === "inicio" && (
-        <InicioView events={realEvents} library={library} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} />
+        <InicioView events={realEvents} library={library} myUserId={myUserId} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} />
       )}
 
       {tab === "ajustes" && (
@@ -1308,7 +1434,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       )}
 
       {tab === "eventos" && !selectedEvent && (
-        <EventList events={realEvents} plantillas={plantillas} isAdminViewer={isAdminViewer} liveEventId={liveEventId} liveLibre={liveLibre} onSelect={setSelectedEventId} onCreate={createEvent} canStartLive={canStartLive} onStartFree={startFreeEvent} />
+        <EventList events={realEvents} plantillas={plantillas} isAdminViewer={isAdminViewer} liveEventId={liveEventId} liveLibre={liveLibre} onSelect={setSelectedEventId} onCreate={createEvent} canStartLive={canStartLive} onStartFree={startFreeEvent} library={library} myUserId={myUserId} />
       )}
 
       {tab === "eventos" && selectedEvent && !openSong && (
@@ -1359,6 +1485,18 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         const prevItem = pos > 0 ? songItems[pos - 1] : null;
         const nextItem = pos >= 0 && pos < songItems.length - 1 ? songItems[pos + 1] : null;
         const positionLabel = pos >= 0 && songItems.length > 1 ? `${pos + 1} de ${songItems.length}` : null;
+        // Modo Músico líder/seguidor solo tiene sentido mientras ESTE evento es de verdad el que está en
+        // vivo ahora mismo — repasar/planear un evento futuro no debe intentar tomar el mando de nada.
+        const isLiveNow = selectedEvent.id === liveEventId;
+        // Si YO soy el líder ahora mismo y cambio de canción (‹ ›/swipe), el resto tiene que enterarse —
+        // se manda ANTES de navegar localmente, con el id del ítem del Setlist al que voy (no el de la
+        // canción sola: la misma canción puede repetirse varias veces en el Setlist).
+        const goToItem = (item, enterDir) => {
+          if (isLiveNow && musicoState?.liderId === DEVICE_ID) {
+            updateMusicoState({ songItemId: item.id, sectionIdx: 0, heartbeat: new Date().toISOString() });
+          }
+          setOpenSong({ id: item.songId, mode: "view", itemId: item.id, enterDir });
+        };
         return (
           <SongView
             key={currentItem?.id ?? openSong.id}
@@ -1368,8 +1506,19 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
             onBack={() => window.history.back()}
             onEdit={() => { setTab("canciones"); setOpenSong({ id: openSong.id, mode: "edit" }); }}
             onTranspose={transposeSong} onDelete={deleteSong}
-            onPrev={prevItem ? () => setOpenSong({ id: prevItem.songId, mode: "view", itemId: prevItem.id, enterDir: "prev" }) : null}
-            onNext={nextItem ? () => setOpenSong({ id: nextItem.songId, mode: "view", itemId: nextItem.id, enterDir: "next" }) : null}
+            onPrev={prevItem ? () => goToItem(prevItem, "prev") : null}
+            onNext={nextItem ? () => goToItem(nextItem, "next") : null}
+            liveSync={{
+              active: isLiveNow,
+              deviceId: DEVICE_ID,
+              itemId: currentItem?.id ?? null,
+              state: musicoState,
+              onUpdate: updateMusicoState,
+              onFollowItem: (itemId) => {
+                const item = songItems.find((it) => it.id === itemId);
+                if (item) setOpenSong({ id: item.songId, mode: "view", itemId: item.id });
+              },
+            }}
           />
         );
       })()}
@@ -1398,8 +1547,13 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
 
       {/* Nav flotante inferior: isla redondeada con burbuja activa. Vive como hermano normal del área
           con scroll (no position: fixed/sticky) para que el layout le reserve su propio espacio siempre
-          y el contenido nunca pueda quedar tapado detrás de ella, tenga o no scroll la pantalla. */}
-      <div style={{ flexShrink: 0, display: "flex", justifyContent: "center", padding: "10px 0 14px", zIndex: 40 }}>
+          y el contenido nunca pueda quedar tapado detrás de ella, tenga o no scroll la pantalla.
+          Se mide su alto real (varía por dispositivo: notch/gesture bar vía safe-area-inset-bottom) y se
+          publica como variable CSS — así cualquier elemento position:fixed en otra pantalla (ej. la
+          barra de acordes del editor de canciones) puede apoyarse en el alto REAL de esta nav en vez de
+          un número fijo adivinado, que en un celular con gesture bar dejaba la barra de acordes tapada
+          detrás de la nav (o directamente fuera de la pantalla) en vez de arriba de ella. */}
+      <div ref={bottomNavRef} style={{ flexShrink: 0, display: "flex", justifyContent: "center", padding: "10px 0 14px", zIndex: 40 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 2, background: "#16324F", borderRadius: 24, padding: 6, boxShadow: "0 8px 24px rgba(22,50,79,0.35)", maxWidth: "94vw", overflowX: "auto" }}>
           {[["inicio", "Inicio", Home], ["canciones", "Canciones", Music], ["eventos", "Eventos", Calendar], ["ministerios", "Grupos", LayoutGrid], ["envivo", "En vivo", Radio], ["proyeccion", "Pantalla", ImgIcon], ["ajustes", "Ajustes", Settings]]
             .filter(([val]) => !isCompact || (val !== "envivo" && val !== "proyeccion")) // Control en vivo/Proyección son de escritorio: en celular no aparecen
@@ -1497,7 +1651,7 @@ function nextUpcomingEvent(events, liveEventId) {
     .sort(compareByDay)[0];
 }
 
-function InicioView({ events, library, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact }) {
+function InicioView({ events, library, myUserId, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact }) {
   const liveEvent = liveLibre ? EVENTO_LIBRE : events.find((e) => e.id === liveEventId);
   const [showFavorites, setShowFavorites] = useState(false);
   const favoriteSongs = library.filter((s) => s.favorite);
@@ -1590,12 +1744,19 @@ function InicioView({ events, library, favoritesCount, memberCount, liveEventId,
 
         {/* Próximo evento + resumen rápido */}
         <div style={{ flex: isCompact ? "none" : 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 14 }}>
-          {nextEvent ? (
+          {nextEvent ? (() => {
+            const misCargos = misAsignacionesEnEvento(nextEvent, myUserId, library);
+            return (
             <button onClick={() => onSelectEvent(nextEvent.id)} className="hoverable" style={{ flex: isCompact ? "none" : 1, minHeight: isCompact ? 150 : 0, textAlign: "left", border: "none", cursor: "pointer", borderRadius: 20, padding: 0, overflow: "hidden", background: nextEvent.cover || DEFAULT_COVERS[0], color: "#fff", display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: nextIsLive ? "0 10px 24px rgba(232,130,30,0.45)" : "0 10px 22px rgba(22,50,79,0.2)" }}>
               <div style={{ padding: 18 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, opacity: 0.85 }}>{nextIsLive ? "● EN VIVO AHORA" : "PRÓXIMO EVENTO"}</div>
                 <div style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, margin: "6px 0 4px", lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{nextEvent.title}</div>
                 <div style={{ fontSize: 12, opacity: 0.85, display: "flex", alignItems: "center", gap: 5 }}><MapPin size={12} /> <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nextEvent.location}</span></div>
+                {misCargos.length > 0 && (
+                  <div style={{ fontSize: 11, fontWeight: 700, marginTop: 6, background: "rgba(255,255,255,0.18)", borderRadius: 8, padding: "4px 8px", display: "inline-block" }}>
+                    Te toca: {misCargos.join(", ")}
+                  </div>
+                )}
               </div>
               <div style={{ padding: 18, display: "flex", alignItems: "flex-end", justifyContent: "space-between", background: "rgba(0,0,0,0.12)" }}>
                 <div>
@@ -1605,7 +1766,8 @@ function InicioView({ events, library, favoritesCount, memberCount, liveEventId,
                 <AvatarStack initials={eventAvatars(nextEvent)} max={3} />
               </div>
             </button>
-          ) : (
+            );
+          })() : (
             <div style={{ flex: isCompact ? "none" : 1, minHeight: isCompact ? 100 : 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#8996A6", fontSize: 13, background: "#fff", borderRadius: 20 }}>No hay eventos próximos.</div>
           )}
 
@@ -2225,7 +2387,7 @@ function badgeColor(badge) {
   return "#2E86AB"; // Estrofas: celeste
 }
 
-function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext, positionLabel, enterDirection, structureOverride }) {
+function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext, positionLabel, enterDirection, structureOverride, liveSync }) {
   const sectionRefs = useRef({});
   // Ref aparte, por POSICIÓN en el orden (no por clave de sección): si una sección se repite (V1, V2,
   // V1, Coro...) sectionRefs solo guarda la primera aparición (para los pills de arriba, que son un
@@ -2275,15 +2437,12 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   const [capoSemitones, setCapoSemitones] = useState(0);
   const capoResultKey = song && capoSemitones ? transposeChordToken(song.key, capoSemitones) : null;
 
-  // ---- Sincroniza Modo Músico entre los dispositivos de todos los que tengan ESTA MISMA canción
-  // abierta (canal por song.id) — así cuando alguien lo activa, marca el tempo, o salta de sección, se
-  // ve igual en todos de una, sin que cada músico tenga que activarlo y calibrar el tempo por su cuenta.
-  // No hay un solo "dueño": cualquiera que active/ajuste algo se transmite a los demás, y el avance
-  // automático de cada dispositivo corre local a partir del último estado sincronizado (ver el useEffect
-  // de abajo) — si el que lo iba llevando cierra la app, cualquier otro sigue empujando el siguiente paso.
+  // ---- Fuera de una transmisión en vivo (repaso/ensayo): sigue igual que siempre — cualquiera que
+  // tenga la MISMA canción abierta se sincroniza por un canal ad-hoc (song.id), sin un líder fijo,
+  // "cualquiera que ajuste algo se transmite a los demás". ----
   const musicoChannelRef = useRef(null);
   useEffect(() => {
-    if (!song) return;
+    if (!song || liveSync?.active) return; // en vivo usa musico_en_vivo (líder/seguidor), no este canal
     const channel = supabase.channel(`musico-${song.id}`);
     channel.on("broadcast", { event: "sync" }, ({ payload }) => {
       setAutoMode(payload.autoMode);
@@ -2294,23 +2453,94 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
     musicoChannelRef.current = channel;
     return () => { supabase.removeChannel(channel); musicoChannelRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song?.id]);
+  }, [song?.id, liveSync?.active]);
   const broadcastMusico = (patch) => {
     musicoChannelRef.current?.send({ type: "broadcast", event: "sync", payload: { autoMode, liveBpm, currentSectionIdx, ...patch } });
   };
+
+  // ---- En vivo: líder/seguidor por transmisión (ver tabla musico_en_vivo — src/lib/musicoLive.js —,
+  // DEVICE_ID/musicoState en el componente principal). El primero que toque "Modo Músico" sin que haya ya un líder activo se
+  // vuelve el líder — su BPM/sección/canción actual se escriben ahí y el resto los sigue. Si el líder se
+  // queda callado más de MUSICO_LEADER_STALE_MS (cerró la app, se quedó sin señal), el siguiente que
+  // toque "Modo Músico" toma el mando sin que nadie quede bloqueado a mitad de un culto. Un seguidor
+  // puede seguir tocando los pills/‹› para mirar otra sección por su cuenta (no transmite nada) — en
+  // cuanto el líder avanza de nuevo, ese nuevo estado le llega y lo vuelve a traer.
+  const isLive = !!liveSync?.active;
+  const isLeaderMe = isLive && liveSync.state?.liderId === liveSync.deviceId;
+  const otherLeaderFresh = isLive && isMusicoLeaderFresh(liveSync.state) && liveSync.state.liderId !== liveSync.deviceId;
+  const isFollowingNow = otherLeaderFresh && liveSync.state.songItemId === liveSync.itemId;
+
+  // El líder que pasa a otra canción (‹ ›/swipe) hace que ESTE MISMO SongView se desmonte y vuelva a
+  // montar de cero (cambia el key en el sitio donde se usa <SongView>) — así que "autoMode" arranca en
+  // false de nuevo aunque siga siendo el líder y Modo Músico debería seguir prendido. Este efecto corre
+  // en cada canción nueva y, si YO sigo siendo el líder, restaura on/off + tempo desde lo que ya se
+  // había escrito para esta canción (goToItem ya puso sectionIdx en 0 antes de navegar). Sin esto, Modo
+  // Músico se apagaba solo cada vez que el líder cambiaba de canción.
+  useEffect(() => {
+    if (!isLeaderMe || !liveSync.state) return;
+    setAutoMode(!!liveSync.state.auto);
+    setLiveBpm(liveSync.state.bpm || Number(song?.tempo) || 120);
+    setCurrentSectionIdx(liveSync.state.sectionIdx || 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveSync?.itemId]);
+
+  // Late para al líder: mientras Modo Músico esté prendido en este dispositivo Y sea el líder, avisa
+  // "sigo aquí" cada pocos segundos aunque no haya tocado nada — si no, un tramo largo sin cambiar de
+  // sección haría ver al líder como "caído" y otro dispositivo podría tomar el mando de encima.
+  useEffect(() => {
+    if (!isLive || !isLeaderMe || !autoMode) return;
+    const id = setInterval(() => liveSync.onUpdate({ heartbeat: new Date().toISOString() }), 5000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLive, isLeaderMe, autoMode]);
+
+  // Seguidor: refleja lo que transmite el líder apenas cambia (sección, tempo, on/off) — y si el líder
+  // saltó a OTRA canción, le pide al contenedor que navegue ahí (ver onFollowItem en el sitio donde se
+  // usa <SongView>, que resuelve el id de canción a partir del ítem del Setlist).
+  useEffect(() => {
+    if (!isFollowingNow) return;
+    const state = liveSync.state;
+    if (state.songItemId !== liveSync.itemId) { liveSync.onFollowItem(state.songItemId); return; }
+    setAutoMode(state.auto);
+    setLiveBpm(state.bpm || Number(song?.tempo) || 120);
+    setCurrentSectionIdx(state.sectionIdx || 0);
+    indexRefs.current[state.sectionIdx || 0]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFollowingNow, liveSync?.state?.sectionIdx, liveSync?.state?.bpm, liveSync?.state?.auto, liveSync?.state?.songItemId]);
 
   const goToSectionIdx = (i) => {
     const clamped = Math.max(0, Math.min(order.length - 1, i));
     setCurrentSectionIdx(clamped);
     indexRefs.current[clamped]?.scrollIntoView({ behavior: "smooth", block: "start" });
-    broadcastMusico({ currentSectionIdx: clamped });
+    if (isLeaderMe) liveSync.onUpdate({ sectionIdx: clamped, heartbeat: new Date().toISOString() });
+    else if (!isLive) broadcastMusico({ currentSectionIdx: clamped }); // seguidor: solo local, no transmite nada
   };
   const toggleAutoMode = () => {
+    if (isFollowingNow) return; // ya estoy siguiendo esta misma canción del líder: nada que alternar
+    if (isLive && otherLeaderFresh) {
+      // Hay un líder activo, pero en OTRA canción (no la que tengo abierta ahora): unirme como seguidor
+      // y saltar a la suya — si no, "isLeaderMe" seguiría en falso y este botón terminaría robándole el
+      // mando a quien ya está liderando, solo por estar viendo una canción distinta en ese momento.
+      setAutoMode(liveSync.state.auto);
+      setLiveBpm(liveSync.state.bpm || liveBpm);
+      setCurrentSectionIdx(liveSync.state.sectionIdx || 0);
+      liveSync.onFollowItem(liveSync.state.songItemId);
+      return;
+    }
+    if (isLive && !isLeaderMe) {
+      // Nadie es líder ahora mismo (o quedó viejo/caído): este dispositivo toma el mando.
+      const next = true;
+      setAutoMode(next);
+      liveSync.onUpdate({ liderId: liveSync.deviceId, songItemId: liveSync.itemId, sectionIdx: currentSectionIdx, bpm: liveBpm, auto: next, heartbeat: new Date().toISOString() });
+      return;
+    }
     const next = !autoMode;
     setAutoMode(next);
-    broadcastMusico({ autoMode: next });
+    if (isLeaderMe) liveSync.onUpdate({ auto: next, heartbeat: new Date().toISOString() });
+    else broadcastMusico({ autoMode: next });
   };
   const handleTap = () => {
+    if (isFollowingNow) return;
     const now = Date.now();
     const recent = tapTimesRef.current.filter((t) => now - t < 3000).concat(now).slice(-8);
     tapTimesRef.current = recent;
@@ -2319,23 +2549,29 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
       const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
       const bpm = Math.round(60000 / avgMs);
       setLiveBpm(bpm);
-      broadcastMusico({ liveBpm: bpm });
+      if (isLeaderMe) liveSync.onUpdate({ bpm, heartbeat: new Date().toISOString() });
+      else broadcastMusico({ liveBpm: bpm });
     }
   };
   useEffect(() => {
-    if (!autoMode || !song) return;
+    if (!autoMode || !song || isFollowingNow) return; // seguidor: el avance lo hace el reloj del líder, no el propio
     const key = order[currentSectionIdx];
     const block = song.blocks[key];
     if (!block) return;
     const beatsPerBar = 4;
     const durationMs = Math.max(1500, ((block.bars || 8) * beatsPerBar / liveBpm) * 60000);
     const timer = setTimeout(() => {
-      if (currentSectionIdx >= order.length - 1) { setAutoMode(false); broadcastMusico({ autoMode: false }); return; } // se acabó la canción
+      if (currentSectionIdx >= order.length - 1) {
+        setAutoMode(false);
+        if (isLeaderMe) liveSync.onUpdate({ auto: false, heartbeat: new Date().toISOString() });
+        else broadcastMusico({ autoMode: false });
+        return; // se acabó la canción
+      }
       goToSectionIdx(currentSectionIdx + 1);
     }, durationMs);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoMode, currentSectionIdx, liveBpm, order, song]);
+  }, [autoMode, currentSectionIdx, liveBpm, order, song, isFollowingNow, isLeaderMe]);
   if (!song) return null;
   const scrollTo = (key) => sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
   const isMinorKey = song.key.endsWith("m");
@@ -2434,12 +2670,22 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, background: autoMode ? "#FFF4E8" : "#F4F6FA", border: `1px solid ${autoMode ? "#E8821E" : "#DDE3ED"}`, borderRadius: 12, padding: "8px 10px", marginBottom: 16, flexWrap: "wrap" }}>
-        <button onClick={toggleAutoMode} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: autoMode ? "#E8821E" : "#FFFFFF", color: autoMode ? "#16233A" : "#16233A", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-          {autoMode ? <><Radio size={13} /> Modo Músico: ON</> : <><Play size={13} /> Modo Músico</>}
-        </button>
+        {isFollowingNow ? (
+          // Seguidor: el on/off y el tempo los decide el líder — acá solo se avisa que se está
+          // siguiendo, en vez de un botón que de todos modos no haría nada.
+          <span style={{ display: "flex", alignItems: "center", gap: 6, background: "#E8821E", color: "#16233A", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>
+            <Radio size={13} /> Siguiendo al líder
+          </span>
+        ) : (
+          <button onClick={toggleAutoMode} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: autoMode ? "#E8821E" : "#FFFFFF", color: autoMode ? "#16233A" : "#16233A", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            {autoMode ? <><Radio size={13} /> Modo Músico: ON</> : <><Play size={13} /> Modo Músico</>}
+          </button>
+        )}
         <button onClick={() => goToSectionIdx(currentSectionIdx - 1)} disabled={currentSectionIdx === 0} style={{ ...iconGhost, opacity: currentSectionIdx === 0 ? 0.4 : 1 }}><ChevronLeft size={16} /></button>
         <button onClick={() => goToSectionIdx(currentSectionIdx + 1)} disabled={currentSectionIdx >= order.length - 1} style={{ ...iconGhost, opacity: currentSectionIdx >= order.length - 1 ? 0.4 : 1 }}><ChevronRight size={16} /></button>
-        <button onClick={handleTap} className="hoverable" style={{ background: "#FFFFFF", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, color: "#16233A", cursor: "pointer" }}>TAP</button>
+        {!isFollowingNow && (
+          <button onClick={handleTap} className="hoverable" style={{ background: "#FFFFFF", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, color: "#16233A", cursor: "pointer" }}>TAP</button>
+        )}
         <span style={{ fontSize: 12, fontWeight: 700, color: "#64707F" }}>{liveBpm} bpm</span>
 
         <div style={{ display: "flex", alignItems: "center", gap: 2, background: "#FFFFFF", border: "1px solid #C7D0DD", borderRadius: 8, padding: "3px 4px", marginLeft: "auto" }} title="Sube o baja medio tono a la vez, como mover un capo — no cambia la tonalidad guardada de la canción, solo cómo la ves en este dispositivo.">
@@ -2766,7 +3012,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
           canción nunca la arrastra, y siempre queda lista para tocar un acorde. Se desliza en
           horizontal con el dedo (overflowX) en vez de envolver en varias líneas. */}
       {subTab === "contenido" && draft.key && (
-        <div style={{ position: "fixed", left: 0, right: 0, bottom: 78, background: "#FFFFFF", borderTop: "1px solid #DDE3ED", boxShadow: "0 -4px 14px rgba(22,50,79,0.1)", padding: "8px 0 10px", zIndex: 45 }}>
+        <div style={{ position: "fixed", left: 0, right: 0, bottom: "var(--bottom-nav-height, 78px)", background: "#FFFFFF", borderTop: "1px solid #DDE3ED", boxShadow: "0 -4px 14px rgba(22,50,79,0.1)", padding: "8px 0 10px", zIndex: 45 }}>
           <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 12px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "#64707F" }}>ACORDES DE {draft.key.toUpperCase()}</div>
@@ -2818,7 +3064,7 @@ function MiniTicket({ ev, isLive, onClick }) {
   );
 }
 
-function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, onSelect, onCreate, canStartLive, onStartFree }) {
+function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, onSelect, onCreate, canStartLive, onStartFree, library, myUserId }) {
   const [viewMode, setViewMode] = useState("eventos"); // eventos | plantillas (solo administradores alternan)
   const [step, setStep] = useState(null); // null | 'template' | 'details'
   const [templateId, setTemplateId] = useState("blank");
@@ -2962,6 +3208,14 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
               </div>
               <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, color: "#fff" }}>{hero.title}</div>
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)" }}>{hero.location}</div>
+              {(() => {
+                const misCargos = misAsignacionesEnEvento(hero, myUserId, library);
+                return misCargos.length > 0 ? (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#fff", marginTop: 8, background: "rgba(255,255,255,0.18)", borderRadius: 8, padding: "4px 8px", display: "inline-block" }}>
+                    Te toca: {misCargos.join(", ")}
+                  </div>
+                ) : null;
+              })()}
             </div>
           </button>
         </div>
@@ -2982,6 +3236,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
         const isLive = ev.id === liveEventId;
         const isPast = !isProximos && !isUpcoming(ev);
         const d = parseIsoDateLocal(ev.date);
+        const misCargos = misAsignacionesEnEvento(ev, myUserId, library);
         return (
           <button key={ev.id} onClick={() => onSelect(ev.id)} className="hoverable" style={{ display: "flex", gap: 12, alignItems: "center", width: "100%", textAlign: "left", background: "#FFFFFF", border: isLive ? "2px solid #C23B32" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 16, padding: 14, marginBottom: 10, cursor: "pointer", opacity: isPast ? 0.7 : 1 }}>
             <div style={{ width: 48, height: 48, borderRadius: 14, background: "#EEF1F6", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -2998,6 +3253,11 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
                 <MapPin size={11} /> {ev.location}
                 <span style={{ marginLeft: 8, display: "flex", alignItems: "center", gap: 4 }}><Users size={11} /> {totalMembers}</span>
               </div>
+              {misCargos.length > 0 && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#E8821E", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  Te toca: {misCargos.join(", ")}
+                </div>
+              )}
             </div>
           </button>
         );
