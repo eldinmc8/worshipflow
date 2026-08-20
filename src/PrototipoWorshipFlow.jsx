@@ -2717,18 +2717,28 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
         const b = song.blocks[key];
         if (!b) return null;
         const color = badgeColor(b.badge);
-        const isActive = autoMode && i === currentSectionIdx;
+        // Antes solo se resaltaba con el auto-avance por BPM (autoMode) — en vivo ya no hay auto-avance
+        // (ver más arriba), pero la sección "actual" del líder/seguidor sigue siendo currentSectionIdx,
+        // así que también cuenta para resaltar cuál es la que está sonando ahora.
+        const isActive = (autoMode || isLive) && i === currentSectionIdx;
         return (
+          // Tocar la TARJETA de la sección (letra+acordes, no los círculos de arriba) salta ahí mismo —
+          // en vivo, si sos el líder, ese salto se refleja al instante en todos los demás músicos, como
+          // pedido: cada parte de la canción funciona como un botón propio, no solo el badge de arriba.
           <div
             key={`${key}-${i}`}
             ref={(el) => { if (!sectionRefs.current[key]) sectionRefs.current[key] = el; indexRefs.current[i] = el; }}
-            style={{ marginBottom: 16, borderRadius: 10, outline: isActive ? "2px solid #E8821E" : "none", outlineOffset: 3 }}
+            onClick={() => goToSectionIdx(i)}
+            role="button"
+            tabIndex={0}
+            className="hoverable"
+            style={{ marginBottom: 16, borderRadius: 10, outline: isActive ? "2px solid #E8821E" : "none", outlineOffset: 3, cursor: "pointer" }}
           >
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${color}22`, borderRadius: 20, padding: "5px 12px", marginBottom: 10 }}>
               <span style={{ width: 22, height: 22, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{b.badge}</span>
               <span style={{ fontSize: 13, fontWeight: 700 }}>{b.label}</span>
             </div>
-            <div style={{ background: "#EEF1F6", borderRadius: 10, padding: 16 }}>
+            <div style={{ background: isActive ? "#FFF4E8" : "#EEF1F6", borderRadius: 10, padding: 16 }}>
               {b.lines.map((l, i2) => <ChordsAboveLyrics key={i2} raw={l} semitones={capoSemitones} />)}
             </div>
           </div>
