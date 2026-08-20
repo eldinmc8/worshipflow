@@ -13,9 +13,24 @@ export async function getMusicoLive() {
   return data;
 }
 
-export async function updateMusicoLive(patch) {
-  const { error } = await supabase.from("musico_en_vivo").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", 1);
-  if (error) throw error;
+// Dos escrituras seguidas a esta misma fila (ej. tocar "Modo Músico" y de inmediato deslizar a la
+// siguiente canción) son dos peticiones HTTP independientes — sin ponerlas en fila, la segunda podía
+// llegar a Postgres ANTES que la primera terminara. Como cada UPDATE solo toca las columnas que manda
+// (no reescribe la fila entera), eso no perdía datos en la base — pero el eco por Realtime de una
+// escritura vieja llegando DESPUÉS de una más nueva sí podía pisarle a alguien el estado que ya tenía
+// aplicado localmente (ej. "acabo de ser el líder" desapareciendo al cambiar de canción). Mismo patrón
+// que encolar() en src/lib/eventos.js: cada escritura espera a que la anterior termine antes de salir.
+let cola = Promise.resolve();
+function encolar(tarea) {
+  cola = cola.then(tarea, tarea);
+  return cola;
+}
+
+export function updateMusicoLive(patch) {
+  return encolar(async () => {
+    const { error } = await supabase.from("musico_en_vivo").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", 1);
+    if (error) throw error;
+  });
 }
 
 export function clearMusicoLive() {
