@@ -2530,15 +2530,20 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
 
   // Seguidor: refleja la sección del líder apenas cambia — y si saltó a OTRA canción, le pide al
   // contenedor que navegue ahí (ver onFollowItem en el sitio donde se usa <SongView>, que resuelve el
-  // id de canción a partir del ítem del Setlist).
+  // id de canción a partir del ítem del Setlist). OJO: se engancha con otherLeaderFresh (hay un líder,
+  // sin importar en qué canción), NO con isFollowingNow — ese ya EXIGE que la canción coincida, así que
+  // el chequeo de "saltó a otra canción" de abajo nunca se cumplía: apenas el líder cambiaba de canción,
+  // isFollowingNow pasaba a falso de una (dejaban de coincidir) y el efecto entero se cortaba antes de
+  // llegar a onFollowItem — quien seguía se quedaba pegado en la canción vieja, tenía que deslizar él
+  // mismo para alcanzar al líder.
   useEffect(() => {
-    if (!isFollowingNow) return;
+    if (!otherLeaderFresh) return;
     const state = liveSync.state;
     if (state.songItemId !== liveSync.itemId) { liveSync.onFollowItem(state.songItemId); return; }
     setCurrentSectionIdx(state.sectionIdx || 0);
     indexRefs.current[state.sectionIdx || 0]?.scrollIntoView({ behavior: "smooth", block: "start" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFollowingNow, liveSync?.state?.sectionIdx, liveSync?.state?.songItemId]);
+  }, [otherLeaderFresh, liveSync?.state?.sectionIdx, liveSync?.state?.songItemId]);
 
   const goToSectionIdx = (i) => {
     const clamped = Math.max(0, Math.min(order.length - 1, i));
