@@ -2794,6 +2794,13 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
           {onNext && <ChevronRight size={14} />}
         </div>
       )}
+      {/* TEMPORAL — diagnóstico del bug "el seguidor no cambia de canción con el líder": se quita apenas
+          esté resuelto. Muestra en pantalla lo que este dispositivo tiene guardado de musico_en_vivo. */}
+      {isLive && (
+        <div style={{ marginTop: 16, padding: 8, background: "#F4F6FA", borderRadius: 8, fontSize: 9, color: "#8996A6", fontFamily: "monospace", wordBreak: "break-all" }}>
+          DEBUG rol={isLeaderMe ? "líder" : isFollowingNow ? "seguidor" : otherLeaderFresh ? "seguidor(canción distinta)" : "sin rol"} · miItem={liveSync?.itemId} · liderId={liveSync?.state?.liderId || "ninguno"} · liderCancion={liveSync?.state?.songItemId || "—"} · heartbeat={liveSync?.state?.heartbeat || "—"}
+        </div>
+      )}
     </div>
   );
 }
