@@ -2422,9 +2422,13 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
       : structureOverride && structureOverride.length > 0
         ? structureOverride
         : blockKeys;
-  // ---- Modo Músico: acordes + letra con auto-avance calculado por tempo (BPM) × compases de cada
-  // sección, con "tap tempo" para recalibrar en vivo, y control manual siempre disponible como
-  // override (tocar un pill, o ‹ ›, salta ahí de una vez y el auto-avance sigue desde ese punto). ----
+  // ---- Modo Músico. Dos formas muy distintas de funcionar:
+  // · Fuera de una transmisión en vivo (repaso/ensayo): sigue igual que siempre — auto-avance calculado
+  //   por tempo (BPM) × compases de cada sección, con "tap tempo", sincronizado por un canal ad-hoc
+  //   (song.id) entre quien tenga la MISMA canción abierta, sin un líder fijo.
+  // · EN VIVO: nada de compases ni BPM — el pedido fue explícito, la música real no siempre respeta el
+  //   tempo "de papel". El líder avanza a mano (‹›/pills) y cada movimiento se refleja al instante en
+  //   todos los demás dispositivos, como un espejo — ver más abajo. ----
   const [autoMode, setAutoMode] = useState(false);
   const [liveBpm, setLiveBpm] = useState(Number(song?.tempo) || 120);
   const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
@@ -2459,54 +2463,49 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   };
 
   // ---- En vivo: líder/seguidor por transmisión (ver tabla musico_en_vivo — src/lib/musicoLive.js —,
-  // DEVICE_ID/musicoState en el componente principal). El primero que toque "Modo Músico" sin que haya ya un líder activo se
-  // vuelve el líder — su BPM/sección/canción actual se escriben ahí y el resto los sigue. Si el líder se
+  // DEVICE_ID/musicoState en el componente principal). El primero que toque "Modo Músico" sin que haya
+  // ya un líder activo se vuelve el líder: nada de temporizador por BPM, solo "espejo" — cada vez que
+  // mueve la sección (‹›/pill) eso se escribe ahí y el resto lo refleja al instante. Si el líder se
   // queda callado más de MUSICO_LEADER_STALE_MS (cerró la app, se quedó sin señal), el siguiente que
   // toque "Modo Músico" toma el mando sin que nadie quede bloqueado a mitad de un culto. Un seguidor
   // puede seguir tocando los pills/‹› para mirar otra sección por su cuenta (no transmite nada) — en
-  // cuanto el líder avanza de nuevo, ese nuevo estado le llega y lo vuelve a traer.
+  // cuanto el líder mueve algo de nuevo, ese nuevo estado le llega y lo vuelve a traer.
   const isLive = !!liveSync?.active;
   const isLeaderMe = isLive && liveSync.state?.liderId === liveSync.deviceId;
   const otherLeaderFresh = isLive && isMusicoLeaderFresh(liveSync.state) && liveSync.state.liderId !== liveSync.deviceId;
   const isFollowingNow = otherLeaderFresh && liveSync.state.songItemId === liveSync.itemId;
 
-  // El líder que pasa a otra canción (‹ ›/swipe) hace que ESTE MISMO SongView se desmonte y vuelva a
-  // montar de cero (cambia el key en el sitio donde se usa <SongView>) — así que "autoMode" arranca en
-  // false de nuevo aunque siga siendo el líder y Modo Músico debería seguir prendido. Este efecto corre
-  // en cada canción nueva y, si YO sigo siendo el líder, restaura on/off + tempo desde lo que ya se
-  // había escrito para esta canción (goToItem ya puso sectionIdx en 0 antes de navegar). Sin esto, Modo
-  // Músico se apagaba solo cada vez que el líder cambiaba de canción.
+  // "Soy el líder" se deriva de musicoState (persiste solo), así que no hace falta restaurar nada al
+  // pasar de canción — pero SÍ hay que reflejar la sección donde arranca esta canción nueva (goToItem ya
+  // dejó sectionIdx en 0 en musico_en_vivo antes de navegar), para que el propio líder empiece igual que
+  // todos los demás.
   useEffect(() => {
     if (!isLeaderMe || !liveSync.state) return;
-    setAutoMode(!!liveSync.state.auto);
-    setLiveBpm(liveSync.state.bpm || Number(song?.tempo) || 120);
     setCurrentSectionIdx(liveSync.state.sectionIdx || 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveSync?.itemId]);
 
-  // Late para al líder: mientras Modo Músico esté prendido en este dispositivo Y sea el líder, avisa
-  // "sigo aquí" cada pocos segundos aunque no haya tocado nada — si no, un tramo largo sin cambiar de
-  // sección haría ver al líder como "caído" y otro dispositivo podría tomar el mando de encima.
+  // Late del líder: mientras este dispositivo sea el líder en vivo, avisa "sigo aquí" cada pocos
+  // segundos aunque no haya movido nada — si no, un tramo largo sin cambiar de sección haría ver al
+  // líder como "caído" y otro dispositivo podría tomarle el mando de encima.
   useEffect(() => {
-    if (!isLive || !isLeaderMe || !autoMode) return;
+    if (!isLive || !isLeaderMe) return;
     const id = setInterval(() => liveSync.onUpdate({ heartbeat: new Date().toISOString() }), 5000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLive, isLeaderMe, autoMode]);
+  }, [isLive, isLeaderMe]);
 
-  // Seguidor: refleja lo que transmite el líder apenas cambia (sección, tempo, on/off) — y si el líder
-  // saltó a OTRA canción, le pide al contenedor que navegue ahí (ver onFollowItem en el sitio donde se
-  // usa <SongView>, que resuelve el id de canción a partir del ítem del Setlist).
+  // Seguidor: refleja la sección del líder apenas cambia — y si saltó a OTRA canción, le pide al
+  // contenedor que navegue ahí (ver onFollowItem en el sitio donde se usa <SongView>, que resuelve el
+  // id de canción a partir del ítem del Setlist).
   useEffect(() => {
     if (!isFollowingNow) return;
     const state = liveSync.state;
     if (state.songItemId !== liveSync.itemId) { liveSync.onFollowItem(state.songItemId); return; }
-    setAutoMode(state.auto);
-    setLiveBpm(state.bpm || Number(song?.tempo) || 120);
     setCurrentSectionIdx(state.sectionIdx || 0);
     indexRefs.current[state.sectionIdx || 0]?.scrollIntoView({ behavior: "smooth", block: "start" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFollowingNow, liveSync?.state?.sectionIdx, liveSync?.state?.bpm, liveSync?.state?.auto, liveSync?.state?.songItemId]);
+  }, [isFollowingNow, liveSync?.state?.sectionIdx, liveSync?.state?.songItemId]);
 
   const goToSectionIdx = (i) => {
     const clamped = Math.max(0, Math.min(order.length - 1, i));
@@ -2521,26 +2520,24 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
       // Hay un líder activo, pero en OTRA canción (no la que tengo abierta ahora): unirme como seguidor
       // y saltar a la suya — si no, "isLeaderMe" seguiría en falso y este botón terminaría robándole el
       // mando a quien ya está liderando, solo por estar viendo una canción distinta en ese momento.
-      setAutoMode(liveSync.state.auto);
-      setLiveBpm(liveSync.state.bpm || liveBpm);
       setCurrentSectionIdx(liveSync.state.sectionIdx || 0);
       liveSync.onFollowItem(liveSync.state.songItemId);
       return;
     }
     if (isLive && !isLeaderMe) {
-      // Nadie es líder ahora mismo (o quedó viejo/caído): este dispositivo toma el mando.
-      const next = true;
-      setAutoMode(next);
-      liveSync.onUpdate({ liderId: liveSync.deviceId, songItemId: liveSync.itemId, sectionIdx: currentSectionIdx, bpm: liveBpm, auto: next, heartbeat: new Date().toISOString() });
+      // Nadie es líder ahora mismo (o quedó viejo/caído): este dispositivo toma el mando. Sin BPM/auto:
+      // en vivo el avance es 100% manual, "espejo" de lo que el líder toque.
+      liveSync.onUpdate({ liderId: liveSync.deviceId, songItemId: liveSync.itemId, sectionIdx: currentSectionIdx, heartbeat: new Date().toISOString() });
       return;
     }
+    if (isLeaderMe) return; // ya soy el líder — no hay on/off que alternar, solo se avanza con ‹›/pills
+    // Fuera de vivo: comportamiento clásico (auto-avance por BPM/compases).
     const next = !autoMode;
     setAutoMode(next);
-    if (isLeaderMe) liveSync.onUpdate({ auto: next, heartbeat: new Date().toISOString() });
-    else broadcastMusico({ autoMode: next });
+    broadcastMusico({ autoMode: next });
   };
   const handleTap = () => {
-    if (isFollowingNow) return;
+    if (isLive) return; // TAP tempo ya no aplica en vivo — ahí todo es manual/espejo, sin BPM
     const now = Date.now();
     const recent = tapTimesRef.current.filter((t) => now - t < 3000).concat(now).slice(-8);
     tapTimesRef.current = recent;
@@ -2549,29 +2546,23 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
       const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
       const bpm = Math.round(60000 / avgMs);
       setLiveBpm(bpm);
-      if (isLeaderMe) liveSync.onUpdate({ bpm, heartbeat: new Date().toISOString() });
-      else broadcastMusico({ liveBpm: bpm });
+      broadcastMusico({ liveBpm: bpm });
     }
   };
   useEffect(() => {
-    if (!autoMode || !song || isFollowingNow) return; // seguidor: el avance lo hace el reloj del líder, no el propio
+    if (!autoMode || !song || isLive) return; // en vivo no hay avance por tiempo — todo es manual (líder) o reflejo (seguidor)
     const key = order[currentSectionIdx];
     const block = song.blocks[key];
     if (!block) return;
     const beatsPerBar = 4;
     const durationMs = Math.max(1500, ((block.bars || 8) * beatsPerBar / liveBpm) * 60000);
     const timer = setTimeout(() => {
-      if (currentSectionIdx >= order.length - 1) {
-        setAutoMode(false);
-        if (isLeaderMe) liveSync.onUpdate({ auto: false, heartbeat: new Date().toISOString() });
-        else broadcastMusico({ autoMode: false });
-        return; // se acabó la canción
-      }
+      if (currentSectionIdx >= order.length - 1) { setAutoMode(false); broadcastMusico({ autoMode: false }); return; } // se acabó la canción
       goToSectionIdx(currentSectionIdx + 1);
     }, durationMs);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoMode, currentSectionIdx, liveBpm, order, song, isFollowingNow, isLeaderMe]);
+  }, [autoMode, currentSectionIdx, liveBpm, order, song, isLive]);
   if (!song) return null;
   const scrollTo = (key) => sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
   const isMinorKey = song.key.endsWith("m");
@@ -2669,12 +2660,18 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
         {positionLabel && <span style={{ marginLeft: 8, fontWeight: 700, color: "#E8821E" }}>· {positionLabel} en el setlist</span>}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, background: autoMode ? "#FFF4E8" : "#F4F6FA", border: `1px solid ${autoMode ? "#E8821E" : "#DDE3ED"}`, borderRadius: 12, padding: "8px 10px", marginBottom: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, background: (autoMode || isLeaderMe) ? "#FFF4E8" : "#F4F6FA", border: `1px solid ${(autoMode || isLeaderMe) ? "#E8821E" : "#DDE3ED"}`, borderRadius: 12, padding: "8px 10px", marginBottom: 16, flexWrap: "wrap" }}>
         {isFollowingNow ? (
-          // Seguidor: el on/off y el tempo los decide el líder — acá solo se avisa que se está
-          // siguiendo, en vez de un botón que de todos modos no haría nada.
+          // Seguidor: la sección la decide el líder — acá solo se avisa que se está siguiendo, en vez de
+          // un botón que de todos modos no haría nada.
           <span style={{ display: "flex", alignItems: "center", gap: 6, background: "#E8821E", color: "#16233A", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>
             <Radio size={13} /> Siguiendo al líder
+          </span>
+        ) : isLeaderMe ? (
+          // Líder en vivo: no hay on/off que alternar — se avanza a mano con ‹›/pills, cada toque se
+          // refleja al instante en todos los seguidores (espejo, sin BPM/compases de por medio).
+          <span style={{ display: "flex", alignItems: "center", gap: 6, background: "#E8821E", color: "#16233A", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>
+            <Radio size={13} /> Eres el líder
           </span>
         ) : (
           <button onClick={toggleAutoMode} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: autoMode ? "#E8821E" : "#FFFFFF", color: autoMode ? "#16233A" : "#16233A", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
@@ -2683,10 +2680,14 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
         )}
         <button onClick={() => goToSectionIdx(currentSectionIdx - 1)} disabled={currentSectionIdx === 0} style={{ ...iconGhost, opacity: currentSectionIdx === 0 ? 0.4 : 1 }}><ChevronLeft size={16} /></button>
         <button onClick={() => goToSectionIdx(currentSectionIdx + 1)} disabled={currentSectionIdx >= order.length - 1} style={{ ...iconGhost, opacity: currentSectionIdx >= order.length - 1 ? 0.4 : 1 }}><ChevronRight size={16} /></button>
-        {!isFollowingNow && (
-          <button onClick={handleTap} className="hoverable" style={{ background: "#FFFFFF", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, color: "#16233A", cursor: "pointer" }}>TAP</button>
+        {/* TAP tempo y el bpm ya no aplican en vivo — ahí no hay compases/BPM, solo el líder avanzando a
+            mano y todos reflejándolo. */}
+        {!isLive && (
+          <>
+            <button onClick={handleTap} className="hoverable" style={{ background: "#FFFFFF", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, color: "#16233A", cursor: "pointer" }}>TAP</button>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#64707F" }}>{liveBpm} bpm</span>
+          </>
         )}
-        <span style={{ fontSize: 12, fontWeight: 700, color: "#64707F" }}>{liveBpm} bpm</span>
 
         <div style={{ display: "flex", alignItems: "center", gap: 2, background: "#FFFFFF", border: "1px solid #C7D0DD", borderRadius: 8, padding: "3px 4px", marginLeft: "auto" }} title="Sube o baja medio tono a la vez, como mover un capo — no cambia la tonalidad guardada de la canción, solo cómo la ves en este dispositivo.">
           <button onClick={() => setCapoSemitones((s) => s - 1)} className="hoverable" style={{ ...iconGhost, width: 22, height: 22 }}><Minus size={12} /></button>
