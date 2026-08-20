@@ -2382,10 +2382,25 @@ function SlideMiniPreview({ lines }) {
 }
 
 function badgeColor(badge) {
-  if (/^c/i.test(badge)) return "#D98A54"; // Coro: durazno
-  if (/^p/i.test(badge)) return "#B15EA0"; // Puente: orquídea
-  return "#2E86AB"; // Estrofas: celeste
+  const b = (badge || "").toUpperCase();
+  if (b.startsWith("IN")) return "#1F8A73"; // Intro/Instrumental (ambas sin letra): teal
+  if (b.startsWith("C")) return "#D98A54"; // Coro: durazno
+  if (b.startsWith("P")) return "#B15EA0"; // Puente: orquídea
+  if (b.startsWith("O") || b.startsWith("F")) return "#5661B3"; // Outro/Final (ambas de cierre): índigo
+  return "#2E86AB"; // Estrofas y cualquier otro badge personalizado: celeste
 }
+// Catálogo de tipos de sección para "Añadir secciones" (estilo OnStage) — cada tipo puede repetirse
+// (Estrofa 1, Estrofa 2...); el prefijo arma el badge numerado (V1, C2...). El color sale de
+// badgeColor() con el prefijo, así el catálogo y las tarjetas ya agregadas siempre coinciden.
+const SECTION_TYPES = [
+  { id: "estrofa", label: "Estrofa", prefix: "V" },
+  { id: "coro", label: "Coro", prefix: "C" },
+  { id: "puente", label: "Puente", prefix: "P" },
+  { id: "intro", label: "Intro", prefix: "IN" },
+  { id: "outro", label: "Outro", prefix: "O" },
+  { id: "final", label: "Final", prefix: "F" },
+  { id: "instrumental", label: "Instrumental", prefix: "INS" },
+];
 
 function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext, positionLabel, enterDirection, structureOverride, liveSync }) {
   const sectionRefs = useRef({});
@@ -2756,6 +2771,74 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   );
 }
 
+// Catálogo estilo OnStage para agregar varias secciones de una — la lista de tipos (Estrofa, Coro...)
+// se muestra sin numerar hasta que se marca la primera; a partir de ahí cada tipo va "creciendo" de a
+// una repetición por vez (marcar Estrofa 1 revela Estrofa 2, marcar esa revela Estrofa 3...), en vez de
+// mostrar de entrada un número fijo de repeticiones que probablemente no coincida con la canción real.
+function AddSectionsModal({ onClose, onAdd }) {
+  const [query, setQuery] = useState("");
+  const [checkedCounts, setCheckedCounts] = useState({}); // { [typeId]: cuántas repeticiones están marcadas }
+  const toggleInstance = (typeId, n) => {
+    setCheckedCounts((c) => {
+      const current = c[typeId] || 0;
+      // Tocar una ya marcada (o cualquiera antes de ella) la desmarca A ELLA Y a las que venían
+      // después — no tendría sentido dejar "Estrofa 3" marcada sin la "Estrofa 2".
+      const next = n <= current ? n - 1 : n;
+      return { ...c, [typeId]: Math.max(0, next) };
+    });
+  };
+  const filteredTypes = SECTION_TYPES.filter((t) => t.label.toLowerCase().includes(query.toLowerCase()));
+  const totalChecked = Object.values(checkedCounts).reduce((a, b) => a + b, 0);
+  const confirm = () => {
+    const toAdd = [];
+    SECTION_TYPES.forEach((t) => {
+      const count = checkedCounts[t.id] || 0;
+      for (let n = 1; n <= count; n++) toAdd.push({ badge: `${t.prefix}${n}`, label: `${t.label} ${n}` });
+    });
+    if (toAdd.length === 0) return;
+    onAdd(toAdd);
+    onClose();
+  };
+  return (
+    <ModalShell title="Añadir nuevas secciones" icon={ListMusic} color="#2F5FA8" onClose={onClose}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 8, padding: "7px 10px", marginBottom: 10 }}>
+        <Search size={13} color="#8996A6" />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar una nueva sección" style={{ background: "transparent", border: "none", outline: "none", color: "#16233A", fontSize: 12, width: "100%" }} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "50vh", overflowY: "auto", marginBottom: 12 }}>
+        {filteredTypes.map((t) => {
+          const count = checkedCounts[t.id] || 0;
+          const color = badgeColor(t.prefix);
+          const revealed = Math.min(count + 1, 12); // tope generoso — ninguna canción real necesita más
+          return Array.from({ length: revealed }, (_, i) => {
+            const n = i + 1;
+            const isChecked = n <= count;
+            const showNumber = revealed > 1; // con una sola instancia a la vista, se ve "Estrofa" pelado
+            return (
+              <button
+                key={`${t.id}-${n}`}
+                onClick={() => toggleInstance(t.id, n)}
+                className="hoverable"
+                style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: isChecked ? `${color}18` : "#FFFFFF", border: isChecked ? `1.5px solid ${color}` : "1px solid #DDE3ED", borderRadius: 10, padding: "10px 12px", cursor: "pointer" }}
+              >
+                <span style={{ width: 26, height: 26, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {showNumber ? `${t.prefix}${n}` : t.prefix}
+                </span>
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#16233A" }}>{showNumber ? `${t.label} ${n}` : t.label}</span>
+                {isChecked ? <Check size={16} color={color} /> : <span style={{ width: 16, height: 16, borderRadius: "50%", border: "1.5px solid #C7D0DD" }} />}
+              </button>
+            );
+          });
+        })}
+        {filteredTypes.length === 0 && <div style={{ color: "#8996A6", fontSize: 12, textAlign: "center", padding: "16px 0" }}>No hay secciones que coincidan.</div>}
+      </div>
+      <button onClick={confirm} disabled={totalChecked === 0} style={{ ...primaryBtn, opacity: totalChecked === 0 ? 0.4 : 1, cursor: totalChecked === 0 ? "not-allowed" : "pointer" }}>
+        Agregar{totalChecked > 0 ? ` (${totalChecked})` : ""}
+      </button>
+    </ModalShell>
+  );
+}
+
 function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draftGetterRef }) {
   const canEditKey = isAdminViewer || !song;
   const initialSnapshotRef = useRef(song ? JSON.stringify(song) : JSON.stringify(blankSong()));
@@ -2763,6 +2846,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
   const [subTab, setSubTab] = useState("detalles"); // detalles | contenido | letra | estructura
   const [activeBlockKey, setActiveBlockKey] = useState(null);
   const [chordMode, setChordMode] = useState("triadas"); // triadas | septimas
+  const [showAddSections, setShowAddSections] = useState(false);
   const textareaRefs = useRef({});
 
   // Avisa al contenedor si hay cambios sin guardar (para el guard de "atrás" con confirmación) y le
@@ -2809,14 +2893,19 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
     return { ...d, letra: { ...d.letra, [key]: chunks.length ? chunks : [[""]] } };
   });
 
-  const addBlock = () => {
-    const n = blockKeys.length + 1;
-    const key = `b${Date.now()}`;
-    setDraft((d) => ({
-      ...d,
-      blocks: { ...d.blocks, [key]: { badge: `V${n}`, label: `Estrofa ${n}`, bars: 8, lines: [""] } },
-      letra: { ...d.letra, [key]: [[""]] },
-    }));
+  // Agrega varias secciones de una (ver AddSectionsModal) — cada una con su propio key único aunque
+  // se hayan creado en el mismo tick (Date.now() solo no alcanza para eso).
+  const addSections = (list) => {
+    setDraft((d) => {
+      const blocks = { ...d.blocks };
+      const letra = { ...d.letra };
+      list.forEach((s, i) => {
+        const key = `b${Date.now()}_${i}`;
+        blocks[key] = { badge: s.badge, label: s.label, bars: 8, lines: [""] };
+        letra[key] = [[""]];
+      });
+      return { ...d, blocks, letra };
+    });
   };
   const removeBlock = (key) => setDraft((d) => {
     const blocks = { ...d.blocks }; delete blocks[key];
@@ -2910,6 +2999,13 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
             <div style={{ fontSize: 12, color: "#8996A6", marginBottom: 14 }}>Elige una tonalidad en "Detalles" para ver aquí los acordes que puedes usar.</div>
           )}
 
+          {blockKeys.length === 0 && (
+            <div style={{ textAlign: "center", color: "#8996A6", fontSize: 13, padding: "40px 0" }}>
+              No se añadieron secciones,{" "}
+              <button onClick={() => setShowAddSections(true)} style={{ background: "none", border: "none", color: "#2F5FA8", fontWeight: 700, cursor: "pointer", padding: 0, fontSize: 13 }}>añadir secciones</button>
+            </div>
+          )}
+
           {blockKeys.map((key) => (
             <div key={key} style={{ background: "#FFFFFF", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 10, padding: 14, marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -2934,7 +3030,9 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
               </div>
             </div>
           ))}
-          <button onClick={addBlock} className="hoverable" style={addBtnStyle}><Plus size={14} /> Agregar sección</button>
+          {blockKeys.length > 0 && (
+            <button onClick={() => setShowAddSections(true)} className="hoverable" style={addBtnStyle}><Plus size={14} /> Agregar secciones</button>
+          )}
         </div>
       )}
 
@@ -3047,6 +3145,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
           </div>
         </div>
       )}
+      {showAddSections && <AddSectionsModal onClose={() => setShowAddSections(false)} onAdd={addSections} />}
     </div>
   );
 }
