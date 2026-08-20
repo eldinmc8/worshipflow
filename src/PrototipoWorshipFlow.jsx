@@ -856,9 +856,9 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     });
   };
   const saveSong = (draft) => {
-    persistSongDraft(draft)
+    return persistSongDraft(draft)
       .then((idReal) => setOpenSong({ id: idReal, mode: "view" }))
-      .catch((e) => window.alert("No se pudo guardar la canción: " + e.message));
+      .catch((e) => { window.alert("No se pudo guardar la canción: " + e.message); throw e; });
   };
   const deleteSong = (song) => {
     if (!window.confirm(`¿Eliminar "${song.title}"? Esto no se puede deshacer.`)) return;
@@ -2312,16 +2312,26 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
 // ---------------- CANCIONES: LISTA ----------------
 function CancionesList({ library, isAdminViewer, onToggleFavorite, onOpen, onNew, onDelete }) {
   const [query, setQuery] = useState("");
-  const filtered = library.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
+  // "todos" + las 4 clasificaciones reales de SONG_CATEGORIES — así si el día de mañana se agrega una
+  // clasificación nueva ahí, aparece sola acá también, sin tener que acordarse de tocar dos lugares.
+  const [categoryFilter, setCategoryFilter] = useState("todos");
+  const filtered = library
+    .filter((s) => categoryFilter === "todos" || s.category === categoryFilter)
+    .filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
   return (
     <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>{library.length} Canciones</h2>
         {isAdminViewer && <button onClick={onNew} style={{ ...iconGhost, width: 30, height: 30, background: "#EEF1F6", border: "1px solid #C7D0DD" }}><Plus size={16} /></button>}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
         <Search size={15} color="#8996A6" />
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por título o letra" style={{ background: "transparent", border: "none", outline: "none", color: "#16233A", fontSize: 13, width: "100%" }} />
+      </div>
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 12 }}>
+        {[["todos", "Todos"], ...Object.entries(SONG_CATEGORIES).map(([key, c]) => [key, c.label])].map(([key, label]) => (
+          <button key={key} onClick={() => setCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 20, border: categoryFilter === key ? "2px solid #E8821E" : "1px solid #C7D0DD", background: categoryFilter === key ? "#FFF4E8" : "#FFFFFF", color: "#16233A", cursor: "pointer" }}>{label}</button>
+        ))}
       </div>
       {filtered.map((s) => (
         <div key={s.id} onClick={() => onOpen(s.id)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, background: "#FFFFFF", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 10, padding: "14px 16px", marginBottom: 8, cursor: "pointer" }}>
@@ -2823,13 +2833,19 @@ function AddSectionsModal({ onClose, onAdd }) {
   };
   const filteredTypes = SECTION_TYPES.filter((t) => t.label.toLowerCase().includes(query.toLowerCase()));
   const totalChecked = Object.values(checkedCounts).reduce((a, b) => a + b, 0);
+  // Ref (no state) para bloquear un doble-toque en el mismo instante — el modal se cierra apenas se
+  // confirma, pero en un celular con la pantalla algo lenta dos toques rápidos podían caer ANTES de
+  // que React llegue a desmontarlo, agregando las mismas secciones dos (o más) veces.
+  const submittedRef = useRef(false);
   const confirm = () => {
+    if (submittedRef.current) return;
     const toAdd = [];
     SECTION_TYPES.forEach((t) => {
       const count = checkedCounts[t.id] || 0;
       for (let n = 1; n <= count; n++) toAdd.push({ badge: `${t.prefix}${n}`, label: `${t.label} ${n}` });
     });
     if (toAdd.length === 0) return;
+    submittedRef.current = true;
     onAdd(toAdd);
     onClose();
   };
@@ -2974,6 +2990,17 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
   const addEntry = (key) => setEntries([...entries, { key, count: 1 }]);
 
   const canSave = draft.title.trim() && draft.key.trim() && draft.artist.trim();
+  // Guarda contra tocar "Guardar" varias veces seguidas (típico en celular, cuando no queda claro al
+  // toque si ya registró) — para una canción NUEVA, cada tap disparaba su propio insert antes de que el
+  // primero terminara y la pantalla navegara afuera, dejando la misma canción duplicada/triplicada.
+  const [isSaving, setIsSaving] = useState(false);
+  const handleSaveClick = () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    // onSave ya avisa con una alerta si falla (ver saveSong) — acá solo importa reactivar el botón,
+    // así que el rechazo se descarta a propósito en vez de dejarlo como "unhandled rejection".
+    Promise.resolve(onSave(draft)).catch(() => {}).finally(() => setIsSaving(false));
+  };
 
   return (
     <div style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
@@ -2985,7 +3012,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
             <button onClick={onCancel} style={iconGhost}><ArrowLeft size={16} /></button>
             <span style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600 }}>{song ? "Editar canción" : "Nueva canción"}</span>
           </div>
-          <button disabled={!canSave} onClick={() => onSave(draft)} style={{ ...primaryBtn, width: "auto", padding: "8px 18px", opacity: canSave ? 1 : 0.4, cursor: canSave ? "pointer" : "not-allowed" }}>Guardar</button>
+          <button disabled={!canSave || isSaving} onClick={handleSaveClick} style={{ ...primaryBtn, width: "auto", padding: "8px 18px", opacity: canSave && !isSaving ? 1 : 0.4, cursor: canSave && !isSaving ? "pointer" : "not-allowed" }}>{isSaving ? "Guardando…" : "Guardar"}</button>
         </div>
 
         <div style={{ display: "flex", gap: 18, borderBottom: "1px solid #DDE3ED", marginTop: 14 }}>
@@ -3821,6 +3848,18 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
   const [editingSetlist, setEditingSetlist] = useState(false);
   const canEditNow = isAdminViewer && editingSetlist;
   const canEditItem = () => canEditNow;
+  // La fila de una canción en el buscador se queda ahí, tocable de nuevo, después de agregarla (no
+  // desaparece ni se deshabilita) — sin este freno, un doble toque rápido (dedo apurado, sin feedback
+  // inmediato de que ya se agregó) la duplicaba o triplicaba en el Setlist. Medio segundo alcanza para
+  // frenar un toque accidental sin bloquear a alguien que de verdad quiera repetir la misma canción más
+  // adelante en el Setlist (ej. un coro que se canta dos veces).
+  const lastAddSongRef = useRef({ id: null, at: 0 });
+  const handleAddSong = (songId) => {
+    const now = Date.now();
+    if (lastAddSongRef.current.id === songId && now - lastAddSongRef.current.at < 600) return;
+    lastAddSongRef.current = { id: songId, at: now };
+    onAddSong(songId);
+  };
   const [query, setQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({});
   const [showLibrary, setShowLibrary] = useState(!isCompact);
@@ -3905,7 +3944,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "#16233A", fontSize: 12, width: "100%" }} />
           </div>
           {filtered.map((s) => (
-            <button key={s.id} onClick={() => onAddSong(s.id)} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 6, borderRadius: 8, background: "transparent", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <button key={s.id} onClick={() => handleAddSong(s.id)} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 6, borderRadius: 8, background: "transparent", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{s.key} · {s.tempo} bpm</div></div>
               <Plus size={15} color="#E8821E" />
             </button>
