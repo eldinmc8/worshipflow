@@ -2609,11 +2609,14 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   // Pointer Events (no Touch Events): unifica mouse/touch/lápiz y es más confiable en apps instaladas.
   // setPointerCapture fuerza a que este mismo elemento reciba todo el gesto pase lo que pase con el
   // dedo entre medio (scroll, salirse del borde) — sin esto, en algunos navegadores el "up" se pierde.
+  // OJO: se pide recién cuando el arrastre horizontal ya se confirmó (abajo en onPointerMove), NO en
+  // cada pointerdown — pedirla de una, en CUALQUIER toque (aunque nunca se convierta en arrastre), le
+  // robaba el clic a cualquier botón de adentro (empezando por "Modo Músico": el toque quedaba
+  // capturado por este contenedor y el evento de click nunca le llegaba al botón).
   const swipeHandlers = canSwipe ? {
     onPointerDown: (e) => {
       pointerStartRef.current = { x: e.clientX, y: e.clientY };
       draggingRef.current = false;
-      e.currentTarget.setPointerCapture?.(e.pointerId);
     },
     onPointerMove: (e) => {
       const start = pointerStartRef.current;
@@ -2625,6 +2628,7 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
         if (Math.abs(dy) > Math.abs(dx)) { pointerStartRef.current = null; return; } // es scroll vertical
         draggingRef.current = true;
         setPhase("dragging");
+        e.currentTarget.setPointerCapture?.(e.pointerId);
       }
       // Resistencia (se mueve, pero poco) si se arrastra hacia un lado sin canción a la que ir.
       const resisted = (dx < 0 && !onNext) || (dx > 0 && !onPrev) ? dx * 0.25 : dx;
