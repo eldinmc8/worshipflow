@@ -25,11 +25,17 @@ export default defineConfig({
         description: 'Presentación y gestión para tu iglesia',
         lang: 'es',
         start_url: '/',
-        // 'fullscreen' (no 'standalone'): que se quede fija en pantalla completa siempre al abrirla
-        // instalada, sin ninguna barra del sistema — igual en Android y en iPhone (que además necesita
-        // sus propias etiquetas <meta apple-mobile-web-app-*> en index.html, ya que ignora este manifest).
-        display: 'fullscreen',
-        display_override: ['fullscreen', 'standalone'],
+        // 'standalone' (no 'fullscreen'): en iOS 16.4+ Safari SÍ respeta "fullscreen" del manifest, y ahí
+        // esconde la barra de estado por completo pintando esa franja él mismo, fuera del viewport de la
+        // página — un negro sólido que ningún CSS nuestro (ni env(safe-area-inset-top)) puede alcanzar,
+        // porque no es parte del contenido, es chrome del sistema. "standalone" + el meta
+        // apple-mobile-web-app-status-bar-style=black-translucent de abajo es el combo real y bien
+        // soportado: la barra de estado queda transparente, nuestro propio header pinta detrás de ella
+        // (ver el padding con env(safe-area-inset-top) en PrototipoWorshipFlow.jsx), y así si se puede
+        // controlar de verdad. display_override manda primero que "display" en los navegadores que lo
+        // soportan (Safari incluido), por eso también hay que reordenarlo aquí y no solo arriba.
+        display: 'standalone',
+        display_override: ['standalone', 'fullscreen'],
         background_color: '#F4F6FA',
         theme_color: '#16324F',
         icons: [

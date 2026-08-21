@@ -2388,9 +2388,16 @@ function ChordsAboveLyrics({ raw, semitones = 0 }) {
   const { plain, positions } = parseChordLine(transposeLine(raw, semitones));
   const chordRow = buildChordRow(positions);
   return (
-    <div style={{ fontFamily: "'JetBrains Mono', monospace", whiteSpace: "pre", fontSize: 13, marginBottom: 10 }}>
-      <div style={{ color: "#1F8A73", fontWeight: 700, minHeight: "1.3em" }}>{chordRow || "\u00A0"}</div>
-      <div style={{ color: "#16233A" }}>{plain || "\u00A0"}</div>
+    // whiteSpace: "pre" es necesario para que el acorde quede alineado justo arriba de la letra
+    // correspondiente (por car\u00E1cter) \u2014 pero eso significa que la l\u00EDnea NUNCA se ajusta de ancho, as\u00ED
+    // que en un celular una l\u00EDnea larga se sal\u00EDa del cuadro y quedaba cortada/invisible sin forma de
+    // verla completa. overflowX aqu\u00ED (no en el contenedor padre) deja que cada l\u00EDnea se pueda
+    // deslizar horizontalmente por su cuenta sin romper esa alineaci\u00F3n ni afectar el resto de la p\u00E1gina.
+    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", marginBottom: 10 }}>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", whiteSpace: "pre", fontSize: 13, width: "max-content", minWidth: "100%" }}>
+        <div style={{ color: "#1F8A73", fontWeight: 700, minHeight: "1.3em" }}>{chordRow || "\u00A0"}</div>
+        <div style={{ color: "#16233A" }}>{plain || "\u00A0"}</div>
+      </div>
     </div>
   );
 }
@@ -5100,6 +5107,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
                       <button onClick={() => gotoPlanSlide(slides.findIndex((x) => x.slideId === s.slideId))} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#16233A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {s.title || "(sin título)"}
                       </button>
+                      <button onClick={() => startEditingSlide(s)} title="Editar esta diapositiva (corregir texto)" style={{ ...iconGhost, color: "#2F5FA8", flexShrink: 0 }}><Pencil size={13} /></button>
                       <button onClick={() => onRemoveLiveSlide(s.slideId)} title="Borrar esta diapositiva" style={{ ...iconGhost, color: "#C23B32", flexShrink: 0 }}><X size={13} /></button>
                     </div>
                   );
