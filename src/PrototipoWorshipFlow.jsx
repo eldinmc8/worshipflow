@@ -2384,20 +2384,32 @@ function buildChordRow(positions) {
   });
   return row;
 }
+// Antes esto armaba UNA sola l\u00EDnea monoespaciada por rengl\u00F3n (acordes arriba, letra abajo, alineados
+// por car\u00E1cter con espacios de relleno) \u2014 perfecto para alinear, pero una l\u00EDnea larga nunca se
+// achicaba: en el celular se sal\u00EDa del cuadro y quedaba cortada. Tocando en vivo (guitarra/bajo/piano)
+// nadie puede estar arrastrando el dedo para ver el resto de cada l\u00EDnea. La soluci\u00F3n real es la que
+// usan las apps de acordes (OnSong, Ultimate Guitar): partir la l\u00EDnea en PALABRAS, cada una con su
+// propio acorde encima como una unidad chica independiente, y dejar que esas unidades se acomoden en
+// varios renglones (flexWrap) seg\u00FAn el ancho real de la pantalla \u2014 el acorde nunca se separa de su
+// palabra aunque el conjunto salte de l\u00EDnea, y no hace falta deslizar nada.
 function ChordsAboveLyrics({ raw, semitones = 0 }) {
-  const { plain, positions } = parseChordLine(transposeLine(raw, semitones));
-  const chordRow = buildChordRow(positions);
+  const transposed = transposeLine(raw, semitones);
+  const tokens = transposed.split(/(\s+)/).filter((t) => t !== "" && !/^\s+$/.test(t));
+  if (tokens.length === 0) {
+    return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, marginBottom: 10, minHeight: "2.6em" }}>&nbsp;</div>;
+  }
   return (
-    // whiteSpace: "pre" es necesario para que el acorde quede alineado justo arriba de la letra
-    // correspondiente (por car\u00E1cter) \u2014 pero eso significa que la l\u00EDnea NUNCA se ajusta de ancho, as\u00ED
-    // que en un celular una l\u00EDnea larga se sal\u00EDa del cuadro y quedaba cortada/invisible sin forma de
-    // verla completa. overflowX aqu\u00ED (no en el contenedor padre) deja que cada l\u00EDnea se pueda
-    // deslizar horizontalmente por su cuenta sin romper esa alineaci\u00F3n ni afectar el resto de la p\u00E1gina.
-    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", marginBottom: 10 }}>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", whiteSpace: "pre", fontSize: 13, width: "max-content", minWidth: "100%" }}>
-        <div style={{ color: "#1F8A73", fontWeight: 700, minHeight: "1.3em" }}>{chordRow || "\u00A0"}</div>
-        <div style={{ color: "#16233A" }}>{plain || "\u00A0"}</div>
-      </div>
+    <div style={{ display: "flex", flexWrap: "wrap", rowGap: 6, marginBottom: 10 }}>
+      {tokens.map((token, i) => {
+        const { plain, positions } = parseChordLine(token);
+        const chordRow = buildChordRow(positions);
+        return (
+          <span key={i} style={{ display: "inline-flex", flexDirection: "column", marginRight: "0.5em", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "pre", fontSize: 13 }}>
+            <span style={{ color: "#1F8A73", fontWeight: 700, minHeight: "1.3em" }}>{chordRow || "\u00A0"}</span>
+            <span style={{ color: "#16233A" }}>{plain || "\u00A0"}</span>
+          </span>
+        );
+      })}
     </div>
   );
 }
