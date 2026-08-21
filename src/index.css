@@ -13,9 +13,14 @@ body {
   /* Quita el resplandor azul/gris que Chrome/Android muestra al tocar botones y enlaces. */
   -webkit-tap-highlight-color: transparent;
   /* Con viewport-fit=cover (necesario para que la app instalada en iPhone use la pantalla completa de
-     borde a borde, notch incluido) el contenido puede quedar debajo de la muesca o la barra de gestos
-     si no se respeta el área segura del dispositivo. */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+     borde a borde, notch incluido) SOLO se respeta el área segura izquierda/derecha acá — arriba/abajo
+     se dejaban antes como padding del body, pero eso deja un borde SIN PINTAR (el body no tiene fondo
+     propio) justo detrás del notch/la barra de gestos: en iPhone con modo oscuro del sistema, ese borde
+     se ve negro sólido en vez de fundirse con la app. Ahora el header/nav de abajo extienden ELLOS
+     MISMOS su propio color hasta el borde real de la pantalla (ver PrototipoWorshipFlow.jsx), así ese
+     espacio siempre queda pintado con el color correcto en vez de heredar el negro por defecto del SO. */
+  padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
+  background: #F4F6FA;
   box-sizing: border-box;
   min-height: 100vh;
 }

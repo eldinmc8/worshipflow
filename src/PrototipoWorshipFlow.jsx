@@ -1300,7 +1300,11 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       )}
 
       {/* Header: borde inferior curvo, sin pestañas — la navegación vive abajo, flotante */}
-      <div style={{ background: "#16324F", padding: "16px 20px 26px", borderRadius: "0 0 28px 28px", position: "relative", overflow: "hidden" }}>
+      {/* paddingTop extendido con el área segura de arriba: el body ya no reserva ese espacio (ver
+          index.css) — así el navy del header llega hasta el borde físico de la pantalla, detrás del
+          notch/la muesca, en vez de dejar una franja sin pintar ahí (que en modo oscuro de iOS se veía
+          negra en vez de fundirse con la app). */}
+      <div style={{ background: "#16324F", padding: "calc(16px + env(safe-area-inset-top)) 20px 26px", borderRadius: "0 0 28px 28px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(232,130,30,0.15)" }} />
         <div style={{ position: "absolute", bottom: -40, left: 40, width: 90, height: 90, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
@@ -1558,7 +1562,11 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           barra de acordes del editor de canciones) puede apoyarse en el alto REAL de esta nav en vez de
           un número fijo adivinado, que en un celular con gesture bar dejaba la barra de acordes tapada
           detrás de la nav (o directamente fuera de la pantalla) en vez de arriba de ella. */}
-      <div ref={bottomNavRef} style={{ flexShrink: 0, display: "flex", justifyContent: "center", padding: "10px 0 14px", zIndex: 40 }}>
+      {/* paddingBottom extendido con el área segura de abajo, mismo motivo que el header: el body ya no
+          la reserva, así que esta franja (detrás de la barra de gestos del iPhone) queda pintada con el
+          fondo claro de la app en vez de negro por defecto — y de paso la nav flotante queda de verdad
+          fija arriba de esa barra, no flotando "a medias" sobre ella. */}
+      <div ref={bottomNavRef} style={{ flexShrink: 0, display: "flex", justifyContent: "center", padding: "10px 0 calc(14px + env(safe-area-inset-bottom))", zIndex: 40 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 2, background: "#16324F", borderRadius: 24, padding: 6, boxShadow: "0 8px 24px rgba(22,50,79,0.35)", maxWidth: "94vw", overflowX: "auto" }}>
           {[["inicio", "Inicio", Home], ["canciones", "Canciones", Music], ["eventos", "Eventos", Calendar], ["ministerios", "Grupos", LayoutGrid], ["envivo", "En vivo", Radio], ["proyeccion", "Pantalla", ImgIcon], ["ajustes", "Ajustes", Settings]]
             .filter(([val]) => !isCompact || (val !== "envivo" && val !== "proyeccion")) // Control en vivo/Proyección son de escritorio: en celular no aparecen
@@ -5009,11 +5017,15 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
                     <span style={{ position: "absolute", top: 4, left: 6, fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.45)" }}>{i + 1}</span>
                     <span style={{ fontSize: 9, lineHeight: 1.35, textAlign: "center", color: "#fff", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{preview}</span>
                     {isEditable && (
+                      // Antes 10px de ícono en 3px de relleno — un blanco casi imposible de acertar en un
+                      // celular real, sobre todo con una miniatura tan chica; de ahí que pareciera que la
+                      // diapositiva "no se podía editar" cuando en realidad el botón sí estaba, solo que
+                      // nadie lograba tocarlo bien.
                       <button
                         onClick={(e) => { e.stopPropagation(); startEditingSlide(s); }}
                         title="Editar esta diapositiva (corregir texto)"
-                        style={{ position: "absolute", top: 3, right: 3, background: "rgba(0,0,0,0.55)", border: "none", borderRadius: 5, padding: 3, cursor: "pointer", display: "flex" }}
-                      ><Pencil size={10} color="#fff" /></button>
+                        style={{ position: "absolute", top: 3, right: 3, width: 24, height: 24, background: "rgba(0,0,0,0.65)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 6, padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      ><Pencil size={13} color="#fff" /></button>
                     )}
                   </div>
                   <div style={{ background: color, color: "#fff", fontSize: 9, fontWeight: 700, padding: "3px 6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
