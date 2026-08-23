@@ -4293,7 +4293,7 @@ async function fetchAdjacentBibleVerse(version, bookId, chapter, fromVerse, dire
   const nextIdx = (idx === -1 ? (direction > 0 ? -1 : chapterVerses.length) : idx) + direction;
   if (nextIdx >= 0 && nextIdx < chapterVerses.length) {
     const v = chapterVerses[nextIdx];
-    return { chapter, verse: v.verse, text: v.text.replace(/\s+/g, " ").trim() };
+    return { chapter, verse: v.verse, text: stripBibleSearchMarkup(v.text) };
   }
   const books = await fetchBibleBooks(version);
   const book = books.find((b) => b.bookid === bookId);
@@ -4302,7 +4302,7 @@ async function fetchAdjacentBibleVerse(version, bookId, chapter, fromVerse, dire
   const targetVerses = await fetchBibleChapter(version, bookId, targetChapter);
   if (!targetVerses.length) return null;
   const v = direction > 0 ? targetVerses[0] : targetVerses[targetVerses.length - 1];
-  return { chapter: targetChapter, verse: v.verse, text: v.text.replace(/\s+/g, " ").trim(), bookName: book.name };
+  return { chapter: targetChapter, verse: v.verse, text: stripBibleSearchMarkup(v.text), bookName: book.name };
 }
 
 // Cuerpo del buscador de Biblia, sin el modal alrededor — se reutiliza tal cual dentro de un <ModalShell>
@@ -4349,11 +4349,11 @@ function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", splitVer
       // Cada versículo del rango se agrega como su propia diapositiva — así quien lee puede avanzar
       // versículo por versículo en vivo, en vez de tener un solo bloque con todos juntos.
       picked.forEach((v) => {
-        onAdd({ ref: `${selectedBook.name} ${selectedChapter}:${v.verse}`, version, text: v.text.replace(/\s+/g, " ").trim(), bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: v.verse, verseEnd: v.verse });
+        onAdd({ ref: `${selectedBook.name} ${selectedChapter}:${v.verse}`, version, text: stripBibleSearchMarkup(v.text), bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: v.verse, verseEnd: v.verse });
       });
       return;
     }
-    const text = picked.map((v) => v.text.replace(/\s+/g, " ").trim()).join(" ");
+    const text = picked.map((v) => stripBibleSearchMarkup(v.text)).join(" ");
     const ref = range.start === range.end ? `${selectedBook.name} ${selectedChapter}:${range.start}` : `${selectedBook.name} ${selectedChapter}:${range.start}-${range.end}`;
     onAdd({ ref, version, text, bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: range.start, verseEnd: range.end });
   };
@@ -4445,7 +4445,7 @@ function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", splitVer
                   const inRange = range && v.verse >= range.start && v.verse <= range.end;
                   return (
                     <button key={v.verse} onClick={() => pickVerse(v.verse)} style={{ textAlign: "left", padding: "6px 8px", borderRadius: 8, border: inRange ? "1px solid #2F5FA8" : "1px solid transparent", background: inRange ? "#EAF0FA" : "transparent", cursor: "pointer", fontSize: 12.5, color: "#16233A", lineHeight: 1.45 }}>
-                      <b style={{ color: "#2F5FA8" }}>{v.verse}</b> {v.text}
+                      <b style={{ color: "#2F5FA8" }}>{v.verse}</b> {stripBibleSearchMarkup(v.text)}
                     </button>
                   );
                 })}
@@ -4644,7 +4644,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
   };
   const pickVerse = (v) => {
     rememberAndProject({
-      ref: `${selectedBook.name} ${selectedChapter}:${v.verse}`, version, text: v.text.replace(/\s+/g, " ").trim(),
+      ref: `${selectedBook.name} ${selectedChapter}:${v.verse}`, version, text: stripBibleSearchMarkup(v.text),
       bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: v.verse, verseEnd: v.verse,
     });
   };
@@ -4780,7 +4780,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
                   const isLive = liveVerse && liveVerse.bookId === selectedBook.bookid && liveVerse.chapter === selectedChapter && liveVerse.verseStart === v.verse && liveVerse.version === version;
                   return (
                     <button key={v.verse} onClick={() => pickVerse(v)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 8, border: "none", background: isLive ? "#DDE3ED" : "transparent", cursor: "pointer", fontSize: 13, color: "#16233A", lineHeight: 1.5 }}>
-                      <b style={{ color: "#2F5FA8" }}>{v.verse}</b> {v.text}
+                      <b style={{ color: "#2F5FA8" }}>{v.verse}</b> {stripBibleSearchMarkup(v.text)}
                     </button>
                   );
                 })}
@@ -5266,18 +5266,29 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           )}
           {slide.type === "biblia" && (
             <>
-              <AutoFitText
-                lines={`"${slide.text}"`} targetRatio={bibliaRatio} minPx={thumbnail ? 7 : 14} maxWidth="90%"
-                onFontSize={setBibliaFontPx}
-                style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, textAlign: "center", zIndex: 1, lineHeight: 1.4, fontStyle: font.italic || font.family.includes("Fraunces") ? "italic" : "normal", color: textColor }}
-              />
+              {/* Antes la cita vivía como hermana de AutoFitText dentro del mismo flex column: al medir
+                  su tamaño DESDE bibliaFontPx (ver abajo) y compartir el mismo alto disponible, cambiar
+                  su tamaño encogía/agrandaba el espacio que le quedaba al versículo, lo que disparaba el
+                  ResizeObserver de AutoFitText de nuevo, que volvía a medir, volvía a cambiar bibliaFontPx,
+                  volvía a cambiar el tamaño de la cita... un ciclo sin fin que se veía como parpadeo/
+                  "el texto se agranda y achica solo" en algunos versículos (los que quedaban cerca del
+                  punto donde ese vaivén no se estabilizaba). Reservando aquí un espacio FIJO (no depende
+                  de bibliaFontPx) y sacando la cita del flujo con position:absolute, el alto que mide
+                  AutoFitText deja de depender de su propio resultado anterior — se rompe el ciclo. */}
+              <div style={{ flex: 1, minHeight: 0, width: "100%", display: "flex", paddingBottom: (thumbnail ? 22 : 76) * scale }}>
+                <AutoFitText
+                  lines={`"${slide.text}"`} targetRatio={bibliaRatio} minPx={thumbnail ? 7 : 14} maxWidth="90%"
+                  onFontSize={setBibliaFontPx}
+                  style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, textAlign: "center", zIndex: 1, lineHeight: 1.4, fontStyle: font.italic || font.family.includes("Fraunces") ? "italic" : "normal", color: textColor }}
+                />
+              </div>
               {/* La cita ("Génesis 6:6") tiene que leerse desde lejos SIN necesidad de escuchar — hay gente
                   que sigue con su propia Biblia en mano y solo mira la pantalla para ubicar el pasaje.
                   Pero nunca debe verse MÁS grande que el propio versículo: en vez de un tamaño calculado
                   aparte (que no sabía cuánto se había achicado el versículo para caber), se deriva del
                   tamaño ya medido de arriba (bibliaFontPx) — así siempre queda un porcentaje fijo de él,
                   se achique lo que se achique el versículo. */}
-              <div style={{ marginTop: thumbnail ? 6 : 28, fontSize: thumbnail ? 10 : Math.round((bibliaFontPx || 20) * 0.62), color: "#6E9BD1", fontWeight: 800, zIndex: 1, display: "flex", alignItems: "center", gap: "0.3em", flexShrink: 0 }}>
+              <div style={{ position: "absolute", left: 0, right: 0, bottom: thumbnail ? 6 : 28, textAlign: "center", fontSize: thumbnail ? 10 : Math.round((bibliaFontPx || 20) * 0.62), color: "#6E9BD1", fontWeight: 800, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "0.3em" }}>
                 {slide.reference}
                 {!thumbnail && slide.version && <span style={{ fontSize: "0.4em", background: "rgba(110,155,209,0.2)", borderRadius: 6, padding: "0.2em 0.6em" }}>{slide.version}</span>}
               </div>
