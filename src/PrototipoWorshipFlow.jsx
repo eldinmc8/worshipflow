@@ -2426,6 +2426,7 @@ function SlideMiniPreview({ lines }) {
 function badgeColor(badge) {
   const b = (badge || "").toUpperCase();
   if (b.startsWith("IN")) return "#1F8A73"; // Intro/Instrumental (ambas sin letra): teal
+  if (b.startsWith("PC")) return "#2F5FA8"; // Pre-coro: azul (chequeado ANTES que Puente, ya que "PC" también empieza con "P")
   if (b.startsWith("C")) return "#D98A54"; // Coro: durazno
   if (b.startsWith("P")) return "#B15EA0"; // Puente: orquídea
   if (b.startsWith("O") || b.startsWith("F")) return "#5661B3"; // Outro/Final (ambas de cierre): índigo
@@ -2436,6 +2437,7 @@ function badgeColor(badge) {
 // badgeColor() con el prefijo, así el catálogo y las tarjetas ya agregadas siempre coinciden.
 const SECTION_TYPES = [
   { id: "estrofa", label: "Estrofa", prefix: "V" },
+  { id: "precoro", label: "Pre-coro", prefix: "PC" },
   { id: "coro", label: "Coro", prefix: "C" },
   { id: "puente", label: "Puente", prefix: "P" },
   { id: "intro", label: "Intro", prefix: "IN" },
@@ -2506,9 +2508,13 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
 
   // ---- Capo: sube/baja medio tono a la vez SOLO en lo que ve este dispositivo — a diferencia de
   // "Transportar" (arriba, solo administradores, cambia la tonalidad guardada de la canción para
-  // TODOS), esto es del músico, no se guarda en ningún lado, y se resetea solo al salir de la canción.
-  // Como un capo físico: no cambia qué suena la canción, solo con qué acordes la tocas tú.
-  const [capoSemitones, setCapoSemitones] = useState(0);
+  // TODOS), esto es del músico. Como un capo FÍSICO: nadie se lo quita de la guitarra al pasar a la
+  // siguiente canción del set, así que antes de esto se guardaba solo en memoria (useState) y se
+  // perdía cada vez que este componente se desmontaba — al cambiar de canción en Modo Músico, o al
+  // salir de la canción y volver a entrar. Ahora se guarda en este dispositivo (mismo mecanismo que
+  // el idioma de la Biblia en vivo) y sigue puesto hasta que el músico mismo lo quite.
+  const [capoSemitones, setCapoSemitones] = useState(() => loadCache("capo_semitones") || 0);
+  useEffect(() => { saveCache("capo_semitones", capoSemitones); }, [capoSemitones]);
   const capoResultKey = song && capoSemitones ? transposeChordToken(song.key, capoSemitones) : null;
 
   // ---- Fuera de una transmisión en vivo (repaso/ensayo): sigue igual que siempre — cualquiera que
