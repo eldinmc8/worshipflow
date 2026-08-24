@@ -3544,16 +3544,20 @@ function EventDetail({
   const [showEventSettings, setShowEventSettings] = useState(false);
   const patchEvent = (patch) => onUpdateEventDetails({ title: event.title, dateLabel: event.dateLabel || "", date: event.date || null, hora: event.hora || null, location: event.location || "", ...patch });
 
-  // Marca "ya vi mis asignaciones de este evento" en cuanto alguien con al menos un cargo (canción,
-  // bloque, equipo de alabanza...) abre este evento — de un solo saque para TODOS sus cargos en él, no
-  // uno por uno. Distinto de "confirmado/pendiente/rechazado" (eso lo marca el admin a mano por la
-  // persona); esto lo marca la propia persona sin darse cuenta, solo con abrir el evento, y es lo que le
-  // deja al admin ver quién de verdad se enteró de lo que le toca.
-  useEffect(() => {
-    if (!userId || event.esPlantilla) return;
-    if (misAsignacionesEnEvento(event, userId, library).length === 0) return;
-    marcarAsignacionVista(event.id, userId).catch(() => {});
-  }, [event.id, userId]);
+  // "Ya vi mis asignaciones de este evento" — a propósito NO se marca solo con abrir el evento (eso
+  // marcaba a alguien como "visto" aunque hubiera entrado por otra razón y nunca se hubiera fijado en
+  // qué le tocaba a ella). Se marca cuando la persona misma toca el aviso "Te toca: ..." de abajo — un
+  // gesto que sí implica que se fijó en su propio cargo. Distinto de "confirmado/pendiente/rechazado"
+  // (eso lo cambia el admin a mano); esto lo dispara la propia persona, y es lo que le deja al admin ver
+  // quién de verdad se enteró de lo que le toca.
+  const misCargos = misAsignacionesEnEvento(event, userId, library);
+  const yaVistoPorMi = (event.vistas || []).some((v) => v.usuarioId === userId);
+  const [justMarkedVisto, setJustMarkedVisto] = useState(false);
+  const marcarMisAsignacionesVistas = () => {
+    if (yaVistoPorMi || justMarkedVisto) return;
+    setJustMarkedVisto(true);
+    marcarAsignacionVista(event.id, userId).catch(() => setJustMarkedVisto(false));
+  };
 
   if (showEventSettings) {
     return (
@@ -3677,6 +3681,22 @@ function EventDetail({
           {!event.esPlantilla && <div style={{ fontSize: 13, color: "#C8CDD6" }}>{event.location}</div>}
         </div>
 
+        {/* Solo para quien tiene algo asignado en este evento — tocar esto (no basta con solo abrir el
+            evento) es lo que le avisa al admin que la persona de verdad se fijó en su propio cargo, no
+            solo que entró por curiosidad o por otra razón. Ver marcarMisAsignacionesVistas arriba. */}
+        {misCargos.length > 0 && (
+          <button
+            onClick={marcarMisAsignacionesVistas}
+            className="hoverable"
+            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", background: "#FFF4E8", border: "1px solid #E8821E", borderRadius: 10, padding: "10px 12px", marginBottom: 16, cursor: "pointer" }}
+          >
+            {(yaVistoPorMi || justMarkedVisto) ? <Eye size={15} color="#1F8A73" style={{ flexShrink: 0 }} /> : <EyeOff size={15} color="#8A4F0E" style={{ flexShrink: 0 }} />}
+            <span style={{ fontSize: 12.5, color: "#8A4F0E", flex: 1 }}>
+              <strong>Te toca:</strong> {misCargos.join(", ")}
+            </span>
+          </button>
+        )}
+
         <button onClick={() => window.print()} className="hoverable" style={{ ...addBtnStyle, marginBottom: 16, justifyContent: "center" }}>
           <Download size={14} color="#16324F" /> Exportar Setlist a PDF
         </button>
@@ -3766,7 +3786,7 @@ const STATUS_STYLE = {
 // "encargado principal" y selector para agregar de entre los usuarios ya registrados en la app (no
 // texto libre). Solo quien tiene permiso sobre este bloque (admin, o el líder del ministerio vinculado)
 // puede editar la lista — para los demás se muestra de solo lectura.
-function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLead, onAddEncargado, onRemove, vistasPorUsuario }) {
+function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLead, onAddEncargado, onRemove, vistasPorUsuario, showVistas }) {
   const [addQuery, setAddQuery] = useState("");
   const disponibles = allUsuarios
     .filter((u) => !encargados.some((m) => m.usuarioId === u.id))
@@ -3781,10 +3801,12 @@ function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLe
           <div key={m.id || i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid #DDE3ED" }}>
             <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0, color: "#fff" }}>{m.n.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</div>
             <span style={{ fontSize: 13, flex: 1 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "#E8821E", fontWeight: 700 }}> · Encargado</span>}</span>
-            {/* Solo visible para quien administra este bloque — le dice si la persona siquiera abrió el
-                evento a ver qué le toca, algo que "confirmado/pendiente" no puede responder porque ESE
-                estado lo cambia el admin a mano, no la persona misma. */}
-            {canEdit && vistasPorUsuario && m.usuarioId && (
+            {/* Solo visible para administradores — le dice si la persona siquiera abrió el evento a ver
+                qué le toca, algo que "confirmado/pendiente" no puede responder porque ESE estado lo
+                cambia el admin a mano, no la persona misma. A propósito NO depende de "canEdit": el
+                admin necesita poder chequear esto viendo el Setlist normal, sin tener que entrar al
+                modo "Editar" primero solo para consultarlo. */}
+            {showVistas && vistasPorUsuario && m.usuarioId && (
               vistoAt
                 ? <Eye size={14} color="#1F8A73" title={`Vio sus asignaciones el ${new Date(vistoAt).toLocaleString("es")}`} />
                 : <EyeOff size={14} color="#C3CBD6" title="Todavía no ha abierto el evento para ver qué le toca" />
@@ -3833,7 +3855,7 @@ function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLe
 // Equipo de alabanza: roles con nombre fijo (Guitarra, Batería, Voz...) en vez de una lista libre de
 // encargados — el mismo roster se muestra y se edita igual desde el bloque de Alabanza que desde el de
 // Adoración (es un solo array compartido a nivel de evento, no una copia por bloque).
-function WorshipRolesEditor({ roles, canEdit, allUsuarios, onAddRole, onRemoveRole, onAddMember, onSetStatus, onSetLead, onRemoveMember, vistasPorUsuario }) {
+function WorshipRolesEditor({ roles, canEdit, allUsuarios, onAddRole, onRemoveRole, onAddMember, onSetStatus, onSetLead, onRemoveMember, vistasPorUsuario, showVistas }) {
   const [newRoleName, setNewRoleName] = useState("");
   return (
     <div>
@@ -3852,6 +3874,7 @@ function WorshipRolesEditor({ roles, canEdit, allUsuarios, onAddRole, onRemoveRo
             onSetLead={(mi) => onSetLead(r.id, mi)}
             onRemove={(mi) => onRemoveMember(r.id, mi)}
             vistasPorUsuario={vistasPorUsuario}
+            showVistas={showVistas}
           />
         </div>
       ))}
@@ -4179,6 +4202,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                           onSetLead={onSetWorshipRoleMemberLead}
                           onRemoveMember={onRemoveWorshipRoleMember}
                           vistasPorUsuario={vistasPorUsuario}
+                          showVistas={isAdminViewer}
                         />
                       </>
                     ) : (
@@ -4193,6 +4217,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                           onSetLead={(mi) => onSetEncargadoLead(item.id, mi)}
                           onRemove={(mi) => onRemoveEncargado(item.id, mi)}
                           vistasPorUsuario={vistasPorUsuario}
+                          showVistas={isAdminViewer}
                         />
                       </>
                     )}
