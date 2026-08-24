@@ -107,7 +107,58 @@ Deno.serve(async (req: Request) => {
       procesados++;
     }
 
-    return json({ success: true, procesados }, 200);
+    // Segunda pasada, aparte de los recordatorios normales de arriba: a quien tenga un cargo en un
+    // evento que empieza dentro de las próximas 24 horas y TODAVÍA no haya tocado "Te toca..." en la
+    // app (sin fila en asignaciones_vistas), se le manda un aviso aparte insistiendo — una sola vez por
+    // evento (se registra en avisos_confirmacion_enviados para no mandarlo de nuevo cada 15 minutos).
+    // Así el admin no depende de acordarse de revisar los ojitos uno por uno.
+    //
+    // Si asignaciones_vistas/avisos_confirmacion_enviados todavía no existen (falta correr esa
+    // migración), esta pasada se salta entera en vez de asumir "nadie ha visto nada" — sin esa tabla no
+    // hay forma de recordar a quién ya se le avisó, y eso mandaría el mismo aviso cada 15 minutos.
+    const VENTANA_MS = 24 * 3_600_000;
+    const probe = await admin.from("avisos_confirmacion_enviados").select("evento_id").limit(1);
+    const { data: eventosProximos } = probe.error
+      ? { data: [] as { id: string; titulo: string; fecha: string; hora: string | null }[] }
+      : await admin.from("eventos").select("id, titulo, fecha, hora").eq("es_plantilla", false).not("fecha", "is", null);
+
+    let avisosConfirmacion = 0;
+    for (const ev of eventosProximos ?? []) {
+      const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}-06:00`).getTime();
+      if (inicio < ahora || inicio > ahora + VENTANA_MS) continue;
+
+      const { data: items } = await admin.from("items_servicio").select("id").eq("evento_id", ev.id);
+      const { data: roles } = await admin.from("roles_evento").select("id").eq("evento_id", ev.id);
+      const itemIds = (items ?? []).map((i: { id: string }) => i.id);
+      const roleIds = (roles ?? []).map((x: { id: string }) => x.id);
+      const usuarioIds = new Set<string>();
+      if (itemIds.length) {
+        const { data: m1 } = await admin.from("miembros_rol").select("usuario_id").in("item_servicio_id", itemIds).not("usuario_id", "is", null);
+        (m1 ?? []).forEach((m: { usuario_id: string }) => usuarioIds.add(m.usuario_id));
+      }
+      if (roleIds.length) {
+        const { data: m2 } = await admin.from("miembros_rol").select("usuario_id").in("rol_id", roleIds).not("usuario_id", "is", null);
+        (m2 ?? []).forEach((m: { usuario_id: string }) => usuarioIds.add(m.usuario_id));
+      }
+      if (usuarioIds.size === 0) continue;
+
+      const { data: vistos } = await admin.from("asignaciones_vistas").select("usuario_id").eq("evento_id", ev.id);
+      const vistosSet = new Set((vistos ?? []).map((v: { usuario_id: string }) => v.usuario_id));
+      const { data: avisados } = await admin.from("avisos_confirmacion_enviados").select("usuario_id").eq("evento_id", ev.id);
+      const avisadosSet = new Set((avisados ?? []).map((v: { usuario_id: string }) => v.usuario_id));
+
+      const titulo = `Confirma tu participación: ${ev.titulo}`;
+      const cuerpo = `Todavía no has confirmado que viste tu asignación para "${ev.titulo}". Ábrela y toca "Te toca..." para avisar que ya la viste.`;
+      for (const usuarioId of usuarioIds) {
+        if (vistosSet.has(usuarioId) || avisadosSet.has(usuarioId)) continue;
+        await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo: "general", titulo, cuerpo, evento_id: ev.id });
+        await enviarPush(admin, usuarioId, { title: titulo, body: cuerpo });
+        await admin.from("avisos_confirmacion_enviados").insert({ evento_id: ev.id, usuario_id: usuarioId });
+        avisosConfirmacion++;
+      }
+    }
+
+    return json({ success: true, procesados, avisosConfirmacion }, 200);
   } catch (e) {
     return json({ error: "Error inesperado: " + (e instanceof Error ? e.message : String(e)) }, 500);
   }

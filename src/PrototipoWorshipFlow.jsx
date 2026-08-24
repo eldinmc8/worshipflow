@@ -1275,6 +1275,24 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // razón que el nav inferior — si no, podía quedar "pegada" una canción o ministerio de otra pestaña.
   const goToEvent = (id) => requestLeaveSongEditor(() => { setSelectedEventId(id); setOpenSong(null); setSelectedMinistryId(null); setTab("eventos"); });
 
+  // Eventos próximos donde esta persona tiene algún cargo y TODAVÍA no ha confirmado que lo vio (ver
+  // "Te toca..." en EventDetail) — mientras esta lista no esté vacía, se le tapa la app con un aviso
+  // que no puede cerrar sin confirmar (ver el overlay más abajo). A propósito no depende de qué pestaña
+  // esté viendo: si entra por Inicio, por una notificación, por donde sea, se le sigue plantando encima
+  // hasta que confirme, en vez de depender de que ella misma entre a Eventos por su cuenta.
+  const pendingConfirmations = useMemo(() => {
+    if (!userId) return [];
+    return events
+      .filter((e) => !e.esPlantilla && isUpcoming(e))
+      .map((e) => ({ event: e, cargos: misAsignacionesEnEvento(e, userId, library) }))
+      .filter(({ event: e, cargos }) => cargos.length > 0 && !(e.vistas || []).some((v) => v.usuarioId === userId))
+      .sort((a, b) => compareByDay(a.event, b.event));
+  }, [events, userId, library]);
+  const confirmarAsignacionVista = (eventId) => {
+    setEvents((evs) => evs.map((e) => (e.id === eventId ? { ...e, vistas: [...(e.vistas || []).filter((v) => v.usuarioId !== userId), { usuarioId: userId, vistoAt: new Date().toISOString() }] } : e)));
+    marcarAsignacionVista(eventId, userId).catch(() => {});
+  };
+
   if (!datosListos) {
     return <div className="app-shell-height" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", color: "#8996A6", fontFamily: "'Poppins', sans-serif", fontSize: 14 }}>Cargando…</div>;
   }
@@ -1298,6 +1316,44 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       {usingCachedData && (
         <div style={{ background: "#E8821E", color: "#16233A", fontSize: 12, fontWeight: 700, textAlign: "center", padding: "6px 10px", flexShrink: 0 }}>
           Sin conexión — mostrando la última versión guardada en este dispositivo. Los cambios no se guardarán hasta que vuelva el internet.
+        </div>
+      )}
+
+      {/* A propósito SIN botón de cerrar/X ni click-fuera-para-cerrar — la única forma de que
+          desaparezca es tocando "Ya vi mi participación" en cada evento listado. Ver
+          pendingConfirmations más arriba. */}
+      {pendingConfirmations.length > 0 && (
+        <div style={{ position: "absolute", inset: 0, background: "rgba(8,10,14,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 80, padding: 20 }}>
+          <div style={{ background: "#FFFFFF", borderRadius: 16, padding: 22, width: 380, maxWidth: "100%", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(0,0,0,0.4)" }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#FFF4E8", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <EyeOff size={20} color="#E8821E" />
+              </div>
+            </div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, textAlign: "center", marginBottom: 4 }}>
+              Tienes {pendingConfirmations.length === 1 ? "un cargo" : `${pendingConfirmations.length} cargos`} sin confirmar
+            </div>
+            <div style={{ fontSize: 12.5, color: "#64707F", textAlign: "center", marginBottom: 16 }}>
+              Toca cada uno para avisar que ya lo viste.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {pendingConfirmations.map(({ event: ev, cargos }) => (
+                <button
+                  key={ev.id}
+                  onClick={() => confirmarAsignacionVista(ev.id)}
+                  className="hoverable"
+                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "#FFF4E8", border: "1.5px solid #E8821E", borderRadius: 10, padding: "12px 14px", cursor: "pointer" }}
+                >
+                  <EyeOff size={18} color="#8A4F0E" style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#16233A" }}>{ev.title}</div>
+                    <div style={{ fontSize: 11.5, color: "#8A4F0E", marginTop: 1 }}>{formatFullDate(ev.date) || ev.dateLabel} · Te toca: {cargos.join(", ")}</div>
+                  </span>
+                  <ChevronRight size={16} color="#E8821E" style={{ flexShrink: 0 }} />
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
