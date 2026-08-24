@@ -479,7 +479,8 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     );
     const unsubEventos = subscribeTableChanges(
       "rt-eventos", ["eventos", "items_servicio", "roles_evento", "miembros_rol", "recordatorios_evento"],
-      () => listEventosCompletos().then((data) => { setEvents(data); saveCache("eventos", data); }).catch(() => {})
+      () => listEventosCompletos().then((data) => { setEvents(data); saveCache("eventos", data); }).catch(() => {}),
+      2500, () => pendingSavesRef.current > 0
     );
     const unsubMinisterios = subscribeTableChanges(
       "rt-ministerios", ["ministerios", "planificacion_ministerio", "recursos_ministerio"],
@@ -5275,7 +5276,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
                   punto donde ese vaivén no se estabilizaba). Reservando aquí un espacio FIJO (no depende
                   de bibliaFontPx) y sacando la cita del flujo con position:absolute, el alto que mide
                   AutoFitText deja de depender de su propio resultado anterior — se rompe el ciclo. */}
-              <div style={{ flex: 1, minHeight: 0, width: "100%", display: "flex", paddingBottom: (thumbnail ? 22 : 76) * scale }}>
+              <div style={{ flex: 1, minHeight: 0, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", paddingBottom: (thumbnail ? 22 : 76) * scale }}>
                 <AutoFitText
                   lines={`"${slide.text}"`} targetRatio={bibliaRatio} minPx={thumbnail ? 7 : 14} maxWidth="90%"
                   onFontSize={setBibliaFontPx}

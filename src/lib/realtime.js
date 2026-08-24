@@ -17,12 +17,19 @@ import { supabase } from "./supabaseClient.js";
 // No es una garantía perfecta (por eso además Ministerios ya no guarda letra por letra, solo con el
 // botón "Guardar planificación"), pero le da mucho más margen a que el guardado en curso ya haya
 // terminado antes de que el refresco compita con él.
-export function subscribeTableChanges(channelName, tables, onChange, debounceMs = 2500) {
+// shouldWait: chequeo extra opcional (además de "¿está escribiendo?") para posponer el refresco — pensado
+// para "¿hay un guardado propio todavía en vuelo?" (ver pendingSavesRef en PrototipoWorshipFlow.jsx). Sin
+// esto, varios cambios seguidos (ej. la tonalidad de 3 canciones del Setlist, una detrás de otra) podían
+// perderse: cada guardado hace "borra todo lo del evento y reinserta", así que mientras el guardado #2
+// todavía no terminaba, el aviso en tiempo real del guardado #1 ya completado podía disparar un refresco
+// que reemplazaba el estado local — incluyendo el cambio #3 que ya estaba escrito en pantalla pero cuyo
+// guardado ni siquiera había arrancado — por la versión que Supabase tenía hasta ESE momento.
+export function subscribeTableChanges(channelName, tables, onChange, debounceMs = 2500, shouldWait) {
   let timer = null;
   const attempt = () => {
     const el = document.activeElement;
     const isTyping = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
-    if (isTyping) { timer = setTimeout(attempt, debounceMs); return; }
+    if (isTyping || (shouldWait && shouldWait())) { timer = setTimeout(attempt, debounceMs); return; }
     onChange();
   };
   const trigger = () => { clearTimeout(timer); timer = setTimeout(attempt, debounceMs); };
