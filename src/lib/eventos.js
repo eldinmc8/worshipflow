@@ -54,13 +54,21 @@ export async function getEventoCompleto(id) {
     supabase.from("items_servicio").select("*, canciones(titulo, artista, tonalidad, tempo)").eq("evento_id", id).order("orden", { ascending: true }),
     supabase.from("roles_evento").select("*").eq("evento_id", id).order("orden", { ascending: true }),
     supabase.from("recordatorios_evento").select("*").eq("evento_id", id).order("created_at", { ascending: true }),
-    supabase.from("asignaciones_vistas").select("*").eq("evento_id", id),
+    // "Quién ya vio sus asignaciones" es un extra, no algo de lo que dependa poder abrir el evento —
+    // si la tabla asignaciones_vistas todavía no existe (falta correr la migración) o falla por
+    // cualquier otro motivo, NO debe tumbar la carga de todo el evento (eso hacía que la app entera
+    // pareciera "sin conexión" en todos los dispositivos con solo esa tabla faltando). A diferencia de
+    // un error de red (que sí rechaza la promesa), un error de Postgres normal viene en vistasRes.error
+    // con la promesa ya resuelta, así que hace falta atajar los dos casos.
+    supabase.from("asignaciones_vistas").select("*").eq("evento_id", id).then(
+      (r) => (r.error ? { data: [] } : r),
+      () => ({ data: [] })
+    ),
   ]);
   if (eventoRes.error) throw eventoRes.error;
   if (itemsRes.error) throw itemsRes.error;
   if (rolesRes.error) throw rolesRes.error;
   if (recordatoriosRes.error) throw recordatoriosRes.error;
-  if (vistasRes.error) throw vistasRes.error;
 
   const itemIds = itemsRes.data.map((it) => it.id);
   const roleIds = rolesRes.data.map((r) => r.id);
