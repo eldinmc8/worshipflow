@@ -2,8 +2,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import './lib/pwaInstall.js'
+import { iniciarActualizacionAutomatica } from './lib/swUpdate.js'
 import AuthGate from './AuthGate.jsx'
 import PublicScreen from './PublicScreen.jsx'
+
+iniciarActualizacionAutomatica()
 
 // La pantalla pública vive en su propia URL (?screen=publico) para poder instalarse
 // como PWA independiente del panel de control del operador (útil para un dispositivo fijo junto

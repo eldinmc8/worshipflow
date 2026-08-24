@@ -14,6 +14,16 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.js',
+      // El script que este plugin inyecta solo cuando injectRegister queda en su valor por defecto
+      // ('auto') es un registro "pelado" -- ni chequea updates activamente ni recarga la página cuando
+      // encuentra una versión nueva, solo `navigator.serviceWorker.register(...)` y ya. Por eso, sesión
+      // tras sesión, un cambio publicado no se veía hasta cerrar la app del todo y reabrirla: el service
+      // worker viejo se quedaba corriendo indefinidamente porque nada le pedía revisar si había uno
+      // nuevo. registerType:'autoUpdate' (abajo) solo define QUÉ HACER si se encuentra una versión
+      // nueva -- no sirve de nada si nadie pregunta. injectRegister:false apaga ese script pelado; el
+      // registro de verdad ahora vive en src/main.jsx, importando virtual:pwa-register a mano, con
+      // chequeos activos periódicos (ver ahí el porqué).
+      injectRegister: false,
       includeAssets: ['manifest-pantalla.webmanifest'],
       // Manifest principal: el panel de control (Canciones, Eventos, En vivo, Ajustes...). La pantalla
       // de proyección (?screen=publico) usa su propio manifest aparte (public/manifest-pantalla.webmanifest,
