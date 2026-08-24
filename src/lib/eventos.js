@@ -49,16 +49,18 @@ export async function deleteEvento(id) {
 }
 
 export async function getEventoCompleto(id) {
-  const [eventoRes, itemsRes, rolesRes, recordatoriosRes] = await Promise.all([
+  const [eventoRes, itemsRes, rolesRes, recordatoriosRes, vistasRes] = await Promise.all([
     supabase.from("eventos").select("*").eq("id", id).single(),
     supabase.from("items_servicio").select("*, canciones(titulo, artista, tonalidad, tempo)").eq("evento_id", id).order("orden", { ascending: true }),
     supabase.from("roles_evento").select("*").eq("evento_id", id).order("orden", { ascending: true }),
     supabase.from("recordatorios_evento").select("*").eq("evento_id", id).order("created_at", { ascending: true }),
+    supabase.from("asignaciones_vistas").select("*").eq("evento_id", id),
   ]);
   if (eventoRes.error) throw eventoRes.error;
   if (itemsRes.error) throw itemsRes.error;
   if (rolesRes.error) throw rolesRes.error;
   if (recordatoriosRes.error) throw recordatoriosRes.error;
+  if (vistasRes.error) throw vistasRes.error;
 
   const itemIds = itemsRes.data.map((it) => it.id);
   const roleIds = rolesRes.data.map((r) => r.id);
@@ -68,7 +70,20 @@ export async function getEventoCompleto(id) {
   ]);
   if (encargadosRes.error) throw encargadosRes.error;
   if (roleMembersRes.error) throw roleMembersRes.error;
-  return { evento: eventoRes.data, items: itemsRes.data, encargados: encargadosRes.data, roles: rolesRes.data, roleMembers: roleMembersRes.data, recordatorios: recordatoriosRes.data };
+  return { evento: eventoRes.data, items: itemsRes.data, encargados: encargadosRes.data, roles: rolesRes.data, roleMembers: roleMembersRes.data, recordatorios: recordatoriosRes.data, vistas: vistasRes.data };
+}
+
+// Un administrador (o líder de ministerio) necesita saber si alguien ya ABRIÓ el evento y vio qué le
+// toca — distinto del "confirmado/pendiente/rechazado" de arriba, que lo marca el propio admin a mano
+// por la persona, no dice si esa persona siquiera se enteró. Se marca a nivel de EVENTO (no por cada
+// cargo suelto): quien tiene uno o más cargos en un evento y lo abre, marca de una vez que ya vio
+// "sus asignaciones" ahí, sin depender de cuántos cargos distintos tenga.
+export async function marcarAsignacionVista(eventoId, usuarioId) {
+  const { error } = await supabase.from("asignaciones_vistas").upsert(
+    { evento_id: eventoId, usuario_id: usuarioId, visto_at: new Date().toISOString() },
+    { onConflict: "evento_id,usuario_id" }
+  );
+  if (error) throw error;
 }
 
 // ---- Setlist ----
@@ -163,7 +178,7 @@ function filaARecordatorio(row) {
   return { id: row.id, cantidad: row.cantidad, unidad: row.unidad, enviado: row.enviado };
 }
 
-export function eventoCompletoAFormatoEditor({ evento, items, encargados, roles, roleMembers, recordatorios }) {
+export function eventoCompletoAFormatoEditor({ evento, items, encargados, roles, roleMembers, recordatorios, vistas }) {
   const encargadosPorItem = {};
   encargados.forEach((m) => {
     (encargadosPorItem[m.item_servicio_id] ||= []).push(m);
@@ -179,6 +194,7 @@ export function eventoCompletoAFormatoEditor({ evento, items, encargados, roles,
     serviceOrder: items.map((row) => filaAItemServicio(row, encargadosPorItem)),
     worshipRoles: roles.map((row) => filaARolAlabanza(row, miembrosPorRol)),
     reminders: (recordatorios || []).map(filaARecordatorio),
+    vistas: (vistas || []).map((v) => ({ usuarioId: v.usuario_id, vistoAt: v.visto_at })),
   };
 }
 

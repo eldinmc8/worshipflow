@@ -4,13 +4,13 @@ import {
   Radio, ListMusic, BookOpen, Image as ImgIcon, Trash2, GripVertical,
   MonitorOff, X, Search, Sparkles, Calendar, MapPin, Users, Check,
   UserPlus, Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
-  Star, LogOut, Settings, Download,
+  Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette,
   Type,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion } from "./lib/canciones.js";
 import {
-  listEventosCompletos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento,
+  listEventosCompletos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
 } from "./lib/eventos.js";
 import { listMinisteriosCompletos, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos } from "./lib/ministerios.js";
 import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession } from "./lib/liveSession.js";
@@ -478,7 +478,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       () => listCancionesCompletas().then((data) => { setLibrary(data); saveCache("canciones", data); }).catch(() => {})
     );
     const unsubEventos = subscribeTableChanges(
-      "rt-eventos", ["eventos", "items_servicio", "roles_evento", "miembros_rol", "recordatorios_evento"],
+      "rt-eventos", ["eventos", "items_servicio", "roles_evento", "miembros_rol", "recordatorios_evento", "asignaciones_vistas"],
       () => listEventosCompletos().then((data) => { setEvents(data); saveCache("eventos", data); }).catch(() => {}),
       2500, () => pendingSavesRef.current > 0
     );
@@ -882,6 +882,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       serviceOrder: template ? cloneServiceOrder(template.serviceOrder) : [],
       worshipRoles: template ? cloneWorshipRoles(template.worshipRoles || []) : [],
       reminders: template ? cloneRecordatorios(template.reminders) : [],
+      vistas: [],
       esPlantilla: !!esPlantilla,
     };
     setEvents((evs) => [...evs, newEvent]);
@@ -3543,6 +3544,17 @@ function EventDetail({
   const [showEventSettings, setShowEventSettings] = useState(false);
   const patchEvent = (patch) => onUpdateEventDetails({ title: event.title, dateLabel: event.dateLabel || "", date: event.date || null, hora: event.hora || null, location: event.location || "", ...patch });
 
+  // Marca "ya vi mis asignaciones de este evento" en cuanto alguien con al menos un cargo (canción,
+  // bloque, equipo de alabanza...) abre este evento — de un solo saque para TODOS sus cargos en él, no
+  // uno por uno. Distinto de "confirmado/pendiente/rechazado" (eso lo marca el admin a mano por la
+  // persona); esto lo marca la propia persona sin darse cuenta, solo con abrir el evento, y es lo que le
+  // deja al admin ver quién de verdad se enteró de lo que le toca.
+  useEffect(() => {
+    if (!userId || event.esPlantilla) return;
+    if (misAsignacionesEnEvento(event, userId, library).length === 0) return;
+    marcarAsignacionVista(event.id, userId).catch(() => {});
+  }, [event.id, userId]);
+
   if (showEventSettings) {
     return (
       <div className="screen-enter" style={{ width: "100%", flex: 1, minHeight: 0, overflowY: "auto" }}>
@@ -3754,7 +3766,7 @@ const STATUS_STYLE = {
 // "encargado principal" y selector para agregar de entre los usuarios ya registrados en la app (no
 // texto libre). Solo quien tiene permiso sobre este bloque (admin, o el líder del ministerio vinculado)
 // puede editar la lista — para los demás se muestra de solo lectura.
-function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLead, onAddEncargado, onRemove }) {
+function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLead, onAddEncargado, onRemove, vistasPorUsuario }) {
   const [addQuery, setAddQuery] = useState("");
   const disponibles = allUsuarios
     .filter((u) => !encargados.some((m) => m.usuarioId === u.id))
@@ -3764,10 +3776,19 @@ function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLe
       {encargados.map((m, i) => {
         const style = STATUS_STYLE[m.status || "pendiente"];
         const StatusIcon = style.icon;
+        const vistoAt = m.usuarioId && vistasPorUsuario ? vistasPorUsuario.get(m.usuarioId) : null;
         return (
           <div key={m.id || i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid #DDE3ED" }}>
             <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0, color: "#fff" }}>{m.n.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</div>
             <span style={{ fontSize: 13, flex: 1 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "#E8821E", fontWeight: 700 }}> · Encargado</span>}</span>
+            {/* Solo visible para quien administra este bloque — le dice si la persona siquiera abrió el
+                evento a ver qué le toca, algo que "confirmado/pendiente" no puede responder porque ESE
+                estado lo cambia el admin a mano, no la persona misma. */}
+            {canEdit && vistasPorUsuario && m.usuarioId && (
+              vistoAt
+                ? <Eye size={14} color="#1F8A73" title={`Vio sus asignaciones el ${new Date(vistoAt).toLocaleString("es")}`} />
+                : <EyeOff size={14} color="#C3CBD6" title="Todavía no ha abierto el evento para ver qué le toca" />
+            )}
             {canEdit && (
               <button onClick={() => onSetLead(i)} title={m.lead ? "Quitar como encargado principal" : "Marcar como encargado principal"} style={{ ...iconGhost, color: m.lead ? "#E8821E" : "#C3CBD6" }}>
                 <Star size={14} fill={m.lead ? "#E8821E" : "none"} />
@@ -3812,7 +3833,7 @@ function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLe
 // Equipo de alabanza: roles con nombre fijo (Guitarra, Batería, Voz...) en vez de una lista libre de
 // encargados — el mismo roster se muestra y se edita igual desde el bloque de Alabanza que desde el de
 // Adoración (es un solo array compartido a nivel de evento, no una copia por bloque).
-function WorshipRolesEditor({ roles, canEdit, allUsuarios, onAddRole, onRemoveRole, onAddMember, onSetStatus, onSetLead, onRemoveMember }) {
+function WorshipRolesEditor({ roles, canEdit, allUsuarios, onAddRole, onRemoveRole, onAddMember, onSetStatus, onSetLead, onRemoveMember, vistasPorUsuario }) {
   const [newRoleName, setNewRoleName] = useState("");
   return (
     <div>
@@ -3830,6 +3851,7 @@ function WorshipRolesEditor({ roles, canEdit, allUsuarios, onAddRole, onRemoveRo
             onSetStatus={(mi, status) => onSetStatus(r.id, mi, status)}
             onSetLead={(mi) => onSetLead(r.id, mi)}
             onRemove={(mi) => onRemoveMember(r.id, mi)}
+            vistasPorUsuario={vistasPorUsuario}
           />
         </div>
       ))}
@@ -3882,6 +3904,9 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
   const [editingSetlist, setEditingSetlist] = useState(false);
   const canEditNow = isAdminViewer && editingSetlist;
   const canEditItem = () => canEditNow;
+  // usuarioId -> cuándo vio sus asignaciones de ESTE evento (ver marcarAsignacionVista) — se le pasa a
+  // cada EncargadosList (bloques, equipo de alabanza) para el ícono de ojo junto a cada persona.
+  const vistasPorUsuario = useMemo(() => new Map((event.vistas || []).map((v) => [v.usuarioId, v.vistoAt])), [event.vistas]);
   // La fila de una canción en el buscador se queda ahí, tocable de nuevo, después de agregarla (no
   // desaparece ni se deshabilita) — sin este freno, un doble toque rápido (dedo apurado, sin feedback
   // inmediato de que ya se agregó) la duplicaba o triplicaba en el Setlist. Medio segundo alcanza para
@@ -4153,6 +4178,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                           onSetStatus={onSetWorshipRoleMemberStatus}
                           onSetLead={onSetWorshipRoleMemberLead}
                           onRemoveMember={onRemoveWorshipRoleMember}
+                          vistasPorUsuario={vistasPorUsuario}
                         />
                       </>
                     ) : (
@@ -4166,6 +4192,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                           onSetStatus={(mi, status) => onSetEncargadoStatus(item.id, mi, status)}
                           onSetLead={(mi) => onSetEncargadoLead(item.id, mi)}
                           onRemove={(mi) => onRemoveEncargado(item.id, mi)}
+                          vistasPorUsuario={vistasPorUsuario}
                         />
                       </>
                     )}
