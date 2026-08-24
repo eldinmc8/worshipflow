@@ -3681,19 +3681,36 @@ function EventDetail({
           {!event.esPlantilla && <div style={{ fontSize: 13, color: "#C8CDD6" }}>{event.location}</div>}
         </div>
 
-        {/* Solo para quien tiene algo asignado en este evento — tocar esto (no basta con solo abrir el
+        {/* Solo para quien tiene algo asignado en este evento — tocarlo (no basta con solo abrir el
             evento) es lo que le avisa al admin que la persona de verdad se fijó en su propio cargo, no
-            solo que entró por curiosidad o por otra razón. Ver marcarMisAsignacionesVistas arriba. */}
+            solo que entró por curiosidad o por otra razón. Ver marcarMisAsignacionesVistas arriba.
+            Antes decía solo "Te toca: X" sin más — para gente que recién está aprendiendo a usar una
+            app, eso no se lee como "hay que tocar esto", parece solo un letrero informativo. Ahora,
+            mientras no lo haya tocado, el texto GRANDE es una instrucción directa ("Toca aquí..."), con
+            el detalle de qué le toca como texto más chico debajo — y una flecha, como cualquier botón
+            de "siguiente" que ya conocen de otras pantallas. Una vez tocado, cambia a una confirmación
+            clara en vez de repetir la misma instrucción. */}
         {misCargos.length > 0 && (
           <button
             onClick={marcarMisAsignacionesVistas}
             className="hoverable"
-            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", background: "#FFF4E8", border: "1px solid #E8821E", borderRadius: 10, padding: "10px 12px", marginBottom: 16, cursor: "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: (yaVistoPorMi || justMarkedVisto) ? "#EAF6F1" : "#FFF4E8", border: `1.5px solid ${(yaVistoPorMi || justMarkedVisto) ? "#1F8A73" : "#E8821E"}`, borderRadius: 10, padding: "12px 14px", marginBottom: 16, cursor: "pointer" }}
           >
-            {(yaVistoPorMi || justMarkedVisto) ? <Eye size={15} color="#1F8A73" style={{ flexShrink: 0 }} /> : <EyeOff size={15} color="#8A4F0E" style={{ flexShrink: 0 }} />}
-            <span style={{ fontSize: 12.5, color: "#8A4F0E", flex: 1 }}>
-              <strong>Te toca:</strong> {misCargos.join(", ")}
+            {(yaVistoPorMi || justMarkedVisto) ? <Eye size={20} color="#1F8A73" style={{ flexShrink: 0 }} /> : <EyeOff size={20} color="#8A4F0E" style={{ flexShrink: 0 }} />}
+            <span style={{ flex: 1, minWidth: 0 }}>
+              {(yaVistoPorMi || justMarkedVisto) ? (
+                <>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1F8A73" }}>Ya viste tu participación ✓</div>
+                  <div style={{ fontSize: 12, color: "#33415A", marginTop: 2 }}>Te toca: {misCargos.join(", ")}</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#8A4F0E" }}>Toca aquí para ver tu participación</div>
+                  <div style={{ fontSize: 12, color: "#8A4F0E", marginTop: 2 }}>Te toca: {misCargos.join(", ")}</div>
+                </>
+              )}
             </span>
+            {!(yaVistoPorMi || justMarkedVisto) && <ChevronRight size={18} color="#E8821E" style={{ flexShrink: 0 }} />}
           </button>
         )}
 
