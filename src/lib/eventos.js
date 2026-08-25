@@ -212,37 +212,79 @@ export async function listEventosCompletos() {
   return completos.map(eventoCompletoAFormatoEditor);
 }
 
-// Reemplaza TODO el setlist (items_servicio + sus encargados) de un evento por el que viene del estado
-// en memoria. Borrar items_servicio arrastra en cascada (on delete cascade) los miembros_rol que
-// apuntaban a ellos por item_servicio_id, así que basta con reinsertar ambas tablas en orden.
+// Reemplaza el setlist (items_servicio + sus encargados) de un evento por el que viene del estado en
+// memoria.
+//
+// ANTES esto borraba TODAS las filas del evento y recién DESPUÉS insertaba las nuevas — si algo fallaba
+// a mitad de camino (se cortó el internet, un solo campo de una sola fila no pasaba una validación,
+// etc.), el borrado ya se había hecho y quedaba sin nada que lo revirtiera: el setlist se veía vacío de
+// verdad en la base de datos, no solo en la pantalla, y no había forma de recuperarlo desde la app. Esto
+// causó pérdida real de datos en plantillas ya armadas.
+//
+// Ahora se guarda la versión nueva PRIMERO con upsert (inserta lo que no existía, actualiza lo que sí,
+// usando el id como llave) y solo DESPUÉS se borra — una por una, por su id — lo que ya no está en el
+// setlist nuevo. Si algo falla a mitad de camino, en el peor caso queda alguna fila vieja de más
+// (inofensiva, se limpia sola en el siguiente guardado que sí termine) — nunca un setlist vacío.
 async function sincronizarServiceOrderInterno(eventoId, serviceOrder) {
   await esperarCreacionEvento(eventoId);
-  const { error: delErr } = await supabase.from("items_servicio").delete().eq("evento_id", eventoId);
-  if (delErr) throw delErr;
-  if (!serviceOrder.length) return;
   const filas = serviceOrder.map((item, i) => itemServicioAFila(item, eventoId, i));
-  const { error } = await supabase.from("items_servicio").insert(filas);
-  if (error) throw error;
+
+  if (filas.length) {
+    const { error } = await supabase.from("items_servicio").upsert(filas);
+    if (error) throw error;
+  }
+  const { data: actuales, error: idsErr } = await supabase.from("items_servicio").select("id").eq("evento_id", eventoId);
+  if (idsErr) throw idsErr;
+  const idsNuevos = new Set(filas.map((f) => f.id));
+  const idsSobrantes = (actuales ?? []).map((r) => r.id).filter((id) => !idsNuevos.has(id));
+  // Borrar estos (los ítems que salieron del setlist) sí arrastra en cascada sus propios miembros_rol
+  // (on delete cascade) — para los que SOBREVIVEN pero cambiaron de encargados hace falta el mismo
+  // upsert+borrado selectivo de abajo, ya que cascade no aplica a una fila que no se borró.
+  if (idsSobrantes.length) {
+    const { error: delErr } = await supabase.from("items_servicio").delete().in("id", idsSobrantes);
+    if (delErr) throw delErr;
+  }
 
   const encargadosRows = encargadosPorItemAFilas(serviceOrder);
   if (encargadosRows.length) {
-    const { error: encErr } = await supabase.from("miembros_rol").insert(encargadosRows);
+    const { error: encErr } = await supabase.from("miembros_rol").upsert(encargadosRows);
     if (encErr) throw encErr;
+  }
+  const itemIds = filas.map((f) => f.id);
+  const { data: encargadosActuales, error: encIdsErr } = itemIds.length
+    ? await supabase.from("miembros_rol").select("id").in("item_servicio_id", itemIds)
+    : { data: [] };
+  if (encIdsErr) throw encIdsErr;
+  const encargadosIdsNuevos = new Set(encargadosRows.map((r) => r.id));
+  const encargadosSobrantes = (encargadosActuales ?? []).map((r) => r.id).filter((id) => !encargadosIdsNuevos.has(id));
+  if (encargadosSobrantes.length) {
+    const { error: encDelErr } = await supabase.from("miembros_rol").delete().in("id", encargadosSobrantes);
+    if (encDelErr) throw encDelErr;
   }
 }
 export function sincronizarServiceOrder(eventoId, serviceOrder) {
   return encolar(`items:${eventoId}`, () => sincronizarServiceOrderInterno(eventoId, serviceOrder));
 }
 
-// Reemplaza TODOS los roles del equipo de alabanza (roles_evento + miembros_rol por rol_id) de un evento.
+// Reemplaza los roles del equipo de alabanza (roles_evento + miembros_rol por rol_id) de un evento —
+// mismo patrón "guarda lo nuevo primero, borra lo sobrante después" que sincronizarServiceOrderInterno
+// y por la misma razón: evitar la ventana donde la tabla queda vacía si algo falla a mitad de camino.
 async function sincronizarWorshipRolesInterno(eventoId, worshipRoles) {
   await esperarCreacionEvento(eventoId);
-  const { error: delErr } = await supabase.from("roles_evento").delete().eq("evento_id", eventoId);
-  if (delErr) throw delErr;
-  if (!worshipRoles.length) return;
   const rolesRows = worshipRoles.map((r, i) => ({ id: r.id, evento_id: eventoId, nombre: r.name, orden: i }));
-  const { error: rolErr } = await supabase.from("roles_evento").insert(rolesRows);
-  if (rolErr) throw rolErr;
+
+  if (rolesRows.length) {
+    const { error: rolErr } = await supabase.from("roles_evento").upsert(rolesRows);
+    if (rolErr) throw rolErr;
+  }
+  const { data: rolesActuales, error: rolIdsErr } = await supabase.from("roles_evento").select("id").eq("evento_id", eventoId);
+  if (rolIdsErr) throw rolIdsErr;
+  const rolIdsNuevos = new Set(rolesRows.map((r) => r.id));
+  const rolesSobrantes = (rolesActuales ?? []).map((r) => r.id).filter((id) => !rolIdsNuevos.has(id));
+  if (rolesSobrantes.length) {
+    const { error: rolDelErr } = await supabase.from("roles_evento").delete().in("id", rolesSobrantes);
+    if (rolDelErr) throw rolDelErr;
+  }
 
   const miembrosRows = [];
   worshipRoles.forEach((r) => {
@@ -251,8 +293,19 @@ async function sincronizarWorshipRolesInterno(eventoId, worshipRoles) {
     });
   });
   if (miembrosRows.length) {
-    const { error: mErr } = await supabase.from("miembros_rol").insert(miembrosRows);
+    const { error: mErr } = await supabase.from("miembros_rol").upsert(miembrosRows);
     if (mErr) throw mErr;
+  }
+  const rolIds = rolesRows.map((r) => r.id);
+  const { data: miembrosActuales, error: mIdsErr } = rolIds.length
+    ? await supabase.from("miembros_rol").select("id").in("rol_id", rolIds)
+    : { data: [] };
+  if (mIdsErr) throw mIdsErr;
+  const miembroIdsNuevos = new Set(miembrosRows.map((m) => m.id));
+  const miembrosSobrantes = (miembrosActuales ?? []).map((r) => r.id).filter((id) => !miembroIdsNuevos.has(id));
+  if (miembrosSobrantes.length) {
+    const { error: mDelErr } = await supabase.from("miembros_rol").delete().in("id", miembrosSobrantes);
+    if (mDelErr) throw mDelErr;
   }
 }
 export function sincronizarWorshipRoles(eventoId, worshipRoles) {
