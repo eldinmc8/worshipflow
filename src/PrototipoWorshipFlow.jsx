@@ -1605,7 +1605,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           <MultimediaControl
             eventTitle={liveEvent.title} isFreeSession={liveLibre} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
             goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}
-            onEnd={endEvent} canEnd={userId === liveOwnerId} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
+            onEnd={endEvent} canEnd={isAdminViewer || userId === liveOwnerId} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
             adHoc={adHoc} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
             onOpenPublicScreen={startPresentation}
             onNavigateBibleVerse={navigateBibleVerse}
@@ -5052,9 +5052,14 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#64707F", fontSize: 11, fontWeight: 700, letterSpacing: 0.6 }}><Radio size={13} /> MULTIMEDIA</div>
           <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{eventTitle}</div>
         </div>
-        <button onClick={onEnd} disabled={!canEnd} title={canEnd ? undefined : `Solo ${liveOwner} puede finalizar esta transmisión`} style={{ fontSize: 11, fontWeight: 700, color: canEnd ? "#C23B32" : "#B7BEC9", background: "transparent", border: `1px solid ${canEnd ? "#C23B32" : "#C7D0DD"}`, borderRadius: 20, padding: "3px 10px", cursor: canEnd ? "pointer" : "not-allowed", flexShrink: 0 }}>Finalizar evento</button>
+        <button onClick={onEnd} disabled={!canEnd} title={canEnd ? undefined : `Solo ${liveOwner} o un administrador puede finalizar esta transmisión`} style={{ fontSize: 11, fontWeight: 700, color: canEnd ? "#C23B32" : "#B7BEC9", background: "transparent", border: `1px solid ${canEnd ? "#C23B32" : "#C7D0DD"}`, borderRadius: 20, padding: "3px 10px", cursor: canEnd ? "pointer" : "not-allowed", flexShrink: 0 }}>Finalizar evento</button>
       </div>
-      {!canEnd && <div style={{ padding: "0 16px 6px", fontSize: 10, color: "#8996A6" }}>Solo {liveOwner} puede finalizar esta transmisión.</div>}
+      {/* canEnd ya incluye a los administradores (isAdminViewer) además de a quien inició la
+          transmisión -- antes SOLO ese dispositivo podía finalizarla, así que si se cerraba sin tocar
+          "Finalizar evento" (compu apagada, batería muerta) la transmisión quedaba bloqueada para
+          absolutamente todos, incluido el admin, hasta que pasaran las 24h del cierre automático por
+          abandono (ver LIVE_SESSION_STALE_MS) -- un admin necesita poder cortarla al instante. */}
+      {!canEnd && <div style={{ padding: "0 16px 6px", fontSize: 10, color: "#8996A6" }}>Solo {liveOwner} o un administrador puede finalizar esta transmisión.</div>}
 
       {/* Barra de herramientas: pantalla 2, negro */}
       <div style={{ display: "flex", gap: 8, padding: "8px 16px 10px", flexWrap: "wrap" }}>
