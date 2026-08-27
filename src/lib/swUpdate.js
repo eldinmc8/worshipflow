@@ -12,10 +12,11 @@ import { registerSW } from "virtual:pwa-register";
 // checkForUpdate() fuerza una revisión de verdad contra el sw.js del servidor: al abrir la app, cada
 // vez que vuelve a primer plano (cambiar de pestaña/app y volver), y como respaldo cada hora mientras
 // se quede abierta.
+let registration = null;
+
 export function iniciarActualizacionAutomatica() {
   if (!("serviceWorker" in navigator)) return;
 
-  let registration = null;
   registerSW({
     immediate: true,
     onRegisteredSW(_swUrl, reg) {
@@ -29,4 +30,18 @@ export function iniciarActualizacionAutomatica() {
   });
   window.addEventListener("focus", checkForUpdate);
   setInterval(checkForUpdate, 60 * 60 * 1000);
+}
+
+// Para el botón "Buscar actualizaciones" en Ajustes: dispara la misma revisión que ya corre sola en
+// segundo plano, pero de inmediato y con retroalimentación visible, para quien no quiera esperar a que
+// pase algo de los chequeos automáticos (o simplemente quiera confirmar que ya tiene la última versión
+// después de que le avisamos que publicamos un cambio). Si SÍ hay una versión nueva, el propio
+// autoUpdate ya la recarga sola apenas activa (ver iniciarActualizacionAutomatica/register.js) — por
+// eso esta función no "aplica" nada ella misma, solo espera un momento razonable: si para entonces la
+// recarga automática no se disparó sola, es que no había ninguna actualización pendiente.
+export function buscarActualizacionManual() {
+  if (!registration) return Promise.resolve();
+  return registration.update()
+    .catch(() => {})
+    .then(() => new Promise((resolve) => setTimeout(resolve, 4000)));
 }

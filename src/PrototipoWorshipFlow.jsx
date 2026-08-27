@@ -20,6 +20,7 @@ import { sincronizarRecordatorios } from "./lib/recordatorios.js";
 import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotificaciones, suscribirPush, desuscribirPush, estaSuscritoPush } from "./lib/notificaciones.js";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } from "./lib/pwaInstall.js";
+import { buscarActualizacionManual } from "./lib/swUpdate.js";
 import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FULL, MONTH_ABBR, DOW_LABELS, monthKey, monthLabelFromKey, formatFullDate, buildMonthWeeks } from "./lib/dates.js";
 import { saveCache, loadCache } from "./lib/offlineCache.js";
 
@@ -1932,6 +1933,20 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
   const [pushEstado, setPushEstado] = useState("cargando"); // cargando | activo | inactivo | sin-soporte
   const [pushBusy, setPushBusy] = useState(false);
   const install = useInstallState();
+  // Botón manual "Buscar actualizaciones": complementa la revisión automática (ver
+  // iniciarActualizacionAutomatica en swUpdate.js) para quien no quiera esperar a que pase algo de eso,
+  // o simplemente quiera confirmar que ya tiene la última versión después de que se le avisó de un
+  // cambio publicado. Si SÍ había una actualización, la propia app se recarga sola apenas activa — por
+  // eso este botón nunca llega a mostrar "listo, ya se actualizó": para cuando eso pasaría, la página
+  // ya se recargó sola. Solo necesita avisar cuando NO había ninguna pendiente.
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [upToDate, setUpToDate] = useState(false);
+  const checkForAppUpdate = async () => {
+    setCheckingUpdate(true); setUpToDate(false);
+    await buscarActualizacionManual();
+    setCheckingUpdate(false); setUpToDate(true);
+    setTimeout(() => setUpToDate(false), 4000);
+  };
   // "Continuar con Google" en Ajustes: vincula/desvincula Google como método alterno de inicio de
   // sesión para ESTA cuenta ya invitada — no reemplaza la invitación, solo evita tener que escribir la
   // contraseña la próxima vez. Ver AuthGate.jsx para el resguardo de que nadie sin invitación entre así.
@@ -2049,6 +2064,12 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
       ) : pushEstado === "inactivo" ? (
         <NavRow icon={Bell} label="Activar notificaciones push" onClick={activarPush} right={pushBusy ? null : <ChevronRight size={16} color="#8996A6" />} />
       ) : null}
+      <NavRow
+        icon={RefreshCw}
+        label={checkingUpdate ? "Buscando actualizaciones…" : upToDate ? "Ya tienes la última versión" : "Buscar actualizaciones"}
+        onClick={checkingUpdate ? undefined : checkForAppUpdate}
+        right={checkingUpdate || upToDate ? null : <ChevronRight size={16} color="#8996A6" />}
+      />
 
       <SectionLabel>ROL DE ESTE DISPOSITIVO</SectionLabel>
       <div style={{ background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: 14, marginBottom: 8 }}>
