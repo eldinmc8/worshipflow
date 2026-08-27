@@ -1289,8 +1289,14 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       .sort((a, b) => compareByDay(a.event, b.event));
   }, [events, userId, library]);
   const confirmarAsignacionVista = (eventId) => {
+    // Optimista: se refleja de una vez en pantalla, pero si el guardado real falla (red, permisos,
+    // lo que sea) se revierte y se avisa — antes el error se tragaba en silencio y la persona (y el
+    // admin viéndolo desde otro dispositivo) se quedaban creyendo que sí quedó marcado como visto.
     setEvents((evs) => evs.map((e) => (e.id === eventId ? { ...e, vistas: [...(e.vistas || []).filter((v) => v.usuarioId !== userId), { usuarioId: userId, vistoAt: new Date().toISOString() }] } : e)));
-    marcarAsignacionVista(eventId, userId).catch(() => {});
+    marcarAsignacionVista(eventId, userId).catch((err) => {
+      setEvents((evs) => evs.map((e) => (e.id === eventId ? { ...e, vistas: (e.vistas || []).filter((v) => v.usuarioId !== userId) } : e)));
+      window.alert("No se pudo confirmar que viste este evento: " + (err?.message || "intenta de nuevo") + ". Vuelve a tocarlo.");
+    });
   };
 
   if (!datosListos) {
@@ -1528,6 +1534,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           onRemoveReminder={(reminderId) => removeReminder(selectedEvent.id, reminderId)}
           onSetHora={(hora) => setEventHora(selectedEvent.id, hora)}
           onUpdateEventDetails={(details) => updateEventDetails(selectedEvent.id, details)}
+          onMarkVisto={confirmarAsignacionVista}
           showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
           showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
           showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
@@ -3582,7 +3589,7 @@ function EventDetail({
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
-  onViewMinistry, onOpenSong, onAddReminder, onRemoveReminder, onSetHora, onUpdateEventDetails,
+  onViewMinistry, onOpenSong, onAddReminder, onRemoveReminder, onSetHora, onUpdateEventDetails, onMarkVisto,
   showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide,
   showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint,
 }) {
@@ -3608,11 +3615,13 @@ function EventDetail({
   // quién de verdad se enteró de lo que le toca.
   const misCargos = misAsignacionesEnEvento(event, userId, library);
   const yaVistoPorMi = (event.vistas || []).some((v) => v.usuarioId === userId);
-  const [justMarkedVisto, setJustMarkedVisto] = useState(false);
+  // Usa la misma función que el aviso emergente (confirmarAsignacionVista, pasada como onMarkVisto) en
+  // vez de su propia copia — esa copia anterior guardaba en la base pero NUNCA actualizaba el estado
+  // compartido `events`, así que ni esta misma persona en otra pestaña ni el admin viéndolo se enteraban
+  // hasta que algo más disparara una recarga completa. Ahora ambos caminos quedan sincronizados.
   const marcarMisAsignacionesVistas = () => {
-    if (yaVistoPorMi || justMarkedVisto) return;
-    setJustMarkedVisto(true);
-    marcarAsignacionVista(event.id, userId).catch(() => setJustMarkedVisto(false));
+    if (yaVistoPorMi) return;
+    onMarkVisto(event.id);
   };
 
   if (showEventSettings) {
@@ -3750,11 +3759,11 @@ function EventDetail({
           <button
             onClick={marcarMisAsignacionesVistas}
             className="hoverable"
-            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: (yaVistoPorMi || justMarkedVisto) ? "#EAF6F1" : "#FFF4E8", border: `1.5px solid ${(yaVistoPorMi || justMarkedVisto) ? "#1F8A73" : "#E8821E"}`, borderRadius: 10, padding: "12px 14px", marginBottom: 16, cursor: "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: yaVistoPorMi ? "#EAF6F1" : "#FFF4E8", border: `1.5px solid ${yaVistoPorMi ? "#1F8A73" : "#E8821E"}`, borderRadius: 10, padding: "12px 14px", marginBottom: 16, cursor: "pointer" }}
           >
-            {(yaVistoPorMi || justMarkedVisto) ? <Eye size={20} color="#1F8A73" style={{ flexShrink: 0 }} /> : <EyeOff size={20} color="#8A4F0E" style={{ flexShrink: 0 }} />}
+            {yaVistoPorMi ? <Eye size={20} color="#1F8A73" style={{ flexShrink: 0 }} /> : <EyeOff size={20} color="#8A4F0E" style={{ flexShrink: 0 }} />}
             <span style={{ flex: 1, minWidth: 0 }}>
-              {(yaVistoPorMi || justMarkedVisto) ? (
+              {yaVistoPorMi ? (
                 <>
                   <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1F8A73" }}>Ya viste tu participación ✓</div>
                   <div style={{ fontSize: 12, color: "#33415A", marginTop: 2 }}>Te toca: {misCargos.join(", ")}</div>
@@ -3766,7 +3775,7 @@ function EventDetail({
                 </>
               )}
             </span>
-            {!(yaVistoPorMi || justMarkedVisto) && <ChevronRight size={18} color="#E8821E" style={{ flexShrink: 0 }} />}
+            {!yaVistoPorMi && <ChevronRight size={18} color="#E8821E" style={{ flexShrink: 0 }} />}
           </button>
         )}
 
@@ -5401,7 +5410,13 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
                   punto donde ese vaivén no se estabilizaba). Reservando aquí un espacio FIJO (no depende
                   de bibliaFontPx) y sacando la cita del flujo con position:absolute, el alto que mide
                   AutoFitText deja de depender de su propio resultado anterior — se rompe el ciclo. */}
-              <div style={{ flex: 1, minHeight: 0, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", paddingBottom: (thumbnail ? 22 : 76) * scale }}>
+              {/* paddingBottom fijo (NO depende de `scale`): antes crecía junto con el control de tamaño de
+                  letra (`* scale`) — así que subir el tamaño del versículo al mismo tiempo le quitaba
+                  espacio disponible para ese mismo versículo, compitiendo consigo mismo. En un versículo
+                  largo (que ya necesita achicarse para caber) ese espacio perdido podía anular por
+                  completo el aumento pedido, o incluso dejarlo más chico que antes — el control de tamaño
+                  se sentía "roto" justo en los casos donde más hacía falta. */}
+              <div style={{ flex: 1, minHeight: 0, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", paddingBottom: thumbnail ? 22 : 76 }}>
                 <AutoFitText
                   lines={`"${slide.text}"`} targetRatio={bibliaRatio} minPx={thumbnail ? 7 : 14} maxWidth="90%"
                   onFontSize={setBibliaFontPx}
