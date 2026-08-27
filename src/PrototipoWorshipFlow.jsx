@@ -5444,7 +5444,15 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
                   largo (que ya necesita achicarse para caber) ese espacio perdido podía anular por
                   completo el aumento pedido, o incluso dejarlo más chico que antes — el control de tamaño
                   se sentía "roto" justo en los casos donde más hacía falta. */}
-              <div style={{ flex: 1, minHeight: 0, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", paddingBottom: thumbnail ? 22 : 76 }}>
+              {/* flexDirection:"column" es lo que de verdad arregla el tamaño de letra de los versículos:
+                  sin esto (display:flex por defecto es "row"), align-items:center pasa a controlar el
+                  eje vertical (cruzado en una fila) y este div, en vez de estirarse al alto real
+                  disponible, se encoge al tamaño de SU PROPIO contenido -- que es circular con lo que
+                  AutoFitText está midiendo. El resultado: container.clientHeight quedaba casi en 0/20px
+                  sin importar la pantalla, así que el tamaño "deseado" (containerHeight * bibliaRatio)
+                  siempre caía al piso mínimo (minPx) y el control de tamaño de letra no tenía ningún
+                  efecto real -- por eso el versículo se seguía viendo chico pase lo que pase. */}
+              <div style={{ flex: 1, minHeight: 0, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingBottom: thumbnail ? 22 : 76 }}>
                 <AutoFitText
                   lines={`"${slide.text}"`} targetRatio={bibliaRatio} minPx={thumbnail ? 7 : 14} maxWidth="90%"
                   onFontSize={setBibliaFontPx}
