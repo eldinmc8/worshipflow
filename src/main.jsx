@@ -1,12 +1,10 @@
-import { StrictMode } from 'react'
+import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import './lib/pwaInstall.js'
-import { iniciarActualizacionAutomatica } from './lib/swUpdate.js'
+import { iniciarActualizacionAutomatica, aplicarActualizacion } from './lib/swUpdate.js'
 import AuthGate from './AuthGate.jsx'
 import PublicScreen from './PublicScreen.jsx'
-
-iniciarActualizacionAutomatica()
 
 // La pantalla pública vive en su propia URL (?screen=publico) para poder instalarse
 // como PWA independiente del panel de control del operador (útil para un dispositivo fijo junto
@@ -19,8 +17,38 @@ if (isPublicScreen) {
   if (link) link.setAttribute('href', '/manifest-pantalla.webmanifest')
 }
 
+// Aviso de actualización VISIBLE apenas se detecta una versión nueva — antes esto solo vivía como un
+// botón dentro de Ajustes ("Buscar actualizaciones"), que sirve para quien ya sabe que existe, pero no
+// para quien nunca entra ahí o casi no abre la app: a esa gente había que plantarle el aviso enfrente,
+// sin que tenga que ir a buscarlo. Este componente envuelve TODO (login incluido, no solo la app ya
+// adentro) para que se vea sin importar en qué pantalla esté la persona cuando se detecta la
+// actualización.
+function App() {
+  const [updateReady, setUpdateReady] = useState(false)
+  useEffect(() => {
+    iniciarActualizacionAutomatica(() => setUpdateReady(true))
+  }, [])
+
+  return (
+    <>
+      {updateReady && (
+        <div style={{ position: 'fixed', left: 0, right: 0, top: 0, zIndex: 10000, background: '#16324F', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 10, padding: '10px 16px', fontFamily: "'Poppins', sans-serif", fontSize: 13, fontWeight: 600, boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
+          <span>Hay una nueva actualización disponible</span>
+          <button
+            onClick={() => aplicarActualizacion()}
+            style={{ background: '#E8821E', color: '#16233A', border: 'none', borderRadius: 20, padding: '6px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Actualizar
+          </button>
+        </div>
+      )}
+      {isPublicScreen ? <PublicScreen /> : <AuthGate />}
+    </>
+  )
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    {isPublicScreen ? <PublicScreen /> : <AuthGate />}
+    <App />
   </StrictMode>,
 )

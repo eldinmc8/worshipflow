@@ -6,7 +6,12 @@ import { precacheAndRoute } from "workbox-precaching";
 // permite personalizar).
 precacheAndRoute(self.__WB_MANIFEST);
 
-self.addEventListener("install", () => self.skipWaiting());
+// No self.skipWaiting() automático en "install": con registerType "prompt", el SW nuevo debe
+// quedarse en estado "waiting" hasta que la persona toque "Actualizar" (ver swUpdate.js). Si
+// esto llamara skipWaiting() solo, nunca habría un SW esperando y el aviso nunca se mostraría.
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
+});
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
 // Notificación push real (Web Push / VAPID) — la manda notificar-asignacion o procesar-recordatorios

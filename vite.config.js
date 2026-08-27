@@ -7,7 +7,12 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt' (no 'autoUpdate'): que una versión nueva se recargue SOLA sin avisar puede pasar en
+      // pleno culto a mitad de algo — y para quien nunca abre Ajustes, un cambio publicado tampoco tenía
+      // ninguna señal visible de que existía. 'prompt' deja que src/main.jsx muestre un aviso real
+      // ("Hay una actualización — Actualizar") apenas se detecta una, y solo se aplica cuando la persona
+      // misma toca ese botón — ver swUpdate.js (onNeedRefresh) y el mensaje SKIP_WAITING en sw.js.
+      registerType: 'prompt',
       // injectManifest (no generateSW): necesitamos nuestro propio src/sw.js con listeners de
       // "push"/"notificationclick" para las notificaciones reales — generateSW arma el service
       // worker automáticamente y no deja agregarle código propio.
