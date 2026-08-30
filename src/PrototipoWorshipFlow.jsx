@@ -1056,7 +1056,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // como encargado de un bloque de Lectura bíblica/Oración EN ESTE EVENTO puede agregar su propio
   // versículo para esa lectura, aunque no sea administrador.
   const canAddBibleReading = () => isAdminViewer || !!(selectedEvent?.serviceOrder || []).find(
-    (it) => isBibleReadingBlock(it) && (it.encargados || []).some((m) => m.usuarioId === userId)
+    (it) => isBibleReadingBlock(it) && (it.encargados || []).some((m) => m.usuarioId === myUserId)
   );
   const canAddSermonPoints = () => isAdminViewer;
 
@@ -1125,7 +1125,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const [selectedMinistryId, setSelectedMinistryId] = useState(null);
   // Grupos: solo administradores ven todos; quien lidera uno o más grupos ve la pestaña pero solo SUS
   // propios grupos (no los de los demás), aunque tenga dos o más asignados.
-  const myMinistries = ministries.filter((m) => m.leaderId === userId);
+  const myMinistries = ministries.filter((m) => m.leaderId === myUserId);
   const canSeeGrupos = isAdminViewer || myMinistries.length > 0;
   const visibleMinistries = isAdminViewer ? ministries : myMinistries;
   // Guarda en Supabase solo la parte que de verdad cambió (plan o recursos), comparando por
@@ -1526,7 +1526,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           ministry={ministries.find((m) => m.id === selectedMinistryId)}
           usuariosReales={usuariosReales}
           isAdminViewer={isAdminViewer}
-          canEdit={isAdminViewer || ministries.find((m) => m.id === selectedMinistryId)?.leaderId === userId}
+          canEdit={isAdminViewer || ministries.find((m) => m.id === selectedMinistryId)?.leaderId === myUserId}
           onBack={() => window.history.back()}
           onSavePlan={(plan) => savePlanForMinistry(selectedMinistryId, plan)}
           onAddResource={(resource) => addResource(selectedMinistryId, resource)}
@@ -1578,7 +1578,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         <EventDetail
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
           isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={isAdminViewer}
-          userId={userId} usuariosReales={usuariosReales}
+          userId={myUserId} usuariosReales={usuariosReales}
           onBack={() => window.history.back()}
           isDraftFromTemplate={selectedEvent.id === draftFromTemplateId}
           onPublish={() => { setDraftFromTemplateId(null); window.history.back(); }}
