@@ -392,7 +392,12 @@ function decidirVisibilidadSetlist(event, isAdminViewer, userId) {
   const misOtrosBloques = misBloquesPropios.filter((it) => !isMultimediaBlock(it));
   if (misOtrosBloques.length > 0) return { modo: "bloque-propio", blocks: misOtrosBloques };
   const soyDeAlabanzaOMultimedia = esMiembroAlabanza(event, userId) || misBloquesPropios.some(isMultimediaBlock);
-  if (soyDeAlabanzaOMultimedia) return { modo: "alabanza-multimedia", blocks: event.serviceOrder.filter(isMultimediaBlock) };
+  if (soyDeAlabanzaOMultimedia) {
+    // Ven el Setlist COMPLETO (canciones, versículos, slides — lo que de verdad necesitan para tocar
+    // o proyectar) + su propio bloque de Multimedia/Alabanza — nada más de bloques organizativos
+    // ajenos (Limpieza, Ofrendas, Predicación, etc., que son los únicos que sí se ocultan).
+    return { modo: "filtrado", visibleOrder: event.serviceOrder.filter((it) => it.type !== "seccion" || isMultimediaBlock(it) || isWorshipBlock(it)) };
+  }
   return { modo: "todo" };
 }
 // Ítems del Setlist que un usuario puede ver, aplicando decidirVisibilidadSetlist — se usa en el
@@ -400,7 +405,7 @@ function decidirVisibilidadSetlist(event, isAdminViewer, userId) {
 function serviceOrderVisiblePara(event, isAdminViewer, userId) {
   const decision = decidirVisibilidadSetlist(event, isAdminViewer, userId);
   if (decision.modo === "bloque-propio") return decision.blocks;
-  if (decision.modo === "alabanza-multimedia") return event.serviceOrder.filter((it) => isMultimediaBlock(it) || isWorshipBlock(it));
+  if (decision.modo === "filtrado") return decision.visibleOrder;
   return event.serviceOrder;
 }
 // "Del equipo de Alabanza" = aparece como integrante de algún rol del equipo de alabanza en ESTE
@@ -4294,9 +4299,10 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
   if (visibilidadSetlist.modo === "bloque-propio") {
     return <RestrictedGroupPanel blocks={visibilidadSetlist.blocks} worshipRoles={[]} />;
   }
-  if (visibilidadSetlist.modo === "alabanza-multimedia") {
-    return <RestrictedGroupPanel blocks={visibilidadSetlist.blocks} worshipRoles={event.worshipRoles || []} />;
-  }
+  // Alabanza/Multimedia: NO es un panel simplificado — ven el Setlist normal de siempre (canciones,
+  // letra, versículos, slides), solo que sin los bloques organizativos de otros grupos (ver
+  // visibleServiceOrder más abajo, usado en vez de event.serviceOrder en el render principal).
+  const visibleServiceOrder = visibilidadSetlist.modo === "filtrado" ? visibilidadSetlist.visibleOrder : event.serviceOrder;
   const findRowIndexAtY = (y) => {
     const indices = Object.keys(rowRefs.current).map(Number).sort((a, b) => a - b);
     for (const idx of indices) {
@@ -4402,7 +4408,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
         <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
           <Sparkles size={13} color="#E8821E" /> Solo se agrega en orden — las canciones ya traen su letra lista para proyectar.
         </div>
-        {event.serviceOrder.map((item, idx) => {
+        {visibleServiceOrder.map((item, idx) => {
           const meta = TYPE_META[item.type];
           const handleProps = dragHandleProps(idx);
           if (item.type === "seccion") {

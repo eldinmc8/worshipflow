@@ -23,6 +23,10 @@
      chrome — no confundir con el navy usado como FONDO (header, nav inferior, botones navy), que
      se queda igual en los dos temas a propósito y no usa esta variable. */
   --wf-heading: #16324F;
+  /* Fondo de la sección ACTIVA en Modo Músico (la que tiene el borde naranja) — antes era un crema
+     fijo (#FFF4E8) que en oscuro dejaba la letra (var(--wf-text), casi blanca ahí) invisible sobre
+     un fondo igual de claro. En oscuro se vuelve un tono café/ámbar oscuro en vez de crema. */
+  --wf-active-bg: #FFF4E8;
 }
 [data-theme="dark"] {
   --wf-bg: #10151C;
@@ -77,6 +81,15 @@ html {
   .print-only, .print-only * { visibility: visible; }
   .print-only { display: block; position: absolute; top: 0; left: 0; width: 100%; padding: 0; }
 }
+
+/* Logo de la iglesia: el archivo original tiene el azul marino de sus letras/ilustración fijo (no es
+   texto real, es una imagen), así que en oscuro se veía perdido contra una tarjeta igual de oscura.
+   logo-iglesia-oscuro.png es el mismo logo con esas letras recoloreadas a blanco (ver AppLogo.jsx) —
+   acá solo se decide cuál de los dos se muestra según el tema. */
+.logo-claro { display: block; }
+.logo-oscuro { display: none; }
+[data-theme="dark"] .logo-claro { display: none; }
+[data-theme="dark"] .logo-oscuro { display: block; }
 
 input, textarea, [contenteditable="true"] {
   -webkit-user-select: text;

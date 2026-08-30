@@ -5,6 +5,7 @@ import { suscribirPush } from "./lib/notificaciones.js";
 import Login from "./Login.jsx";
 import UsersAdmin from "./UsersAdmin.jsx";
 import PrototipoWorshipFlow from "./PrototipoWorshipFlow.jsx";
+import AppLogo from "./AppLogo.jsx";
 
 // Puerta de acceso real: exige sesión de Supabase antes de mostrar la app. La app en sí ya es el
 // prototipo completo (Canciones, Eventos, En vivo, Ministerios...), pero ahora leyendo y guardando
@@ -190,7 +191,7 @@ function SetPassword({ onDone }) {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Poppins:wght@400;500;600;700&display=swap');`}</style>
       <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 16 }}>
-          <img src="/logo-iglesia.png" alt="Iglesia Jesús El Buen Pastor" style={{ width: 180, maxWidth: "100%", height: "auto" }} />
+          <AppLogo width={180} />
           <span style={{ fontFamily: "'Fraunces', serif", fontSize: 14, fontWeight: 600, color: "var(--wf-heading)" }}>JBP App</span>
         </div>
         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-text)", marginBottom: 4 }}>¡Bienvenido/a!</div>
@@ -262,7 +263,7 @@ function CompleteProfile({ session, onDone }) {
           {fotoGoogle ? (
             <img src={fotoGoogle} alt="" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover" }} />
           ) : (
-            <img src="/logo-iglesia.png" alt="Iglesia Jesús El Buen Pastor" style={{ width: 140, maxWidth: "100%", height: "auto" }} />
+            <AppLogo width={140} />
           )}
         </div>
         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-text)", marginBottom: 4 }}>Ya casi — ¿cómo te llamas?</div>

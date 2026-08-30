@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "./lib/supabaseClient.js";
+import AppLogo from "./AppLogo.jsx";
 
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
 const primaryBtn = { width: "100%", background: "#E8821E", border: "none", borderRadius: 8, padding: "11px", fontSize: 14, fontWeight: 700, color: "#16324F", cursor: "pointer" };
@@ -36,7 +37,7 @@ export default function Login() {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Poppins:wght@400;500;600;700&display=swap');`}</style>
       <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 20 }}>
-          <img src="/logo-iglesia.png" alt="Iglesia Jesús El Buen Pastor" style={{ width: 200, maxWidth: "100%", height: "auto" }} />
+          <AppLogo width={200} />
           <span style={{ fontFamily: "'Fraunces', serif", fontSize: 15, fontWeight: 600, color: "var(--wf-heading)" }}>JBP App</span>
         </div>
 
