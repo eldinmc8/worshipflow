@@ -358,37 +358,44 @@ function misAsignacionesEnEvento(event, uid, library) {
   });
   return labels;
 }
-// Grupos cuyos encargados tienen una vista restringida del Setlist: cada uno ve SOLO su(s) propio(s)
-// bloque(s) — nada de canciones, versículos ni bloques de otros grupos (ver RestrictedGroupPanel).
-// Se identifican por el título del bloque, igual mecanismo con el que ya funcionaba Limpieza.
-// Multimedia es la única excepción con un privilegio extra (ver esMultimedia en RestrictedGroupPanel
-// y su uso en SetlistPane): además de su propio bloque, también ve el equipo de Alabanza completo,
-// porque lo necesita para proyectar.
-// Quita tildes y pasa a minúsculas antes de buscar la palabra clave del grupo — así "Prédica" o
+// Quita tildes y pasa a minúsculas antes de buscar una palabra clave en un título — así "Prédica" o
 // "Ofrenda" (singular, sin la "s" final) también coinciden con "predic"/"ofrenda", en vez de exigir
 // que el título esté escrito exactamente como el patrón (acentos y plural incluidos).
 const PATRON_TILDES = new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g");
 function normalizarTitulo(s) {
   return (s || "").normalize("NFD").replace(PATRON_TILDES, "").toLowerCase();
 }
-const GRUPOS_VISTA_RESTRINGIDA = [
-  { grupo: "limpieza", clave: "limpieza" },
-  { grupo: "ventas", clave: "ventas" },
-  { grupo: "adolescentes", clave: "adolescentes" },
-  { grupo: "ofrendas", clave: "ofrenda" },
-  { grupo: "multimedia", clave: "multimedia" },
-];
-function grupoRestringidoDeBloque(item) {
-  if (item.type !== "seccion") return null;
-  const titulo = normalizarTitulo(item.title);
-  const encontrado = GRUPOS_VISTA_RESTRINGIDA.find((g) => titulo.includes(g.clave));
-  return encontrado ? encontrado.grupo : null;
+// Un bloque "pertenece" a Multimedia por el mismo criterio (título) que isWorshipBlock usa para
+// Alabanza — ver serviceOrderVisiblePara: Alabanza y Multimedia son el único par que se ve entre sí,
+// cualquier otro bloque organizativo (Limpieza, Ofrendas, Adolescentes, Escuelita Infantil, Lectura
+// inicial, Predicación...) restringe a su(s) encargado(s) a ver SOLO ese bloque.
+function isMultimediaBlock(item) {
+  return item.type === "seccion" && normalizarTitulo(item.title).includes("multimedia");
 }
-// El bloque de Predicación no restringe a quien está asignado ahí (normalmente ya es administrador) —
-// solo se usa para OCULTARLO de quien es del equipo de Alabanza y no administrador (ver soyDeAlabanza
-// en SetlistPane): ese grupo ve todo el Setlist completo excepto quién predica.
-function isPredicacionBlock(item) {
-  return item.type === "seccion" && normalizarTitulo(item.title).includes("predic");
+// Única fuente de verdad para la visibilidad del Setlist por grupo — la usan tanto SetlistPane (para
+// decidir qué panel mostrar) como el resumen en PDF (para no filtrar aparte y arriesgar que se
+// desincronicen). Nada de esto aplica a un administrador, que siempre ve todo:
+// - Alabanza y Multimedia se ven entre sí (el equipo de alabanza completo + el bloque de Multimedia)
+//   y nada más del Setlist.
+// - Cualquier OTRO bloque organizativo (Limpieza, Ofrendas, Adolescentes, Escuelita Infantil, Lectura
+//   inicial, Predicación, etc.) restringe a su(s) encargado(s) a ver SOLO ese bloque — ni siquiera
+//   Alabanza/Multimedia, ni el resto de bloques.
+function decidirVisibilidadSetlist(event, isAdminViewer, userId) {
+  if (isAdminViewer) return { modo: "todo" };
+  const misBloquesPropios = event.serviceOrder.filter((it) => it.type === "seccion" && (it.encargados || []).some((m) => m.usuarioId === userId));
+  const misOtrosBloques = misBloquesPropios.filter((it) => !isMultimediaBlock(it));
+  if (misOtrosBloques.length > 0) return { modo: "bloque-propio", blocks: misOtrosBloques };
+  const soyDeAlabanzaOMultimedia = esMiembroAlabanza(event, userId) || misBloquesPropios.some(isMultimediaBlock);
+  if (soyDeAlabanzaOMultimedia) return { modo: "alabanza-multimedia", blocks: event.serviceOrder.filter(isMultimediaBlock) };
+  return { modo: "todo" };
+}
+// Ítems del Setlist que un usuario puede ver, aplicando decidirVisibilidadSetlist — se usa en el
+// resumen en PDF, que de otro modo mostraría el Setlist completo a cualquiera sin pasar por SetlistPane.
+function serviceOrderVisiblePara(event, isAdminViewer, userId) {
+  const decision = decidirVisibilidadSetlist(event, isAdminViewer, userId);
+  if (decision.modo === "bloque-propio") return decision.blocks;
+  if (decision.modo === "alabanza-multimedia") return event.serviceOrder.filter((it) => isMultimediaBlock(it) || isWorshipBlock(it));
+  return event.serviceOrder;
 }
 // "Del equipo de Alabanza" = aparece como integrante de algún rol del equipo de alabanza en ESTE
 // evento (event.worshipRoles, ej. Guitarra, Batería) — no tiene que ver con el rol de dispositivo.
@@ -3870,7 +3877,7 @@ function EventDetail({
             {(formatFullDate(event.date) || event.dateLabel || "")}{event.hora ? ` · ${event.hora}` : ""}
           </div>
           <ol style={{ paddingLeft: 20, margin: 0 }}>
-            {(!isAdminViewer && esMiembroAlabanza(event, userId) ? event.serviceOrder.filter((it) => !isPredicacionBlock(it)) : event.serviceOrder).map((item) => {
+            {serviceOrderVisiblePara(event, isAdminViewer, userId).map((item) => {
               if (item.type === "seccion") {
                 const names = isWorshipBlock(item)
                   ? (event.worshipRoles || []).flatMap((r) => r.members.map((m) => `${m.n} (${r.name})`)).join(", ")
@@ -4129,23 +4136,16 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
   const [dragTranslateY, setDragTranslateY] = useState(0);
   const rowRefs = useRef({});
   const dragStartYRef = useRef(0);
-  // Visibilidad del Setlist por grupo (nada de esto aplica a un administrador, que siempre ve todo):
-  // - Limpieza / Ventas / Adolescentes / Ofrendas: cada encargado ve SOLO su(s) propio(s) bloque(s).
-  // - Multimedia: ve su propio bloque + el equipo de Alabanza completo (lo necesita para proyectar).
-  // - Alabanza (equipo de alabanza): ve el Setlist completo, excepto el bloque de Predicación (más
-  //   abajo, en el render normal, se filtra ese bloque en vez de cortar aquí).
-  // Va DESPUÉS de todos los hooks de arriba: un return anticipado antes de un useState rompe las
-  // reglas de hooks en cuanto ese mismo componente vuelva a renderizar sin la restricción activa.
-  const misBloquesRestringidos = !isAdminViewer
-    ? event.serviceOrder.filter((it) => grupoRestringidoDeBloque(it) && (it.encargados || []).some((m) => m.usuarioId === userId))
-    : [];
-  const soyDeAlabanza = !isAdminViewer && esMiembroAlabanza(event, userId);
-  if (!soyDeAlabanza && misBloquesRestringidos.length > 0) {
-    const tengoBloqueMultimedia = misBloquesRestringidos.some((it) => grupoRestringidoDeBloque(it) === "multimedia");
-    return <RestrictedGroupPanel blocks={misBloquesRestringidos} worshipRoles={tengoBloqueMultimedia ? (event.worshipRoles || []) : []} />;
+  // Visibilidad del Setlist por grupo — ver decidirVisibilidadSetlist. Va DESPUÉS de todos los hooks
+  // de arriba: un return anticipado antes de un useState rompe las reglas de hooks en cuanto ese mismo
+  // componente vuelva a renderizar sin la restricción activa.
+  const visibilidadSetlist = decidirVisibilidadSetlist(event, isAdminViewer, userId);
+  if (visibilidadSetlist.modo === "bloque-propio") {
+    return <RestrictedGroupPanel blocks={visibilidadSetlist.blocks} worshipRoles={[]} />;
   }
-  // El equipo de Alabanza ve todo el Setlist menos quién predica.
-  const visibleServiceOrder = soyDeAlabanza ? event.serviceOrder.filter((it) => !isPredicacionBlock(it)) : event.serviceOrder;
+  if (visibilidadSetlist.modo === "alabanza-multimedia") {
+    return <RestrictedGroupPanel blocks={visibilidadSetlist.blocks} worshipRoles={event.worshipRoles || []} />;
+  }
   const findRowIndexAtY = (y) => {
     const indices = Object.keys(rowRefs.current).map(Number).sort((a, b) => a - b);
     for (const idx of indices) {
@@ -4251,7 +4251,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
         <div style={{ fontSize: 12, color: "#64707F", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
           <Sparkles size={13} color="#E8821E" /> Solo se agrega en orden — las canciones ya traen su letra lista para proyectar.
         </div>
-        {visibleServiceOrder.map((item, idx) => {
+        {event.serviceOrder.map((item, idx) => {
           const meta = TYPE_META[item.type];
           const handleProps = dragHandleProps(idx);
           if (item.type === "seccion") {
