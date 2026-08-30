@@ -1544,6 +1544,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           onSelectEvent={goToEvent}
           onGoToUsuarios={onGoToUsuarios}
           userId={userId}
+          isCompact={isCompact}
         />
       )}
 
@@ -2109,7 +2110,7 @@ function BibleDownloadSection() {
   );
 }
 
-function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, userId }) {
+function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, userId, isCompact }) {
   const [horarioAbierto, setHorarioAbierto] = useState(false);
   const [showTeamList, setShowTeamList] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -2273,8 +2274,14 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
         )}
       </div>
 
-      <SectionLabel>MODO SIN CONEXIÓN</SectionLabel>
-      <BibleDownloadSection />
+      {/* Solo tiene sentido en la computadora que transmite/proyecta — en un celular no se usa para
+          eso, así que no tiene caso ofrecerle descargar varios MB de Biblia. */}
+      {!isCompact && (
+        <>
+          <SectionLabel>MODO SIN CONEXIÓN</SectionLabel>
+          <BibleDownloadSection />
+        </>
+      )}
 
       {realIsAdmin && (
         <>
