@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
+import { showToast } from "./lib/toast.js";
 import { parseIsoDateLocal, todayLocal, buildMonthWeeks, MONTH_NAMES_FULL, DOW_LABELS, formatFullDate } from "./lib/dates.js";
 
 const ROLES = [
@@ -255,7 +256,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
     setBusy(true); setError("");
     try {
       await callUsersFunction("reiniciar-password", { id, password });
-      window.alert("Contraseña actualizada.");
+      showToast("Contraseña actualizada.", "info");
     } catch (err) {
       setError(err.message);
     } finally {

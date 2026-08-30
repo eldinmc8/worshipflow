@@ -6,7 +6,7 @@ import {
   UserPlus, Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette,
-  Type,
+  Type, WifiOff, CloudDownload,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion } from "./lib/canciones.js";
 import {
@@ -23,6 +23,11 @@ import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } fr
 import { buscarActualizacionManual, hayActualizacionPendiente } from "./lib/swUpdate.js";
 import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FULL, MONTH_ABBR, DOW_LABELS, monthKey, monthLabelFromKey, formatFullDate, buildMonthWeeks } from "./lib/dates.js";
 import { saveCache, loadCache } from "./lib/offlineCache.js";
+import { showToast, notifyError } from "./lib/toast.js";
+import {
+  guardarCapituloOffline, obtenerCapituloOffline, contarCapitulosGuardados,
+  borrarVersionOffline, todosLosVersiculosOffline, descargarBibliaCompleta,
+} from "./lib/bibleOfflineStore.js";
 
 // ---------- Vista de celular: se activa sola según el ancho real de la pantalla, no un dispositivo fijo ----------
 const MOBILE_BREAKPOINT = 768;
@@ -509,13 +514,19 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // solo lectura — los intentos de guardar algo mientras no hay señal van a fallar igual (ya lo avisan
   // las alertas de "No se pudo guardar..." que ya existían), esto solo evita la pantalla vacía.
   const [usingCachedData, setUsingCachedData] = useState(false);
-  const reloadLibrary = () => listCancionesCompletas().then(setLibrary).catch((e) => window.alert("No se pudo cargar el cancionero: " + e.message));
+  // Refleja el estado real de conexión del navegador (no solo "falló la última carga") — así se puede
+  // avisar apenas se corta la señal, aunque los datos ya estuvieran cargados de antes.
+  const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && navigator.onLine === false);
+  const reloadLibrary = () => listCancionesCompletas().then(setLibrary).catch((e) => notifyError("No se pudo cargar el cancionero", e));
+  // Se reutiliza tanto en la carga inicial como al recuperar la señal (ver el efecto de "online" más
+  // abajo) — mismo Promise.all de siempre, solo que ahora tiene nombre para no repetirlo dos veces.
+  const cargarTodo = () => Promise.all([
+    listCancionesCompletas().then((data) => { setLibrary(data); saveCache("canciones", data); }),
+    listEventosCompletos().then((data) => { setEvents(data); saveCache("eventos", data); }),
+    listMinisteriosCompletos().then((data) => { setMinistries(data); saveCache("ministerios", data); }),
+  ]);
   useEffect(() => {
-    Promise.all([
-      listCancionesCompletas().then((data) => { setLibrary(data); saveCache("canciones", data); }),
-      listEventosCompletos().then((data) => { setEvents(data); saveCache("eventos", data); }),
-      listMinisteriosCompletos().then((data) => { setMinistries(data); saveCache("ministerios", data); }),
-    ])
+    cargarTodo()
       .catch((e) => {
         const cachedLibrary = loadCache("canciones");
         const cachedEvents = loadCache("eventos");
@@ -526,10 +537,25 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           setMinistries(cachedMinistries || []);
           setUsingCachedData(true);
         } else {
-          window.alert("No se pudieron cargar los datos: " + e.message);
+          notifyError("No se pudieron cargar los datos", e);
         }
       })
       .finally(() => setDatosListos(true));
+  }, []);
+  // Si el teléfono compartido se queda sin señal a medio culto y luego vuelve (algo que ya le ha
+  // pasado a esta iglesia), esto lo detecta solo — sin tener que recargar la página a mano — y
+  // resincroniza todo de una vez apenas vuelve el internet.
+  useEffect(() => {
+    const onOffline = () => setIsOffline(true);
+    const onOnline = () => {
+      setIsOffline(false);
+      cargarTodo()
+        .then(() => { setUsingCachedData(false); showToast("Conexión recuperada — todo actualizado.", "info"); })
+        .catch(() => {});
+    };
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+    return () => { window.removeEventListener("offline", onOffline); window.removeEventListener("online", onOnline); };
   }, []);
   // Sincroniza Canciones/Eventos/Ministerios EN TIEMPO REAL entre dispositivos — antes cada uno se
   // cargaba una sola vez al abrir la app y quien lo tuviera abierto no se enteraba de cambios hechos
@@ -600,7 +626,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     }));
     if (nuevoOrden) {
       pendingSavesRef.current++;
-      sincronizarServiceOrder(liveEventId, nuevoOrden).catch((err) => window.alert("No se pudo guardar el setlist: " + err.message)).finally(() => pendingSavesRef.current--);
+      sincronizarServiceOrder(liveEventId, nuevoOrden).catch((err) => notifyError("No se pudo guardar el setlist", err)).finally(() => pendingSavesRef.current--);
     }
   };
   // Para cuando a Multimedia se le olvidó agregar algo en el Setlist (un anuncio, etc.): agrega una slide
@@ -634,11 +660,11 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     const fromVerse = direction > 0 ? current.verseEnd : current.verseStart;
     try {
       const result = await fetchAdjacentBibleVerse(current.version, current.bookId, current.chapter, fromVerse, direction);
-      if (!result) { window.alert(direction > 0 ? "Ya no hay más versículos después de este en el libro." : "Este ya es el primer versículo del libro."); return; }
+      if (!result) { showToast(direction > 0 ? "Ya no hay más versículos después de este en el libro." : "Este ya es el primer versículo del libro."); return; }
       const bookName = result.bookName || current.bookName;
       applyBibleSlidePatch({ reference: `${bookName} ${result.chapter}:${result.verse}`, text: result.text, chapter: result.chapter, verseStart: result.verse, verseEnd: result.verse, bookName });
     } catch {
-      window.alert("No se pudo cargar el versículo. Revisa tu conexión a internet.");
+      showToast("No se pudo cargar el versículo. Revisa tu conexión a internet.", "offline");
     }
   };
 
@@ -651,7 +677,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     }));
     if (nuevoOrden) {
       pendingSavesRef.current++;
-      sincronizarServiceOrder(selectedEventId, nuevoOrden).catch((err) => window.alert("No se pudo guardar el setlist: " + err.message)).finally(() => pendingSavesRef.current--);
+      sincronizarServiceOrder(selectedEventId, nuevoOrden).catch((err) => notifyError("No se pudo guardar el setlist", err)).finally(() => pendingSavesRef.current--);
     }
   };
   // Cada canción se manda sola al bloque que le corresponde según su clasificación (Himno/Corito/Canto
@@ -751,7 +777,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     }));
     if (nuevo) {
       pendingSavesRef.current++;
-      sincronizarWorshipRoles(selectedEventId, nuevo).catch((err) => window.alert("No se pudo guardar el equipo de alabanza: " + err.message)).finally(() => pendingSavesRef.current--);
+      sincronizarWorshipRoles(selectedEventId, nuevo).catch((err) => notifyError("No se pudo guardar el equipo de alabanza", err)).finally(() => pendingSavesRef.current--);
     }
   };
   const addWorshipRole = (name) => {
@@ -810,7 +836,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     const url = `${window.location.origin}${window.location.pathname}?screen=publico`;
     const otherScreen = screenDetails.screens.find((s) => s !== screenDetails.currentScreen);
     if (!otherScreen) {
-      window.alert("No se detectó una segunda pantalla conectada. Conecta el proyector/monitor y vuelve a intentar para que se abra ahí solo.");
+      showToast("No se detectó una segunda pantalla conectada. Conecta el proyector/monitor y vuelve a intentar para que se abra ahí solo.");
       return;
     }
     const popup = window.open(url, PROYECCION_WINDOW_NAME, `${PROYECCION_WINDOW_FEATURES},left=${otherScreen.left},top=${otherScreen.top},width=${otherScreen.width},height=${otherScreen.height}`);
@@ -828,7 +854,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   };
   const startPresentation = async () => {
     if (!("getScreenDetails" in window)) {
-      window.alert("Este navegador no permite detectar una segunda pantalla automáticamente. Usa Chrome o Edge para que la proyección se abra sola ahí.");
+      showToast("Este navegador no permite detectar una segunda pantalla automáticamente. Usa Chrome o Edge para que la proyección se abra sola ahí.");
       return;
     }
     if (screenDetailsRef.current) { openOnOtherScreen(screenDetailsRef.current); return; }
@@ -837,7 +863,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       screenDetailsRef.current = screenDetails;
       openOnOtherScreen(screenDetails);
     } catch {
-      window.alert("No se pudo detectar las pantallas conectadas (permiso denegado). Conecta el proyector/monitor y vuelve a intentar.");
+      showToast("No se pudo detectar las pantallas conectadas (permiso denegado). Conecta el proyector/monitor y vuelve a intentar.");
     }
   };
   // Si ya hay algo en vivo (un evento real o una transmisión libre) y se va a reemplazar por otra cosa,
@@ -885,7 +911,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   };
   const endEvent = () => {
     setLiveEventId(null); setLiveLibre(false); setLiveOwnerId(null); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); setTab("eventos");
-    clearLiveSession().catch((e) => window.alert("No se pudo cerrar la sesión en vivo: " + e.message));
+    clearLiveSession().catch((e) => notifyError("No se pudo cerrar la sesión en vivo", e));
     resetMusicoLive();
   };
 
@@ -894,7 +920,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     if (!song) return;
     const nuevoValor = !song.favorite;
     setLibrary((lib) => lib.map((s) => (s.id === songId ? { ...s, favorite: nuevoValor } : s)));
-    guardarCancionDesdeEditor({ ...song, favorite: nuevoValor }, true, userId).catch((e) => window.alert("No se pudo guardar: " + e.message));
+    guardarCancionDesdeEditor({ ...song, favorite: nuevoValor }, true, userId).catch((e) => notifyError("No se pudo guardar", e));
   };
   // Transporta la canción completa a una nueva tonalidad: recalcula todos los acordes de todos los bloques.
   const transposeSong = (songId, newKey) => {
@@ -906,7 +932,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       transposed = { ...s, key: newKey, blocks };
       return transposed;
     }));
-    if (transposed) guardarCancionDesdeEditor(transposed, true, userId).catch((e) => window.alert("No se pudo guardar la transposición: " + e.message));
+    if (transposed) guardarCancionDesdeEditor(transposed, true, userId).catch((e) => notifyError("No se pudo guardar la transposición", e));
   };
   // Guarda el borrador en Supabase y refleja el resultado en la librería en memoria, sin decidir qué
   // pantalla mostrar después — lo reutilizan tanto "Guardar" (que sí navega a la vista de la canción)
@@ -923,13 +949,13 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const saveSong = (draft) => {
     return persistSongDraft(draft)
       .then((idReal) => setOpenSong({ id: idReal, mode: "view" }))
-      .catch((e) => { window.alert("No se pudo guardar la canción: " + e.message); throw e; });
+      .catch((e) => { notifyError("No se pudo guardar la canción", e); throw e; });
   };
   const deleteSong = (song) => {
     if (!window.confirm(`¿Eliminar "${song.title}"? Esto no se puede deshacer.`)) return;
     setLibrary((lib) => lib.filter((s) => s.id !== song.id));
     setOpenSong(null);
-    deleteCancion(song.id).catch((e) => window.alert("No se pudo eliminar la canción: " + e.message));
+    deleteCancion(song.id).catch((e) => notifyError("No se pudo eliminar la canción", e));
   };
   // Cuando un evento nace clonado de una plantilla, se marca como "recién armado" (solo en memoria,
   // nada nuevo en la base de datos) para que EventDetail le muestre el botón "Publicar evento" — un
@@ -950,16 +976,16 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       esPlantilla: !!esPlantilla,
     };
     setEvents((evs) => [...evs, newEvent]);
-    crearEventoCompleto(newEvent, userId).catch((e) => window.alert("No se pudo guardar el evento: " + e.message));
+    crearEventoCompleto(newEvent, userId).catch((e) => notifyError("No se pudo guardar el evento", e));
     setSelectedEventId(newEvent.id);
     if (template && !esPlantilla) setDraftFromTemplateId(newEvent.id);
   };
   const deleteEvent = (event) => {
-    if (event.id === liveEventId) { window.alert("No puedes eliminar un evento que está en vivo — finalízalo primero."); return; }
+    if (event.id === liveEventId) { showToast("No puedes eliminar un evento que está en vivo — finalízalo primero."); return; }
     if (!window.confirm(`¿Eliminar "${event.title}"? Esto borra también su Setlist y sus encargados. No se puede deshacer.`)) return;
     setEvents((evs) => evs.filter((e) => e.id !== event.id));
     setSelectedEventId(null);
-    deleteEvento(event.id).catch((e) => window.alert("No se pudo eliminar el evento: " + e.message));
+    deleteEvento(event.id).catch((e) => notifyError("No se pudo eliminar el evento", e));
   };
 
   // Recordatorios: mismo patrón que updateMinistry — calcula el nuevo valor dentro del setter y
@@ -971,13 +997,13 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       nuevo = fn(e);
       return nuevo;
     }));
-    if (nuevo) sincronizarRecordatorios(eventId, nuevo.reminders).catch((e) => window.alert("No se pudo guardar el recordatorio: " + e.message));
+    if (nuevo) sincronizarRecordatorios(eventId, nuevo.reminders).catch((e) => notifyError("No se pudo guardar el recordatorio", e));
   };
   const addReminder = (eventId, cantidad, unidad) => updateEventReminders(eventId, (e) => ({ ...e, reminders: [...(e.reminders || []), { id: nextId(), cantidad, unidad, enviado: false }] }));
   const removeReminder = (eventId, reminderId) => updateEventReminders(eventId, (e) => ({ ...e, reminders: (e.reminders || []).filter((r) => r.id !== reminderId) }));
   const setEventHora = (eventId, hora) => {
     setEvents((evs) => evs.map((e) => (e.id === eventId ? { ...e, hora: hora || null } : e)));
-    updateEvento(eventId, { hora: hora || null }).catch((e) => window.alert("No se pudo guardar la hora: " + e.message));
+    updateEvento(eventId, { hora: hora || null }).catch((e) => notifyError("No se pudo guardar la hora", e));
   };
   // Edita los datos propios del evento/plantilla (título, fecha, hora, ubicación) DESPUÉS de creado —
   // antes solo se podían fijar una vez, al crearlo, y no había forma de corregirlos ni de renombrar
@@ -985,7 +1011,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const updateEventDetails = (eventId, { title, dateLabel, date, hora, location }) => {
     setEvents((evs) => evs.map((e) => (e.id === eventId ? { ...e, title, dateLabel: dateLabel || "", date: date || null, hora: hora || null, location: location || "" } : e)));
     updateEvento(eventId, { titulo: title, fecha_label: dateLabel || null, fecha: date || null, hora: hora || null, ubicacion: location || null })
-      .catch((e) => window.alert("No se pudo guardar el evento: " + e.message));
+      .catch((e) => notifyError("No se pudo guardar el evento", e));
   };
 
   const favoritesCount = library.filter((s) => s.favorite).length;
@@ -1076,7 +1102,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     // cambio de diapositiva no depende del internet del lugar, igual que un presentador local. Supabase
     // sigue siendo el camino real cuando la proyección de verdad está en otro dispositivo aparte.
     broadcastLiveSession(fila);
-    updateLiveSession(fila).catch((e) => window.alert("No se pudo actualizar la proyección: " + e.message));
+    updateLiveSession(fila).catch((e) => notifyError("No se pudo actualizar la proyección", e));
   }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId]);
 
   // ---- Sincroniza EN TIEMPO REAL, en todos los dispositivos, si hay un evento en vivo ahora mismo y
@@ -1139,8 +1165,8 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       return nuevo;
     }));
     if (!nuevo) return;
-    if (nuevo.plan !== anterior.plan) sincronizarPlan(id, nuevo.plan).catch((e) => window.alert("No se pudo guardar la planificación: " + e.message));
-    if (nuevo.resources !== anterior.resources) sincronizarRecursos(id, nuevo.resources).catch((e) => window.alert("No se pudo guardar el recurso: " + e.message));
+    if (nuevo.plan !== anterior.plan) sincronizarPlan(id, nuevo.plan).catch((e) => notifyError("No se pudo guardar la planificación", e));
+    if (nuevo.resources !== anterior.resources) sincronizarRecursos(id, nuevo.resources).catch((e) => notifyError("No se pudo guardar el recurso", e));
   };
   // La planificación se edita como borrador local dentro de MinistryDetail (ver planDraft ahí) y solo
   // llega hasta acá cuando se toca "Guardar planificación" — un solo guardado con todo el arreglo final,
@@ -1155,7 +1181,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     const leaderName = usuariosReales.find((u) => u.id === leaderId)?.nombre || "";
     const newM = { id: nextId(), name, leaderId: leaderId || null, leaderName, color, memberCount: 0, plan: [], resources: [] };
     setMinistries((ms) => [...ms, newM]);
-    crearMinisterio(newM, userId).catch((e) => window.alert("No se pudo guardar el ministerio: " + e.message));
+    crearMinisterio(newM, userId).catch((e) => notifyError("No se pudo guardar el ministerio", e));
     setSelectedMinistryId(newM.id);
   };
   const setMinistryLeader = (id, leaderId) => {
@@ -1163,17 +1189,17 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     const leaderName = usuariosReales.find((u) => u.id === leaderId)?.nombre || "";
     const ministryName = ministries.find((m) => m.id === id)?.name || "un grupo";
     setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, leaderId: leaderId || null, leaderName } : m)));
-    actualizarLiderMinisterio(id, leaderId || null).catch((e) => window.alert("No se pudo actualizar el líder: " + e.message));
+    actualizarLiderMinisterio(id, leaderId || null).catch((e) => notifyError("No se pudo actualizar el líder", e));
     if (leaderId) notificarAsignacion(leaderId, { titulo: "Te asignaron como líder", cuerpo: `Ahora eres líder del grupo "${ministryName}".` });
     if (previousLeaderId && previousLeaderId !== leaderId) notificarAsignacion(previousLeaderId, { titulo: "Ya no eres líder", cuerpo: `Dejaste de ser líder del grupo "${ministryName}".` });
   };
   const setMinistryName = (id, name) => {
     setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, name } : m)));
-    actualizarNombreMinisterio(id, name).catch((e) => window.alert("No se pudo actualizar el nombre: " + e.message));
+    actualizarNombreMinisterio(id, name).catch((e) => notifyError("No se pudo actualizar el nombre", e));
   };
   const setMinistryColor = (id, color) => {
     setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, color } : m)));
-    actualizarColorMinisterio(id, color).catch((e) => window.alert("No se pudo actualizar el color: " + e.message));
+    actualizarColorMinisterio(id, color).catch((e) => notifyError("No se pudo actualizar el color", e));
   };
   // Borrar un ministerio deja sin vincular (no borra) cualquier bloque del Setlist que lo usaba —
   // items_servicio.ministerio_id tiene ON DELETE SET NULL — así que ningún evento pasado se rompe,
@@ -1182,7 +1208,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     if (!window.confirm(`¿Eliminar el grupo "${ministry.name}"? Esto no se puede deshacer. Los bloques del Setlist que lo tenían vinculado dejarán de traer su planificación sola.`)) return;
     setMinistries((ms) => ms.filter((m) => m.id !== ministry.id));
     setSelectedMinistryId(null);
-    eliminarMinisterio(ministry.id).catch((e) => window.alert("No se pudo eliminar el grupo: " + e.message));
+    eliminarMinisterio(ministry.id).catch((e) => notifyError("No se pudo eliminar el grupo", e));
   };
 
   // ---- Botón "atrás" real ----
@@ -1241,7 +1267,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
               setSongAutoSaveToast(true);
               songAutoSaveToastTimeoutRef.current = setTimeout(() => setSongAutoSaveToast(false), 2200);
             })
-            .catch((e2) => window.alert("No se pudo guardar la canción: " + e2.message));
+            .catch((e2) => notifyError("No se pudo guardar la canción", e2));
         }
         songEditDirtyRef.current = false;
       }
@@ -1331,7 +1357,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const handleDiscardSongEdit = () => exitSongEditor();
   const handleSaveSongEdit = () => {
     const draft = songDraftGetterRef.current?.();
-    if (draft) persistSongDraft(draft).catch((e) => window.alert("No se pudo guardar la canción: " + e.message));
+    if (draft) persistSongDraft(draft).catch((e) => notifyError("No se pudo guardar la canción", e));
     exitSongEditor();
   };
   const handleKeepEditingSong = () => { pendingNavigateRef.current = null; setSongExitPrompt(false); };
@@ -1359,7 +1385,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     setEvents((evs) => evs.map((e) => (e.id === eventId ? { ...e, vistas: [...(e.vistas || []).filter((v) => v.usuarioId !== userId), { usuarioId: userId, vistoAt: new Date().toISOString() }] } : e)));
     marcarAsignacionVista(eventId, userId).catch((err) => {
       setEvents((evs) => evs.map((e) => (e.id === eventId ? { ...e, vistas: (e.vistas || []).filter((v) => v.usuarioId !== userId) } : e)));
-      window.alert("No se pudo confirmar que viste este evento: " + (err?.message || "intenta de nuevo") + ". Vuelve a tocarlo.");
+      notifyError("No se pudo confirmar que viste este evento", err);
     });
   };
 
@@ -1383,9 +1409,12 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         input, textarea, select { font-family: inherit; }
       `}</style>
 
-      {usingCachedData && (
-        <div style={{ background: "#E8821E", color: "#16233A", fontSize: 12, fontWeight: 700, textAlign: "center", padding: "6px 10px", flexShrink: 0 }}>
-          Sin conexión — mostrando la última versión guardada en este dispositivo. Los cambios no se guardarán hasta que vuelva el internet.
+      {(usingCachedData || isOffline) && (
+        <div style={{ background: "#E8821E", color: "#16233A", fontSize: 12, fontWeight: 700, textAlign: "center", padding: "6px 10px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <WifiOff size={13} />
+          {usingCachedData
+            ? "Sin conexión — mostrando la última versión guardada en este dispositivo. Los cambios no se guardarán hasta que vuelva el internet."
+            : "Sin conexión a internet — sigue usando la app con normalidad, se sincronizará sola apenas vuelva la señal."}
         </div>
       )}
 
@@ -1989,6 +2018,97 @@ function useInstallState() {
   return state;
 }
 
+// Versión que se descarga para uso sin conexión — solo esta, para no golpear la API gratuita
+// bolls.life con las 5 versiones completas (serían miles de pedidos). Reina-Valera 1960 es la que
+// aparece primero en BIBLE_VERSIONS (la más usada en iglesias como esta).
+const BIBLE_OFFLINE_VERSION = "RV1960";
+
+// "Descargar Biblia" en Ajustes: guarda capítulo por capítulo en este dispositivo (ver
+// bibleOfflineStore.js) para que el buscador de Biblia en vivo y "siguiente versículo" (ver
+// fetchBibleChapter/fetchBibleBooks) sigan funcionando aunque se corte el internet en el templo.
+function BibleDownloadSection() {
+  const [totalCapitulos, setTotalCapitulos] = useState(0);
+  const [guardados, setGuardados] = useState(null); // null = todavía revisando
+  const [descargando, setDescargando] = useState(false);
+  const [progreso, setProgreso] = useState({ hechos: 0, total: 0 });
+  const cancelRef = useRef({ aborted: false });
+
+  const actualizarConteo = () => {
+    Promise.all([
+      fetchBibleBooks(BIBLE_OFFLINE_VERSION).catch(() => null),
+      contarCapitulosGuardados(BIBLE_OFFLINE_VERSION),
+    ]).then(([books, n]) => {
+      setTotalCapitulos(books ? books.reduce((acc, b) => acc + b.chapters, 0) : 0);
+      setGuardados(n);
+    });
+  };
+  useEffect(() => { actualizarConteo(); }, []);
+
+  const iniciarDescarga = async () => {
+    cancelRef.current = { aborted: false };
+    setDescargando(true);
+    setProgreso({ hechos: 0, total: 0 });
+    try {
+      const resultado = await descargarBibliaCompleta(BIBLE_OFFLINE_VERSION, {
+        fetchBooks: fetchBibleBooks,
+        fetchChapter: fetchBibleChapter,
+        onProgress: (hechos, total) => setProgreso({ hechos, total }),
+        signal: cancelRef.current,
+      });
+      if (!resultado.cancelado) showToast("Biblia Reina-Valera 1960 descargada — ya puedes usarla sin conexión.", "info");
+    } catch (e) {
+      notifyError("No se pudo terminar de descargar la Biblia", e);
+    } finally {
+      setDescargando(false);
+      actualizarConteo();
+    }
+  };
+  const cancelarDescarga = () => { cancelRef.current.aborted = true; };
+  const eliminarDescarga = async () => {
+    if (!window.confirm("¿Eliminar la copia de la Biblia descargada de este dispositivo?")) return;
+    await borrarVersionOffline(BIBLE_OFFLINE_VERSION);
+    actualizarConteo();
+  };
+
+  const completa = guardados !== null && totalCapitulos > 0 && guardados >= totalCapitulos;
+  const porcentaje = totalCapitulos ? Math.round(((guardados || 0) / totalCapitulos) * 100) : 0;
+
+  return (
+    <div style={{ background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: 14, marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <CloudDownload size={16} color="#2F5FA8" />
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#16233A" }}>Biblia sin conexión (Reina-Valera 1960)</div>
+      </div>
+      <div style={{ fontSize: 12, color: "#64707F", marginBottom: 10 }}>
+        Descárgala una vez con buena señal para poder seguir buscando y proyectando versículos aunque se corte el internet en el templo.
+      </div>
+      {guardados === null ? (
+        <div style={{ fontSize: 12, color: "#8996A6" }}>Revisando…</div>
+      ) : descargando ? (
+        <>
+          <div style={{ height: 8, background: "#EEF1F6", borderRadius: 6, overflow: "hidden", marginBottom: 6 }}>
+            <div style={{ height: "100%", width: `${progreso.total ? Math.round((progreso.hechos / progreso.total) * 100) : 0}%`, background: "#2F5FA8", transition: "width .2s" }} />
+          </div>
+          <div style={{ fontSize: 11, color: "#64707F", marginBottom: 8 }}>{progreso.hechos} de {progreso.total || "…"} capítulos — puede tardar varios minutos.</div>
+          <button onClick={cancelarDescarga} style={{ fontSize: 12, fontWeight: 700, color: "#C23B32", background: "none", border: "1px solid #C7D0DD", borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Cancelar</button>
+        </>
+      ) : completa ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 12, color: "#1F8A73", fontWeight: 700 }}>✓ Descargada completa ({guardados} capítulos)</span>
+          <button onClick={eliminarDescarga} style={{ fontSize: 11, color: "#C23B32", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Eliminar</button>
+        </div>
+      ) : (
+        <>
+          {guardados > 0 && <div style={{ fontSize: 11, color: "#64707F", marginBottom: 8 }}>Ya tienes {guardados} de {totalCapitulos} capítulos ({porcentaje}%)</div>}
+          <button onClick={iniciarDescarga} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "#F4F6FA", border: "none", borderRadius: 8, padding: "9px 10px", fontSize: 12, fontWeight: 700, color: "#16233A", cursor: "pointer" }}>
+            <CloudDownload size={14} color="#2F5FA8" /> {guardados > 0 ? "Continuar descarga" : "Descargar para uso sin conexión"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, userId }) {
   const [horarioAbierto, setHorarioAbierto] = useState(false);
   const [showTeamList, setShowTeamList] = useState(false);
@@ -2025,7 +2145,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
   const vincularGoogle = async () => {
     setGoogleBusy(true);
     const { error } = await supabase.auth.linkIdentity({ provider: "google", options: { redirectTo: window.location.origin } });
-    if (error) { window.alert("No se pudo vincular Google: " + error.message); setGoogleBusy(false); }
+    if (error) { notifyError("No se pudo vincular Google", error); setGoogleBusy(false); }
     // si no hay error, el navegador redirige a Google — vuelve solo a esta pantalla ya vinculada
   };
   const desvincularGoogle = async () => {
@@ -2036,7 +2156,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
       const identidad = data?.identities?.find((i) => i.provider === "google");
       if (identidad) { await supabase.auth.unlinkIdentity(identidad); setGoogleLinked(false); }
     } catch (e) {
-      window.alert("No se pudo desvincular: " + e.message);
+      notifyError("No se pudo desvincular", e);
     } finally {
       setGoogleBusy(false);
     }
@@ -2054,7 +2174,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
       await suscribirPush(userId);
       setPushEstado("activo");
     } catch (e) {
-      window.alert(e.message || "No se pudo activar las notificaciones push.");
+      notifyError("No se pudo activar las notificaciones push", e);
     } finally {
       setPushBusy(false);
     }
@@ -2065,7 +2185,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
       await desuscribirPush();
       setPushEstado("inactivo");
     } catch (e) {
-      window.alert(e.message || "No se pudo desactivar las notificaciones push.");
+      notifyError("No se pudo desactivar las notificaciones push", e);
     } finally {
       setPushBusy(false);
     }
@@ -2152,6 +2272,9 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           <span style={{ display: "inline-block", background: "#EEF1F6", border: "1px solid #C7D0DD", borderRadius: 12, padding: "3px 12px", fontSize: 12, fontWeight: 700, color: "#33415A" }}>{myRole}</span>
         )}
       </div>
+
+      <SectionLabel>MODO SIN CONEXIÓN</SectionLabel>
+      <BibleDownloadSection />
 
       {realIsAdmin && (
         <>
@@ -2360,7 +2483,7 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
       await onSavePlan(planDraft);
       setPlanDirty(false);
     } catch (e) {
-      window.alert("No se pudo guardar la planificación: " + e.message);
+      notifyError("No se pudo guardar la planificación", e);
     } finally {
       setSavingPlan(false);
     }
@@ -4475,18 +4598,36 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
 // operador navega Libro → Capítulo → Versículo(s) sin tener que escribir ni copiar/pegar el texto. Se
 // cachea por versión a nivel de módulo para no repetir la descarga de la lista de libros en cada apertura. ----------
 const bibleBooksCache = {};
+// Si falla el pedido en vivo (sin internet, API caída) se cae a la última lista de libros guardada
+// localmente — es un archivo chico (unos 66 nombres), así que basta con offlineCache. El texto de
+// cada capítulo, mucho más pesado, vive aparte en IndexedDB (ver bibleOfflineStore.js).
 async function fetchBibleBooks(version) {
   if (bibleBooksCache[version]) return bibleBooksCache[version];
-  const res = await fetch(`https://bolls.life/get-books/${version}/`);
-  if (!res.ok) throw new Error("No se pudo cargar la lista de libros.");
-  const data = await res.json();
-  bibleBooksCache[version] = data;
-  return data;
+  try {
+    const res = await fetch(`https://bolls.life/get-books/${version}/`);
+    if (!res.ok) throw new Error("No se pudo cargar la lista de libros.");
+    const data = await res.json();
+    bibleBooksCache[version] = data;
+    saveCache(`biblia_libros_${version}`, data);
+    return data;
+  } catch (e) {
+    const cached = loadCache(`biblia_libros_${version}`);
+    if (cached) { bibleBooksCache[version] = cached; return cached; }
+    throw e;
+  }
 }
 async function fetchBibleChapter(version, bookId, chapter) {
-  const res = await fetch(`https://bolls.life/get-chapter/${version}/${bookId}/${chapter}/`);
-  if (!res.ok) throw new Error("No se pudo cargar el capítulo.");
-  return res.json();
+  try {
+    const res = await fetch(`https://bolls.life/get-chapter/${version}/${bookId}/${chapter}/`);
+    if (!res.ok) throw new Error("No se pudo cargar el capítulo.");
+    const data = await res.json();
+    guardarCapituloOffline(version, bookId, chapter, data); // sin esperarlo: no atrasa la lectura por guardar
+    return data;
+  } catch (e) {
+    const offline = await obtenerCapituloOffline(version, bookId, chapter);
+    if (offline) return offline;
+    throw e;
+  }
 }
 // La API devuelve <mark> alrededor de las palabras encontradas y a veces <br> dentro del texto (saltos de
 // línea de poesía) — se limpia para mostrarlo como texto plano, igual que el resto de la app.
@@ -4501,11 +4642,27 @@ const foldAccents = (text) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLo
 // (más resultados, pero cualquier verso con la frase exacta queda adentro sí o sí) y la frase exacta —
 // sin importar tildes de ningún lado — se filtra acá mismo, sobre esos resultados.
 async function searchBibleVerses(version, query) {
-  const res = await fetch(`https://bolls.life/v2/find/${version}?search=${encodeURIComponent(query)}&match_case=false`);
-  if (!res.ok) throw new Error("No se pudo buscar en la Biblia.");
-  const data = await res.json();
   const needle = foldAccents(query);
-  return (data.results || []).filter((r) => foldAccents(stripBibleSearchMarkup(r.text)).includes(needle));
+  try {
+    const res = await fetch(`https://bolls.life/v2/find/${version}?search=${encodeURIComponent(query)}&match_case=false`);
+    if (!res.ok) throw new Error("No se pudo buscar en la Biblia.");
+    const data = await res.json();
+    return (data.results || []).filter((r) => foldAccents(stripBibleSearchMarkup(r.text)).includes(needle));
+  } catch (e) {
+    // Sin conexión: busca entre lo que sí se haya descargado de esta versión (ver "Descargar Biblia"
+    // en Ajustes) en vez de rendirse — más lento y solo cubre lo descargado, pero sigue funcionando.
+    const capitulos = await todosLosVersiculosOffline(version);
+    if (!capitulos.length) throw e;
+    const resultados = [];
+    for (const cap of capitulos) {
+      for (const v of cap.verses) {
+        if (foldAccents(stripBibleSearchMarkup(v.text)).includes(needle)) {
+          resultados.push({ pk: `${cap.bookId}-${cap.chapter}-${v.verse}`, book: cap.bookId, chapter: cap.chapter, verse: v.verse, text: v.text });
+        }
+      }
+    }
+    return resultados;
+  }
 }
 // Para "Siguiente/Anterior versículo" en vivo: busca el versículo justo después (direction=1) o antes
 // (direction=-1) de fromVerse, cruzando al capítulo siguiente/anterior del mismo libro si hace falta.

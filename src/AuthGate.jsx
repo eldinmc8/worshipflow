@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { WifiOff } from "lucide-react";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { suscribirPush } from "./lib/notificaciones.js";
 import Login from "./Login.jsx";
@@ -74,11 +75,24 @@ export default function AuthGate() {
 
   if (session === undefined) {
     // Antes esto se quedaba en blanco para siempre si getSession() fallaba (sin mensaje ni forma de
-    // saber qué pasó) — ahora, pasados unos segundos sin respuesta, se ve al menos un aviso.
+    // saber qué pasó) — ahora, pasados unos segundos sin respuesta, se ve al menos un aviso. El texto
+    // técnico del error (errorSesion) queda solo en consola: a la iglesia se le muestra una tarjeta
+    // igual de "de la app" que el resto de pantallas, no un error crudo de JavaScript.
+    if (errorSesion) console.error("No se pudo conectar:", errorSesion);
     return (
-      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", fontFamily: "'Poppins', sans-serif", fontSize: 13, color: "#8996A6", flexDirection: "column", gap: 8, padding: 20, textAlign: "center" }}>
-        <div>Cargando…</div>
-        {errorSesion && <div style={{ color: "#C23B32", maxWidth: 320 }}>No se pudo conectar: {errorSesion}</div>}
+      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", fontFamily: "'Poppins', sans-serif", padding: 20 }}>
+        {!errorSesion ? (
+          <div style={{ fontSize: 13, color: "#8996A6" }}>Cargando…</div>
+        ) : (
+          <div className="screen-enter" style={{ width: 320, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center" }}>
+            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#FFF4E8", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+              <WifiOff size={22} color="#E8821E" />
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#16233A", marginBottom: 8 }}>Sin conexión</div>
+            <div style={{ fontSize: 13, color: "#64707F", lineHeight: 1.5, marginBottom: 18 }}>No pudimos conectar con el servidor. Revisa tu internet e intenta de nuevo.</div>
+            <button onClick={() => window.location.reload()} style={primaryBtn}>Reintentar</button>
+          </div>
+        )}
       </div>
     );
   }
