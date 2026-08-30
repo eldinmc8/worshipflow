@@ -358,34 +358,82 @@ function misAsignacionesEnEvento(event, uid, library) {
   });
   return labels;
 }
-// Limpieza es un privilegio aparte del resto del equipo: quien está asignado a este bloque solo ve
-// este bloque, nada del resto del Setlist (ver CleaningOnlyPanel).
-function isCleaningBlock(item) {
-  return item.type === "seccion" && /limpieza/i.test(item.title || "");
+// Grupos cuyos encargados tienen una vista restringida del Setlist: cada uno ve SOLO su(s) propio(s)
+// bloque(s) — nada de canciones, versículos ni bloques de otros grupos (ver RestrictedGroupPanel).
+// Se identifican por el título del bloque, igual mecanismo con el que ya funcionaba Limpieza.
+// Multimedia es la única excepción con un privilegio extra (ver esMultimedia en RestrictedGroupPanel
+// y su uso en SetlistPane): además de su propio bloque, también ve el equipo de Alabanza completo,
+// porque lo necesita para proyectar.
+const GRUPOS_VISTA_RESTRINGIDA = [
+  { grupo: "limpieza", pattern: /limpieza/i },
+  { grupo: "ventas", pattern: /ventas/i },
+  { grupo: "adolescentes", pattern: /adolescentes/i },
+  { grupo: "ofrendas", pattern: /ofrendas/i },
+  { grupo: "multimedia", pattern: /multimedia/i },
+];
+function grupoRestringidoDeBloque(item) {
+  if (item.type !== "seccion") return null;
+  const encontrado = GRUPOS_VISTA_RESTRINGIDA.find((g) => g.pattern.test(item.title || ""));
+  return encontrado ? encontrado.grupo : null;
 }
-// Vista reducida para quien solo tiene el privilegio de Limpieza en este evento: ni el Setlist
-// completo, ni la biblioteca de canciones, ni botones de agregar — solo su propio bloque, de solo
-// lectura (encargados incluidos), tal como se ve el resto de bloques cuando no se pueden editar.
-function CleaningOnlyPanel({ block }) {
+// El bloque de Predicación no restringe a quien está asignado ahí (normalmente ya es administrador) —
+// solo se usa para OCULTARLO de quien es del equipo de Alabanza y no administrador (ver soyDeAlabanza
+// en SetlistPane): ese grupo ve todo el Setlist completo excepto quién predica.
+function isPredicacionBlock(item) {
+  return item.type === "seccion" && /predic/i.test(item.title || "");
+}
+// "Del equipo de Alabanza" = aparece como integrante de algún rol del equipo de alabanza en ESTE
+// evento (event.worshipRoles, ej. Guitarra, Batería) — no tiene que ver con el rol de dispositivo.
+function esMiembroAlabanza(event, uid) {
+  return (event.worshipRoles || []).some((r) => (r.members || []).some((m) => m.usuarioId === uid));
+}
+// Vista reducida para quien solo tiene un privilegio de grupo restringido en este evento (Limpieza,
+// Ventas, Adolescentes, Ofrendas o Multimedia): ni el Setlist completo, ni la biblioteca de canciones,
+// ni botones de agregar — solo su(s) propio(s) bloque(s), de solo lectura (encargados incluidos), tal
+// como se ve el resto de bloques cuando no se pueden editar. Multimedia además ve el equipo de
+// Alabanza completo (worshipRoles), que necesita para proyectar.
+function RestrictedGroupPanel({ blocks, worshipRoles }) {
   return (
     <div style={{ flex: 1, padding: 20, display: "flex", justifyContent: "center" }}>
-      <div style={{ width: "100%", maxWidth: 480, background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#64707F", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><Sparkles size={13} color="#5661B3" /> TU PRIVILEGIO EN ESTE EVENTO</div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, marginBottom: 4 }}>{block.title}</div>
-        {block.description && <div style={{ fontSize: 13, color: "#33415A", marginBottom: 16 }}>{block.description}</div>}
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 8 }}>EQUIPO ASIGNADO</div>
-        {(block.encargados || []).length === 0 ? (
-          <div style={{ color: "#8996A6", fontSize: 13 }}>Nadie asignado todavía.</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {block.encargados.map((m, i) => (
-              <div key={m.id || i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0 }}>{m.n.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</div>
-                <span style={{ fontSize: 13 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "#E8821E", fontWeight: 700 }}> · Encargado</span>}</span>
+      <div style={{ width: "100%", maxWidth: 480, display: "flex", flexDirection: "column", gap: 14 }}>
+        {blocks.map((block) => (
+          <div key={block.id} style={{ background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#64707F", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><Sparkles size={13} color="#5661B3" /> TU PRIVILEGIO EN ESTE EVENTO</div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, marginBottom: 4 }}>{block.title}</div>
+            {block.description && <div style={{ fontSize: 13, color: "#33415A", marginBottom: 16 }}>{block.description}</div>}
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#64707F", marginBottom: 8 }}>EQUIPO ASIGNADO</div>
+            {(block.encargados || []).length === 0 ? (
+              <div style={{ color: "#8996A6", fontSize: 13 }}>Nadie asignado todavía.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {block.encargados.map((m, i) => (
+                  <div key={m.id || i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0 }}>{m.n.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</div>
+                    <span style={{ fontSize: 13 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "#E8821E", fontWeight: 700 }}> · Encargado</span>}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        )}
+        ))}
+        {worshipRoles.map((role) => (
+          <div key={role.id} style={{ background: "#FFFFFF", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#64707F", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><Sparkles size={13} color="#E8821E" /> EQUIPO DE ALABANZA</div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, marginBottom: 10 }}>{role.name}</div>
+            {(role.members || []).length === 0 ? (
+              <div style={{ color: "#8996A6", fontSize: 13 }}>Nadie asignado todavía.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {role.members.map((m, i) => (
+                  <div key={m.id || i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0 }}>{m.n.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</div>
+                    <span style={{ fontSize: 13 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "#E8821E", fontWeight: 700 }}> · Encargado</span>}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -3814,7 +3862,7 @@ function EventDetail({
             {(formatFullDate(event.date) || event.dateLabel || "")}{event.hora ? ` · ${event.hora}` : ""}
           </div>
           <ol style={{ paddingLeft: 20, margin: 0 }}>
-            {event.serviceOrder.map((item) => {
+            {(!isAdminViewer && esMiembroAlabanza(event, userId) ? event.serviceOrder.filter((it) => !isPredicacionBlock(it)) : event.serviceOrder).map((item) => {
               if (item.type === "seccion") {
                 const names = isWorshipBlock(item)
                   ? (event.worshipRoles || []).flatMap((r) => r.members.map((m) => `${m.n} (${r.name})`)).join(", ")
@@ -4073,14 +4121,23 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
   const [dragTranslateY, setDragTranslateY] = useState(0);
   const rowRefs = useRef({});
   const dragStartYRef = useRef(0);
-  // Limpieza es un privilegio aparte: quien está asignado a un bloque de Limpieza en este evento (y no
-  // es administrador) solo ve ESE bloque — nada del resto del Setlist (canciones, otros bloques). Va
-  // DESPUÉS de todos los hooks de arriba: un return anticipado antes de un useState rompe las reglas de
-  // hooks en cuanto ese mismo componente vuelva a renderizar con myCleaningBlock en falso.
-  const myCleaningBlock = !isAdminViewer ? event.serviceOrder.find((it) => isCleaningBlock(it) && (it.encargados || []).some((m) => m.usuarioId === userId)) : null;
-  if (myCleaningBlock) {
-    return <CleaningOnlyPanel block={myCleaningBlock} />;
+  // Visibilidad del Setlist por grupo (nada de esto aplica a un administrador, que siempre ve todo):
+  // - Limpieza / Ventas / Adolescentes / Ofrendas: cada encargado ve SOLO su(s) propio(s) bloque(s).
+  // - Multimedia: ve su propio bloque + el equipo de Alabanza completo (lo necesita para proyectar).
+  // - Alabanza (equipo de alabanza): ve el Setlist completo, excepto el bloque de Predicación (más
+  //   abajo, en el render normal, se filtra ese bloque en vez de cortar aquí).
+  // Va DESPUÉS de todos los hooks de arriba: un return anticipado antes de un useState rompe las
+  // reglas de hooks en cuanto ese mismo componente vuelva a renderizar sin la restricción activa.
+  const misBloquesRestringidos = !isAdminViewer
+    ? event.serviceOrder.filter((it) => grupoRestringidoDeBloque(it) && (it.encargados || []).some((m) => m.usuarioId === userId))
+    : [];
+  const soyDeAlabanza = !isAdminViewer && esMiembroAlabanza(event, userId);
+  if (!soyDeAlabanza && misBloquesRestringidos.length > 0) {
+    const tengoBloqueMultimedia = misBloquesRestringidos.some((it) => grupoRestringidoDeBloque(it) === "multimedia");
+    return <RestrictedGroupPanel blocks={misBloquesRestringidos} worshipRoles={tengoBloqueMultimedia ? (event.worshipRoles || []) : []} />;
   }
+  // El equipo de Alabanza ve todo el Setlist menos quién predica.
+  const visibleServiceOrder = soyDeAlabanza ? event.serviceOrder.filter((it) => !isPredicacionBlock(it)) : event.serviceOrder;
   const findRowIndexAtY = (y) => {
     const indices = Object.keys(rowRefs.current).map(Number).sort((a, b) => a - b);
     for (const idx of indices) {
@@ -4186,7 +4243,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
         <div style={{ fontSize: 12, color: "#64707F", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
           <Sparkles size={13} color="#E8821E" /> Solo se agrega en orden — las canciones ya traen su letra lista para proyectar.
         </div>
-        {event.serviceOrder.map((item, idx) => {
+        {visibleServiceOrder.map((item, idx) => {
           const meta = TYPE_META[item.type];
           const handleProps = dragHandleProps(idx);
           if (item.type === "seccion") {

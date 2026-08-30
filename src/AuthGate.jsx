@@ -42,7 +42,15 @@ export default function AuthGate() {
     if (!session) { setPerfil(null); return; }
     supabase.from("usuarios").select("*").eq("id", session.user.id).single()
       .then(({ data }) => {
-        if (!data) { setAccessDenied(true); supabase.auth.signOut(); return; }
+        if (!data) {
+          setAccessDenied(true);
+          // Descarta de una la cuenta huérfana que Google acaba de crear en Auth (ver
+          // descartar-acceso-no-invitado) — si no, un admin que después invite este mismo correo se
+          // topa con "ya registrado" (ver crear-usuario/index.ts). Si falla (sin red, etc.) no importa:
+          // ese Edge Function se auto-repara sola la próxima vez que un admin intente invitar.
+          callUsersFunction("descartar-acceso-no-invitado", {}).catch(() => {}).finally(() => supabase.auth.signOut());
+          return;
+        }
         setPerfil(data);
       });
   }, [session]);

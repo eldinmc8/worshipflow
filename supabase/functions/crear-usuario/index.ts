@@ -26,6 +26,21 @@ function nombreProvisionalDesdeCorreo(email: string): string {
   return partes.join(" ") || "Sin nombre";
 }
 
+// Busca un usuario de Auth por correo recorriendo listUsers (no hay getUserByEmail en el admin API).
+// Un equipo de iglesia tiene a lo sumo unos cientos de cuentas, así que un par de páginas alcanza.
+async function buscarUsuarioAuthPorCorreo(admin: ReturnType<typeof createClient>, email: string) {
+  let page = 1;
+  const perPage = 200;
+  while (true) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+    if (error) throw error;
+    const encontrado = data.users.find((u) => (u.email || "").toLowerCase() === email);
+    if (encontrado) return encontrado;
+    if (data.users.length < perPage) return null;
+    page++;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -98,9 +113,28 @@ Deno.serve(async (req: Request) => {
       }
       newUserId = created.user.id;
     } else {
-      const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+      let { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
         redirectTo: APP_URL,
       });
+
+      // Si alguien probó "Continuar con Google" antes de ser invitado, Supabase Auth le crea igual una
+      // cuenta (aunque AuthGate.jsx la rechace después por no tener fila en "usuarios") — eso deja un
+      // correo "ya registrado" en Auth sin que exista en nuestra tabla. El paso 4 ya confirmó que este
+      // correo NO tiene fila en "usuarios", así que cualquier cuenta de Auth con este correo es
+      // justamente ese huérfano: se borra y se reintenta la invitación una sola vez.
+      const yaRegistradoEnAuth = /already.*registered|email_exists/i.test(
+        `${inviteError?.message ?? ""} ${(inviteError as { code?: string })?.code ?? ""}`
+      );
+      if (inviteError && yaRegistradoEnAuth) {
+        const huerfano = await buscarUsuarioAuthPorCorreo(admin, email);
+        if (huerfano) {
+          await admin.auth.admin.deleteUser(huerfano.id);
+          ({ data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+            redirectTo: APP_URL,
+          }));
+        }
+      }
+
       if (inviteError || !invited?.user) {
         return json({ error: "No se pudo enviar la invitación: " + (inviteError?.message ?? "error") }, 400);
       }
