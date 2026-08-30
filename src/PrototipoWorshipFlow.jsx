@@ -364,23 +364,31 @@ function misAsignacionesEnEvento(event, uid, library) {
 // Multimedia es la única excepción con un privilegio extra (ver esMultimedia en RestrictedGroupPanel
 // y su uso en SetlistPane): además de su propio bloque, también ve el equipo de Alabanza completo,
 // porque lo necesita para proyectar.
+// Quita tildes y pasa a minúsculas antes de buscar la palabra clave del grupo — así "Prédica" o
+// "Ofrenda" (singular, sin la "s" final) también coinciden con "predic"/"ofrenda", en vez de exigir
+// que el título esté escrito exactamente como el patrón (acentos y plural incluidos).
+const PATRON_TILDES = new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g");
+function normalizarTitulo(s) {
+  return (s || "").normalize("NFD").replace(PATRON_TILDES, "").toLowerCase();
+}
 const GRUPOS_VISTA_RESTRINGIDA = [
-  { grupo: "limpieza", pattern: /limpieza/i },
-  { grupo: "ventas", pattern: /ventas/i },
-  { grupo: "adolescentes", pattern: /adolescentes/i },
-  { grupo: "ofrendas", pattern: /ofrendas/i },
-  { grupo: "multimedia", pattern: /multimedia/i },
+  { grupo: "limpieza", clave: "limpieza" },
+  { grupo: "ventas", clave: "ventas" },
+  { grupo: "adolescentes", clave: "adolescentes" },
+  { grupo: "ofrendas", clave: "ofrenda" },
+  { grupo: "multimedia", clave: "multimedia" },
 ];
 function grupoRestringidoDeBloque(item) {
   if (item.type !== "seccion") return null;
-  const encontrado = GRUPOS_VISTA_RESTRINGIDA.find((g) => g.pattern.test(item.title || ""));
+  const titulo = normalizarTitulo(item.title);
+  const encontrado = GRUPOS_VISTA_RESTRINGIDA.find((g) => titulo.includes(g.clave));
   return encontrado ? encontrado.grupo : null;
 }
 // El bloque de Predicación no restringe a quien está asignado ahí (normalmente ya es administrador) —
 // solo se usa para OCULTARLO de quien es del equipo de Alabanza y no administrador (ver soyDeAlabanza
 // en SetlistPane): ese grupo ve todo el Setlist completo excepto quién predica.
 function isPredicacionBlock(item) {
-  return item.type === "seccion" && /predic/i.test(item.title || "");
+  return item.type === "seccion" && normalizarTitulo(item.title).includes("predic");
 }
 // "Del equipo de Alabanza" = aparece como integrante de algún rol del equipo de alabanza en ESTE
 // evento (event.worshipRoles, ej. Guitarra, Batería) — no tiene que ver con el rol de dispositivo.
