@@ -80,16 +80,16 @@ export default function AuthGate() {
     // igual de "de la app" que el resto de pantallas, no un error crudo de JavaScript.
     if (errorSesion) console.error("No se pudo conectar:", errorSesion);
     return (
-      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", fontFamily: "'Poppins', sans-serif", padding: 20 }}>
+      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "'Poppins', sans-serif", padding: 20 }}>
         {!errorSesion ? (
-          <div style={{ fontSize: 13, color: "#8996A6" }}>Cargando…</div>
+          <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Cargando…</div>
         ) : (
-          <div className="screen-enter" style={{ width: 320, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center" }}>
+          <div className="screen-enter" style={{ width: 320, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center" }}>
             <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#FFF4E8", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
               <WifiOff size={22} color="#E8821E" />
             </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#16233A", marginBottom: 8 }}>Sin conexión</div>
-            <div style={{ fontSize: 13, color: "#64707F", lineHeight: 1.5, marginBottom: 18 }}>No pudimos conectar con el servidor. Revisa tu internet e intenta de nuevo.</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--wf-text)", marginBottom: 8 }}>Sin conexión</div>
+            <div style={{ fontSize: 13, color: "var(--wf-muted)", lineHeight: 1.5, marginBottom: 18 }}>No pudimos conectar con el servidor. Revisa tu internet e intenta de nuevo.</div>
             <button onClick={() => window.location.reload()} style={primaryBtn}>Reintentar</button>
           </div>
         )}
@@ -98,10 +98,10 @@ export default function AuthGate() {
   }
   if (accessDenied) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", fontFamily: "'Poppins', sans-serif", padding: 20 }}>
-        <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center" }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#16233A", marginBottom: 8 }}>Todavía no tienes acceso</div>
-          <div style={{ fontSize: 13, color: "#64707F", lineHeight: 1.5, marginBottom: 18 }}>Un administrador tiene que invitarte primero, con este mismo correo, desde Usuarios en la app.</div>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "'Poppins', sans-serif", padding: 20 }}>
+        <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--wf-text)", marginBottom: 8 }}>Todavía no tienes acceso</div>
+          <div style={{ fontSize: 13, color: "var(--wf-muted)", lineHeight: 1.5, marginBottom: 18 }}>Un administrador tiene que invitarte primero, con este mismo correo, desde Usuarios en la app.</div>
           <button onClick={() => setAccessDenied(false)} style={primaryBtn}>Volver</button>
         </div>
       </div>
@@ -151,7 +151,7 @@ export default function AuthGate() {
   );
 }
 
-const inputStyle = { width: "100%", background: "#FFFFFF", border: "1px solid #C7D0DD", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "#16233A", outline: "none", boxSizing: "border-box" };
+const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
 const primaryBtn = { width: "100%", background: "#E8821E", border: "none", borderRadius: 8, padding: "11px", fontSize: 14, fontWeight: 700, color: "#16324F", cursor: "pointer" };
 
 // Pantalla que ve quien acaba de aceptar una invitación (o, más adelante, un enlace de "olvidé mi
@@ -186,27 +186,27 @@ function SetPassword({ onDone }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", fontFamily: "'Poppins', sans-serif" }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "'Poppins', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Poppins:wght@400;500;600;700&display=swap');`}</style>
-      <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
+      <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 16 }}>
           <img src="/logo-iglesia.png" alt="Iglesia Jesús El Buen Pastor" style={{ width: 180, maxWidth: "100%", height: "auto" }} />
-          <span style={{ fontFamily: "'Fraunces', serif", fontSize: 14, fontWeight: 600, color: "#16324F" }}>JBP App</span>
+          <span style={{ fontFamily: "'Fraunces', serif", fontSize: 14, fontWeight: 600, color: "var(--wf-heading)" }}>JBP App</span>
         </div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#16233A", marginBottom: 4 }}>¡Bienvenido/a!</div>
-        <div style={{ fontSize: 12, color: "#64707F", marginBottom: 16 }}>Elige cómo quieres entrar de ahora en adelante.</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-text)", marginBottom: 4 }}>¡Bienvenido/a!</div>
+        <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>Elige cómo quieres entrar de ahora en adelante.</div>
 
         <button
           type="button" onClick={continuarConGoogle} disabled={googleLoading || loading}
-          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "#FFFFFF", border: "1px solid #C7D0DD", borderRadius: 8, padding: "10px", fontSize: 14, fontWeight: 600, color: "#16233A", cursor: "pointer", opacity: googleLoading ? 0.6 : 1, marginBottom: 14 }}
+          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "10px", fontSize: 14, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer", opacity: googleLoading ? 0.6 : 1, marginBottom: 14 }}
         >
           <GoogleIcon /> {googleLoading ? "Redirigiendo…" : "Continuar con Google"}
         </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <div style={{ flex: 1, height: 1, background: "#DDE3ED" }} />
-          <span style={{ fontSize: 11, color: "#8996A6", fontWeight: 600 }}>O ELIGE UNA CONTRASEÑA</span>
-          <div style={{ flex: 1, height: 1, background: "#DDE3ED" }} />
+          <div style={{ flex: 1, height: 1, background: "var(--wf-divider)" }} />
+          <span style={{ fontSize: 11, color: "var(--wf-faint)", fontWeight: 600 }}>O ELIGE UNA CONTRASEÑA</span>
+          <div style={{ flex: 1, height: 1, background: "var(--wf-divider)" }} />
         </div>
 
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -256,8 +256,8 @@ function CompleteProfile({ session, onDone }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", fontFamily: "'Poppins', sans-serif" }}>
-      <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "'Poppins', sans-serif" }}>
+      <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 16 }}>
           {fotoGoogle ? (
             <img src={fotoGoogle} alt="" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover" }} />
@@ -265,8 +265,8 @@ function CompleteProfile({ session, onDone }) {
             <img src="/logo-iglesia.png" alt="Iglesia Jesús El Buen Pastor" style={{ width: 140, maxWidth: "100%", height: "auto" }} />
           )}
         </div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#16233A", marginBottom: 4 }}>Ya casi — ¿cómo te llamas?</div>
-        <div style={{ fontSize: 12, color: "#64707F", marginBottom: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-text)", marginBottom: 4 }}>Ya casi — ¿cómo te llamas?</div>
+        <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>
           {fotoGoogle ? "Tomamos tu foto de Google — puedes ajustar tu nombre si hace falta." : "Este va a ser el nombre que vea el resto del equipo."}
         </div>
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -298,16 +298,16 @@ function PushPrompt({ userId, onDone }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6FA", fontFamily: "'Poppins', sans-serif" }}>
-      <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center" }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "'Poppins', sans-serif" }}>
+      <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center" }}>
         <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#FFF6EC", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
           <span style={{ fontSize: 26 }}>🔔</span>
         </div>
-        <div style={{ fontSize: 15, fontWeight: 700, color: "#16233A", marginBottom: 6 }}>Activa tus notificaciones</div>
-        <div style={{ fontSize: 12, color: "#64707F", marginBottom: 18, lineHeight: 1.5 }}>Te avisamos cuando te asignen un encargo y antes de cada evento donde participes — así no se te pasa nada.</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--wf-text)", marginBottom: 6 }}>Activa tus notificaciones</div>
+        <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 18, lineHeight: 1.5 }}>Te avisamos cuando te asignen un encargo y antes de cada evento donde participes — así no se te pasa nada.</div>
         {error && <div style={{ fontSize: 12, color: "#C23B32", marginBottom: 10 }}>{error}</div>}
         <button onClick={activar} disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.6 : 1 }}>{loading ? "Activando…" : "Activar notificaciones"}</button>
-        <button onClick={onDone} disabled={loading} style={{ background: "none", border: "none", color: "#8996A6", fontSize: 12, cursor: "pointer", marginTop: 12, padding: 4 }}>Ahora no</button>
+        <button onClick={onDone} disabled={loading} style={{ background: "none", border: "none", color: "var(--wf-faint)", fontSize: 12, cursor: "pointer", marginTop: 12, padding: 4 }}>Ahora no</button>
       </div>
     </div>
   );

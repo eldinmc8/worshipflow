@@ -4,6 +4,40 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Tema claro/oscuro del CHROME de la app (Inicio, Canciones, Eventos, Ministerios, Ajustes...) — la
+   pantalla de Proyección real y sus mini-previews NO usan estas variables a propósito: esas siempre
+   se ven oscuras, como un escenario, sin importar este interruptor (ver CLAUDE.md). El interruptor
+   vive en Ajustes → lib/theme.js, que solo pone/quita data-theme="dark" en <html>. */
+:root {
+  --wf-bg: #F4F6FA;
+  --wf-card: #FFFFFF;
+  --wf-text: #16233A;
+  --wf-text-2: #33415A;
+  --wf-muted: #64707F;
+  --wf-faint: #8996A6;
+  --wf-border: #C7D0DD;
+  --wf-border-soft: #C3CBD6;
+  --wf-hover: #EEF1F6;
+  --wf-divider: #DDE3ED;
+  /* Azul marino de marca usado como TEXTO/ícono (títulos, botones fantasma) sobre un fondo de
+     chrome — no confundir con el navy usado como FONDO (header, nav inferior, botones navy), que
+     se queda igual en los dos temas a propósito y no usa esta variable. */
+  --wf-heading: #16324F;
+}
+[data-theme="dark"] {
+  --wf-bg: #10151C;
+  --wf-card: #1B2330;
+  --wf-text: #E7ECF3;
+  --wf-text-2: #C7D0DD;
+  --wf-muted: #93A0B3;
+  --wf-faint: #6D7A8D;
+  --wf-border: #2B3546;
+  --wf-border-soft: #3A4556;
+  --wf-hover: #222C3A;
+  --wf-divider: #262F3D;
+  --wf-heading: #E7ECF3;
+}
+
 body {
   margin: 0;
   font-family: 'Poppins', sans-serif;
@@ -20,7 +54,7 @@ body {
      MISMOS su propio color hasta el borde real de la pantalla (ver PrototipoWorshipFlow.jsx), así ese
      espacio siempre queda pintado con el color correcto en vez de heredar el negro por defecto del SO. */
   padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
-  background: #F4F6FA;
+  background: var(--wf-bg);
   box-sizing: border-box;
   min-height: 100vh;
 }
