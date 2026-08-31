@@ -2240,7 +2240,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           {[["claro", "Claro"], ["oscuro", "Oscuro"], ["auto", "Automático"]].map(([val, label]) => (
             <button
               key={val} onClick={() => cambiarTema(val)}
-              style={{ flex: 1, fontSize: 12, fontWeight: 700, padding: "8px 6px", borderRadius: 8, border: tema === val ? "2px solid #E8821E" : "1px solid var(--wf-border)", cursor: "pointer", background: tema === val ? "var(--wf-active-bg)" : "var(--wf-card)", color: "var(--wf-text)" }}
+              style={{ flex: 1, fontSize: 12, fontWeight: 700, padding: "8px 6px", borderRadius: 8, border: "none", cursor: "pointer", background: tema === val ? "#E8821E" : "var(--wf-hover)", color: tema === val ? "#16324F" : "var(--wf-text)" }}
             >
               {label}
             </button>
@@ -2291,7 +2291,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
             <div style={{ fontSize: 11, fontWeight: 700, color: "#E8821E", marginBottom: 8 }}>Como administrador puedes probar cómo se ve la app con otro rol:</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {ROLE_OPTIONS.map((r) => (
-                <button key={r} onClick={() => setRoleOverride(r === myRole && roleOverride ? null : r)} style={{ fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: myRole === r ? "2px solid #E8821E" : "1px solid var(--wf-border)", cursor: "pointer", background: myRole === r ? "var(--wf-active-bg)" : "var(--wf-card)", color: "var(--wf-text)" }}>{r}</button>
+                <button key={r} onClick={() => setRoleOverride(r === myRole && roleOverride ? null : r)} style={{ fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: "none", cursor: "pointer", background: myRole === r ? "#E8821E" : "var(--wf-hover)", color: myRole === r ? "#16324F" : "var(--wf-text)" }}>{r}</button>
               ))}
             </div>
           </>
@@ -2645,7 +2645,7 @@ function CancionesList({ library, isAdminViewer, onToggleFavorite, onOpen, onNew
       </div>
       <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 12 }}>
         {[["todos", "Todos"], ...Object.entries(SONG_CATEGORIES).map(([key, c]) => [key, c.label])].map(([key, label]) => (
-          <button key={key} onClick={() => setCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 20, border: categoryFilter === key ? "2px solid #E8821E" : "1px solid var(--wf-border)", background: categoryFilter === key ? "var(--wf-active-bg)" : "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer" }}>{label}</button>
+          <button key={key} onClick={() => setCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 20, border: "none", background: categoryFilter === key ? "#E8821E" : "var(--wf-hover)", color: categoryFilter === key ? "#16324F" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
         ))}
       </div>
       {filtered.map((s) => (
@@ -3066,7 +3066,7 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
             <Radio size={13} /> Eres el líder
           </span>
         ) : (
-          <button onClick={toggleAutoMode} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: autoMode ? "#E8821E" : "#FFFFFF", color: autoMode ? "var(--wf-text)" : "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          <button onClick={toggleAutoMode} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: autoMode ? "#E8821E" : "var(--wf-card)", color: autoMode ? "#16324F" : "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             {autoMode ? <><Radio size={13} /> Modo Músico: ON</> : <><Play size={13} /> Modo Músico</>}
           </button>
         )}
@@ -3384,7 +3384,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
           <Field label="Clasificación" required>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {Object.entries(SONG_CATEGORIES).map(([key, c]) => (
-                <button key={key} type="button" onClick={() => setDraft({ ...draft, category: key })} style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: draft.category === key ? "2px solid #E8821E" : "1px solid var(--wf-border)", background: draft.category === key ? "var(--wf-active-bg)" : "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer" }}>{c.label}</button>
+                <button key={key} type="button" onClick={() => setDraft({ ...draft, category: key })} style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: "none", background: draft.category === key ? "#E8821E" : "var(--wf-hover)", color: draft.category === key ? "#16324F" : "var(--wf-text)", cursor: "pointer" }}>{c.label}</button>
               ))}
             </div>
             <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Define a qué bloque del Setlist se manda esta canción al agregarla (Himno/Corito/Canto especial → Alabanza, Adoración → Adoración).</span>
@@ -4359,7 +4359,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
           </div>
           <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
             {[["todos", "Todos"], ...Object.entries(SONG_CATEGORIES).map(([key, c]) => [key, c.label])].map(([key, label]) => (
-              <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 16, border: libraryCategoryFilter === key ? "1.5px solid #E8821E" : "1px solid var(--wf-border)", background: libraryCategoryFilter === key ? "var(--wf-active-bg)" : "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer" }}>{label}</button>
+              <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 16, border: "none", background: libraryCategoryFilter === key ? "#E8821E" : "var(--wf-hover)", color: libraryCategoryFilter === key ? "#16324F" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
             ))}
           </div>
           {filtered.map((s) => (
@@ -4777,7 +4777,7 @@ function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", splitVer
     <>
       <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 8, marginBottom: 12, width: "fit-content" }}>
         {[["browse", "Buscar en la Biblia"], ["manual", "Escribir manualmente"]].map(([val, label]) => (
-          <button key={val} onClick={() => setMode(val)} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: mode === val ? "1.5px solid #E8821E" : "1.5px solid transparent", cursor: "pointer", background: mode === val ? "var(--wf-active-bg)" : "transparent", color: "var(--wf-text)" }}>{label}</button>
+          <button key={val} onClick={() => setMode(val)} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", background: mode === val ? "#E8821E" : "transparent", color: mode === val ? "#16324F" : "var(--wf-text)" }}>{label}</button>
         ))}
       </div>
 
@@ -4811,7 +4811,7 @@ function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", splitVer
         <>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
             {BIBLE_VERSIONS.map((v) => (
-              <button key={v.code} onClick={() => setVersion(v.code)} title={v.label} style={{ fontSize: 11, fontWeight: 700, padding: "5px 9px", borderRadius: 8, border: version === v.code ? "2px solid #2F5FA8" : "1px solid var(--wf-border)", background: version === v.code ? "#EAF0FA" : "#fff", color: "var(--wf-text)", cursor: "pointer" }}>{v.code}</button>
+              <button key={v.code} onClick={() => setVersion(v.code)} title={v.label} style={{ fontSize: 11, fontWeight: 700, padding: "5px 9px", borderRadius: 8, border: version === v.code ? "2px solid #2F5FA8" : "1px solid var(--wf-border)", background: version === v.code ? "#EAF0FA" : "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer" }}>{v.code}</button>
             ))}
           </div>
 
@@ -4910,7 +4910,7 @@ function SlideModal({ draft, setDraft, onClose, onAdd, title = "Slide personaliz
       <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, margin: "14px 0 8px" }}>FONDO</div>
       <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 8, marginBottom: 10, width: "fit-content" }}>
         {[["color", "Color"], ["imagen", "Imagen"], ["video", "Video"]].map(([val, label]) => (
-          <button key={val} onClick={() => setDraft({ ...draft, bgType: val })} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: bgType === val ? "1.5px solid #E8821E" : "1.5px solid transparent", cursor: "pointer", background: bgType === val ? "var(--wf-active-bg)" : "transparent", color: "var(--wf-text)" }}>{label}</button>
+          <button key={val} onClick={() => setDraft({ ...draft, bgType: val })} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", background: bgType === val ? "#E8821E" : "transparent", color: bgType === val ? "#16324F" : "var(--wf-text)" }}>{label}</button>
         ))}
       </div>
       {bgType === "color" && (
@@ -5123,7 +5123,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>VERSIÓN</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 14 }}>
           {BIBLE_VERSIONS.map((v) => (
-            <button key={v.code} onClick={() => changeVersion(v.code)} title={v.label} style={{ fontSize: 10.5, fontWeight: 700, padding: "4px 7px", borderRadius: 6, border: version === v.code ? "2px solid #2F5FA8" : "1px solid var(--wf-border)", background: version === v.code ? "#EAF0FA" : "#fff", color: "var(--wf-text)", cursor: "pointer" }}>{v.code}</button>
+            <button key={v.code} onClick={() => changeVersion(v.code)} title={v.label} style={{ fontSize: 10.5, fontWeight: 700, padding: "4px 7px", borderRadius: 6, border: version === v.code ? "2px solid #2F5FA8" : "1px solid var(--wf-border)", background: version === v.code ? "#EAF0FA" : "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer" }}>{v.code}</button>
           ))}
         </div>
 
@@ -5132,7 +5132,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>CAPÍTULOS DE {selectedBook.name.toUpperCase()}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4, marginBottom: 14 }}>
               {Array.from({ length: selectedBook.chapters }, (_, i) => i + 1).map((c) => (
-                <button key={c} onClick={() => openChapter(c)} style={{ padding: "6px 0", borderRadius: 6, border: selectedChapter === c ? "1.5px solid #E8821E" : "1.5px solid transparent", background: selectedChapter === c ? "var(--wf-active-bg)" : "var(--wf-hover)", color: "var(--wf-text)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{c}</button>
+                <button key={c} onClick={() => openChapter(c)} style={{ padding: "6px 0", borderRadius: 6, border: "none", background: selectedChapter === c ? "#E8821E" : "var(--wf-hover)", color: selectedChapter === c ? "#16324F" : "var(--wf-text)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{c}</button>
               ))}
             </div>
           </>

@@ -92,8 +92,8 @@ function UserProfile({ user, myEmail, busy, onBack, onUpdateField, onResetPasswo
       </div>
 
       <div style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 10, padding: 4, marginBottom: 16 }}>
-        <button onClick={() => setTab("info")} style={{ flex: 1, border: tab === "info" ? "1.5px solid #E8821E" : "1.5px solid transparent", borderRadius: 8, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: tab === "info" ? "var(--wf-active-bg)" : "transparent", color: "var(--wf-text)" }}>Información personal</button>
-        <button onClick={() => setTab("horario")} style={{ flex: 1, border: tab === "horario" ? "1.5px solid #E8821E" : "1.5px solid transparent", borderRadius: 8, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: tab === "horario" ? "var(--wf-active-bg)" : "transparent", color: "var(--wf-text)" }}>Horario</button>
+        <button onClick={() => setTab("info")} style={{ flex: 1, border: "none", borderRadius: 8, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: tab === "info" ? "#E8821E" : "transparent", color: tab === "info" ? "#16324F" : "var(--wf-text)" }}>Información personal</button>
+        <button onClick={() => setTab("horario")} style={{ flex: 1, border: "none", borderRadius: 8, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: tab === "horario" ? "#E8821E" : "transparent", color: tab === "horario" ? "#16324F" : "var(--wf-text)" }}>Horario</button>
       </div>
 
       {tab === "info" ? (
