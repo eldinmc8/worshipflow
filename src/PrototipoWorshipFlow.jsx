@@ -2858,6 +2858,20 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   const otherLeaderFresh = isLive && isMusicoLeaderFresh(liveSync.state) && liveSync.state.liderId !== liveSync.deviceId;
   const isFollowingNow = otherLeaderFresh && liveSync.state.songItemId === liveSync.itemId;
 
+  // BUG real (2026-08-30, culto en vivo): si el líder pierde la conexión, jamás vuelve a llegar un
+  // heartbeat por Realtime — así que este componente no tiene ningún motivo para volver a renderizar,
+  // y "otherLeaderFresh"/isFollowingNow se quedan calculados contra el Date.now() de la ÚLTIMA vez que
+  // SÍ llegó algo, "frescos" para siempre aunque hace rato pasaron los MUSICO_LEADER_STALE_MS de
+  // verdad. El botón para tomar el mando ni siquiera reaparecía: todos se quedaban viendo "Siguiendo
+  // al líder" sin poder pasar ninguna canción más. Este tick fuerza a re-evaluar la frescura cada
+  // 2s aunque no llegue ningún dato nuevo.
+  const [, forzarRevision] = useState(0);
+  useEffect(() => {
+    if (!isLive) return;
+    const id = setInterval(() => forzarRevision((t) => t + 1), 2000);
+    return () => clearInterval(id);
+  }, [isLive]);
+
   // "Soy el líder" se deriva de musicoState (persiste solo), así que no hace falta restaurar nada al
   // pasar de canción — pero SÍ hay que reflejar la sección donde arranca esta canción nueva (goToItem ya
   // dejó sectionIdx en 0 en musico_en_vivo antes de navegar), para que el propio líder empiece igual que
@@ -3072,6 +3086,21 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
         )}
         <button onClick={() => goToSectionIdx(currentSectionIdx - 1)} disabled={currentSectionIdx === 0} style={{ ...iconGhost, opacity: currentSectionIdx === 0 ? 0.4 : 1 }}><ChevronLeft size={16} /></button>
         <button onClick={() => goToSectionIdx(currentSectionIdx + 1)} disabled={currentSectionIdx >= order.length - 1} style={{ ...iconGhost, opacity: currentSectionIdx >= order.length - 1 ? 0.4 : 1 }}><ChevronRight size={16} /></button>
+        {/* Respaldo manual: si por lo que sea el líder queda pegado (perdió señal, cerró la app) y hay
+            que esperar no es opción a mitad de un culto, cualquiera puede reiniciar Modo Músico de una —
+            nadie queda de líder, el próximo que toque "Modo Músico" toma el mando limpio. */}
+        {isLive && (isLeaderMe || isFollowingNow) && (
+          <button
+            onClick={() => {
+              if (!window.confirm("¿Reiniciar Modo Músico? Nadie va a quedar de líder — el próximo que toque \"Modo Músico\" toma el mando.")) return;
+              clearMusicoLive().catch((e) => notifyError("No se pudo reiniciar Modo Músico", e));
+            }}
+            title="El líder se quedó pegado (perdió conexión, cerró la app) — esto reinicia Modo Músico para todos"
+            className="hoverable" style={iconGhost}
+          >
+            <RefreshCw size={14} />
+          </button>
+        )}
         {/* TAP tempo y el bpm ya no aplican en vivo — ahí no hay compases/BPM, solo el líder avanzando a
             mano y todos reflejándolo. */}
         {!isLive && (
