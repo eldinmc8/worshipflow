@@ -2240,7 +2240,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           {[["claro", "Claro"], ["oscuro", "Oscuro"], ["auto", "Automático"]].map(([val, label]) => (
             <button
               key={val} onClick={() => cambiarTema(val)}
-              style={{ flex: 1, fontSize: 12, fontWeight: 700, padding: "8px 6px", borderRadius: 8, border: tema === val ? "none" : "1px solid var(--wf-border)", cursor: "pointer", background: tema === val ? "#16324F" : "var(--wf-card)", color: tema === val ? "#fff" : "var(--wf-text-2)" }}
+              style={{ flex: 1, fontSize: 12, fontWeight: 700, padding: "8px 6px", borderRadius: 8, border: tema === val ? "2px solid #E8821E" : "1px solid var(--wf-border)", cursor: "pointer", background: tema === val ? "var(--wf-active-bg)" : "var(--wf-card)", color: "var(--wf-text)" }}
             >
               {label}
             </button>
@@ -2291,7 +2291,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
             <div style={{ fontSize: 11, fontWeight: 700, color: "#E8821E", marginBottom: 8 }}>Como administrador puedes probar cómo se ve la app con otro rol:</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {ROLE_OPTIONS.map((r) => (
-                <button key={r} onClick={() => setRoleOverride(r === myRole && roleOverride ? null : r)} style={{ fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: myRole === r ? "none" : "1px solid var(--wf-border)", cursor: "pointer", background: myRole === r ? "#16324F" : "#FFFFFF", color: myRole === r ? "#fff" : "var(--wf-text-2)" }}>{r}</button>
+                <button key={r} onClick={() => setRoleOverride(r === myRole && roleOverride ? null : r)} style={{ fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: myRole === r ? "2px solid #E8821E" : "1px solid var(--wf-border)", cursor: "pointer", background: myRole === r ? "var(--wf-active-bg)" : "var(--wf-card)", color: "var(--wf-text)" }}>{r}</button>
               ))}
             </div>
           </>
@@ -2645,7 +2645,7 @@ function CancionesList({ library, isAdminViewer, onToggleFavorite, onOpen, onNew
       </div>
       <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 12 }}>
         {[["todos", "Todos"], ...Object.entries(SONG_CATEGORIES).map(([key, c]) => [key, c.label])].map(([key, label]) => (
-          <button key={key} onClick={() => setCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 20, border: categoryFilter === key ? "2px solid #E8821E" : "1px solid var(--wf-border)", background: categoryFilter === key ? "var(--wf-active-bg)" : "#FFFFFF", color: "var(--wf-text)", cursor: "pointer" }}>{label}</button>
+          <button key={key} onClick={() => setCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 20, border: categoryFilter === key ? "2px solid #E8821E" : "1px solid var(--wf-border)", background: categoryFilter === key ? "var(--wf-active-bg)" : "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer" }}>{label}</button>
         ))}
       </div>
       {filtered.map((s) => (
@@ -3384,7 +3384,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
           <Field label="Clasificación" required>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {Object.entries(SONG_CATEGORIES).map(([key, c]) => (
-                <button key={key} type="button" onClick={() => setDraft({ ...draft, category: key })} style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: draft.category === key ? "2px solid #E8821E" : "1px solid var(--wf-border)", background: draft.category === key ? "var(--wf-active-bg)" : "#fff", color: "var(--wf-text)", cursor: "pointer" }}>{c.label}</button>
+                <button key={key} type="button" onClick={() => setDraft({ ...draft, category: key })} style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: draft.category === key ? "2px solid #E8821E" : "1px solid var(--wf-border)", background: draft.category === key ? "var(--wf-active-bg)" : "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer" }}>{c.label}</button>
               ))}
             </div>
             <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Define a qué bloque del Setlist se manda esta canción al agregarla (Himno/Corito/Canto especial → Alabanza, Adoración → Adoración).</span>
@@ -4359,7 +4359,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
           </div>
           <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
             {[["todos", "Todos"], ...Object.entries(SONG_CATEGORIES).map(([key, c]) => [key, c.label])].map(([key, label]) => (
-              <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 16, border: libraryCategoryFilter === key ? "1.5px solid #E8821E" : "1px solid var(--wf-border)", background: libraryCategoryFilter === key ? "var(--wf-active-bg)" : "#FFFFFF", color: "var(--wf-text)", cursor: "pointer" }}>{label}</button>
+              <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 16, border: libraryCategoryFilter === key ? "1.5px solid #E8821E" : "1px solid var(--wf-border)", background: libraryCategoryFilter === key ? "var(--wf-active-bg)" : "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer" }}>{label}</button>
             ))}
           </div>
           {filtered.map((s) => (
@@ -4777,7 +4777,7 @@ function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", splitVer
     <>
       <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 8, marginBottom: 12, width: "fit-content" }}>
         {[["browse", "Buscar en la Biblia"], ["manual", "Escribir manualmente"]].map(([val, label]) => (
-          <button key={val} onClick={() => setMode(val)} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", background: mode === val ? "#2F5FA8" : "transparent", color: mode === val ? "#fff" : "var(--wf-muted)" }}>{label}</button>
+          <button key={val} onClick={() => setMode(val)} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: mode === val ? "1.5px solid #E8821E" : "1.5px solid transparent", cursor: "pointer", background: mode === val ? "var(--wf-active-bg)" : "transparent", color: "var(--wf-text)" }}>{label}</button>
         ))}
       </div>
 
@@ -4910,7 +4910,7 @@ function SlideModal({ draft, setDraft, onClose, onAdd, title = "Slide personaliz
       <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, margin: "14px 0 8px" }}>FONDO</div>
       <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 8, marginBottom: 10, width: "fit-content" }}>
         {[["color", "Color"], ["imagen", "Imagen"], ["video", "Video"]].map(([val, label]) => (
-          <button key={val} onClick={() => setDraft({ ...draft, bgType: val })} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer", background: bgType === val ? "#B15EA0" : "transparent", color: bgType === val ? "#fff" : "var(--wf-muted)" }}>{label}</button>
+          <button key={val} onClick={() => setDraft({ ...draft, bgType: val })} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, border: bgType === val ? "1.5px solid #E8821E" : "1.5px solid transparent", cursor: "pointer", background: bgType === val ? "var(--wf-active-bg)" : "transparent", color: "var(--wf-text)" }}>{label}</button>
         ))}
       </div>
       {bgType === "color" && (
@@ -5132,7 +5132,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>CAPÍTULOS DE {selectedBook.name.toUpperCase()}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4, marginBottom: 14 }}>
               {Array.from({ length: selectedBook.chapters }, (_, i) => i + 1).map((c) => (
-                <button key={c} onClick={() => openChapter(c)} style={{ padding: "6px 0", borderRadius: 6, border: "none", background: selectedChapter === c ? "#16324F" : "var(--wf-hover)", color: selectedChapter === c ? "#fff" : "var(--wf-text)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{c}</button>
+                <button key={c} onClick={() => openChapter(c)} style={{ padding: "6px 0", borderRadius: 6, border: selectedChapter === c ? "1.5px solid #E8821E" : "1.5px solid transparent", background: selectedChapter === c ? "var(--wf-active-bg)" : "var(--wf-hover)", color: "var(--wf-text)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{c}</button>
               ))}
             </div>
           </>
