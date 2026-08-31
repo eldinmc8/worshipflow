@@ -1431,7 +1431,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         <div style={{ position: "absolute", inset: 0, background: "rgba(8,10,14,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 80, padding: 20 }}>
           <div style={{ background: "var(--wf-card)", borderRadius: 16, padding: 22, width: 380, maxWidth: "100%", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(0,0,0,0.4)" }}>
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
-              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#FFF4E8", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--wf-active-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <EyeOff size={20} color="#E8821E" />
               </div>
             </div>
@@ -1447,12 +1447,12 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
                   key={ev.id}
                   onClick={() => confirmarAsignacionVista(ev.id)}
                   className="hoverable"
-                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "#FFF4E8", border: "1.5px solid #E8821E", borderRadius: 10, padding: "12px 14px", cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "var(--wf-active-bg)", border: "1.5px solid #E8821E", borderRadius: 10, padding: "12px 14px", cursor: "pointer" }}
                 >
-                  <EyeOff size={18} color="#8A4F0E" style={{ flexShrink: 0 }} />
+                  <EyeOff size={18} color="var(--wf-active-text)" style={{ flexShrink: 0 }} />
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>{ev.title}</div>
-                    <div style={{ fontSize: 11.5, color: "#8A4F0E", marginTop: 1 }}>{formatFullDate(ev.date) || ev.dateLabel} · Te toca: {cargos.join(", ")}</div>
+                    <div style={{ fontSize: 11.5, color: "var(--wf-active-text)", marginTop: 1 }}>{formatFullDate(ev.date) || ev.dateLabel} · Te toca: {cargos.join(", ")}</div>
                   </span>
                   <ChevronRight size={16} color="#E8821E" style={{ flexShrink: 0 }} />
                 </button>
@@ -2645,7 +2645,7 @@ function CancionesList({ library, isAdminViewer, onToggleFavorite, onOpen, onNew
       </div>
       <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 12 }}>
         {[["todos", "Todos"], ...Object.entries(SONG_CATEGORIES).map(([key, c]) => [key, c.label])].map(([key, label]) => (
-          <button key={key} onClick={() => setCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 20, border: categoryFilter === key ? "2px solid #E8821E" : "1px solid var(--wf-border)", background: categoryFilter === key ? "#FFF4E8" : "#FFFFFF", color: "var(--wf-text)", cursor: "pointer" }}>{label}</button>
+          <button key={key} onClick={() => setCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 20, border: categoryFilter === key ? "2px solid #E8821E" : "1px solid var(--wf-border)", background: categoryFilter === key ? "var(--wf-active-bg)" : "#FFFFFF", color: "var(--wf-text)", cursor: "pointer" }}>{label}</button>
         ))}
       </div>
       {filtered.map((s) => (
@@ -3052,7 +3052,7 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
         {positionLabel && <span style={{ marginLeft: 8, fontWeight: 700, color: "#E8821E" }}>· {positionLabel} en el setlist</span>}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, background: (autoMode || isLeaderMe) ? "#FFF4E8" : "var(--wf-bg)", border: `1px solid ${(autoMode || isLeaderMe) ? "#E8821E" : "var(--wf-divider)"}`, borderRadius: 12, padding: "8px 10px", marginBottom: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, background: (autoMode || isLeaderMe) ? "var(--wf-active-bg)" : "var(--wf-bg)", border: `1px solid ${(autoMode || isLeaderMe) ? "#E8821E" : "var(--wf-divider)"}`, borderRadius: 12, padding: "8px 10px", marginBottom: 16, flexWrap: "wrap" }}>
         {isFollowingNow ? (
           // Seguidor: la sección la decide el líder — acá solo se avisa que se está siguiendo, en vez de
           // un botón que de todos modos no haría nada.
@@ -3130,7 +3130,7 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
               <span style={{ width: 22, height: 22, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{b.badge}</span>
               <span style={{ fontSize: 13, fontWeight: 700 }}>{b.label}</span>
             </div>
-            <div style={{ background: isActive ? "#FFF4E8" : "var(--wf-hover)", borderRadius: 10, padding: 16 }}>
+            <div style={{ background: isActive ? "var(--wf-active-bg)" : "var(--wf-hover)", borderRadius: 10, padding: 16 }}>
               {b.lines.map((l, i2) => <ChordsAboveLyrics key={i2} raw={l} semitones={capoSemitones} />)}
             </div>
           </div>
@@ -3384,7 +3384,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
           <Field label="Clasificación" required>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {Object.entries(SONG_CATEGORIES).map(([key, c]) => (
-                <button key={key} type="button" onClick={() => setDraft({ ...draft, category: key })} style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: draft.category === key ? "2px solid #E8821E" : "1px solid var(--wf-border)", background: draft.category === key ? "#FFF4E8" : "#fff", color: "var(--wf-text)", cursor: "pointer" }}>{c.label}</button>
+                <button key={key} type="button" onClick={() => setDraft({ ...draft, category: key })} style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: draft.category === key ? "2px solid #E8821E" : "1px solid var(--wf-border)", background: draft.category === key ? "var(--wf-active-bg)" : "#fff", color: "var(--wf-text)", cursor: "pointer" }}>{c.label}</button>
               ))}
             </div>
             <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Define a qué bloque del Setlist se manda esta canción al agregarla (Himno/Corito/Canto especial → Alabanza, Adoración → Adoración).</span>
@@ -3695,7 +3695,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
       </div>
 
       {canStartLive && (
-        <button onClick={onStartFree} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: liveLibre ? "#FFF4E8" : "#FFFFFF", border: liveLibre ? "1px solid #E8821E" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 14, padding: "12px 14px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
+        <button onClick={onStartFree} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: liveLibre ? "var(--wf-active-bg)" : "#FFFFFF", border: liveLibre ? "1px solid #E8821E" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 14, padding: "12px 14px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
           <div style={{ width: 34, height: 34, borderRadius: 10, background: liveLibre ? "#E8821E" : "var(--wf-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Radio size={16} color={liveLibre ? "#fff" : "#C23B32"} /></div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700 }}>{liveLibre ? "Transmisión libre en vivo" : "Transmitir sin evento"}</div>
@@ -4001,9 +4001,9 @@ function EventDetail({
           <button
             onClick={marcarMisAsignacionesVistas}
             className="hoverable"
-            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: yaVistoPorMi ? "#EAF6F1" : "#FFF4E8", border: `1.5px solid ${yaVistoPorMi ? "#1F8A73" : "#E8821E"}`, borderRadius: 10, padding: "12px 14px", marginBottom: 16, cursor: "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: yaVistoPorMi ? "#EAF6F1" : "var(--wf-active-bg)", border: `1.5px solid ${yaVistoPorMi ? "#1F8A73" : "#E8821E"}`, borderRadius: 10, padding: "12px 14px", marginBottom: 16, cursor: "pointer" }}
           >
-            {yaVistoPorMi ? <Eye size={20} color="#1F8A73" style={{ flexShrink: 0 }} /> : <EyeOff size={20} color="#8A4F0E" style={{ flexShrink: 0 }} />}
+            {yaVistoPorMi ? <Eye size={20} color="#1F8A73" style={{ flexShrink: 0 }} /> : <EyeOff size={20} color="var(--wf-active-text)" style={{ flexShrink: 0 }} />}
             <span style={{ flex: 1, minWidth: 0 }}>
               {yaVistoPorMi ? (
                 <>
@@ -4012,8 +4012,8 @@ function EventDetail({
                 </>
               ) : (
                 <>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#8A4F0E" }}>Toca aquí para ver tu participación</div>
-                  <div style={{ fontSize: 12, color: "#8A4F0E", marginTop: 2 }}>Te toca: {misCargos.join(", ")}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--wf-active-text)" }}>Toca aquí para ver tu participación</div>
+                  <div style={{ fontSize: 12, color: "var(--wf-active-text)", marginTop: 2 }}>Te toca: {misCargos.join(", ")}</div>
                 </>
               )}
             </span>
@@ -4359,7 +4359,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
           </div>
           <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
             {[["todos", "Todos"], ...Object.entries(SONG_CATEGORIES).map(([key, c]) => [key, c.label])].map(([key, label]) => (
-              <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 16, border: libraryCategoryFilter === key ? "1.5px solid #E8821E" : "1px solid var(--wf-border)", background: libraryCategoryFilter === key ? "#FFF4E8" : "#FFFFFF", color: "var(--wf-text)", cursor: "pointer" }}>{label}</button>
+              <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 16, border: libraryCategoryFilter === key ? "1.5px solid #E8821E" : "1px solid var(--wf-border)", background: libraryCategoryFilter === key ? "var(--wf-active-bg)" : "#FFFFFF", color: "var(--wf-text)", cursor: "pointer" }}>{label}</button>
             ))}
           </div>
           {filtered.map((s) => (
@@ -5148,7 +5148,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
             {history.map((h) => {
               const isLive = liveVerse && liveVerse.ref === h.ref && liveVerse.version === h.version;
               return (
-                <button key={`${h.ref}-${h.version}`} onClick={() => openHistoryEntry(h)} style={{ textAlign: "left", background: isLive ? "#FFF4E8" : "#fff", border: isLive ? "1px solid #E8821E" : "1px solid transparent", borderRadius: 6, padding: "5px 7px", cursor: "pointer", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
+                <button key={`${h.ref}-${h.version}`} onClick={() => openHistoryEntry(h)} style={{ textAlign: "left", background: isLive ? "var(--wf-active-bg)" : "#fff", border: isLive ? "1px solid #E8821E" : "1px solid transparent", borderRadius: 6, padding: "5px 7px", cursor: "pointer", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)" }}>{h.ref} <span style={{ color: "#2F5FA8", fontWeight: 700 }}>· {h.version}</span></div>
                   <div style={{ fontSize: 10.5, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.text}</div>
                 </button>
@@ -5327,10 +5327,10 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
           canciones al que volver). Biblia/Texto/Video nunca fueron parte del plan del Setlist — no hay
           "plan" al que regresar, así que ahí se deja solo el indicador de qué está en vivo. */}
       {adHoc && (
-        <div style={{ margin: "0 16px 10px", background: "#FFF4E8", border: "1px solid #E8821E", borderRadius: 10, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#8A4F0E" }}>● {adHoc.label}</span>
+        <div style={{ margin: "0 16px 10px", background: "var(--wf-active-bg)", border: "1px solid #E8821E", borderRadius: 10, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-active-text)" }}>● {adHoc.label}</span>
           {adHoc.slides[0]?.type === "cancion" && (
-            <button onClick={onExitAdHoc} style={{ fontSize: 11, fontWeight: 700, color: "#8A4F0E", background: "transparent", border: "1px solid #E8821E", borderRadius: 14, padding: "3px 8px", cursor: "pointer", flexShrink: 0 }}>Volver al plan</button>
+            <button onClick={onExitAdHoc} style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-active-text)", background: "transparent", border: "1px solid #E8821E", borderRadius: 14, padding: "3px 8px", cursor: "pointer", flexShrink: 0 }}>Volver al plan</button>
           )}
         </div>
       )}
@@ -5540,7 +5540,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
                 {customSlides.map((s) => {
                   const isLive = !adHoc && current?.slideId === s.slideId;
                   return (
-                    <div key={s.slideId} style={{ display: "flex", alignItems: "center", gap: 6, background: isLive ? "#FFF4E8" : "#fff", border: isLive ? "1px solid #E8821E" : "1px solid transparent", borderRadius: 8, padding: "5px 6px", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
+                    <div key={s.slideId} style={{ display: "flex", alignItems: "center", gap: 6, background: isLive ? "var(--wf-active-bg)" : "#fff", border: isLive ? "1px solid #E8821E" : "1px solid transparent", borderRadius: 8, padding: "5px 6px", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
                       <button onClick={() => gotoPlanSlide(slides.findIndex((x) => x.slideId === s.slideId))} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {s.title || "(sin título)"}
                       </button>

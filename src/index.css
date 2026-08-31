@@ -23,10 +23,12 @@
      chrome — no confundir con el navy usado como FONDO (header, nav inferior, botones navy), que
      se queda igual en los dos temas a propósito y no usa esta variable. */
   --wf-heading: #16324F;
-  /* Fondo de la sección ACTIVA en Modo Músico (la que tiene el borde naranja) — antes era un crema
-     fijo (#FFF4E8) que en oscuro dejaba la letra (var(--wf-text), casi blanca ahí) invisible sobre
-     un fondo igual de claro. En oscuro se vuelve un tono café/ámbar oscuro en vez de crema. */
+  /* Resalte "crema + texto ámbar" que se repite en toda la app para avisos de atención (sección
+     activa en Modo Músico, cargos sin confirmar, perfil incompleto, contenido improvisado en vivo).
+     Antes eran literales fijos (#FFF4E8 de fondo, #8A4F0E de texto) que en oscuro dejaban el texto
+     (var(--wf-text), casi blanco ahí) invisible sobre un fondo igual de claro. */
   --wf-active-bg: #FFF4E8;
+  --wf-active-text: #8A4F0E;
 }
 [data-theme="dark"] {
   --wf-bg: #10151C;
@@ -40,6 +42,8 @@
   --wf-hover: #222C3A;
   --wf-divider: #262F3D;
   --wf-heading: #E7ECF3;
+  --wf-active-bg: #3A2C1A;
+  --wf-active-text: #F0B86E;
 }
 
 body {

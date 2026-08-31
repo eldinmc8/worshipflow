@@ -87,7 +87,7 @@ function UserProfile({ user, myEmail, busy, onBack, onUpdateField, onResetPasswo
         <div style={{ fontSize: 17, fontWeight: 700, color: "var(--wf-text)" }}>{user.nombre}</div>
         <span style={{ display: "inline-block", marginTop: 4, background: "#E8F1FB", border: "1px solid #2F5FA8", borderRadius: 20, padding: "2px 12px", fontSize: 11, fontWeight: 700, color: "#2F5FA8" }}>{roleLabel(user.rol).toUpperCase()}</span>
         {!user.perfil_completo && (
-          <div style={{ marginTop: 8, fontSize: 11, color: "#8A4F0E", background: "#FFF4E8", border: "1px solid #E8821E", borderRadius: 20, padding: "3px 12px", display: "inline-block" }}>Todavía no completó su perfil — este nombre es provisional</div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "var(--wf-active-text)", background: "var(--wf-active-bg)", border: "1px solid #E8821E", borderRadius: 20, padding: "3px 12px", display: "inline-block" }}>Todavía no completó su perfil — este nombre es provisional</div>
         )}
       </div>
 
@@ -330,7 +330,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
                   <div style={{ flex: "1 1 auto", minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>
                       {row.nombre} {row.email === myEmail && <span style={{ fontSize: 10, color: "var(--wf-faint)" }}>(tú)</span>}
-                      {!row.perfil_completo && <span title="Todavía no completó su perfil" style={{ fontSize: 9, fontWeight: 700, color: "#8A4F0E", background: "#FFF4E8", border: "1px solid #E8821E", borderRadius: 10, padding: "1px 6px", marginLeft: 6 }}>PENDIENTE</span>}
+                      {!row.perfil_completo && <span title="Todavía no completó su perfil" style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-active-text)", background: "var(--wf-active-bg)", border: "1px solid #E8821E", borderRadius: 10, padding: "1px 6px", marginLeft: 6 }}>PENDIENTE</span>}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis" }}>{row.email}</div>
                   </div>

@@ -86,7 +86,7 @@ export default function AuthGate() {
           <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Cargando…</div>
         ) : (
           <div className="screen-enter" style={{ width: 320, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center" }}>
-            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#FFF4E8", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--wf-active-bg)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
               <WifiOff size={22} color="#E8821E" />
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: "var(--wf-text)", marginBottom: 8 }}>Sin conexión</div>
