@@ -12,11 +12,21 @@ let resolverActual = null;
 
 export function confirmDialog(mensaje, opciones = {}) {
   // Si ya había un diálogo pendiente sin resolver (no debería pasar en la práctica, es un solo host),
-  // se cancela con "false" en vez de quedar colgado para siempre.
+  // se cancela con "false"/null en vez de quedar colgado para siempre.
   if (resolverActual) resolverActual(false);
   return new Promise((resolve) => {
     resolverActual = resolve;
-    listeners.forEach((fn) => fn({ mensaje, ...opciones }));
+    listeners.forEach((fn) => fn({ tipo: "confirm", mensaje, ...opciones }));
+  });
+}
+
+// Igual que confirmDialog, pero con un campo de texto — reemplazo de window.prompt() (ej. "Nueva
+// contraseña"). Devuelve el texto escrito, o null si se cancela/cierra sin escribir nada.
+export function promptDialog(mensaje, opciones = {}) {
+  if (resolverActual) resolverActual(null);
+  return new Promise((resolve) => {
+    resolverActual = resolve;
+    listeners.forEach((fn) => fn({ tipo: "prompt", mensaje, ...opciones }));
   });
 }
 

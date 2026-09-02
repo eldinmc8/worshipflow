@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { showToast } from "./lib/toast.js";
-import { confirmDialog } from "./lib/confirm.js";
+import { confirmDialog, promptDialog } from "./lib/confirm.js";
 import { parseIsoDateLocal, todayLocal, buildMonthWeeks, MONTH_NAMES_FULL, DOW_LABELS, formatFullDate } from "./lib/dates.js";
 
 const ROLES = [
@@ -252,7 +252,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
   };
 
   const resetPassword = async (id) => {
-    const password = window.prompt("Nueva contraseña (mínimo 6 caracteres):");
+    const password = await promptDialog("Nueva contraseña (mínimo 6 caracteres):", { esPassword: true, textoConfirmar: "Guardar" });
     if (!password) return;
     setBusy(true); setError("");
     try {
