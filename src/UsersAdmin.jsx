@@ -9,6 +9,7 @@ const ROLES = [
   { value: "multimedia", label: "Multimedia" },
   { value: "musico", label: "Músico" },
   { value: "miembro", label: "Miembro" },
+  { value: "supervisor", label: "Supervisor" },
 ];
 const roleLabel = (v) => ROLES.find((r) => r.value === v)?.label || v;
 

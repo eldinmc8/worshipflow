@@ -13,7 +13,7 @@ function json(payload: unknown, status: number) {
   });
 }
 
-const ROLES_VALIDOS = ["admin", "multimedia", "musico", "miembro"];
+const ROLES_VALIDOS = ["admin", "multimedia", "musico", "miembro", "supervisor"];
 // A donde vuelve el navegador tras hacer clic en el enlace de invitación (con la sesión ya en el hash
 // de la URL) — ahí AuthGate.jsx detecta type=invite y pide elegir contraseña antes de entrar a la app.
 const APP_URL = "https://worshipflow-pearl.vercel.app/";

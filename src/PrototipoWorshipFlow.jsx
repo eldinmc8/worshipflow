@@ -1027,7 +1027,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // desde AuthGate) — ya no un selector que cualquiera podía cambiarse solo. Un rol lo asigna un
   // administrador desde Usuarios. Solo un administrador puede "probar" cómo se ve la app con otro
   // rol/persona (ver Ajustes) — para todos los demás su acceso queda fijo a su cuenta real.
-  const ROLE_DB_TO_LABEL = { admin: "Administrador", multimedia: "Multimedia", musico: "Músico", miembro: "Miembro" };
+  const ROLE_DB_TO_LABEL = { admin: "Administrador", multimedia: "Multimedia", musico: "Músico", miembro: "Miembro", supervisor: "Supervisor" };
   const realIsAdmin = perfil?.rol === "admin";
   const realRoleLabel = ROLE_DB_TO_LABEL[perfil?.rol] || "Miembro";
   const realName = perfil?.nombre || "";
@@ -2210,7 +2210,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
       setPushBusy(false);
     }
   };
-  const ROLE_OPTIONS = ["Administrador", "Multimedia", "Músico", "Miembro"];
+  const ROLE_OPTIONS = ["Administrador", "Multimedia", "Músico", "Miembro", "Supervisor"];
   const initials = (myName || "?").split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
   const misEventos = useMemo(
     () => events.filter((e) => e.serviceOrder.some((item) => (item.encargados || []).some((m) => m.n === myName))),
@@ -4455,7 +4455,10 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
             // primera de la lista) — así, por ejemplo, la Escuelita bíblica trae sola el tema de ese domingo.
             const currentPlan = linkedMinistry && event.date ? linkedMinistry.plan.find((p) => p.date === event.date) : null;
             const planStatusText = !linkedMinistry ? null : !event.date ? "Este evento no tiene fecha de calendario — asígnale una para traer la planificación sola." : currentPlan ? null : "Sin planificación cargada para esta fecha.";
-            const isExpanded = !!expandedSections[item.id];
+            // Quien no es administrador (Miembro, Músico, Multimedia, Supervisor...) ve el equipo
+            // asignado de una, sin tener que tocar el botón de "Encargados" para desplegarlo — mismo
+            // espíritu que ya tenía la vista de Limpieza, ahora aplicado a todo el Setlist.
+            const isExpanded = isAdminViewer ? !!expandedSections[item.id] : true;
             const canEdit = canEditItem(idx);
             return (
               <div
@@ -4479,12 +4482,12 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                       // ilegible en una sola línea) — tocarlo despliega el bosquejo completo y los
                       // recursos del ministerio abajo, mismo interruptor que el botón de encargados.
                       <div
-                        onClick={() => setExpandedSections((e) => ({ ...e, [item.id]: !e[item.id] }))}
-                        title={isExpanded ? "Ocultar planificación" : "Ver planificación"}
-                        style={{ fontSize: 12, color: "var(--wf-text-2)", marginTop: 2, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}
+                        onClick={isAdminViewer ? () => setExpandedSections((e) => ({ ...e, [item.id]: !e[item.id] })) : undefined}
+                        title={isAdminViewer ? (isExpanded ? "Ocultar planificación" : "Ver planificación") : undefined}
+                        style={{ fontSize: 12, color: "var(--wf-text-2)", marginTop: 2, display: "flex", alignItems: "center", gap: 4, cursor: isAdminViewer ? "pointer" : "default" }}
                       >
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{currentPlan ? currentPlan.title : planStatusText}</span>
-                        {isExpanded ? <ChevronUp size={12} style={{ flexShrink: 0 }} /> : <ChevronDown size={12} style={{ flexShrink: 0 }} />}
+                        {isAdminViewer && (isExpanded ? <ChevronUp size={12} style={{ flexShrink: 0 }} /> : <ChevronDown size={12} style={{ flexShrink: 0 }} />)}
                       </div>
                     ) : (
                       <input
@@ -4495,10 +4498,20 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                     )}
                   </div>
                   <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
-                    <EncargadosToggleButton
-                      count={isWorshipBlock(item) ? (event.worshipRoles || []).reduce((acc, r) => acc + r.members.length, 0) : (item.encargados || []).length}
-                      onClick={() => setExpandedSections((e) => ({ ...e, [item.id]: !e[item.id] }))}
-                    />
+                    {/* Para quien no es administrador el equipo ya está siempre visible abajo (ver
+                        isExpanded) — el botón no tendría nada que desplegar, así que se cambia por un
+                        conteo de solo lectura en vez de un botón que no hace nada. */}
+                    {isAdminViewer ? (
+                      <EncargadosToggleButton
+                        count={isWorshipBlock(item) ? (event.worshipRoles || []).reduce((acc, r) => acc + r.members.length, 0) : (item.encargados || []).length}
+                        onClick={() => setExpandedSections((e) => ({ ...e, [item.id]: !e[item.id] }))}
+                      />
+                    ) : (
+                      <span title="Personas asignadas a este bloque" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", padding: "0 4px" }}>
+                        <Users size={14} />
+                        {isWorshipBlock(item) ? (event.worshipRoles || []).reduce((acc, r) => acc + r.members.length, 0) : (item.encargados || []).length}
+                      </span>
+                    )}
                     {canEditNow && (
                       <>
                         <button onClick={() => onDuplicate(item.id)} title="Duplicar" style={iconGhost}><Copy size={14} /></button>
