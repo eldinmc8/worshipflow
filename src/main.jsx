@@ -7,6 +7,7 @@ import { iniciarTema } from './lib/theme.js'
 import AuthGate from './AuthGate.jsx'
 import PublicScreen from './PublicScreen.jsx'
 import ToastHost from './ToastHost.jsx'
+import ConfirmDialogHost from './ConfirmDialogHost.jsx'
 
 // La pantalla pública vive en su propia URL (?screen=publico) para poder instalarse
 // como PWA independiente del panel de control del operador (útil para un dispositivo fijo junto
@@ -50,6 +51,7 @@ function App() {
       )}
       {isPublicScreen ? <PublicScreen /> : <AuthGate />}
       <ToastHost />
+      <ConfirmDialogHost />
     </>
   )
 }

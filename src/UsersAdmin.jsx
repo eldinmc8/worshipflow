@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { showToast } from "./lib/toast.js";
+import { confirmDialog } from "./lib/confirm.js";
 import { parseIsoDateLocal, todayLocal, buildMonthWeeks, MONTH_NAMES_FULL, DOW_LABELS, formatFullDate } from "./lib/dates.js";
 
 const ROLES = [
@@ -265,7 +266,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
   };
 
   const removeUser = async (row) => {
-    if (!window.confirm(`¿Eliminar la cuenta de ${row.nombre} (${row.email})? Esto no se puede deshacer.`)) return;
+    if (!(await confirmDialog(`¿Eliminar la cuenta de ${row.nombre} (${row.email})? Esto no se puede deshacer.`, { danger: true, textoConfirmar: "Eliminar" }))) return;
     setBusy(true); setError("");
     try {
       await callUsersFunction("eliminar-usuario", { id: row.id });

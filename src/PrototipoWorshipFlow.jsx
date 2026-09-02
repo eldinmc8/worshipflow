@@ -24,6 +24,7 @@ import { buscarActualizacionManual, hayActualizacionPendiente } from "./lib/swUp
 import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FULL, MONTH_ABBR, DOW_LABELS, monthKey, monthLabelFromKey, formatFullDate, buildMonthWeeks } from "./lib/dates.js";
 import { saveCache, loadCache } from "./lib/offlineCache.js";
 import { showToast, notifyError } from "./lib/toast.js";
+import { confirmDialog } from "./lib/confirm.js";
 import {
   guardarCapituloOffline, obtenerCapituloOffline, contarCapitulosGuardados,
   borrarVersionOffline, todosLosVersiculosOffline, descargarBibliaCompleta,
@@ -874,11 +875,11 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   };
   // Si ya hay algo en vivo (un evento real o una transmisión libre) y se va a reemplazar por otra cosa,
   // confirma antes — mismo diálogo para las tres combinaciones (evento→evento, evento→libre, libre→evento).
-  const confirmReplaceLive = (excludeEventId) => {
+  const confirmReplaceLive = async (excludeEventId) => {
     if (!liveEventId && !liveLibre) return true;
     if (liveEventId && liveEventId === excludeEventId) return true;
     const otherTitle = liveLibre ? "Transmisión libre" : events.find((e) => e.id === liveEventId)?.title;
-    return window.confirm(`"${otherTitle}" ya está en vivo. ¿Finalizarlo e iniciar esto en su lugar?`);
+    return confirmDialog(`"${otherTitle}" ya está en vivo. ¿Finalizarlo e iniciar esto en su lugar?`, { textoConfirmar: "Finalizar e iniciar" });
   };
   // Escribe el estado de Modo Músico (líder, canción/sección/tempo/auto-avance actuales) para que se
   // vea igual en todos los dispositivos de la banda — ver SongView, que es quien de verdad decide CUÁNDO
@@ -902,16 +903,16 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     setMusicoState(null);
     clearMusicoLive().catch(() => {});
   };
-  const startEvent = (eventId) => {
-    if (!confirmReplaceLive(eventId)) return;
+  const startEvent = async (eventId) => {
+    if (!(await confirmReplaceLive(eventId))) return;
     setLiveEventId(eventId); setLiveLibre(false); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); resetMusicoLive(); setTab("envivo");
     startPresentation(); // abre/enfoca la pantalla de proyección de una vez, sin paso manual extra
   };
   // Transmitir sin un evento del calendario detrás — para anuncios, oración u otro contenido suelto que
   // no amerita crear/usar un evento planificado. Todo el contenido sale de "Improvisar" (Biblia/canción/
   // video) o de diapositivas agregadas a mano (ver libreServiceOrder) — nunca de un setlist real.
-  const startFreeEvent = () => {
-    if (!confirmReplaceLive(null)) return;
+  const startFreeEvent = async () => {
+    if (!(await confirmReplaceLive(null))) return;
     setLiveEventId(null); setLiveLibre(true); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); resetMusicoLive(); setTab("envivo");
     startPresentation();
   };
@@ -957,8 +958,8 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       .then((idReal) => setOpenSong({ id: idReal, mode: "view" }))
       .catch((e) => { notifyError("No se pudo guardar la canción", e); throw e; });
   };
-  const deleteSong = (song) => {
-    if (!window.confirm(`¿Eliminar "${song.title}"? Esto no se puede deshacer.`)) return;
+  const deleteSong = async (song) => {
+    if (!(await confirmDialog(`¿Eliminar "${song.title}"? Esto no se puede deshacer.`, { danger: true, textoConfirmar: "Eliminar" }))) return;
     setLibrary((lib) => lib.filter((s) => s.id !== song.id));
     setOpenSong(null);
     deleteCancion(song.id).catch((e) => notifyError("No se pudo eliminar la canción", e));
@@ -986,9 +987,9 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     setSelectedEventId(newEvent.id);
     if (template && !esPlantilla) setDraftFromTemplateId(newEvent.id);
   };
-  const deleteEvent = (event) => {
+  const deleteEvent = async (event) => {
     if (event.id === liveEventId) { showToast("No puedes eliminar un evento que está en vivo — finalízalo primero."); return; }
-    if (!window.confirm(`¿Eliminar "${event.title}"? Esto borra también su Setlist y sus encargados. No se puede deshacer.`)) return;
+    if (!(await confirmDialog(`¿Eliminar "${event.title}"? Esto borra también su Setlist y sus encargados. No se puede deshacer.`, { danger: true, textoConfirmar: "Eliminar" }))) return;
     setEvents((evs) => evs.filter((e) => e.id !== event.id));
     setSelectedEventId(null);
     deleteEvento(event.id).catch((e) => notifyError("No se pudo eliminar el evento", e));
@@ -1218,8 +1219,8 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // Borrar un ministerio deja sin vincular (no borra) cualquier bloque del Setlist que lo usaba —
   // items_servicio.ministerio_id tiene ON DELETE SET NULL — así que ningún evento pasado se rompe,
   // solo deja de traer la planificación automática y vuelve a mostrar su descripción escrita a mano.
-  const deleteMinistry = (ministry) => {
-    if (!window.confirm(`¿Eliminar el grupo "${ministry.name}"? Esto no se puede deshacer. Los bloques del Setlist que lo tenían vinculado dejarán de traer su planificación sola.`)) return;
+  const deleteMinistry = async (ministry) => {
+    if (!(await confirmDialog(`¿Eliminar el grupo "${ministry.name}"? Esto no se puede deshacer. Los bloques del Setlist que lo tenían vinculado dejarán de traer su planificación sola.`, { danger: true, textoConfirmar: "Eliminar" }))) return;
     setMinistries((ms) => ms.filter((m) => m.id !== ministry.id));
     setSelectedMinistryId(null);
     eliminarMinisterio(ministry.id).catch((e) => notifyError("No se pudo eliminar el grupo", e));
@@ -2080,7 +2081,7 @@ function BibleDownloadSection() {
   };
   const cancelarDescarga = () => { cancelRef.current.aborted = true; };
   const eliminarDescarga = async () => {
-    if (!window.confirm("¿Eliminar la copia de la Biblia descargada de este dispositivo?")) return;
+    if (!(await confirmDialog("¿Eliminar la copia de la Biblia descargada de este dispositivo?", { danger: true, textoConfirmar: "Eliminar" }))) return;
     await borrarVersionOffline(BIBLE_OFFLINE_VERSION);
     actualizarConteo();
   };
@@ -2168,7 +2169,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
     // si no hay error, el navegador redirige a Google — vuelve solo a esta pantalla ya vinculada
   };
   const desvincularGoogle = async () => {
-    if (!window.confirm("¿Dejar de poder entrar con Google? Vas a seguir pudiendo entrar con tu correo y contraseña.")) return;
+    if (!(await confirmDialog("¿Dejar de poder entrar con Google? Vas a seguir pudiendo entrar con tu correo y contraseña.", { textoConfirmar: "Desvincular" }))) return;
     setGoogleBusy(true);
     try {
       const { data } = await supabase.auth.getUserIdentities();
@@ -2216,8 +2217,8 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
     [events, myName]
   );
 
-  const signOut = () => {
-    if (!window.confirm("¿Cerrar sesión?")) return;
+  const signOut = async () => {
+    if (!(await confirmDialog("¿Cerrar sesión?", { textoConfirmar: "Cerrar sesión" }))) return;
     supabase.auth.signOut();
   };
 
@@ -2274,7 +2275,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           label="Notificaciones push activadas"
           right={pushBusy ? null : (
             <span
-              onClick={(e) => { e.stopPropagation(); if (window.confirm("¿Seguro que quieres desactivar las notificaciones push? Podrías perderte avisos de tus asignaciones y recordatorios de eventos.")) desactivarPush(); }}
+              onClick={async (e) => { e.stopPropagation(); if (await confirmDialog("¿Seguro que quieres desactivar las notificaciones push? Podrías perderte avisos de tus asignaciones y recordatorios de eventos.", { danger: true, textoConfirmar: "Desactivar" })) desactivarPush(); }}
               style={{ fontSize: 11, color: "var(--wf-faint)", fontWeight: 600, cursor: "pointer" }}
             >
               Desactivar
@@ -3099,8 +3100,8 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
             nadie queda de líder, el próximo que toque "Modo Músico" toma el mando limpio. */}
         {isLive && (isLeaderMe || isFollowingNow) && (
           <button
-            onClick={() => {
-              if (!window.confirm("¿Reiniciar Modo Músico? Nadie va a quedar de líder — el próximo que toque \"Modo Músico\" toma el mando.")) return;
+            onClick={async () => {
+              if (!(await confirmDialog("¿Reiniciar Modo Músico? Nadie va a quedar de líder — el próximo que toque \"Modo Músico\" toma el mando.", { textoConfirmar: "Reiniciar" }))) return;
               clearMusicoLive().catch((e) => notifyError("No se pudo reiniciar Modo Músico", e));
             }}
             title="El líder se quedó pegado (perdió conexión, cerró la app) — esto reinicia Modo Músico para todos"
