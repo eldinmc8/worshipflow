@@ -1147,9 +1147,17 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // escritura restringido a Multimedia. Se sincroniza siempre (no solo mientras hay un evento en vivo):
   // el "active" real por evento lo decide cada SongView con isLiveNow, esto solo mantiene musicoState al día.
   useEffect(() => {
-    getMusicoLive().then((fila) => setMusicoState(filaAMusicoState(fila))).catch(() => {});
+    const refrescar = () => getMusicoLive().then((fila) => setMusicoState(filaAMusicoState(fila))).catch(() => {});
+    refrescar();
     const unsubscribe = subscribeMusicoLive((fila) => setMusicoState(filaAMusicoState(fila)));
-    return unsubscribe;
+    // Si ESTE dispositivo (el líder, por ejemplo) es el que se quedó sin internet, no solo deja de
+    // avisar que sigue vivo — también deja de ENTERARSE de lo que pasó mientras estuvo desconectado
+    // (ej. que alguien más tomó el mando con el botón de "reiniciar"). Realtime no reenvía los
+    // cambios perdidos durante el corte, así que sin este refresco al volver la señal, el líder
+    // original podría reaparecer todavía creyéndose líder y pisarle el mando a quien lo tomó de
+    // verdad. "online" fuerza a traer el estado real de una en cuanto vuelve la conexión.
+    window.addEventListener("online", refrescar);
+    return () => { unsubscribe(); window.removeEventListener("online", refrescar); };
   }, []);
 
   // ---- Ministerios ----
