@@ -46,12 +46,23 @@
   --wf-active-text: #F0B86E;
 }
 
+/* html/body NUNCA deben poder hacer scroll por su cuenta — solo las áreas internas designadas
+   (ver overflowY:auto en PrototipoWorshipFlow.jsx) scrollean. Antes body solo tenía min-height:100vh
+   (el alto "ideal", como si la barra del navegador ya estuviera oculta) mientras el contenedor de la
+   app usa 100dvh (el alto REAL visible en cada instante) — cuando la barra de Android/Chrome está
+   visible, dvh < vh, así que body quedaba más alto que el contenido real, dejando un sobrante
+   arrastrable a nivel de PÁGINA COMPLETA. Ese sobrante era lo que "subía" la barra de navegación
+   inferior al hacer scroll hasta el final y seguir arrastrando: no era la barra moviéndose, era toda
+   la página deslizándose por ese hueco. Fijar height (no min-height) + overflow:hidden en los dos
+   elimina el hueco de raíz. */
+html, body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 body {
   margin: 0;
   font-family: 'Poppins', sans-serif;
-  /* Que se sienta como una app instalada, no una página web: sin el "rebote" de scroll del navegador
-     ni el gesto de "pull to refresh" que recarga la página sin querer al arrastrar hacia abajo. */
-  overscroll-behavior: none;
   /* Quita el resplandor azul/gris que Chrome/Android muestra al tocar botones y enlaces. */
   -webkit-tap-highlight-color: transparent;
   /* Con viewport-fit=cover (necesario para que la app instalada en iPhone use la pantalla completa de
@@ -64,7 +75,13 @@ body {
   padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
   background: var(--wf-bg);
   box-sizing: border-box;
-  min-height: 100vh;
+}
+@supports (height: 100dvh) {
+  html, body { height: 100dvh; }
+}
+#root {
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Nadie puede seleccionar/copiar texto de la interfaz (títulos, botones, listas, letras de
