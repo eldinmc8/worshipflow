@@ -387,8 +387,11 @@ function isMultimediaBlock(item) {
 // - Cualquier OTRO bloque organizativo (Limpieza, Ofrendas, Adolescentes, Escuelita Infantil, Lectura
 //   inicial, Predicación, etc.) restringe a su(s) encargado(s) a ver SOLO ese bloque — ni siquiera
 //   Alabanza/Multimedia, ni el resto de bloques.
-function decidirVisibilidadSetlist(event, isAdminViewer, userId) {
-  if (isAdminViewer) return { modo: "todo" };
+function decidirVisibilidadSetlist(event, isAdminViewer, userId, esSupervisor) {
+  // Supervisor ve TODO, sin excepción — a diferencia de los demás roles, tener además una asignación
+  // propia (ej. un bloque puntual) no lo restringe a ver solo eso. Es el único rol, aparte de
+  // Administrador, que nunca queda encerrado en "bloque-propio" ni "filtrado".
+  if (isAdminViewer || esSupervisor) return { modo: "todo" };
   const misBloquesPropios = event.serviceOrder.filter((it) => it.type === "seccion" && (it.encargados || []).some((m) => m.usuarioId === userId));
   const misOtrosBloques = misBloquesPropios.filter((it) => !isMultimediaBlock(it));
   if (misOtrosBloques.length > 0) return { modo: "bloque-propio", blocks: misOtrosBloques };
@@ -403,8 +406,8 @@ function decidirVisibilidadSetlist(event, isAdminViewer, userId) {
 }
 // Ítems del Setlist que un usuario puede ver, aplicando decidirVisibilidadSetlist — se usa en el
 // resumen en PDF, que de otro modo mostraría el Setlist completo a cualquiera sin pasar por SetlistPane.
-function serviceOrderVisiblePara(event, isAdminViewer, userId) {
-  const decision = decidirVisibilidadSetlist(event, isAdminViewer, userId);
+function serviceOrderVisiblePara(event, isAdminViewer, userId, esSupervisor) {
+  const decision = decidirVisibilidadSetlist(event, isAdminViewer, userId, esSupervisor);
   if (decision.modo === "bloque-propio") return decision.blocks;
   if (decision.modo === "filtrado") return decision.visibleOrder;
   return event.serviceOrder;
@@ -4071,7 +4074,7 @@ function EventDetail({
             {(formatFullDate(event.date) || event.dateLabel || "")}{event.hora ? ` · ${event.hora}` : ""}
           </div>
           <ol style={{ paddingLeft: 20, margin: 0 }}>
-            {serviceOrderVisiblePara(event, isAdminViewer, userId).map((item) => {
+            {serviceOrderVisiblePara(event, isAdminViewer, userId, usuariosReales.find((u) => u.id === userId)?.rol === "supervisor").map((item) => {
               if (item.type === "seccion") {
                 const names = isWorshipBlock(item)
                   ? (event.worshipRoles || []).flatMap((r) => r.members.map((m) => `${m.n} (${r.name})`)).join(", ")
@@ -4333,7 +4336,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
   // Visibilidad del Setlist por grupo — ver decidirVisibilidadSetlist. Va DESPUÉS de todos los hooks
   // de arriba: un return anticipado antes de un useState rompe las reglas de hooks en cuanto ese mismo
   // componente vuelva a renderizar sin la restricción activa.
-  const visibilidadSetlist = decidirVisibilidadSetlist(event, isAdminViewer, userId);
+  const visibilidadSetlist = decidirVisibilidadSetlist(event, isAdminViewer, userId, usuariosReales.find((u) => u.id === userId)?.rol === "supervisor");
   if (visibilidadSetlist.modo === "bloque-propio") {
     return <RestrictedGroupPanel blocks={visibilidadSetlist.blocks} worshipRoles={[]} />;
   }
