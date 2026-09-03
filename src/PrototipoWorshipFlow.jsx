@@ -1412,7 +1412,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   }
 
   return (
-    <div className="app-shell-height" style={{ fontFamily: "'Poppins', sans-serif", background: "var(--wf-bg)", color: "var(--wf-text)", display: "flex", flexDirection: "column", position: "relative", overflowX: "hidden", overflowY: "hidden" }}>
+    <div className="app-shell-height" style={{ fontFamily: "'Poppins', sans-serif", background: "var(--wf-bg)", color: "var(--wf-text)", display: "flex", flexDirection: "column", position: "relative", overflowX: "hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Caveat:wght@600;700&family=Playfair+Display:ital,wght@1,600&family=Montserrat:wght@300;700&family=Bebas+Neue&family=Oswald:wght@500;600&family=Quicksand:wght@500;700&family=Dancing+Script:wght@600;700&display=swap');
         @keyframes pulseDot { 0%,100% { opacity:1; } 50% { opacity:.35; } }
