@@ -4430,7 +4430,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
       </div>
       )}
 
-      <div style={{ flex: 1, padding: 16, overflowY: "auto", overscrollBehavior: "contain" }}>
+      <div style={{ flex: 1, padding: 16, overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, gap: 8 }}>
           <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 20, margin: 0 }}>Setlist</h2>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
@@ -4466,49 +4466,38 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
             return (
               <div
                 key={item.id} ref={rowRefProp(idx)}
-                style={isAdminViewer ? {
+                style={{
                   background: "rgba(124,140,216,0.16)", border: overIndex === idx && dragIndex !== null && dragIndex !== idx ? "2px solid #E8821E" : "1px solid #5661B3", borderRadius: 10, padding: "12px 14px", marginBottom: 8,
                   transform: dragIndex === idx ? `translateY(${dragTranslateY}px)` : undefined,
                   position: dragIndex === idx ? "relative" : undefined, zIndex: dragIndex === idx ? 5 : undefined,
                   boxShadow: dragIndex === idx ? "0 10px 24px rgba(22,50,79,0.35)" : undefined,
-                } : {
-                  // Sin candado que abrir, sin arrastrar, sin colores de edición — la misma tarjeta
-                  // limpia que ya usaba el panel de Limpieza (ver RestrictedGroupPanel), aplicada a
-                  // cada bloque del Setlist normal para todo el que no es administrador.
-                  background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "16px 18px", marginBottom: 10,
                 }}
               >
                 <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                  {isAdminViewer && <GripVertical size={14} color="#5661B3" {...handleProps} style={{ ...handleProps.style, marginTop: 3 }} />}
+                  <GripVertical size={14} color="#5661B3" {...handleProps} style={{ ...handleProps.style, marginTop: 3 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    {isAdminViewer ? (
-                      <input
-                        value={item.title} onChange={(e) => onUpdateSeccionText(item.id, "title", e.target.value)} readOnly={!canEdit}
-                        style={{ border: "none", background: "transparent", outline: "none", fontSize: 14, fontWeight: 700, color: "var(--wf-text)", width: "100%", padding: 0, fontFamily: "inherit" }}
-                      />
-                    ) : (
-                      <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, fontWeight: 600, color: "var(--wf-text)" }}>{item.title}</div>
-                    )}
+                    <input
+                      value={item.title} onChange={(e) => onUpdateSeccionText(item.id, "title", e.target.value)} readOnly={!canEdit}
+                      style={{ border: "none", background: "transparent", outline: "none", fontSize: 14, fontWeight: 700, color: "var(--wf-text)", width: "100%", padding: 0, fontFamily: "inherit" }}
+                    />
                     {linkedMinistry ? (
                       // Solo el título de la planificación acá (no el detalle completo, que sería
                       // ilegible en una sola línea) — tocarlo despliega el bosquejo completo y los
                       // recursos del ministerio abajo, mismo interruptor que el botón de encargados.
                       <div
-                        onClick={isAdminViewer ? () => setExpandedSections((e) => ({ ...e, [item.id]: !e[item.id] })) : undefined}
-                        title={isAdminViewer ? (isExpanded ? "Ocultar planificación" : "Ver planificación") : undefined}
-                        style={{ fontSize: 12, color: "var(--wf-text-2)", marginTop: 2, display: "flex", alignItems: "center", gap: 4, cursor: isAdminViewer ? "pointer" : "default" }}
+                        onClick={() => setExpandedSections((e) => ({ ...e, [item.id]: !e[item.id] }))}
+                        title={isExpanded ? "Ocultar planificación" : "Ver planificación"}
+                        style={{ fontSize: 12, color: "var(--wf-text-2)", marginTop: 2, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}
                       >
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{currentPlan ? currentPlan.title : planStatusText}</span>
-                        {isAdminViewer && (isExpanded ? <ChevronUp size={12} style={{ flexShrink: 0 }} /> : <ChevronDown size={12} style={{ flexShrink: 0 }} />)}
+                        {isExpanded ? <ChevronUp size={12} style={{ flexShrink: 0 }} /> : <ChevronDown size={12} style={{ flexShrink: 0 }} />}
                       </div>
-                    ) : isAdminViewer ? (
+                    ) : (
                       <input
                         value={item.description} onChange={(e) => onUpdateSeccionText(item.id, "description", e.target.value)} readOnly={!canEdit}
                         placeholder="Descripción del bloque..."
                         style={{ border: "none", background: "transparent", outline: "none", fontSize: 12, color: "var(--wf-text-2)", marginTop: 2, width: "100%", padding: 0, fontFamily: "inherit" }}
                       />
-                    ) : (
-                      item.description && <div style={{ fontSize: 13, color: "var(--wf-text-2)", marginTop: 4 }}>{item.description}</div>
                     )}
                   </div>
                   <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
@@ -4536,7 +4525,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                 </div>
 
                 {isExpanded && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${isAdminViewer ? "rgba(124,140,216,0.3)" : "var(--wf-divider)"}` }}>
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(124,140,216,0.3)" }}>
                     {canEditNow && (
                       <>
                         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>VINCULAR A UN MINISTERIO</div>
