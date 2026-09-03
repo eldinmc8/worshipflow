@@ -575,7 +575,8 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   useEffect(() => {
     const unsubCanciones = subscribeTableChanges(
       "rt-canciones", ["canciones", "secciones_cancion", "diapositivas_letra", "estructura_cancion"],
-      () => listCancionesCompletas().then((data) => { setLibrary(data); saveCache("canciones", data); }).catch(() => {})
+      () => listCancionesCompletas().then((data) => { setLibrary(data); saveCache("canciones", data); }).catch(() => {}),
+      2500, () => pendingSavesRef.current > 0
     );
     const unsubEventos = subscribeTableChanges(
       "rt-eventos", ["eventos", "items_servicio", "roles_evento", "miembros_rol", "recordatorios_evento", "asignaciones_vistas"],
@@ -930,7 +931,8 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     if (!song) return;
     const nuevoValor = !song.favorite;
     setLibrary((lib) => lib.map((s) => (s.id === songId ? { ...s, favorite: nuevoValor } : s)));
-    guardarCancionDesdeEditor({ ...song, favorite: nuevoValor }, true, userId).catch((e) => notifyError("No se pudo guardar", e));
+    pendingSavesRef.current++;
+    guardarCancionDesdeEditor({ ...song, favorite: nuevoValor }, true, userId).catch((e) => notifyError("No se pudo guardar", e)).finally(() => pendingSavesRef.current--);
   };
   // Transporta la canción completa a una nueva tonalidad: recalcula todos los acordes de todos los bloques.
   const transposeSong = (songId, newKey) => {
@@ -942,7 +944,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       transposed = { ...s, key: newKey, blocks };
       return transposed;
     }));
-    if (transposed) guardarCancionDesdeEditor(transposed, true, userId).catch((e) => notifyError("No se pudo guardar la transposición", e));
+    if (transposed) {
+      pendingSavesRef.current++;
+      guardarCancionDesdeEditor(transposed, true, userId).catch((e) => notifyError("No se pudo guardar la transposición", e)).finally(() => pendingSavesRef.current--);
+    }
   };
   // Guarda el borrador en Supabase y refleja el resultado en la librería en memoria, sin decidir qué
   // pantalla mostrar después — lo reutilizan tanto "Guardar" (que sí navega a la vista de la canción)
@@ -950,11 +955,12 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // a donde el usuario iba, no de vuelta a la canción).
   const persistSongDraft = (draft) => {
     const existeEnDb = library.some((s) => s.id === draft.id);
+    pendingSavesRef.current++;
     return guardarCancionDesdeEditor(draft, existeEnDb, userId).then((idReal) => {
       const guardado = { ...draft, id: idReal };
       setLibrary((lib) => (existeEnDb ? lib.map((s) => (s.id === draft.id ? guardado : s)) : [...lib, guardado]));
       return idReal;
-    });
+    }).finally(() => pendingSavesRef.current--);
   };
   const saveSong = (draft) => {
     return persistSongDraft(draft)
@@ -1277,6 +1283,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         const draft = songDraftGetterRef.current?.();
         if (draft) {
           const existeEnDb = libraryRef.current.some((s) => s.id === draft.id);
+          pendingSavesRef.current++;
           guardarCancionDesdeEditor(draft, existeEnDb, userIdRef.current)
             .then((idReal) => {
               const guardado = { ...draft, id: idReal };
@@ -1285,7 +1292,8 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
               setSongAutoSaveToast(true);
               songAutoSaveToastTimeoutRef.current = setTimeout(() => setSongAutoSaveToast(false), 2200);
             })
-            .catch((e2) => notifyError("No se pudo guardar la canción", e2));
+            .catch((e2) => notifyError("No se pudo guardar la canción", e2))
+            .finally(() => pendingSavesRef.current--);
         }
         songEditDirtyRef.current = false;
       }
