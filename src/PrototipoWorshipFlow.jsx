@@ -3288,6 +3288,28 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
   const [showAddSections, setShowAddSections] = useState(false);
   const textareaRefs = useRef({});
 
+  // En celular, el teclado nativo se come la mitad inferior de la pantalla pero el navegador NO
+  // achica el viewport donde vive esta barra "fixed" — se queda calculando su posición contra el
+  // alto de pantalla COMPLETO (como si el teclado no existiera), así que termina tapada debajo del
+  // teclado en vez de flotar justo encima, como sí hacen los teclados de acordes de apps nativas.
+  // window.visualViewport sí conoce el alto REAL visible (descontando el teclado) — se usa para
+  // empujar la barra hacia arriba exactamente lo que el teclado ocupa.
+  const [keyboardInset, setKeyboardInset] = useState(0);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onViewportChange = () => {
+      const inset = window.innerHeight - vv.height - vv.offsetTop;
+      // Un umbral chico filtra los cambios normales de la barra de direcciones del navegador al
+      // hacer scroll (unos pocos px) para que la barra no "salte" cuando en realidad no hay teclado.
+      setKeyboardInset(inset > 100 ? inset : 0);
+    };
+    vv.addEventListener("resize", onViewportChange);
+    vv.addEventListener("scroll", onViewportChange);
+    onViewportChange();
+    return () => { vv.removeEventListener("resize", onViewportChange); vv.removeEventListener("scroll", onViewportChange); };
+  }, []);
+
   // Avisa al contenedor si hay cambios sin guardar (para el guard de "atrás" con confirmación) y le
   // deja siempre a mano el borrador actual (para el botón "Guardar y salir" de esa confirmación). Todo
   // en un solo efecto sin dependencias: la limpieza de la render anterior corre justo antes que este
@@ -3571,7 +3593,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
           canción nunca la arrastra, y siempre queda lista para tocar un acorde. Se desliza en
           horizontal con el dedo (overflowX) en vez de envolver en varias líneas. */}
       {subTab === "contenido" && draft.key && (
-        <div style={{ position: "fixed", left: 0, right: 0, bottom: "var(--bottom-nav-height, 78px)", background: "var(--wf-card)", borderTop: "1px solid var(--wf-divider)", boxShadow: "0 -4px 14px rgba(22,50,79,0.1)", padding: "8px 0 10px", zIndex: 45 }}>
+        <div style={{ position: "fixed", left: 0, right: 0, bottom: keyboardInset > 0 ? keyboardInset : "var(--bottom-nav-height, 78px)", background: "var(--wf-card)", borderTop: "1px solid var(--wf-divider)", boxShadow: "0 -4px 14px rgba(22,50,79,0.1)", padding: "8px 0 10px", zIndex: 45 }}>
           <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 12px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)" }}>ACORDES DE {draft.key.toUpperCase()}</div>
