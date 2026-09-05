@@ -1090,9 +1090,14 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // Las plantillas son eventos normales marcados con esPlantilla: no aparecen en el feed de cultos
   // reales (Inicio, Eventos, Mi Horario), solo en el selector "crear desde plantilla" y en la vista
   // de administración de plantillas — ambas armadas por administradores generales. Además, solo
-  // administradores ven TODOS los eventos reales sin filtro — todos los demás (Multimedia, Músico,
-  // Miembro) solo ven aquellos a los que efectivamente se les asignó algo.
-  const realEvents = events.filter((e) => !e.esPlantilla && (isAdminViewer || isEventAssignedToMe(e, myUserId)));
+  // administradores y Supervisor ven TODOS los eventos reales sin filtro — todos los demás
+  // (Multimedia, Músico, Miembro) solo ven aquellos a los que efectivamente se les asignó algo. Sin
+  // esto, un Supervisor sin ninguna asignación en un evento puntual (ej. el pastor, que no figura en
+  // ningún bloque del Setlist) ni siquiera veía que ese evento existiera — no alcanzaba con que
+  // decidirVisibilidadSetlist lo dejara ver todo POR DENTRO del evento, si la lista de Eventos ya lo
+  // filtraba afuera antes de poder entrar.
+  const esSupervisorViewer = usuariosReales.find((u) => u.id === myUserId)?.rol === "supervisor";
+  const realEvents = events.filter((e) => !e.esPlantilla && (isAdminViewer || esSupervisorViewer || isEventAssignedToMe(e, myUserId)));
   const plantillas = events.filter((e) => e.esPlantilla);
   // Agregar versículos al Setlist es de administradores, con una sola excepción: quien esté asignado
   // como encargado de un bloque de Lectura bíblica/Oración EN ESTE EVENTO puede agregar su propio
