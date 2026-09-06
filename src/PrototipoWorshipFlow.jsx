@@ -422,15 +422,44 @@ function esMiembroAlabanza(event, uid) {
 // ni botones de agregar — solo su(s) propio(s) bloque(s), de solo lectura (encargados incluidos), tal
 // como se ve el resto de bloques cuando no se pueden editar. Multimedia además ve el equipo de
 // Alabanza completo (worshipRoles), que necesita para proyectar.
-function RestrictedGroupPanel({ blocks, worshipRoles }) {
+function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event }) {
   return (
     <div style={{ flex: 1, padding: 20, display: "flex", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 480, display: "flex", flexDirection: "column", gap: 14 }}>
-        {blocks.map((block) => (
+        {blocks.map((block) => {
+          // Si este bloque está vinculado a un ministerio, ya se ve TODA su planificación y recursos
+          // acá mismo, desplegados de una — a diferencia del Setlist completo (que arranca colapsado y
+          // hay que tocarlo), quien solo tiene este panel restringido no tiene ningún otro lugar donde
+          // ir a buscarlo, así que no tiene sentido esconderlo detrás de un toque.
+          const linkedMinistry = block.ministryId ? ministries.find((m) => m.id === block.ministryId) : null;
+          const currentPlan = linkedMinistry && event.date ? linkedMinistry.plan.find((p) => p.date === event.date) : null;
+          const eventMonth = event.date ? event.date.slice(0, 7) : null;
+          const resourcesForEventMonth = linkedMinistry ? linkedMinistry.resources.filter((r) => r.month === eventMonth) : [];
+          return (
           <div key={block.id} style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 20 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><Sparkles size={13} color="#5661B3" /> TU PRIVILEGIO EN ESTE EVENTO</div>
             <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, marginBottom: 4 }}>{block.title}</div>
             {block.description && <div style={{ fontSize: 13, color: "var(--wf-text-2)", marginBottom: 16 }}>{block.description}</div>}
+            {linkedMinistry && currentPlan?.detail && (
+              <div style={{ background: "var(--wf-hover)", borderRadius: 8, padding: "10px 12px", marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 4 }}>PLANIFICACIÓN DE ESTA SEMANA</div>
+                <div style={{ fontSize: 12.5, color: "var(--wf-text-2)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{currentPlan.detail}</div>
+              </div>
+            )}
+            {linkedMinistry && resourcesForEventMonth.length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>RECURSOS</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {resourcesForEventMonth.map((r) => (
+                    <a key={r.id} href={r.link || undefined} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-hover)", borderRadius: 8, padding: "8px 10px", textDecoration: "none", color: "var(--wf-text)", fontSize: 12, fontWeight: 600 }}>
+                      <FolderOpen size={13} color="var(--wf-faint)" />
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</span>
+                      {r.link && <ExternalLink size={12} color="#2F5FA8" style={{ flexShrink: 0 }} />}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 8 }}>EQUIPO ASIGNADO</div>
             {(block.encargados || []).length === 0 ? (
               <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>Nadie asignado todavía.</div>
@@ -445,7 +474,8 @@ function RestrictedGroupPanel({ blocks, worshipRoles }) {
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
         {worshipRoles.map((role) => (
           <div key={role.id} style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 20 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><Sparkles size={13} color="#E8821E" /> EQUIPO DE ALABANZA</div>
@@ -1179,17 +1209,11 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const [ministries, setMinistries] = useState([]);
   const [selectedMinistryId, setSelectedMinistryId] = useState(null);
   // Grupos: solo administradores ven todos; quien lidera uno o más grupos ve la pestaña pero solo SUS
-  // propios grupos (no los de los demás), aunque tenga dos o más asignados. Además, estar encargado de
-  // un bloque del Setlist vinculado a un ministerio (en CUALQUIER evento) da acceso de solo lectura a
-  // ESE ministerio — sin esto, alguien a cargo de un bloque vinculado (ej. Adolescentes) solo podía ver
-  // la planificación/recursos desde dentro del propio evento ("Ver ministerio"), sin poder entrar
-  // directo a Grupos ni ver ahí lo de otros meses.
-  const ministeriosAsignadosPorSetlist = new Set(
-    events.flatMap((e) => (e.serviceOrder || [])
-      .filter((it) => it.type === "seccion" && it.ministryId && (it.encargados || []).some((m) => m.usuarioId === myUserId))
-      .map((it) => it.ministryId))
-  );
-  const myMinistries = ministries.filter((m) => m.leaderId === myUserId || ministeriosAsignadosPorSetlist.has(m.id));
+  // propios grupos (no los de los demás), aunque tenga dos o más asignados. Quien solo está a cargo de
+  // un bloque del Setlist vinculado a un ministerio NO necesita entrar a Grupos para nada de eso — ya
+  // ve la planificación y los recursos completos directamente en su bloque del Setlist (ver
+  // RestrictedGroupPanel), sin exponerle una pestaña aparte.
+  const myMinistries = ministries.filter((m) => m.leaderId === myUserId);
   const canSeeGrupos = isAdminViewer || myMinistries.length > 0;
   const visibleMinistries = isAdminViewer ? ministries : myMinistries;
   // Guarda en Supabase solo la parte que de verdad cambió (plan o recursos), comparando por
@@ -2548,6 +2572,10 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
   const [planDraft, setPlanDraft] = useState(ministry?.plan || []);
   const [planDirty, setPlanDirty] = useState(false);
   const [savingPlan, setSavingPlan] = useState(false);
+  // El detalle de cada semana arranca colapsado (solo el título se ve de una) — con muchas semanas
+  // cargadas, un cuadro de texto grande por cada una hacía la lista larguísima. La flechita lo
+  // despliega para escribir o leer, y "Guardar planificación" vuelve a colapsar todo.
+  const [expandedPlanIds, setExpandedPlanIds] = useState({});
   useEffect(() => {
     if (!planDirty) setPlanDraft(ministry?.plan || []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2555,14 +2583,21 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
 
   if (!ministry) return null;
 
-  const addDraftPlanItem = () => { setPlanDraft((plan) => [...plan, { id: nextMinistryChildId(), date: `${selectedMonth}-01`, title: "", detail: "" }]); setPlanDirty(true); };
+  const addDraftPlanItem = () => {
+    const newId = nextMinistryChildId();
+    setPlanDraft((plan) => [...plan, { id: newId, date: `${selectedMonth}-01`, title: "", detail: "" }]);
+    setExpandedPlanIds((e) => ({ ...e, [newId]: true }));
+    setPlanDirty(true);
+  };
   const updateDraftPlanItem = (itemId, field, value) => { setPlanDraft((plan) => plan.map((p) => (p.id === itemId ? { ...p, [field]: value } : p))); setPlanDirty(true); };
   const removeDraftPlanItem = (itemId) => { setPlanDraft((plan) => plan.filter((p) => p.id !== itemId)); setPlanDirty(true); };
+  const togglePlanExpanded = (itemId) => setExpandedPlanIds((e) => ({ ...e, [itemId]: !e[itemId] }));
   const savePlan = async () => {
     setSavingPlan(true);
     try {
       await onSavePlan(planDraft);
       setPlanDirty(false);
+      setExpandedPlanIds({});
     } catch (e) {
       notifyError("No se pudo guardar la planificación", e);
     } finally {
@@ -2632,16 +2667,26 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
         {canEdit && <button onClick={addDraftPlanItem} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar fecha</button>}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
-        {planForMonth.map((p) => (
+        {planForMonth.map((p) => {
+          const isExpanded = !!expandedPlanIds[p.id];
+          return (
           <div key={p.id} style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 10, padding: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: isExpanded ? 8 : 0 }}>
               <input type="date" disabled={!canEdit} title="Fecha del domingo (o día) al que corresponde esta planificación" value={p.date || ""} onChange={(e) => updateDraftPlanItem(p.id, "date", e.target.value)} style={{ ...inputStyle, width: 150, fontSize: 12, fontWeight: 700, flexShrink: 0 }} />
               <input disabled={!canEdit} value={p.title} onChange={(e) => updateDraftPlanItem(p.id, "title", e.target.value)} placeholder="Título de la semana" style={{ ...inputStyle, flex: 1, fontWeight: 700 }} />
+              <button onClick={() => togglePlanExpanded(p.id)} title={isExpanded ? "Ocultar detalle" : "Ver detalle"} style={iconGhost}>{isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button>
               {canEdit && <button onClick={() => removeDraftPlanItem(p.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>}
             </div>
-            <textarea disabled={!canEdit} value={p.detail} onChange={(e) => updateDraftPlanItem(p.id, "detail", e.target.value)} placeholder="Detalle, recursos necesarios, responsables..." rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+            {isExpanded && (
+              canEdit ? (
+                <textarea autoFocus value={p.detail} onChange={(e) => updateDraftPlanItem(p.id, "detail", e.target.value)} placeholder="Detalle, recursos necesarios, responsables..." rows={6} style={{ ...inputStyle, resize: "vertical" }} />
+              ) : (
+                <div style={{ fontSize: 12.5, color: "var(--wf-text-2)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{p.detail || "Sin detalle."}</div>
+              )
+            )}
           </div>
-        ))}
+          );
+        })}
         {planForMonth.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>Aún no hay planificación para {monthLabelFromKey(selectedMonth)}.</div>}
       </div>
       {/* Nada de lo de arriba se guarda solo — a propósito, para no disparar un guardado por cada tecla
@@ -4408,7 +4453,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
   // componente vuelva a renderizar sin la restricción activa.
   const visibilidadSetlist = decidirVisibilidadSetlist(event, isAdminViewer, userId, usuariosReales.find((u) => u.id === userId)?.rol === "supervisor");
   if (visibilidadSetlist.modo === "bloque-propio") {
-    return <RestrictedGroupPanel blocks={visibilidadSetlist.blocks} worshipRoles={[]} />;
+    return <RestrictedGroupPanel blocks={visibilidadSetlist.blocks} worshipRoles={[]} ministries={ministries} event={event} />;
   }
   // Alabanza/Multimedia: NO es un panel simplificado — ven el Setlist normal de siempre (canciones,
   // letra, versículos, slides), solo que sin los bloques organizativos de otros grupos (ver
