@@ -1728,6 +1728,8 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         const displaySong = songWithKeyOverride(baseSong, currentItem?.keyOverride);
         const prevItem = pos > 0 ? songItems[pos - 1] : null;
         const nextItem = pos >= 0 && pos < songItems.length - 1 ? songItems[pos + 1] : null;
+        const prevTitle = prevItem ? library.find((s) => s.id === prevItem.songId)?.title : null;
+        const nextTitle = nextItem ? library.find((s) => s.id === nextItem.songId)?.title : null;
         const positionLabel = pos >= 0 && songItems.length > 1 ? `${pos + 1} de ${songItems.length}` : null;
         // Modo Músico líder/seguidor solo tiene sentido mientras ESTE evento es de verdad el que está en
         // vivo ahora mismo — repasar/planear un evento futuro no debe intentar tomar el mando de nada.
@@ -1752,6 +1754,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
             onTranspose={transposeSong} onDelete={deleteSong}
             onPrev={prevItem ? () => goToItem(prevItem, "prev") : null}
             onNext={nextItem ? () => goToItem(nextItem, "next") : null}
+            prevTitle={prevTitle} nextTitle={nextTitle}
             liveSync={{
               active: isLiveNow,
               deviceId: DEVICE_ID,
@@ -2870,7 +2873,7 @@ const SECTION_TYPES = [
   { id: "instrumental", label: "Instrumental", prefix: "INS" },
 ];
 
-function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext, positionLabel, enterDirection, structureOverride, liveSync }) {
+function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, enterDirection, structureOverride, liveSync }) {
   const sectionRefs = useRef({});
   // Ref aparte, por POSICIÓN en el orden (no por clave de sección): si una sección se repite (V1, V2,
   // V1, Coro...) sectionRefs solo guarda la primera aparición (para los pills de arriba, que son un
@@ -3140,7 +3143,7 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
       ref={containerRef}
       className={enterClass}
       style={{
-        padding: 20, maxWidth: 820, width: "100%", minHeight: "70vh", margin: "0 auto", boxSizing: "border-box", position: "relative",
+        padding: 20, paddingBottom: (onPrev || onNext) ? 78 : 20, maxWidth: 820, width: "100%", minHeight: "70vh", margin: "0 auto", boxSizing: "border-box", position: "relative",
         touchAction: canSwipe ? "pan-y" : undefined,
         transform: dragX ? `translateX(${dragX}px)` : undefined,
         transition: phase === "dragging" ? "none" : "transform 0.22s ease",
@@ -3283,11 +3286,33 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
         );
       })}
 
+      {/* Fija abajo (como la barra de acordes del editor): para saber qué sigue en Modo Músico sin
+          tener que bajar hasta el final de la canción actual ni cambiar de pantalla — antes esta
+          pista solo aparecía como texto genérico ("Desliza para cambiar de canción") al final del
+          todo del scroll, así que en la práctica había que llegar hasta ahí para verla. */}
       {(onPrev || onNext) && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 24, color: "var(--wf-faint)", fontSize: 12 }}>
-          {onPrev && <ChevronLeft size={14} />}
-          <span>Desliza para {onPrev && onNext ? "cambiar de canción" : onNext ? "la siguiente canción" : "la canción anterior"}</span>
-          {onNext && <ChevronRight size={14} />}
+        <div style={{ position: "fixed", left: 0, right: 0, bottom: "var(--bottom-nav-height, 78px)", background: "var(--wf-card)", borderTop: "1px solid var(--wf-divider)", boxShadow: "0 -4px 14px rgba(22,50,79,0.1)", padding: "8px 6px", zIndex: 40, display: "flex", alignItems: "stretch", gap: 6 }}>
+          <button
+            onClick={onPrev} disabled={!onPrev} className={onPrev ? "hoverable" : undefined}
+            style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", borderRadius: 12, padding: "6px 10px", cursor: onPrev ? "pointer" : "default", opacity: onPrev ? 1 : 0.35, textAlign: "left" }}
+          >
+            <ChevronLeft size={16} color="var(--wf-faint)" style={{ flexShrink: 0 }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--wf-faint)", letterSpacing: 0.5 }}>ANTERIOR</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{prevTitle || "—"}</div>
+            </div>
+          </button>
+          <div style={{ width: 1, background: "var(--wf-divider)", flexShrink: 0 }} />
+          <button
+            onClick={onNext} disabled={!onNext} className={onNext ? "hoverable" : undefined}
+            style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, background: "none", border: "none", borderRadius: 12, padding: "6px 10px", cursor: onNext ? "pointer" : "default", opacity: onNext ? 1 : 0.35, textAlign: "right" }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--wf-faint)", letterSpacing: 0.5 }}>SIGUIENTE</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nextTitle || "—"}</div>
+            </div>
+            <ChevronRight size={16} color="var(--wf-faint)" style={{ flexShrink: 0 }} />
+          </button>
         </div>
       )}
       {/* TEMPORAL — diagnóstico del bug "el seguidor no cambia de canción con el líder": se quita apenas
