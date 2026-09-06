@@ -1179,8 +1179,17 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const [ministries, setMinistries] = useState([]);
   const [selectedMinistryId, setSelectedMinistryId] = useState(null);
   // Grupos: solo administradores ven todos; quien lidera uno o más grupos ve la pestaña pero solo SUS
-  // propios grupos (no los de los demás), aunque tenga dos o más asignados.
-  const myMinistries = ministries.filter((m) => m.leaderId === myUserId);
+  // propios grupos (no los de los demás), aunque tenga dos o más asignados. Además, estar encargado de
+  // un bloque del Setlist vinculado a un ministerio (en CUALQUIER evento) da acceso de solo lectura a
+  // ESE ministerio — sin esto, alguien a cargo de un bloque vinculado (ej. Adolescentes) solo podía ver
+  // la planificación/recursos desde dentro del propio evento ("Ver ministerio"), sin poder entrar
+  // directo a Grupos ni ver ahí lo de otros meses.
+  const ministeriosAsignadosPorSetlist = new Set(
+    events.flatMap((e) => (e.serviceOrder || [])
+      .filter((it) => it.type === "seccion" && it.ministryId && (it.encargados || []).some((m) => m.usuarioId === myUserId))
+      .map((it) => it.ministryId))
+  );
+  const myMinistries = ministries.filter((m) => m.leaderId === myUserId || ministeriosAsignadosPorSetlist.has(m.id));
   const canSeeGrupos = isAdminViewer || myMinistries.length > 0;
   const visibleMinistries = isAdminViewer ? ministries : myMinistries;
   // Guarda en Supabase solo la parte que de verdad cambió (plan o recursos), comparando por
@@ -2461,6 +2470,8 @@ function ChangePasswordModal({ onClose }) {
 function MinistriesList({ ministries, usuariosReales, isAdminViewer, onSelect, onCreate }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", leaderId: "", color: MINISTRY_COLORS[0] });
+  const hoy = new Date();
+  const mesActual = monthKey(hoy.getFullYear(), hoy.getMonth());
 
   const submit = () => {
     if (!form.name.trim()) return;
@@ -2485,7 +2496,7 @@ function MinistriesList({ ministries, usuariosReales, isAdminViewer, onSelect, o
             </div>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{m.name}</div>
             <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>Líder: {m.leaderName || "Sin asignar"}</div>
-            <div style={{ fontSize: 12, color: "var(--wf-faint)", marginTop: 2 }}>{m.memberCount} miembros · {m.plan.length} planes este mes</div>
+            <div style={{ fontSize: 12, color: "var(--wf-faint)", marginTop: 2 }}>{m.memberCount} miembros · {m.plan.filter((p) => (p.date || "").slice(0, 7) === mesActual).length} planes este mes</div>
           </button>
         ))}
       </div>
@@ -2517,6 +2528,18 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
   const [showResourceForm, setShowResourceForm] = useState(false);
   const [resourceDraft, setResourceDraft] = useState({ title: "", link: "" });
 
+  // Planificación y recursos ahora viven por mes — cada ministerio puede tener años de historial, y
+  // mezclar todos los meses en una sola lista larga (sobre todo los recursos, que antes no tenían
+  // fecha) hacía difícil encontrar lo de AHORA. El mes elegido es solo de navegación (no se guarda);
+  // siempre arranca en el mes actual al entrar al grupo.
+  const hoy = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(monthKey(hoy.getFullYear(), hoy.getMonth()));
+  const changeMonth = (delta) => {
+    const [y, m] = selectedMonth.split("-").map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    setSelectedMonth(monthKey(d.getFullYear(), d.getMonth()));
+  };
+
   // La planificación se edita en un borrador LOCAL, no letra por letra contra Supabase — antes cada
   // tecla disparaba un guardado (borra-todo-y-reinserta) que la sincronización en tiempo real podía
   // llegar a pisar a mitad de camino (llega un refresco de otro dispositivo mientras el guardado de ESTE
@@ -2532,7 +2555,7 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
 
   if (!ministry) return null;
 
-  const addDraftPlanItem = () => { setPlanDraft((plan) => [...plan, { id: nextMinistryChildId(), date: "", title: "", detail: "" }]); setPlanDirty(true); };
+  const addDraftPlanItem = () => { setPlanDraft((plan) => [...plan, { id: nextMinistryChildId(), date: `${selectedMonth}-01`, title: "", detail: "" }]); setPlanDirty(true); };
   const updateDraftPlanItem = (itemId, field, value) => { setPlanDraft((plan) => plan.map((p) => (p.id === itemId ? { ...p, [field]: value } : p))); setPlanDirty(true); };
   const removeDraftPlanItem = (itemId) => { setPlanDraft((plan) => plan.filter((p) => p.id !== itemId)); setPlanDirty(true); };
   const savePlan = async () => {
@@ -2549,10 +2572,12 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
 
   const submitResource = () => {
     if (!resourceDraft.title.trim()) return;
-    onAddResource(resourceDraft);
+    onAddResource({ ...resourceDraft, month: selectedMonth });
     setResourceDraft({ title: "", link: "" });
     setShowResourceForm(false);
   };
+  const planForMonth = planDraft.filter((p) => (p.date || "").slice(0, 7) === selectedMonth);
+  const resourcesForMonth = ministry.resources.filter((r) => r.month === selectedMonth);
 
   return (
     <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
@@ -2592,12 +2617,22 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
         )}
       </div>
 
+      {/* Selector de mes: planificación y recursos viven todos en las mismas dos tablas sin importar
+          el mes (se filtran acá por fecha/mes), así que cambiar de mes no pierde nada de lo ya
+          cargado en otros meses — solo cambia qué parte de esa lista se ve y a qué mes se etiqueta
+          lo nuevo que se agregue. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginBottom: 16, background: "var(--wf-hover)", borderRadius: 10, padding: "8px 12px" }}>
+        <button onClick={() => changeMonth(-1)} className="hoverable" style={iconGhost}><ChevronLeft size={16} /></button>
+        <span style={{ fontSize: 13, fontWeight: 700, minWidth: 140, textAlign: "center" }}>{monthLabelFromKey(selectedMonth)}</span>
+        <button onClick={() => changeMonth(1)} className="hoverable" style={iconGhost}><ChevronRight size={16} /></button>
+      </div>
+
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><ClipboardList size={15} color={ministry.color} /> Planificación del mes</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><ClipboardList size={15} color={ministry.color} /> Planificación de {monthLabelFromKey(selectedMonth)}</div>
         {canEdit && <button onClick={addDraftPlanItem} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar fecha</button>}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
-        {planDraft.map((p) => (
+        {planForMonth.map((p) => (
           <div key={p.id} style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 10, padding: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <input type="date" disabled={!canEdit} title="Fecha del domingo (o día) al que corresponde esta planificación" value={p.date || ""} onChange={(e) => updateDraftPlanItem(p.id, "date", e.target.value)} style={{ ...inputStyle, width: 150, fontSize: 12, fontWeight: 700, flexShrink: 0 }} />
@@ -2607,7 +2642,7 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
             <textarea disabled={!canEdit} value={p.detail} onChange={(e) => updateDraftPlanItem(p.id, "detail", e.target.value)} placeholder="Detalle, recursos necesarios, responsables..." rows={2} style={{ ...inputStyle, resize: "vertical" }} />
           </div>
         ))}
-        {planDraft.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>Aún no hay planificación este mes.</div>}
+        {planForMonth.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>Aún no hay planificación para {monthLabelFromKey(selectedMonth)}.</div>}
       </div>
       {/* Nada de lo de arriba se guarda solo — a propósito, para no disparar un guardado por cada tecla
           (ver el comentario junto al estado planDraft). Este botón es el único momento en que se manda
@@ -2622,11 +2657,11 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
       )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><FolderOpen size={15} color={ministry.color} /> Recursos</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><FolderOpen size={15} color={ministry.color} /> Recursos de {monthLabelFromKey(selectedMonth)}</div>
         {canEdit && <button onClick={() => setShowResourceForm(true)} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar recurso</button>}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {ministry.resources.map((r) => (
+        {resourcesForMonth.map((r) => (
           <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 8, padding: "10px 12px" }}>
             <FolderOpen size={14} color="var(--wf-faint)" />
             <span style={{ fontSize: 13, flex: 1 }}>{r.title}</span>
@@ -2634,7 +2669,7 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
             {canEdit && <button onClick={() => onRemoveResource(r.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>}
           </div>
         ))}
-        {ministry.resources.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>No hay recursos compartidos todavía.</div>}
+        {resourcesForMonth.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>No hay recursos compartidos para {monthLabelFromKey(selectedMonth)}.</div>}
       </div>
 
       {showResourceForm && (
@@ -4493,6 +4528,10 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
             // primera de la lista) — así, por ejemplo, la Escuelita bíblica trae sola el tema de ese domingo.
             const currentPlan = linkedMinistry && event.date ? linkedMinistry.plan.find((p) => p.date === event.date) : null;
             const planStatusText = !linkedMinistry ? null : !event.date ? "Este evento no tiene fecha de calendario — asígnale una para traer la planificación sola." : currentPlan ? null : "Sin planificación cargada para esta fecha.";
+            // Los recursos también son por mes — se traen los del mes de ESTE evento (no "el mes actual",
+            // para que un evento pasado siga mostrando los recursos que de verdad usó ese día).
+            const eventMonth = event.date ? event.date.slice(0, 7) : null;
+            const resourcesForEventMonth = linkedMinistry ? linkedMinistry.resources.filter((r) => r.month === eventMonth) : [];
             // Quien no es administrador (Miembro, Músico, Multimedia, Supervisor...) ve el equipo
             // asignado de una, sin tener que tocar el botón de "Encargados" para desplegarlo — mismo
             // espíritu que ya tenía la vista de Limpieza, ahora aplicado a todo el Setlist.
@@ -4590,11 +4629,11 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                     )}
                     {/* Recursos del ministerio (enlaces a documentos, videos, etc.) — antes solo se veían
                         entrando al ministerio; ahora quien lleva este bloque los tiene aquí mismo. */}
-                    {linkedMinistry && linkedMinistry.resources.length > 0 && (
+                    {linkedMinistry && resourcesForEventMonth.length > 0 && (
                       <div style={{ marginBottom: 10 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>RECURSOS</div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          {linkedMinistry.resources.map((r) => (
+                          {resourcesForEventMonth.map((r) => (
                             <a key={r.id} href={r.link || undefined} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", borderRadius: 8, padding: "8px 10px", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", textDecoration: "none", color: "var(--wf-text)", fontSize: 12, fontWeight: 600 }}>
                               <FolderOpen size={13} color="var(--wf-faint)" />
                               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</span>

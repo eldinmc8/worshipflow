@@ -33,7 +33,7 @@ function ministerioCompletoAFormatoEditor({ ministerio, plan, recursos }) {
     id: ministerio.id, name: ministerio.nombre, color: ministerio.color,
     leaderId: ministerio.lider_id || null, leaderName: ministerio.lider?.nombre || "", memberCount: 0,
     plan: plan.map((p) => ({ id: p.id, date: p.fecha || "", title: p.titulo || "", detail: p.detalle || "" })),
-    resources: recursos.map((r) => ({ id: r.id, title: r.titulo, link: r.enlace || "" })),
+    resources: recursos.map((r) => ({ id: r.id, title: r.titulo, link: r.enlace || "", month: r.mes })),
   };
 }
 
@@ -84,7 +84,7 @@ async function sincronizarRecursosInterno(ministerioId, resources) {
   const { error: delErr } = await supabase.from("recursos_ministerio").delete().eq("ministerio_id", ministerioId);
   if (delErr) throw delErr;
   if (!resources.length) return;
-  const filas = resources.map((r, i) => ({ id: r.id, ministerio_id: ministerioId, titulo: r.title, enlace: r.link || null, orden: i }));
+  const filas = resources.map((r, i) => ({ id: r.id, ministerio_id: ministerioId, titulo: r.title, enlace: r.link || null, mes: r.month, orden: i }));
   const { error } = await supabase.from("recursos_ministerio").insert(filas);
   if (error) throw error;
 }
