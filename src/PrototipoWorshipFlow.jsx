@@ -407,14 +407,22 @@ function decidirVisibilidadSetlist(event, isAdminViewer, userId, esSupervisor) {
   if (isAdminViewer || esSupervisor) return { modo: "todo" };
   const misBloquesPropios = event.serviceOrder.filter((it) => it.type === "seccion" && (it.encargados || []).some((m) => m.usuarioId === userId));
   const misOtrosBloques = misBloquesPropios.filter((it) => !isMultimediaBlock(it));
-  if (misOtrosBloques.length > 0) return { modo: "bloque-propio", blocks: misOtrosBloques };
+  // OJO: esto se chequea ANTES de "bloque-propio" — alguien puede ser AMBAS cosas a la vez (ej. toca
+  // guitarra en Alabanza Y además es el encargado puntual de la Escuelita Dominical), y en ese caso
+  // tiene que ver la unión de las dos cosas, no quedar encerrado en una a costa de la otra. Antes
+  // "bloque-propio" se evaluaba primero y ganaba SIEMPRE que hubiera algún bloque propio, así que
+  // alguien de Alabanza con un bloque organizativo de más se quedaba viendo SOLO ese bloque — sin
+  // canciones, sin nada de lo que de verdad necesitaba para tocar (bug real: 2026-09, Pavel).
   const soyDeAlabanzaOMultimedia = esMiembroAlabanza(event, userId) || misBloquesPropios.some(isMultimediaBlock);
   if (soyDeAlabanzaOMultimedia) {
     // Ven el Setlist COMPLETO (canciones, versículos, slides — lo que de verdad necesitan para tocar
-    // o proyectar) + su propio bloque de Multimedia/Alabanza — nada más de bloques organizativos
-    // ajenos (Limpieza, Ofrendas, Predicación, etc., que son los únicos que sí se ocultan).
-    return { modo: "filtrado", visibleOrder: event.serviceOrder.filter((it) => it.type !== "seccion" || isMultimediaBlock(it) || isWorshipBlock(it)) };
+    // o proyectar) + su propio bloque de Multimedia/Alabanza + cualquier otro bloque organizativo del
+    // que además sean encargados puntuales (ej. la Escuelita) — nada más de bloques organizativos
+    // AJENOS (Limpieza, Ofrendas, Predicación, etc., que son los únicos que sí se ocultan).
+    const propiosIds = new Set(misOtrosBloques.map((it) => it.id));
+    return { modo: "filtrado", visibleOrder: event.serviceOrder.filter((it) => it.type !== "seccion" || isMultimediaBlock(it) || isWorshipBlock(it) || propiosIds.has(it.id)) };
   }
+  if (misOtrosBloques.length > 0) return { modo: "bloque-propio", blocks: misOtrosBloques };
   return { modo: "todo" };
 }
 // Ítems del Setlist que un usuario puede ver, aplicando decidirVisibilidadSetlist — se usa en el
