@@ -8,7 +8,7 @@ import {
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette,
   Type, WifiOff, CloudDownload, Moon, Pause,
 } from "lucide-react";
-import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion } from "./lib/canciones.js";
+import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, corregirDiapositivaCancion, agregarDiapositivaCancion } from "./lib/canciones.js";
 import {
   listEventosCompletos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
 } from "./lib/eventos.js";
@@ -276,15 +276,23 @@ function songToSlides(idPrefix, song, structure) {
     // song.letra[blockKey] puede venir como [] a propósito (el usuario borró todas las diapositivas de
     // esa sección, ej. un instrumental que no debe proyectar nada) — el "||" NO debe caer al respaldo en
     // ese caso ([] es verdadero en JS), así que solo se usa cuando la clave no existe en absoluto.
-    const slideGroups = song.letra && blockKey in song.letra ? song.letra[blockKey] : [block.lines.map(stripChords)];
+    const hasRealSlides = !!(song.letra && blockKey in song.letra);
+    const slideGroups = hasRealSlides ? song.letra[blockKey] : [block.lines.map(stripChords)];
     // Además, cualquier diapositiva que haya quedado en blanco (todas sus líneas vacías) nunca se
-    // proyecta — así una diapositiva vacía olvidada no interrumpe la presentación en vivo.
-    const nonBlankGroups = slideGroups.filter((lines) => lines.some((l) => l && l.trim()));
-    nonBlankGroups.forEach((lines, si) => {
+    // proyecta — así una diapositiva vacía olvidada no interrumpe la presentación en vivo. Se guarda el
+    // índice ORIGINAL (antes de filtrar en blanco) — es el mismo con el que se arma song.letra[clave] en
+    // cancionCompletaAFormatoEditor, así que es el que hace falta para corregir la fila correcta en
+    // Supabase si Multimedia la edita en vivo (ver corregirDiapositivaCancion).
+    const slideEntries = slideGroups
+      .map((lines, originalIndex) => ({ lines, originalIndex }))
+      .filter((e) => e.lines.some((l) => l && l.trim()));
+    slideEntries.forEach(({ lines, originalIndex }, si) => {
       out.push({
         slideId: `${idPrefix}-${i}-${si}`, type: "cancion", songTitle: song.title,
-        blockLabel: nonBlankGroups.length > 1 ? `${block.label} (${si + 1}/${nonBlankGroups.length})` : block.label,
+        blockLabel: slideEntries.length > 1 ? `${block.label} (${si + 1}/${slideEntries.length})` : block.label,
+        sectionLabel: block.label,
         lines,
+        songId: song.id, blockKey, slideIndexInBlock: originalIndex, hasRealSlides,
       });
     });
   });
@@ -980,6 +988,40 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     setLibrary((lib) => lib.map((s) => (s.id === songId ? { ...s, favorite: nuevoValor } : s)));
     pendingSavesRef.current++;
     guardarCancionDesdeEditor({ ...song, favorite: nuevoValor }, true, userId).catch((e) => notifyError("No se pudo guardar", e)).finally(() => pendingSavesRef.current--);
+  };
+  // Corregir/agregar letra de una canción DESDE la pantalla en vivo de Multimedia (ver MultimediaControl)
+  // — a diferencia de editar la canción desde Canciones (solo administradores), esto lo puede hacer
+  // cualquiera que controle la transmisión (Multimedia también), porque el caso de uso es exactamente
+  // "nos dimos cuenta en pleno culto de que esta letra está mal" y no hay tiempo de ir a buscar a un
+  // administrador. El cambio queda guardado en la canción de una — no es solo para esta transmisión — así
+  // que la próxima vez que se use esta canción (en este evento o en cualquier otro) ya sale bien.
+  const editSongSlideLive = (songId, blockKey, slideIndexInBlock, hasRealSlides, nuevoTexto) => {
+    const nuevasLineas = nuevoTexto.split("\n");
+    setLibrary((lib) => lib.map((s) => {
+      if (s.id !== songId) return s;
+      const letra = { ...s.letra };
+      const grupo = hasRealSlides ? [...(letra[blockKey] || [])] : [];
+      grupo[slideIndexInBlock] = nuevasLineas;
+      letra[blockKey] = grupo;
+      return { ...s, letra };
+    }));
+    pendingSavesRef.current++;
+    corregirDiapositivaCancion(songId, blockKey, slideIndexInBlock, hasRealSlides, nuevoTexto)
+      .catch((e) => notifyError("No se pudo guardar la corrección en la canción", e))
+      .finally(() => pendingSavesRef.current--);
+  };
+  const addSongSlideLive = (songId, blockKey) => {
+    const nuevasLineas = [""];
+    setLibrary((lib) => lib.map((s) => {
+      if (s.id !== songId) return s;
+      const letra = { ...s.letra };
+      letra[blockKey] = [...(letra[blockKey] || []), nuevasLineas];
+      return { ...s, letra };
+    }));
+    pendingSavesRef.current++;
+    agregarDiapositivaCancion(songId, blockKey, "")
+      .catch((e) => notifyError("No se pudo agregar la diapositiva", e))
+      .finally(() => pendingSavesRef.current--);
   };
   // Transporta la canción completa a una nueva tonalidad: recalcula todos los acordes de todos los bloques.
   const transposeSong = (songId, newKey) => {
@@ -1787,6 +1829,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
             onOpenPublicScreen={startPresentation}
             onNavigateBibleVerse={navigateBibleVerse}
             onAddLiveSlide={addLiveSlide} onEditLiveSlide={editLiveSlide} onRemoveLiveSlide={removeLiveSlide}
+            onEditSongSlide={editSongSlideLive} onAddSongSlide={addSongSlideLive}
           />
         </div>
       )}
@@ -5443,7 +5486,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide }) {
+function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -5465,11 +5508,22 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
   const [editDraft, setEditDraft] = useState(null);
   const startEditingSlide = (s) => {
     setEditingSlide(s);
-    setEditDraft(s.type === "biblia" ? { reference: s.reference, text: s.text } : { title: s.title, subtitle: s.subtitle || "", bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "" });
+    setEditDraft(
+      s.type === "biblia" ? { reference: s.reference, text: s.text }
+      : s.type === "cancion" ? { text: s.lines.join("\n") }
+      : { title: s.title, subtitle: s.subtitle || "", bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "" }
+    );
   };
   const saveSlideEdit = () => {
     if (!editingSlide) return;
-    onEditLiveSlide(editingSlide.slideId, editDraft);
+    // Canción: el cambio queda guardado en la CANCIÓN (permanente, ver editSongSlideLive), no en el
+    // plan de este evento — las demás (versículo/diapositiva suelta) siguen igual que antes, viven en
+    // el propio ítem del Setlist.
+    if (editingSlide.type === "cancion") {
+      onEditSongSlide(editingSlide.songId, editingSlide.blockKey, editingSlide.slideIndexInBlock, editingSlide.hasRealSlides, editDraft.text);
+    } else {
+      onEditLiveSlide(editingSlide.slideId, editDraft);
+    }
     setEditingSlide(null); setEditDraft(null);
   };
   const bgFileInputRef = useRef(null);
@@ -5685,7 +5739,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
               const label = s.type === "cancion" ? s.blockLabel : s.type === "biblia" ? s.reference : s.title;
               const preview = s.type === "cancion" ? s.lines.join(" ") : s.type === "biblia" ? s.text : s.subtitle;
               const isActive = !adHoc && i === activeIdx;
-              const isEditable = s.type === "biblia" || s.type === "slide";
+              const isEditable = s.type === "biblia" || s.type === "slide" || s.type === "cancion";
               return (
                 <div
                   key={s.slideId} onClick={() => gotoPlanSlide(i)} className="thumb" role="button" tabIndex={0}
@@ -5809,6 +5863,23 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
       )}
       {editingSlide && editingSlide.type === "slide" && (
         <SlideModal title="Editar diapositiva" submitLabel="Guardar cambios" draft={editDraft} setDraft={setEditDraft} onClose={() => setEditingSlide(null)} onAdd={saveSlideEdit} />
+      )}
+      {editingSlide && editingSlide.type === "cancion" && (
+        <ModalShell title="Corregir letra" icon={Music} color="#E8821E" onClose={() => setEditingSlide(null)}>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>
+            {editingSlide.songTitle} · {editingSlide.blockLabel}
+          </div>
+          <Field label="Texto"><textarea autoFocus value={editDraft.text} onChange={(e) => setEditDraft({ ...editDraft, text: e.target.value })} style={{ ...inputStyle, height: 120, resize: "vertical" }} /></Field>
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Este cambio queda guardado en la canción — no solo para esta transmisión.</div>
+          <button onClick={saveSlideEdit} style={{ ...primaryBtn, marginTop: 14 }}>Guardar cambios</button>
+          <button
+            onClick={() => { onAddSongSlide(editingSlide.songId, editingSlide.blockKey); setEditingSlide(null); }}
+            className="hoverable"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", background: "var(--wf-hover)", border: "none", borderRadius: 12, padding: "9px 0", fontSize: 13, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer", marginTop: 8 }}
+          >
+            <Plus size={14} /> Agregar otra diapositiva a "{editingSlide.sectionLabel}"
+          </button>
+        </ModalShell>
       )}
     </div>
   );

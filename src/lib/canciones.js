@@ -73,6 +73,43 @@ export async function guardarDiapositivas(cancionId, diapositivas) {
   if (error) throw error;
 }
 
+// Agrega UNA diapositiva nueva al final de una sección de una canción — a diferencia de
+// guardarDiapositivas (que reemplaza TODAS las diapositivas de la canción de una), esto solo
+// inserta la fila puntual. Se usa desde Multimedia en pleno culto (corregir/agregar letra sin salir
+// de la pantalla en vivo), así que tiene que ser lo más chico y seguro posible — nada de tocar el
+// resto de la canción de paso.
+export async function agregarDiapositivaCancion(cancionId, seccionClave, texto) {
+  const { data: filas, error: maxErr } = await supabase
+    .from("diapositivas_letra").select("orden").eq("cancion_id", cancionId).order("orden", { ascending: false }).limit(1);
+  if (maxErr) throw maxErr;
+  const siguienteOrden = (filas?.[0]?.orden ?? -1) + 1;
+  const { error } = await supabase.from("diapositivas_letra").insert({
+    cancion_id: cancionId, seccion_clave: seccionClave, orden_en_seccion: 0, texto, orden: siguienteOrden,
+  });
+  if (error) throw error;
+}
+
+// Corrige el texto de una diapositiva de canción YA EXISTENTE, ubicándola por su posición dentro de
+// su propia sección (mismo criterio con el que se arma song.letra[clave] en cancionCompletaAFormatoEditor:
+// las filas de esa sección, en orden). Si la sección todavía no tenía ninguna diapositiva real (se
+// venía mostrando el respaldo armado desde el Contenido/acordes — ver cancionCompletaAFormatoEditor),
+// no hay fila que actualizar: se crea la primera de una, y desde ahí esa sección queda con
+// diapositivas propias como cualquier otra.
+export async function corregirDiapositivaCancion(cancionId, seccionClave, indiceEnSeccion, tieneDiapositivasReales, nuevoTexto) {
+  if (!tieneDiapositivasReales) {
+    await agregarDiapositivaCancion(cancionId, seccionClave, nuevoTexto);
+    return;
+  }
+  const { data: filas, error } = await supabase
+    .from("diapositivas_letra").select("id, seccion_clave, orden").eq("cancion_id", cancionId).order("orden", { ascending: true });
+  if (error) throw error;
+  const delMismaSeccion = (filas ?? []).filter((f) => f.seccion_clave === seccionClave);
+  const fila = delMismaSeccion[indiceEnSeccion];
+  if (!fila) throw new Error("No se encontró esa diapositiva — puede que alguien más ya la haya cambiado.");
+  const { error: updErr } = await supabase.from("diapositivas_letra").update({ texto: nuevoTexto }).eq("id", fila.id);
+  if (updErr) throw updErr;
+}
+
 // ---- Conversión entre el formato normalizado de Supabase (4 tablas) y el formato en memoria que
 // usa el editor de canciones del prototipo (bloques por clave + estructura plana + letra agrupada
 // por sección) — así el prototipo completo (editor de acordes, estructura, letra, Setlist, En vivo,
