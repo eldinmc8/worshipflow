@@ -6,7 +6,7 @@ import {
   UserPlus, Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette,
-  Type, WifiOff, CloudDownload, Moon,
+  Type, WifiOff, CloudDownload, Moon, Pause,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion } from "./lib/canciones.js";
 import {
@@ -171,8 +171,13 @@ const LIVE_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
 const DEVICE_ID = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `dev-${Math.random().toString(36).slice(2)}`;
 // Si el líder no manda un "sigo aquí" (heartbeat, o cualquier acción — ambos tocan la columna heartbeat)
 // en más de esto, se da por perdido: el siguiente que toque "Modo Músico" puede tomar el mando sin
-// quedar nadie bloqueado a mitad de un culto.
-const MUSICO_LEADER_STALE_MS = 10000;
+// quedar nadie bloqueado a mitad de un culto. 10s (el valor original) era demasiado poco — un músico
+// que se sale un instante sin querer (toca "atrás", el teléfono se bloquea solo, cambia de app un
+// segundo) ya alcanzaba a marcar al líder como "caído" y exponía el botón para que cualquier otro
+// tomara el mando por error, aunque el líder de verdad volviera enseguida. Con más margen, mientras
+// tanto todos quedan simplemente pausados en su sección actual (ver "leaderStale" en SongView) sin
+// que nadie tome el mando solo, y si el líder vuelve antes de este tiempo, nada se movió ni cambió.
+const MUSICO_LEADER_STALE_MS = 25000;
 function filaAMusicoState(fila) {
   if (!fila) return null;
   return {
@@ -2935,13 +2940,15 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
 
   // ---- Capo: sube/baja medio tono a la vez SOLO en lo que ve este dispositivo — a diferencia de
   // "Transportar" (arriba, solo administradores, cambia la tonalidad guardada de la canción para
-  // TODOS), esto es del músico. Como un capo FÍSICO: nadie se lo quita de la guitarra al pasar a la
-  // siguiente canción del set, así que antes de esto se guardaba solo en memoria (useState) y se
-  // perdía cada vez que este componente se desmontaba — al cambiar de canción en Modo Músico, o al
-  // salir de la canción y volver a entrar. Ahora se guarda en este dispositivo (mismo mecanismo que
-  // el idioma de la Biblia en vivo) y sigue puesto hasta que el músico mismo lo quite.
-  const [capoSemitones, setCapoSemitones] = useState(() => loadCache("capo_semitones") || 0);
-  useEffect(() => { saveCache("capo_semitones", capoSemitones); }, [capoSemitones]);
+  // TODOS), esto es del músico: nunca se manda a musico_en_vivo/musicoState ni a ningún otro
+  // dispositivo, ni siquiera si este músico es el líder — el líder solo transmite EN QUÉ SECCIÓN
+  // está, jamás su capo. Antes se guardaba en este dispositivo (localStorage) bajo una sola clave
+  // fija para TODAS las canciones, así que arrastraba el mismo capo de una canción a la siguiente —
+  // un guitarrista que puso capo 2 para una canción seguía viéndolo en la próxima aunque no le
+  // correspondiera. Como este componente se remonta entero al cambiar de canción (ver el `key=` en
+  // el sitio donde se usa <SongView>), un simple useState(0) ya alcanza para que cada canción nueva
+  // arranque siempre sin capo, sin arrastrar nada de la anterior.
+  const [capoSemitones, setCapoSemitones] = useState(0);
   const capoResultKey = song && capoSemitones ? transposeChordToken(song.key, capoSemitones) : null;
 
   // ---- Fuera de una transmisión en vivo (repaso/ensayo): sigue igual que siempre — cualquiera que
@@ -2977,6 +2984,13 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   const isLeaderMe = isLive && liveSync.state?.liderId === liveSync.deviceId;
   const otherLeaderFresh = isLive && isMusicoLeaderFresh(liveSync.state) && liveSync.state.liderId !== liveSync.deviceId;
   const isFollowingNow = otherLeaderFresh && liveSync.state.songItemId === liveSync.itemId;
+  // Líder registrado pero sin heartbeat reciente (se salió de la canción sin querer, el teléfono se
+  // bloqueó, cambió de app un segundo) — TODOS quedan pausados exactamente donde estaban (nadie toma
+  // el mando solo), y si estaba siguiendo a ESE líder en ESTA misma canción se lo avisa con claridad
+  // en vez de mostrarle de golpe el botón normal de "Modo Músico" (que invitaría a tomar el mando por
+  // error). Apenas el líder vuelve a mandar un heartbeat, esto se apaga solo y sigue como si nada.
+  const leaderStale = isLive && !!liveSync.state?.liderId && liveSync.state.liderId !== liveSync.deviceId && !otherLeaderFresh;
+  const wasFollowingStaleLeader = leaderStale && liveSync.state.songItemId === liveSync.itemId;
 
   // BUG real (2026-08-30, culto en vivo): si el líder pierde la conexión, jamás vuelve a llegar un
   // heartbeat por Realtime — así que este componente no tiene ningún motivo para volver a renderizar,
@@ -3199,6 +3213,13 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
           <span style={{ display: "flex", alignItems: "center", gap: 6, background: "#E8821E", color: "var(--wf-text)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>
             <Radio size={13} /> Eres el líder
           </span>
+        ) : wasFollowingStaleLeader ? (
+          // El líder que estaba siguiendo se quedó sin heartbeat — en vez del botón normal de "Modo
+          // Músico" (que invitaría a tomar el mando por error, ej. si alguien lo toca sin saber qué es),
+          // avisa claramente que está en pausa. Nadie se mueve solo; si el líder vuelve, sigue igual.
+          <span style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", color: "var(--wf-muted)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>
+            <Pause size={13} /> Pausado — el líder se desconectó
+          </span>
         ) : (
           <button onClick={toggleAutoMode} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: autoMode ? "#E8821E" : "var(--wf-card)", color: autoMode ? "#16324F" : "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             {autoMode ? <><Radio size={13} /> Modo Músico: ON</> : <><Play size={13} /> Modo Músico</>}
@@ -3208,8 +3229,11 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
         <button onClick={() => goToSectionIdx(currentSectionIdx + 1)} disabled={currentSectionIdx >= order.length - 1} style={{ ...iconGhost, opacity: currentSectionIdx >= order.length - 1 ? 0.4 : 1 }}><ChevronRight size={16} /></button>
         {/* Respaldo manual: si por lo que sea el líder queda pegado (perdió señal, cerró la app) y hay
             que esperar no es opción a mitad de un culto, cualquiera puede reiniciar Modo Músico de una —
-            nadie queda de líder, el próximo que toque "Modo Músico" toma el mando limpio. */}
-        {isLive && (isLeaderMe || isFollowingNow) && (
+            nadie queda de líder, el próximo que toque "Modo Músico" toma el mando limpio. OJO: tiene que
+            seguir visible cuando el líder ya está "leaderStale" (no solo isFollowingNow, que exige
+            frescura) — si no, este botón desaparecía justo cuando más hacía falta: apenas el líder se
+            pone viejo/caído es cuando alguien necesita poder reiniciar, no antes. */}
+        {isLive && (isLeaderMe || isFollowingNow || leaderStale) && (
           <button
             onClick={async () => {
               if (!(await confirmDialog("¿Reiniciar Modo Músico? Nadie va a quedar de líder — el próximo que toque \"Modo Músico\" toma el mando.", { textoConfirmar: "Reiniciar" }))) return;
