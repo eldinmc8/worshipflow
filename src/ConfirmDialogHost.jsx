@@ -35,7 +35,7 @@ export default function ConfirmDialogHost() {
     >
       <div
         className="screen-enter"
-        style={{ width: 340, maxWidth: "100%", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 20px 50px rgba(0,0,0,0.35)", padding: 24, fontFamily: "'Poppins', sans-serif" }}
+        style={{ width: 340, maxWidth: "100%", background: "var(--wf-card)", borderRadius: 20, boxShadow: "0 20px 50px rgba(0,0,0,0.35)", padding: 24, fontFamily: "'Poppins', sans-serif" }}
         onClick={(e) => e.stopPropagation()}
       >
         {dialog.titulo && (
@@ -50,19 +50,19 @@ export default function ConfirmDialogHost() {
             onChange={(e) => setValor(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") aceptar(); }}
             placeholder={dialog.placeholder || ""}
-            style={{ width: "100%", background: "var(--wf-bg)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "var(--wf-text)", outline: "none", boxSizing: "border-box", marginBottom: 22 }}
+            style={{ width: "100%", background: "var(--wf-bg)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "10px 12px", fontSize: 14, color: "var(--wf-text)", outline: "none", boxSizing: "border-box", marginBottom: 22 }}
           />
         )}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button
             onClick={cancelar}
-            style={{ background: "var(--wf-hover)", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer" }}
+            style={{ background: "var(--wf-hover)", border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer" }}
           >
             Cancelar
           </button>
           <button
             onClick={aceptar}
-            style={{ background: dialog.danger ? "#C23B32" : "#E8821E", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: dialog.danger ? "#fff" : "#16324F", cursor: "pointer" }}
+            style={{ background: dialog.danger ? "#C23B32" : "#E8821E", border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: dialog.danger ? "#fff" : "#16324F", cursor: "pointer" }}
           >
             {dialog.textoConfirmar || "Aceptar"}
           </button>

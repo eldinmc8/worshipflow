@@ -108,14 +108,17 @@ img, svg {
 }
 
 /* Transición al entrar a cualquier pantalla (cambiar de pestaña, abrir un evento/canción/perfil...):
-   un fundido + deslizamiento sutil hacia arriba, igual en escritorio y en teléfono. Como cada pantalla
-   se monta/desmonta con el cambio de estado de React, la animación se reproduce sola cada vez. */
+   fundido + deslizamiento sutil hacia arriba + un empujoncito de escala (empieza levemente más chica
+   y "asienta" a su tamaño real) para que se sienta con más peso/pulido que un fundido plano, igual en
+   escritorio y en teléfono. Como cada pantalla se monta/desmonta con el cambio de estado de React, la
+   animación se reproduce sola cada vez. */
 @keyframes screenEnter {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .screen-enter {
-  animation: screenEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: screenEnter 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top center;
 }
 @media (prefers-reduced-motion: reduce) {
   .screen-enter { animation: none; }
@@ -132,13 +135,30 @@ img, svg {
   to { opacity: 1; transform: translateX(0); }
 }
 .song-slide-in-right {
-  animation: songSlideInRight 0.22s ease;
+  animation: songSlideInRight 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .song-slide-in-left {
-  animation: songSlideInLeft 0.22s ease;
+  animation: songSlideInLeft 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @media (prefers-reduced-motion: reduce) {
   .song-slide-in-right, .song-slide-in-left { animation: none; }
+}
+
+/* Botones y tarjetas "hoverable" (ver className="hoverable" en toda la app): un realce suave al
+   pasar el mouse/tocar, para que la interfaz se sienta con más respuesta — antes solo cambiaban de
+   color de golpe sin ninguna transición ni movimiento. */
+.hoverable {
+  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+}
+.hoverable:hover {
+  transform: translateY(-1px);
+}
+.hoverable:active {
+  transform: translateY(0) scale(0.98);
+  transition-duration: 0.08s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hoverable, .hoverable:hover, .hoverable:active { transition: none; transform: none; }
 }
 
 /* Barra de acordes del editor de canciones: fija arriba de la nav/teclado, se desliza en horizontal

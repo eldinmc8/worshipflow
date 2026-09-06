@@ -41,7 +41,7 @@ export default function ToastHost() {
             style={{
               pointerEvents: "auto", display: "flex", alignItems: "center", gap: 10,
               maxWidth: 420, width: "100%", background: "#FFFFFF", borderLeft: `4px solid ${accent}`,
-              borderRadius: 12, boxShadow: "0 8px 28px rgba(22,50,79,0.22)", padding: "12px 14px",
+              borderRadius: 16, boxShadow: "0 8px 28px rgba(22,50,79,0.22)", padding: "12px 14px",
               fontFamily: "'Poppins', sans-serif",
             }}
           >

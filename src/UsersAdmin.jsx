@@ -13,10 +13,10 @@ const ROLES = [
 ];
 const roleLabel = (v) => ROLES.find((r) => r.value === v)?.label || v;
 
-const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "9px 10px", fontSize: 13, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
-const primaryBtn = { background: "#E8821E", border: "none", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: "#16324F", cursor: "pointer" };
-const ghostBtn = { background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer" };
-const cardStyle = { background: "var(--wf-card)", borderRadius: 10, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: "12px 14px", marginBottom: 8 };
+const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "9px 10px", fontSize: 13, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
+const primaryBtn = { background: "#E8821E", border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: "#16324F", cursor: "pointer" };
+const ghostBtn = { background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer" };
+const cardStyle = { background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: "12px 14px", marginBottom: 8 };
 
 // Todos los eventos (reales, no plantillas) donde este usuario aparece como encargado — ya sea de un
 // ítem del Setlist (miembros_rol.item_servicio_id) o de un rol del equipo de alabanza
@@ -93,9 +93,9 @@ function UserProfile({ user, myEmail, busy, onBack, onUpdateField, onResetPasswo
         )}
       </div>
 
-      <div style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 10, padding: 4, marginBottom: 16 }}>
-        <button onClick={() => setTab("info")} style={{ flex: 1, border: "none", borderRadius: 8, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: tab === "info" ? "#E8821E" : "transparent", color: tab === "info" ? "#16324F" : "var(--wf-text)" }}>Información personal</button>
-        <button onClick={() => setTab("horario")} style={{ flex: 1, border: "none", borderRadius: 8, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: tab === "horario" ? "#E8821E" : "transparent", color: tab === "horario" ? "#16324F" : "var(--wf-text)" }}>Horario</button>
+      <div style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 14, padding: 4, marginBottom: 16 }}>
+        <button onClick={() => setTab("info")} style={{ flex: 1, border: "none", borderRadius: 12, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: tab === "info" ? "#E8821E" : "transparent", color: tab === "info" ? "#16324F" : "var(--wf-text)" }}>Información personal</button>
+        <button onClick={() => setTab("horario")} style={{ flex: 1, border: "none", borderRadius: 12, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: tab === "horario" ? "#E8821E" : "transparent", color: tab === "horario" ? "#16324F" : "var(--wf-text)" }}>Horario</button>
       </div>
 
       {tab === "info" ? (
@@ -166,7 +166,7 @@ function UserProfile({ user, myEmail, busy, onBack, onUpdateField, onResetPasswo
                           onClick={() => setSelectedDay(day)}
                           style={{
                             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, height: 36,
-                            borderRadius: 8, border: isToday && !isSelected ? "1.5px solid #2F5FA8" : "1.5px solid transparent",
+                            borderRadius: 12, border: isToday && !isSelected ? "1.5px solid #2F5FA8" : "1.5px solid transparent",
                             background: isSelected ? "#E8821E" : dayEvents.length ? "var(--wf-hover)" : "transparent",
                             cursor: "pointer", padding: 0,
                           }}
@@ -290,7 +290,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
               <button onClick={onExit} style={ghostBtn}>← Volver a la app</button>
             </div>
-            {error && <div style={{ background: "#FDECEA", border: "1px solid #C23B32", color: "#8A2A24", borderRadius: 8, padding: "8px 12px", fontSize: 13, marginBottom: 14 }}>{error}</div>}
+            {error && <div style={{ background: "#FDECEA", border: "1px solid #C23B32", color: "#8A2A24", borderRadius: 12, padding: "8px 12px", fontSize: 13, marginBottom: 14 }}>{error}</div>}
             <UserProfile user={selectedUser} myEmail={myEmail} busy={busy} onBack={() => window.history.back()} onUpdateField={updateField} onResetPassword={resetPassword} onRemoveUser={removeUser} />
           </>
         ) : (
@@ -300,9 +300,9 @@ export default function UsersAdmin({ myEmail, onExit }) {
               <button onClick={onExit} style={ghostBtn}>← Volver a la app</button>
             </div>
 
-            {error && <div style={{ background: "#FDECEA", border: "1px solid #C23B32", color: "#8A2A24", borderRadius: 8, padding: "8px 12px", fontSize: 13, marginBottom: 14 }}>{error}</div>}
+            {error && <div style={{ background: "#FDECEA", border: "1px solid #C23B32", color: "#8A2A24", borderRadius: 12, padding: "8px 12px", fontSize: 13, marginBottom: 14 }}>{error}</div>}
 
-            <form onSubmit={addUser} style={{ background: "var(--wf-card)", borderRadius: 12, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: 16, marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+            <form onSubmit={addUser} style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: 16, marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
               <div style={{ flex: "1 1 220px" }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)" }}>Correo</label>
                 <input type="email" required value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} style={inputStyle} />
@@ -317,7 +317,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
             </form>
             <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: -12, marginBottom: 20 }}>Le llegará un correo para crear su propia contraseña y elegir su nombre (y foto, si entra con Google) al aceptar.</div>
 
-            <div style={{ background: "var(--wf-card)", borderRadius: 12, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", overflow: "hidden" }}>
+            <div style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", overflow: "hidden" }}>
               {rows === null && <div style={{ padding: 20, color: "var(--wf-faint)", fontSize: 13 }}>Cargando…</div>}
               {rows?.length === 0 && <div style={{ padding: 20, color: "var(--wf-faint)", fontSize: 13 }}>Todavía no hay usuarios.</div>}
               {rows?.map((row) => (
@@ -332,7 +332,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
                   <div style={{ flex: "1 1 auto", minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>
                       {row.nombre} {row.email === myEmail && <span style={{ fontSize: 10, color: "var(--wf-faint)" }}>(tú)</span>}
-                      {!row.perfil_completo && <span title="Todavía no completó su perfil" style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-active-text)", background: "var(--wf-active-bg)", border: "1px solid #E8821E", borderRadius: 10, padding: "1px 6px", marginLeft: 6 }}>PENDIENTE</span>}
+                      {!row.perfil_completo && <span title="Todavía no completó su perfil" style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-active-text)", background: "var(--wf-active-bg)", border: "1px solid #E8821E", borderRadius: 14, padding: "1px 6px", marginLeft: 6 }}>PENDIENTE</span>}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis" }}>{row.email}</div>
                   </div>
