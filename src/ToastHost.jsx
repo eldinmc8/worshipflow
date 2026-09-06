@@ -40,13 +40,13 @@ export default function ToastHost() {
             className="screen-enter"
             style={{
               pointerEvents: "auto", display: "flex", alignItems: "center", gap: 10,
-              maxWidth: 420, width: "100%", background: "#FFFFFF", borderLeft: `4px solid ${accent}`,
+              maxWidth: 420, width: "100%", background: "var(--wf-card)", borderLeft: `4px solid ${accent}`,
               borderRadius: 16, boxShadow: "0 8px 28px rgba(22,50,79,0.22)", padding: "12px 14px",
               fontFamily: "'Poppins', sans-serif",
             }}
           >
             <Icon size={18} color={accent} style={{ flexShrink: 0 }} />
-            <span style={{ fontSize: 13, color: "#16233A", flex: 1, lineHeight: 1.4 }}>{toast.message}</span>
+            <span style={{ fontSize: 13, color: "var(--wf-text)", flex: 1, lineHeight: 1.4 }}>{toast.message}</span>
             <button
               onClick={() => setToasts((ts) => ts.filter((t) => t.id !== toast.id))}
               style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}

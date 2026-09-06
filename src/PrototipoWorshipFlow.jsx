@@ -605,17 +605,29 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   useEffect(() => {
     const unsubCanciones = subscribeTableChanges(
       "rt-canciones", ["canciones", "secciones_cancion", "diapositivas_letra", "estructura_cancion"],
-      () => listCancionesCompletas().then((data) => { setLibrary(data); saveCache("canciones", data); }).catch(() => {}),
+      // "shouldWait" solo evita EMPEZAR el refresco mientras hay un guardado en vuelo — pero listar
+      // todo de nuevo es una operación en sí misma (varias canciones, cada una con 4 consultas), que
+      // puede tardar más que un guardado corto que arranca DESPUÉS de que este refresco ya empezó. Sin
+      // este segundo chequeo, ese refresco (que arrancó cuando no había nada pendiente) terminaba
+      // igual y pisaba con datos viejos lo que se acababa de guardar mientras tanto — el guardado en sí
+      // había salido bien, pero la pantalla volvía a mostrar la versión de antes. Por eso se vuelve a
+      // comprobar pendingSavesRef justo antes de aplicar el resultado, no solo antes de pedirlo.
+      () => listCancionesCompletas().then((data) => { if (pendingSavesRef.current === 0) { setLibrary(data); saveCache("canciones", data); } }).catch(() => {}),
       2500, () => pendingSavesRef.current > 0
     );
     const unsubEventos = subscribeTableChanges(
       "rt-eventos", ["eventos", "items_servicio", "roles_evento", "miembros_rol", "recordatorios_evento", "asignaciones_vistas"],
-      () => listEventosCompletos().then((data) => { setEvents(data); saveCache("eventos", data); }).catch(() => {}),
+      // Mismo chequeo doble que rt-canciones — acá es más grave todavía: agregar varias canciones
+      // seguidas al Setlist es exactamente el patrón que más fácil dispara esto (cada canción agregada
+      // es un guardado nuevo, y listar TODOS los eventos de nuevo tarda bastante con varios eventos
+      // cargados), así que sin este segundo chequeo era fácil que una tanda de canciones agregadas se
+      // "esfumara" de la pantalla apenas terminaba de cargar un refresco que había arrancado antes.
+      () => listEventosCompletos().then((data) => { if (pendingSavesRef.current === 0) { setEvents(data); saveCache("eventos", data); } }).catch(() => {}),
       2500, () => pendingSavesRef.current > 0
     );
     const unsubMinisterios = subscribeTableChanges(
       "rt-ministerios", ["ministerios", "planificacion_ministerio", "recursos_ministerio"],
-      () => listMinisteriosCompletos().then((data) => { setMinistries(data); saveCache("ministerios", data); }).catch(() => {})
+      () => listMinisteriosCompletos().then((data) => { if (pendingSavesRef.current === 0) { setMinistries(data); saveCache("ministerios", data); } }).catch(() => {})
     );
     return () => { unsubCanciones(); unsubEventos(); unsubMinisterios(); };
   }, []);
@@ -1567,7 +1579,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
                 key={n.id}
                 onClick={() => openNotification(n)}
                 className="hoverable"
-                style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%", textAlign: "left", background: n.leido ? "#FFFFFF" : "#FFF6EC", border: n.leido ? "1px solid var(--wf-hover)" : "1px solid #F3D9B8", borderRadius: 14, padding: "10px 12px", cursor: n.evento_id ? "pointer" : "default" }}
+                style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%", textAlign: "left", background: n.leido ? "var(--wf-card)" : "var(--wf-active-bg)", border: n.leido ? "1px solid var(--wf-hover)" : "1px solid var(--wf-active-text)", borderRadius: 14, padding: "10px 12px", cursor: n.evento_id ? "pointer" : "default" }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   {!n.leido && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#E8821E", flexShrink: 0 }} />}
@@ -3343,7 +3355,7 @@ function AddSectionsModal({ onClose, onAdd }) {
                 key={`${t.id}-${n}`}
                 onClick={() => toggleInstance(t.id, n)}
                 className="hoverable"
-                style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: isChecked ? `${color}18` : "#FFFFFF", border: isChecked ? `1.5px solid ${color}` : "1px solid var(--wf-divider)", borderRadius: 14, padding: "10px 12px", cursor: "pointer" }}
+                style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: isChecked ? `${color}18` : "var(--wf-card)", border: isChecked ? `1.5px solid ${color}` : "1px solid var(--wf-divider)", borderRadius: 14, padding: "10px 12px", cursor: "pointer" }}
               >
                 <span style={{ width: 26, height: 26, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   {showNumber ? `${t.prefix}${n}` : t.prefix}
@@ -3851,7 +3863,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
       </div>
 
       {canStartLive && (
-        <button onClick={onStartFree} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: liveLibre ? "var(--wf-active-bg)" : "#FFFFFF", border: liveLibre ? "1px solid #E8821E" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 18, padding: "12px 14px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
+        <button onClick={onStartFree} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: liveLibre ? "var(--wf-active-bg)" : "var(--wf-card)", border: liveLibre ? "1px solid #E8821E" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 18, padding: "12px 14px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
           <div style={{ width: 34, height: 34, borderRadius: 14, background: liveLibre ? "#E8821E" : "var(--wf-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Radio size={16} color={liveLibre ? "#fff" : "#C23B32"} /></div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700 }}>{liveLibre ? "Transmisión libre en vivo" : "Transmitir sin evento"}</div>
@@ -4506,7 +4518,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
         </button>
       )}
       {(showLibrary || !isCompact) && (editingSetlist || (!isAdminViewer && canAddBibleReading)) && (
-      <div style={{ width: isCompact ? "100%" : 270, margin: isCompact ? 0 : "14px 0 14px 14px", background: isCompact ? "transparent" : "#fff", boxShadow: isCompact ? "none" : "0 3px 14px rgba(22,50,79,0.09)", borderRadius: isCompact ? 0 : 16, borderBottom: isCompact ? "1px solid var(--wf-divider)" : "none", padding: 14, boxSizing: "border-box", flexShrink: 0, display: "flex", flexDirection: "column" }}>
+      <div style={{ width: isCompact ? "100%" : 270, margin: isCompact ? 0 : "14px 0 14px 14px", background: isCompact ? "transparent" : "var(--wf-card)", boxShadow: isCompact ? "none" : "0 3px 14px rgba(22,50,79,0.09)", borderRadius: isCompact ? 0 : 16, borderBottom: isCompact ? "1px solid var(--wf-divider)" : "none", padding: 14, boxSizing: "border-box", flexShrink: 0, display: "flex", flexDirection: "column" }}>
         <div style={{ overflowY: "auto", maxHeight: isCompact ? 260 : "55vh" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><ListMusic size={13} /> BIBLIOTECA DE CANCIONES</div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
