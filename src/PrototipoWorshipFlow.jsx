@@ -1982,17 +1982,22 @@ function InicioView({ events, library, myUserId, favoritesCount, memberCount, li
   const nextIsLive = nextEvent && nextEvent.id === liveEventId;
 
   return (
-    <div className="screen-enter" style={{ height: "100%", display: "flex", flexDirection: "column", padding: "22px 24px", boxSizing: "border-box", overflow: isCompact ? "auto" : "hidden" }}>
+    <div className="screen-enter" style={{ height: "100%", display: "flex", flexDirection: "column", padding: "22px 24px", boxSizing: "border-box", overflowY: isCompact ? "auto" : "hidden", overflowX: "hidden" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 16, flexShrink: 0 }}>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600 }}>{greetingWord()}</div>
           <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 2 }}>{TEAM_NAME}</div>
         </div>
         {liveEvent && (
-          <button onClick={() => (liveLibre ? onGoLive() : onSelectEvent(liveEvent.id))} style={{ display: "flex", alignItems: "center", gap: 8, background: "#16324F", borderRadius: 20, padding: "9px 16px", border: "none", cursor: "pointer", flexShrink: 0 }}>
-            <span className="live-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "#E8821E" }} />
-            <span style={{ color: "#fff", fontWeight: 700, fontSize: 12 }}>En vivo: {liveEvent.title}</span>
-            <ChevronRight size={14} color="rgba(255,255,255,0.7)" />
+          // El título del evento en vivo puede ser largo ("Domingo AM - Septiembre 6 - Servicio
+          // General") — sin minWidth:0 + ellipsis, este botón se negaba a encogerse (flexShrink:0) y
+          // terminaba más ancho que la pantalla, corriendo toda la fila (y arrastrando la página
+          // entera, ya que el contenedor de arriba permitía overflow horizontal). Ahora el botón se
+          // achica hasta un máximo razonable y el título se corta con "..." en vez de desbordar.
+          <button onClick={() => (liveLibre ? onGoLive() : onSelectEvent(liveEvent.id))} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, maxWidth: "62%", background: "#16324F", borderRadius: 20, padding: "9px 16px", border: "none", cursor: "pointer" }}>
+            <span className="live-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "#E8821E", flexShrink: 0 }} />
+            <span style={{ color: "#fff", fontWeight: 700, fontSize: 12, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>En vivo: {liveEvent.title}</span>
+            <ChevronRight size={14} color="rgba(255,255,255,0.7)" style={{ flexShrink: 0 }} />
           </button>
         )}
       </div>
