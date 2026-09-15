@@ -92,10 +92,11 @@ Deno.serve(async (req: Request) => {
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+    // Ya no se filtra por "enviado" -- ver por qué en el bloque de abajo. El total de recordatorios de
+    // esta iglesia es chico (unos pocos por evento), así que traerlos todos cada 15 min no pesa nada.
     const { data: pendientes, error } = await admin
       .from("recordatorios_evento")
       .select("id, evento_id, cantidad, unidad, eventos(fecha, hora, titulo)")
-      .eq("enviado", false)
       .returns<Reminder[]>();
     if (error) throw error;
 
@@ -106,7 +107,7 @@ Deno.serve(async (req: Request) => {
       const ev = r.eventos;
       if (!ev?.fecha) continue;
       // Sin hora definida en el evento, un recordatorio por horas no se puede calcular con
-      // precisión — se deja pendiente (no se marca enviado) hasta que se le asigne una hora.
+      // precisión — se deja pendiente hasta que se le asigne una hora.
       if (r.unidad === "horas" && !ev.hora) continue;
       // Sin offset explícito, "YYYY-MM-DDTHH:mm:ss" se interpreta como hora LOCAL DEL SERVIDOR (que en
       // Supabase Edge Functions corre en UTC) — no como la hora de la iglesia. Eso hacía que un evento
@@ -114,42 +115,47 @@ Deno.serve(async (req: Request) => {
       // es decir 6 horas antes de lo real, y los recordatorios avisaran mucho antes de tiempo. Con el
       // offset fijo -06:00 (estos países no usan horario de verano) el cálculo queda en la hora real.
       const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}${OFFSET_GUATEMALA}`).getTime();
+      // Una vez que el evento ya empezó, un recordatorio de "faltan X" ya no tiene sentido para nadie
+      // más -- se le haya avisado a todos o no, no hay nada que "alcanzar a avisar" de un evento que
+      // ya está pasando o pasó. Esto además acota el trabajo: sin esto, cada recordatorio de cada
+      // evento de la historia se seguiría revisando cada 15 min para siempre.
+      if (inicio <= ahora) continue;
       const msAntes = r.cantidad * (r.unidad === "horas" ? 3_600_000 : 86_400_000);
       if (ahora < inicio - msAntes) continue; // todavía no toca avisar
 
       const usuarioIds = await usuariosDelEvento(admin, r.evento_id);
+      if (usuarioIds.size === 0) continue; // nadie asignado todavía -- se reintenta el próximo ciclo
+
+      // ANTES: un solo booleano "enviado" por fila de recordatorios_evento, marcado una vez y para
+      // siempre. Eso significaba que si alguien se agregaba al equipo del evento DESPUÉS de que ese
+      // recordatorio ya se había disparado para los demás (muy común: roles que se van llenando en los
+      // días antes del culto), esa persona se quedaba sin ese recordatorio para siempre -- no había
+      // forma de "alcanzarla" en el siguiente ciclo, aunque siguiera pendiente según el reloj. Ahora se
+      // rastrea A QUIÉN específicamente ya se le avisó de ESTE recordatorio puntual (recordatorio_id +
+      // usuario_id), igual que ya hacía el aviso de "Confirma tu participación" más abajo con
+      // avisos_confirmacion_enviados -- así, quien se agrega tarde sí recibe los recordatorios que
+      // todavía sigan vigentes (el evento no haya empezado) en el próximo ciclo.
+      const { data: yaNotificados } = await admin.from("recordatorio_notificados").select("usuario_id").eq("recordatorio_id", r.id);
+      const yaNotificadosSet = new Set((yaNotificados ?? []).map((n: { usuario_id: string }) => n.usuario_id));
+      const pendientesDeEste = [...usuarioIds].filter((id) => !yaNotificadosSet.has(id));
+      if (pendientesDeEste.length === 0) continue; // ya se le avisó a todos los que hay hasta ahora
 
       const unidadLabel = r.unidad === "horas" ? "hora" : "día";
       const titulo = `Recordatorio: ${ev.titulo}`;
       const cuerpo = `Faltan ${r.cantidad} ${unidadLabel}${r.cantidad === 1 ? "" : "s"} para "${ev.titulo}".`;
 
-      // OJO IMPORTANTE: antes, si insertar la notificación de UNA sola persona fallaba (ej. un
-      // problema de red pasajero), el error se propagaba y tumbaba TODA la función -- ese
-      // recordatorio se quedaba sin marcar enviado (bien, se reintenta después), pero a las
-      // personas que ya se habían procesado ANTES del error en ese mismo recordatorio se les
-      // podía volver a notificar duplicado en el siguiente intento. Ahora cada persona se procesa
-      // en su propio try/catch: un fallo puntual con una persona no le impide seguir con el resto,
-      // y el recordatorio completo solo se marca enviado si nadie falló.
-      let huboFallo = false;
-      for (const usuarioId of usuarioIds) {
+      for (const usuarioId of pendientesDeEste) {
         try {
           const { error: insertErr } = await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo: "recordatorio", titulo, cuerpo, evento_id: r.evento_id });
           if (insertErr) throw insertErr;
           await enviarPush(admin, usuarioId, { title: titulo, body: cuerpo });
+          await admin.from("recordatorio_notificados").insert({ recordatorio_id: r.id, usuario_id: usuarioId });
+          procesados++;
         } catch (e) {
-          huboFallo = true;
           const msg = `recordatorio ${r.id} / usuario ${usuarioId}: ${e instanceof Error ? e.message : String(e)}`;
           console.error(msg);
           fallos.push(msg);
         }
-      }
-
-      // Si alguien falló (no la persona en sí -- eso ya quedó registrado -- sino el guardado de su
-      // notificación), no se marca enviado: así el próximo ciclo (15 min después) lo vuelve a
-      // intentar en vez de darlo por hecho con gente sin avisar.
-      if (!huboFallo) {
-        await admin.from("recordatorios_evento").update({ enviado: true }).eq("id", r.id);
-        procesados++;
       }
     }
 
