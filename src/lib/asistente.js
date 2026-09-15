@@ -11,3 +11,12 @@ export function enviarMensajeAsistente(messages) {
 export function aplicarPlanAsistente(plan) {
   return callUsersFunction("asistente-chat", { mode: "apply", plan });
 }
+
+// Reglas/excepciones fijas que el asistente siempre respeta, sin depender de ninguna conversación
+// (ver botón "Reglas" en la pantalla del Asistente).
+export function obtenerReglasAsistente() {
+  return callUsersFunction("asistente-chat", { mode: "reglas_get" });
+}
+export function guardarReglasAsistente(reglas) {
+  return callUsersFunction("asistente-chat", { mode: "reglas_set", reglas });
+}

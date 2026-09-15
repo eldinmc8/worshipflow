@@ -17,7 +17,7 @@ import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSessi
 import { getMusicoLive, updateMusicoLive, clearMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { sincronizarRecordatorios } from "./lib/recordatorios.js";
-import { enviarMensajeAsistente, aplicarPlanAsistente } from "./lib/asistente.js";
+import { enviarMensajeAsistente, aplicarPlanAsistente, obtenerReglasAsistente, guardarReglasAsistente } from "./lib/asistente.js";
 import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotificaciones, suscribirPush, desuscribirPush, estaSuscritoPush } from "./lib/notificaciones.js";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } from "./lib/pwaInstall.js";
@@ -2605,6 +2605,23 @@ function AsistenteChatScreen() {
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState("");
 
+  // Reglas/excepciones fijas: a diferencia de la conversación (que se borra al salir de esta
+  // pantalla), esto vive en Supabase y el asistente lo lee SIEMPRE, en cada mensaje — así no hay
+  // que repetírselas cada vez ("en Multimedia, cuando el domingo caiga en fin de mes va Fulano...").
+  const [showReglas, setShowReglas] = useState(false);
+  const [reglasTexto, setReglasTexto] = useState("");
+  const [reglasLoading, setReglasLoading] = useState(false);
+  const [reglasSaving, setReglasSaving] = useState(false);
+  const abrirReglas = () => {
+    setShowReglas(true);
+    setReglasLoading(true);
+    obtenerReglasAsistente().then((res) => setReglasTexto(res.reglas || "")).catch((e) => setError(e.message)).finally(() => setReglasLoading(false));
+  };
+  const guardarReglas = () => {
+    setReglasSaving(true);
+    guardarReglasAsistente(reglasTexto).then(() => setShowReglas(false)).catch((e) => setError(e.message)).finally(() => setReglasSaving(false));
+  };
+
   const send = async () => {
     const texto = input.trim();
     if (!texto || loading || pendingPlan) return;
@@ -2659,10 +2676,37 @@ function AsistenteChatScreen() {
 
   return (
     <div className="screen-enter" style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div style={{ marginBottom: 6 }}>
-        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Asistente</h2>
-        <div style={{ fontSize: 12, color: "var(--wf-muted)", marginTop: 4 }}>Pídele que arme un evento, su setlist y quién queda a cargo — antes de guardar nada te muestra el plan para que lo confirmes.</div>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 6 }}>
+        <div>
+          <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Asistente</h2>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginTop: 4 }}>Pídele que arme uno o varios eventos, su setlist y quién queda a cargo — antes de guardar nada te muestra el plan para que lo confirmes.</div>
+        </div>
+        <button onClick={abrirReglas} style={{ ...iconGhost, width: "auto", gap: 6, padding: "6px 10px", background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 10, flexShrink: 0 }}>
+          <ClipboardList size={14} /> <span style={{ fontSize: 12, fontWeight: 600 }}>Reglas</span>
+        </button>
       </div>
+
+      {showReglas && (
+        <ModalShell title="Reglas fijas del asistente" icon={ClipboardList} color="#E8821E" onClose={() => setShowReglas(false)}>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10 }}>
+            Excepciones y reglas que el asistente debe aplicar SIEMPRE, sin que se las repitas en cada conversación — ej. "en Multimedia, el primer domingo de cada mes va Juan en vez de María". Se guardan aparte de la conversación.
+          </div>
+          {reglasLoading ? (
+            <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Cargando…</div>
+          ) : (
+            <>
+              <textarea
+                value={reglasTexto}
+                onChange={(e) => setReglasTexto(e.target.value)}
+                rows={10}
+                placeholder="Ej. Multimedia: los domingos PM siempre va Carlos. Excepto la última semana del mes, que va Ana..."
+                style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }}
+              />
+              <button onClick={guardarReglas} disabled={reglasSaving} style={{ ...primaryBtn, marginTop: 12, opacity: reglasSaving ? 0.6 : 1 }}>{reglasSaving ? "Guardando…" : "Guardar reglas"}</button>
+            </>
+          )}
+        </ModalShell>
+      )}
 
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, padding: "12px 2px" }}>
         {messages.length === 0 && (
