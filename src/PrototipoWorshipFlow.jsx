@@ -6,7 +6,7 @@ import {
   UserPlus, Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette,
-  Type, WifiOff, CloudDownload, Moon, Pause,
+  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, corregirDiapositivaCancion, agregarDiapositivaCancion } from "./lib/canciones.js";
 import {
@@ -17,6 +17,7 @@ import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSessi
 import { getMusicoLive, updateMusicoLive, clearMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { sincronizarRecordatorios } from "./lib/recordatorios.js";
+import { enviarMensajeAsistente, aplicarPlanAsistente } from "./lib/asistente.js";
 import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotificaciones, suscribirPush, desuscribirPush, estaSuscritoPush } from "./lib/notificaciones.js";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } from "./lib/pwaInstall.js";
@@ -1717,6 +1718,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         />
       )}
 
+      {tab === "asistente" && realIsAdmin && (
+        <AsistenteChatScreen />
+      )}
+
       {tab === "canciones" && openSong === null && (
         <CancionesList library={library} isAdminViewer={isAdminViewer} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onDelete={deleteSong} />
       )}
@@ -1880,9 +1885,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           fija arriba de esa barra, no flotando "a medias" sobre ella. */}
       <div ref={bottomNavRef} style={{ flexShrink: 0, display: "flex", justifyContent: "center", padding: "10px 0 calc(14px + env(safe-area-inset-bottom))", zIndex: 40 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 2, background: "#16324F", borderRadius: 24, padding: 6, boxShadow: "0 8px 24px rgba(22,50,79,0.35)", maxWidth: "94vw", overflowX: "auto" }}>
-          {[["inicio", "Inicio", Home], ["canciones", "Canciones", Music], ["eventos", "Eventos", Calendar], ["ministerios", "Grupos", LayoutGrid], ["envivo", "En vivo", Radio], ["proyeccion", "Pantalla", ImgIcon], ["ajustes", "Ajustes", Settings]]
+          {[["inicio", "Inicio", Home], ["canciones", "Canciones", Music], ["eventos", "Eventos", Calendar], ["ministerios", "Grupos", LayoutGrid], ["asistente", "Asistente", MessageCircle], ["envivo", "En vivo", Radio], ["proyeccion", "Pantalla", ImgIcon], ["ajustes", "Ajustes", Settings]]
             .filter(([val]) => !isCompact || (val !== "envivo" && val !== "proyeccion")) // Control en vivo/Proyección son de escritorio: en celular no aparecen
             .filter(([val]) => val !== "ministerios" || canSeeGrupos) // Grupos: solo admins o quien lidera al menos uno
+            .filter(([val]) => val !== "asistente" || realIsAdmin) // Asistente de IA: solo administradores reales, ni siquiera simulando el rol
             .map(([val, label, Icon]) => {
             const needsLive = val === "envivo" || val === "proyeccion";
             const needsLiveControlRole = (val === "envivo" || val === "proyeccion") && !canControlLive;
@@ -2585,6 +2591,132 @@ function ChangePasswordModal({ onClose }) {
 }
 
 // ---------------- MINISTERIOS ----------------
+// Asistente de chat admin-only: en vez de que alguien escriba directo a la base de datos por fuera
+// de la app (el riesgo real: se le olvida un recordatorio, o deja a alguien sin usuario_id
+// enlazado — invisible para siempre a las notificaciones, sin ningún indicio en pantalla), el
+// modelo arma un plan y este SOLO se guarda cuando el admin toca "Aplicar" — ver
+// supabase/functions/asistente-chat/index.ts para la ejecución real (determinista, sin IA de por
+// medio) y la auto-verificación de lo que acaba de escribir.
+function AsistenteChatScreen() {
+  const [messages, setMessages] = useState([]); // [{role:'user'|'assistant', content}]
+  const [input, setInput] = useState("");
+  const [pendingPlan, setPendingPlan] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [error, setError] = useState("");
+
+  const send = async () => {
+    const texto = input.trim();
+    if (!texto || loading || pendingPlan) return;
+    const nuevoHistorial = [...messages, { role: "user", content: texto }];
+    setMessages(nuevoHistorial);
+    setInput("");
+    setError("");
+    setLoading(true);
+    try {
+      const res = await enviarMensajeAsistente(nuevoHistorial);
+      // El plan crudo (tool_use) nunca se vuelve a mandar a Claude tal cual — solo su resumen en
+      // texto, así el historial que ve el modelo siempre es texto plano simple.
+      if (res.tipo === "plan") {
+        setPendingPlan(res.plan);
+        setMessages((ms) => [...ms, { role: "assistant", content: res.resumen }]);
+      } else {
+        setMessages((ms) => [...ms, { role: "assistant", content: res.texto }]);
+      }
+    } catch (e) {
+      setError(e.message || "No se pudo hablar con el asistente.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmarPlan = async () => {
+    if (!pendingPlan) return;
+    setApplying(true);
+    setError("");
+    try {
+      const res = await aplicarPlanAsistente(pendingPlan);
+      const partes = [res.resumen];
+      if (res.notificados?.length) partes.push(`Se notificó a: ${res.notificados.join(", ")}.`);
+      if (res.avisos?.length) partes.push(...res.avisos.map((a) => `⚠️ ${a}`));
+      setMessages((ms) => [...ms, { role: "assistant", content: partes.join("\n") }]);
+      setPendingPlan(null);
+    } catch (e) {
+      setError(e.message || "No se pudo aplicar el plan.");
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const cancelarPlan = () => {
+    setPendingPlan(null);
+    setMessages((ms) => [...ms, { role: "assistant", content: "Plan cancelado. ¿Qué quieres que cambie?" }]);
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  };
+
+  return (
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <div style={{ marginBottom: 6 }}>
+        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Asistente</h2>
+        <div style={{ fontSize: 12, color: "var(--wf-muted)", marginTop: 4 }}>Pídele que arme un evento, su setlist y quién queda a cargo — antes de guardar nada te muestra el plan para que lo confirmes.</div>
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, padding: "12px 2px" }}>
+        {messages.length === 0 && (
+          <div style={{ fontSize: 13, color: "var(--wf-faint)", textAlign: "center", marginTop: 30 }}>
+            Ej. "Crea el culto del domingo 20 de octubre a las 10am, agrega [canción] y pon a [nombre] en Piano."
+          </div>
+        )}
+        {messages.map((m, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+            <div style={{
+              maxWidth: "80%", padding: "10px 14px", borderRadius: 16,
+              background: m.role === "user" ? "#16324F" : "var(--wf-card)",
+              color: m.role === "user" ? "#fff" : "var(--wf-text)",
+              boxShadow: m.role === "user" ? "none" : "0 3px 14px rgba(22,50,79,0.09)",
+              whiteSpace: "pre-wrap", fontSize: 13, lineHeight: 1.45,
+            }}>
+              {m.content}
+            </div>
+          </div>
+        ))}
+        {loading && <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>Pensando…</div>}
+
+        {pendingPlan && (
+          <div style={{ background: "var(--wf-card)", border: "1px solid #E8821E55", borderRadius: 16, padding: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#E8821E", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Plan propuesto — todavía no se guardó nada</div>
+            <div style={{ fontSize: 13, marginBottom: 12, whiteSpace: "pre-wrap" }}>{pendingPlan.resumen}</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={confirmarPlan} disabled={applying} style={{ ...primaryBtn, width: "auto", flex: 1, opacity: applying ? 0.6 : 1 }}>{applying ? "Aplicando…" : "Aplicar"}</button>
+              <button onClick={cancelarPlan} disabled={applying} style={{ ...primaryBtn, width: "auto", flex: 1, background: "var(--wf-hover)", color: "var(--wf-text)" }}>Cancelar</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {error && <div style={{ fontSize: 12, color: "#C23B32", marginBottom: 8 }}>{error}</div>}
+
+      <div style={{ display: "flex", gap: 8, paddingTop: 8 }}>
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={onKeyDown}
+          disabled={loading || !!pendingPlan}
+          placeholder={pendingPlan ? "Confirma o cancela el plan de arriba primero…" : "Escribe qué quieres armar…"}
+          rows={1}
+          style={{ ...inputStyle, resize: "none", flex: 1 }}
+        />
+        <button onClick={send} disabled={loading || !!pendingPlan || !input.trim()} style={{ ...iconGhost, width: 40, height: 40, background: "#E8821E", color: "#16324F", opacity: (loading || !!pendingPlan || !input.trim()) ? 0.4 : 1 }}>
+          <Send size={17} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function MinistriesList({ ministries, usuariosReales, isAdminViewer, onSelect, onCreate }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", leaderId: "", color: MINISTRY_COLORS[0] });
