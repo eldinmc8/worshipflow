@@ -2591,6 +2591,36 @@ function ChangePasswordModal({ onClose }) {
 }
 
 // ---------------- MINISTERIOS ----------------
+// Reduce una foto (puede venir pesada directo de la cámara del celular) antes de mandarla al
+// asistente — 1568px del lado más largo es el tamaño que igual usa internamente el modelo de
+// visión, mandarla más grande solo gasta más y tarda más sin ganar nada de lectura.
+function reducirImagenParaAsistente(file, maxDim = 1568, calidad = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("No se pudo leer la imagen."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("No se pudo leer la imagen."));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const escala = maxDim / Math.max(width, height);
+          width = Math.round(width * escala);
+          height = Math.round(height * escala);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", calidad);
+        resolve({ mediaType: "image/jpeg", data: dataUrl.split(",")[1], previewUrl: dataUrl });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 // Asistente de chat admin-only: en vez de que alguien escriba directo a la base de datos por fuera
 // de la app (el riesgo real: se le olvida un recordatorio, o deja a alguien sin usuario_id
 // enlazado — invisible para siempre a las notificaciones, sin ningún indicio en pantalla), el
@@ -2622,16 +2652,36 @@ function AsistenteChatScreen() {
     guardarReglasAsistente(reglasTexto).then(() => setShowReglas(false)).catch((e) => setError(e.message)).finally(() => setReglasSaving(false));
   };
 
+  // Foto adjunta al PRÓXIMO mensaje (ej. una lista de canciones escrita a mano) — solo viaja una
+  // vez, en el mensaje en el que se manda; los turnos siguientes del historial vuelven a ser texto
+  // plano nada más (ver enviarMensajeAsistente).
+  const [pendingImage, setPendingImage] = useState(null); // { mediaType, data, previewUrl } | null
+  const [imageError, setImageError] = useState("");
+  const fileInputRef = useRef(null);
+  const onPickImage = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permite volver a elegir el mismo archivo después
+    if (!file) return;
+    setImageError("");
+    try {
+      setPendingImage(await reducirImagenParaAsistente(file));
+    } catch (err) {
+      setImageError(err.message || "No se pudo leer la imagen.");
+    }
+  };
+
   const send = async () => {
     const texto = input.trim();
-    if (!texto || loading || pendingPlan) return;
-    const nuevoHistorial = [...messages, { role: "user", content: texto }];
+    if ((!texto && !pendingImage) || loading || pendingPlan) return;
+    const imagenParaEnviar = pendingImage;
+    const nuevoHistorial = [...messages, { role: "user", content: texto || "(imagen adjunta)", imagePreviewUrl: imagenParaEnviar?.previewUrl }];
     setMessages(nuevoHistorial);
     setInput("");
+    setPendingImage(null);
     setError("");
     setLoading(true);
     try {
-      const res = await enviarMensajeAsistente(nuevoHistorial);
+      const res = await enviarMensajeAsistente(nuevoHistorial, imagenParaEnviar ? { mediaType: imagenParaEnviar.mediaType, data: imagenParaEnviar.data } : null);
       // El plan crudo (tool_use) nunca se vuelve a mandar a Claude tal cual — solo su resumen en
       // texto, así el historial que ve el modelo siempre es texto plano simple.
       if (res.tipo === "plan") {
@@ -2711,7 +2761,7 @@ function AsistenteChatScreen() {
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, padding: "12px 2px" }}>
         {messages.length === 0 && (
           <div style={{ fontSize: 13, color: "var(--wf-faint)", textAlign: "center", marginTop: 30 }}>
-            Ej. "Crea el culto del domingo 20 de octubre a las 10am, agrega [canción] y pon a [nombre] en Piano."
+            Ej. "Crea el culto del domingo 20 de octubre a las 10am, agrega [canción] y pon a [nombre] en Piano." También puedes adjuntar una foto (ej. una lista de canciones escrita a mano) con el clip de abajo.
           </div>
         )}
         {messages.map((m, i) => (
@@ -2723,6 +2773,7 @@ function AsistenteChatScreen() {
               boxShadow: m.role === "user" ? "none" : "0 3px 14px rgba(22,50,79,0.09)",
               whiteSpace: "pre-wrap", fontSize: 13, lineHeight: 1.45,
             }}>
+              {m.imagePreviewUrl && <img src={m.imagePreviewUrl} alt="" style={{ maxWidth: "100%", borderRadius: 10, marginBottom: m.content ? 8 : 0, display: "block" }} />}
               {m.content}
             </div>
           </div>
@@ -2741,19 +2792,31 @@ function AsistenteChatScreen() {
         )}
       </div>
 
-      {error && <div style={{ fontSize: 12, color: "#C23B32", marginBottom: 8 }}>{error}</div>}
+      {(error || imageError) && <div style={{ fontSize: 12, color: "#C23B32", marginBottom: 8 }}>{error || imageError}</div>}
+
+      {pendingImage && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, background: "var(--wf-hover)", borderRadius: 12, padding: 6 }}>
+          <img src={pendingImage.previewUrl} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8 }} />
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", flex: 1 }}>Imagen lista para mandar</div>
+          <button onClick={() => setPendingImage(null)} style={{ ...iconGhost, width: 24, height: 24 }}><X size={14} /></button>
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8, paddingTop: 8 }}>
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={onPickImage} style={{ display: "none" }} />
+        <button onClick={() => fileInputRef.current?.click()} disabled={loading || !!pendingPlan} style={{ ...iconGhost, width: 40, height: 40, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", opacity: (loading || !!pendingPlan) ? 0.4 : 1, flexShrink: 0 }} title="Adjuntar foto">
+          <Paperclip size={17} />
+        </button>
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
           disabled={loading || !!pendingPlan}
-          placeholder={pendingPlan ? "Confirma o cancela el plan de arriba primero…" : "Escribe qué quieres armar…"}
+          placeholder={pendingPlan ? "Confirma o cancela el plan de arriba primero…" : "Escribe qué quieres armar, o adjunta una foto…"}
           rows={1}
           style={{ ...inputStyle, resize: "none", flex: 1 }}
         />
-        <button onClick={send} disabled={loading || !!pendingPlan || !input.trim()} style={{ ...iconGhost, width: 40, height: 40, background: "#E8821E", color: "#16324F", opacity: (loading || !!pendingPlan || !input.trim()) ? 0.4 : 1 }}>
+        <button onClick={send} disabled={loading || !!pendingPlan || (!input.trim() && !pendingImage)} style={{ ...iconGhost, width: 40, height: 40, background: "#E8821E", color: "#16324F", opacity: (loading || !!pendingPlan || (!input.trim() && !pendingImage)) ? 0.4 : 1 }}>
           <Send size={17} />
         </button>
       </div>

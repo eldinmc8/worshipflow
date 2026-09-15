@@ -171,6 +171,7 @@ async function llamarClaude(
   canciones: { id: string; titulo: string; artista: string | null }[],
   reglas: string,
   contextoEventosPasados: string,
+  imagen: { mediaType: string; data: string } | null,
 ) {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) throw new Error("Falta configurar ANTHROPIC_API_KEY en los secretos de esta función.");
@@ -192,7 +193,27 @@ async function llamarClaude(
       : "") +
     `Últimos cultos ya creados en la app (úsalos para reconocer el patrón semanal — qué tipo de evento va cada día, quién suele estar en cada cargo — y replicarlo cuando te pidan armar eventos nuevos):\n${contextoEventosPasados}\n\n` +
     `Personas reales registradas en la app (usa SIEMPRE estos usuario_id exactos, nunca inventes uno):\n${listaUsuarios || "(no hay usuarios cargados)"}\n\n` +
-    `Canciones reales en el cancionero (usa SIEMPRE estos cancion_id exactos):\n${listaCanciones || "(no hay canciones cargadas)"}`;
+    `Canciones reales en el cancionero (usa SIEMPRE estos cancion_id exactos):\n${listaCanciones || "(no hay canciones cargadas)"}` +
+    (imagen
+      ? "\n\nEl administrador adjuntó una imagen en su último mensaje (ej. una foto de una lista de canciones escrita a mano, una nota, una captura). Léela y úsala como contexto — si es una lista de títulos de canciones, búscalos en el cancionero real de arriba por nombre (aunque estén mal escritos o abreviados) y usa su cancion_id real; si algún título no se parece a ninguna canción real, dilo en vez de inventar un id."
+      : "");
+
+  // El adjunto (si hay) va SOLO en el último mensaje del historial — los turnos anteriores ya se
+  // guardaron como texto plano nada más (ver enviarMensajeAsistente), así que la imagen nunca se
+  // vuelve a re-enviar en turnos futuros.
+  const anthropicMessages = messages.map((m, i) => {
+    const esUltimo = i === messages.length - 1;
+    if (esUltimo && imagen && m.role === "user") {
+      return {
+        role: m.role,
+        content: [
+          { type: "image", source: { type: "base64", media_type: imagen.mediaType, data: imagen.data } },
+          { type: "text", text: m.content },
+        ],
+      };
+    }
+    return { role: m.role, content: m.content };
+  });
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -205,7 +226,7 @@ async function llamarClaude(
       model: "claude-sonnet-5",
       max_tokens: 4096,
       system,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      messages: anthropicMessages,
       tools: [PROPONER_CAMBIOS_TOOL],
       tool_choice: { type: "auto" },
     }),
@@ -259,6 +280,13 @@ Deno.serve(async (req: Request) => {
       const messages: ChatMessage[] = Array.isArray(body.messages) ? body.messages : [];
       if (!messages.length) return json({ error: "Falta el mensaje." }, 400);
 
+      // La imagen viaja en base64 desde el cliente, que ya la reduce antes de mandarla (ver
+      // AsistenteChatScreen) — este tope es solo un segundo resguardo por si algo se coló sin reducir.
+      const imagenBody = body.image && typeof body.image.data === "string" ? body.image : null;
+      if (imagenBody && imagenBody.data.length > 6_000_000) {
+        return json({ error: "La imagen es muy pesada — intenta con una foto más chica." }, 400);
+      }
+
       const [{ data: usuarios }, { data: canciones }, { data: config }, contexto] = await Promise.all([
         admin.from("usuarios").select("id, nombre").order("nombre"),
         admin.from("canciones").select("id, titulo, artista").order("titulo"),
@@ -266,7 +294,10 @@ Deno.serve(async (req: Request) => {
         resumenEventosPasados(admin),
       ]);
 
-      const respuesta = await llamarClaude(messages, usuarios ?? [], canciones ?? [], config?.reglas || "", contexto);
+      const respuesta = await llamarClaude(
+        messages, usuarios ?? [], canciones ?? [], config?.reglas || "", contexto,
+        imagenBody ? { mediaType: imagenBody.mediaType, data: imagenBody.data } : null,
+      );
       const bloques = respuesta.content ?? [];
       const toolUse = bloques.find((b: { type: string }) => b.type === "tool_use" && b.name === "proponer_cambios");
       if (toolUse) {
