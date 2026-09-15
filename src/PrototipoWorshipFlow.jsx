@@ -569,6 +569,24 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   }, []);
   const [openSong, setOpenSong] = useState(null); // null = lista; { id, mode: 'view' | 'edit' }
   const [events, setEvents] = useState([]);
+  // Espejo síncrono de `events`, escrito a mano en vez de leído del valor de retorno de setEvents(fn) —
+  // updateOrder/updateWorshipRoles/etc. necesitan el arreglo YA actualizado ANTES de llamar a
+  // sincronizarServiceOrder, en el mismo instante en que se llama. React solo ejecuta el updater de
+  // setEvents(fn) de forma síncrona cuando no hay otra actualización de este mismo estado ya pendiente
+  // (su optimización interna de "eager state"); si el usuario dispara varios cambios seguidos (ej. la
+  // tonalidad de 5 canciones, una detrás de otra, antes de que React alcance a renderizar entre medio),
+  // solo el primero cae en ese camino rápido — en los siguientes React solo encola la actualización sin
+  // correr el updater todavía, así que la variable que se esperaba llenar (nuevoOrden/nuevo) se queda en
+  // null y el guardado correspondiente NUNCA se dispara, en silencio. Por eso pasaba que de 5 cambios de
+  // tonalidad solo se guardaban 2, y de los 3 restantes solo 1, etc. — dependía de cuántos alcanzaran a
+  // pisar esa ventana. Con este espejo, cada llamada calcula el nuevo valor a mano a partir del último
+  // valor ya calculado (no del estado de React, que puede ir un paso atrás), así que siempre es fresco
+  // sin importar qué tan rápido se disparen los cambios.
+  const eventsRef = useRef([]);
+  const setEventsSynced = (next) => {
+    eventsRef.current = typeof next === "function" ? next(eventsRef.current) : next;
+    setEvents(eventsRef.current);
+  };
   const [datosListos, setDatosListos] = useState(false);
   // Red de seguridad si no hay internet al cargar (o se cae justo en ese momento): en vez de dejar la
   // app en blanco, se usa la última copia que sí se guardó localmente la vez que hubo conexión. Es de
@@ -583,7 +601,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // abajo) — mismo Promise.all de siempre, solo que ahora tiene nombre para no repetirlo dos veces.
   const cargarTodo = () => Promise.all([
     listCancionesCompletas().then((data) => { setLibrary(data); saveCache("canciones", data); }),
-    listEventosCompletos().then((data) => { setEvents(data); saveCache("eventos", data); }),
+    listEventosCompletos().then((data) => { setEventsSynced(data); saveCache("eventos", data); }),
     listMinisteriosCompletos().then((data) => { setMinistries(data); saveCache("ministerios", data); }),
   ]);
   useEffect(() => {
@@ -594,7 +612,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         const cachedMinistries = loadCache("ministerios");
         if (cachedLibrary || cachedEvents) {
           setLibrary(cachedLibrary || []);
-          setEvents(cachedEvents || []);
+          setEventsSynced(cachedEvents || []);
           setMinistries(cachedMinistries || []);
           setUsingCachedData(true);
         } else {
@@ -643,7 +661,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       // es un guardado nuevo, y listar TODOS los eventos de nuevo tarda bastante con varios eventos
       // cargados), así que sin este segundo chequeo era fácil que una tanda de canciones agregadas se
       // "esfumara" de la pantalla apenas terminaba de cargar un refresco que había arrancado antes.
-      () => listEventosCompletos().then((data) => { if (pendingSavesRef.current === 0) { setEvents(data); saveCache("eventos", data); } }).catch(() => {}),
+      () => listEventosCompletos().then((data) => { if (pendingSavesRef.current === 0) { setEventsSynced(data); saveCache("eventos", data); } }).catch(() => {}),
       2500, () => pendingSavesRef.current > 0
     );
     const unsubMinisterios = subscribeTableChanges(
@@ -693,7 +711,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const updateLiveOrder = (fn) => {
     if (liveLibre) { setLibreServiceOrder((o) => fn(o)); return; } // sin evento real, no hay nada que guardar en Supabase
     let nuevoOrden = null;
-    setEvents((evs) => evs.map((e) => {
+    setEventsSynced((evs) => evs.map((e) => {
       if (e.id !== liveEventId) return e;
       nuevoOrden = fn(e.serviceOrder);
       return { ...e, serviceOrder: nuevoOrden };
@@ -744,7 +762,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
 
   const updateOrder = (fn) => {
     let nuevoOrden = null;
-    setEvents((evs) => evs.map((e) => {
+    setEventsSynced((evs) => evs.map((e) => {
       if (e.id !== selectedEventId) return e;
       nuevoOrden = fn(e.serviceOrder);
       return { ...e, serviceOrder: nuevoOrden };
@@ -844,7 +862,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // de Alabanza y Adoración del mismo evento — por eso vive en el evento, no en cada bloque.
   const updateWorshipRoles = (fn) => {
     let nuevo = null;
-    setEvents((evs) => evs.map((e) => {
+    setEventsSynced((evs) => evs.map((e) => {
       if (e.id !== selectedEventId) return e;
       nuevo = fn(e.worshipRoles || []);
       return { ...e, worshipRoles: nuevo };
@@ -1088,7 +1106,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       vistas: [],
       esPlantilla: !!esPlantilla,
     };
-    setEvents((evs) => [...evs, newEvent]);
+    setEventsSynced((evs) => [...evs, newEvent]);
     crearEventoCompleto(newEvent, userId).catch((e) => notifyError("No se pudo guardar el evento", e));
     setSelectedEventId(newEvent.id);
     if (template && !esPlantilla) setDraftFromTemplateId(newEvent.id);
@@ -1096,7 +1114,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const deleteEvent = async (event) => {
     if (event.id === liveEventId) { showToast("No puedes eliminar un evento que está en vivo — finalízalo primero."); return; }
     if (!(await confirmDialog(`¿Eliminar "${event.title}"? Esto borra también su Setlist y sus encargados. No se puede deshacer.`, { danger: true, textoConfirmar: "Eliminar" }))) return;
-    setEvents((evs) => evs.filter((e) => e.id !== event.id));
+    setEventsSynced((evs) => evs.filter((e) => e.id !== event.id));
     setSelectedEventId(null);
     deleteEvento(event.id).catch((e) => notifyError("No se pudo eliminar el evento", e));
   };
@@ -1105,7 +1123,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // sincroniza con ESE valor (no con el estado viejo que todavía tendría el closure).
   const updateEventReminders = (eventId, fn) => {
     let nuevo = null;
-    setEvents((evs) => evs.map((e) => {
+    setEventsSynced((evs) => evs.map((e) => {
       if (e.id !== eventId) return e;
       nuevo = fn(e);
       return nuevo;
@@ -1115,14 +1133,14 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const addReminder = (eventId, cantidad, unidad) => updateEventReminders(eventId, (e) => ({ ...e, reminders: [...(e.reminders || []), { id: nextId(), cantidad, unidad, enviado: false }] }));
   const removeReminder = (eventId, reminderId) => updateEventReminders(eventId, (e) => ({ ...e, reminders: (e.reminders || []).filter((r) => r.id !== reminderId) }));
   const setEventHora = (eventId, hora) => {
-    setEvents((evs) => evs.map((e) => (e.id === eventId ? { ...e, hora: hora || null } : e)));
+    setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, hora: hora || null } : e)));
     updateEvento(eventId, { hora: hora || null }).catch((e) => notifyError("No se pudo guardar la hora", e));
   };
   // Edita los datos propios del evento/plantilla (título, fecha, hora, ubicación) DESPUÉS de creado —
   // antes solo se podían fijar una vez, al crearlo, y no había forma de corregirlos ni de renombrar
   // una plantilla ya armada.
   const updateEventDetails = (eventId, { title, dateLabel, date, hora, location }) => {
-    setEvents((evs) => evs.map((e) => (e.id === eventId ? { ...e, title, dateLabel: dateLabel || "", date: date || null, hora: hora || null, location: location || "" } : e)));
+    setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, title, dateLabel: dateLabel || "", date: date || null, hora: hora || null, location: location || "" } : e)));
     updateEvento(eventId, { titulo: title, fecha_label: dateLabel || null, fecha: date || null, hora: hora || null, ubicacion: location || null })
       .catch((e) => notifyError("No se pudo guardar el evento", e));
   };
@@ -1513,9 +1531,9 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     // Optimista: se refleja de una vez en pantalla, pero si el guardado real falla (red, permisos,
     // lo que sea) se revierte y se avisa — antes el error se tragaba en silencio y la persona (y el
     // admin viéndolo desde otro dispositivo) se quedaban creyendo que sí quedó marcado como visto.
-    setEvents((evs) => evs.map((e) => (e.id === eventId ? { ...e, vistas: [...(e.vistas || []).filter((v) => v.usuarioId !== userId), { usuarioId: userId, vistoAt: new Date().toISOString() }] } : e)));
+    setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, vistas: [...(e.vistas || []).filter((v) => v.usuarioId !== userId), { usuarioId: userId, vistoAt: new Date().toISOString() }] } : e)));
     marcarAsignacionVista(eventId, userId).catch((err) => {
-      setEvents((evs) => evs.map((e) => (e.id === eventId ? { ...e, vistas: (e.vistas || []).filter((v) => v.usuarioId !== userId) } : e)));
+      setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, vistas: (e.vistas || []).filter((v) => v.usuarioId !== userId) } : e)));
       notifyError("No se pudo confirmar que viste este evento", err);
     });
   };

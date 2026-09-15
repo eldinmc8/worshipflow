@@ -30,9 +30,41 @@ async function enviarPush(
       const statusCode = (e as { statusCode?: number })?.statusCode;
       if (statusCode === 404 || statusCode === 410) {
         await admin.from("push_subscriptions").delete().eq("id", sub.id);
+      } else {
+        // Antes esto se tragaba en silencio -- ahora al menos queda en los logs de la función para
+        // poder ver si algo está fallando de forma repetida (ej. llaves VAPID vencidas).
+        console.error(`enviarPush falló para usuario ${usuarioId}:`, e);
       }
     }
   }
+}
+
+// Todos los que tienen algo que ver con este evento: por ítem del Setlist, por rol del equipo de
+// alabanza (las dos formas en que miembros_rol vincula a una persona con un evento), y el LÍDER de
+// cualquier ministerio vinculado a un bloque del Setlist (items_servicio.ministerio_id) — antes se
+// quedaba afuera si ese líder no tenía además una fila propia en miembros_rol para ese bloque, así
+// que un líder de ministerio podía no enterarse nunca de un recordatorio de "su" evento.
+async function usuariosDelEvento(admin: ReturnType<typeof createClient>, eventoId: string): Promise<Set<string>> {
+  const { data: items } = await admin.from("items_servicio").select("id, ministerio_id").eq("evento_id", eventoId);
+  const { data: roles } = await admin.from("roles_evento").select("id").eq("evento_id", eventoId);
+  const itemIds = (items ?? []).map((i: { id: string }) => i.id);
+  const roleIds = (roles ?? []).map((x: { id: string }) => x.id);
+  const ministerioIds = [...new Set((items ?? []).map((i: { ministerio_id: string | null }) => i.ministerio_id).filter((id): id is string => !!id))];
+
+  const usuarioIds = new Set<string>();
+  if (itemIds.length) {
+    const { data: m1 } = await admin.from("miembros_rol").select("usuario_id").in("item_servicio_id", itemIds).not("usuario_id", "is", null);
+    (m1 ?? []).forEach((m: { usuario_id: string }) => usuarioIds.add(m.usuario_id));
+  }
+  if (roleIds.length) {
+    const { data: m2 } = await admin.from("miembros_rol").select("usuario_id").in("rol_id", roleIds).not("usuario_id", "is", null);
+    (m2 ?? []).forEach((m: { usuario_id: string }) => usuarioIds.add(m.usuario_id));
+  }
+  if (ministerioIds.length) {
+    const { data: lideres } = await admin.from("ministerios").select("lider_id").in("id", ministerioIds).not("lider_id", "is", null);
+    (lideres ?? []).forEach((m: { lider_id: string }) => usuarioIds.add(m.lider_id));
+  }
+  return usuarioIds;
 }
 
 type Reminder = {
@@ -43,8 +75,12 @@ type Reminder = {
   eventos: { fecha: string; hora: string | null; titulo: string } | null;
 };
 
+// Guatemala no usa horario de verano, así que el offset es fijo todo el año -- no hace falta una
+// librería de zonas horarias para esto, solo escribirlo explícito.
+const OFFSET_GUATEMALA = "-06:00";
+
 // La llama pg_cron cada 15 minutos (no un usuario) — por eso no hay sesión que verificar, sino un
-// secreto compartido simple en el header (ver migración "programa_cron_recordatorios").
+// secreto compartido simple en el header (ver el cron job "procesar-recordatorios-evento").
 Deno.serve(async (req: Request) => {
   try {
     const CRON_SECRET = Deno.env.get("CRON_SECRET")!;
@@ -65,6 +101,7 @@ Deno.serve(async (req: Request) => {
 
     const ahora = Date.now();
     let procesados = 0;
+    const fallos: string[] = [];
     for (const r of pendientes ?? []) {
       const ev = r.eventos;
       if (!ev?.fecha) continue;
@@ -76,35 +113,44 @@ Deno.serve(async (req: Request) => {
       // a las 10am (hora de Guatemala/El Salvador/Honduras, UTC-6) se calculara como si fuera 10am UTC,
       // es decir 6 horas antes de lo real, y los recordatorios avisaran mucho antes de tiempo. Con el
       // offset fijo -06:00 (estos países no usan horario de verano) el cálculo queda en la hora real.
-      const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}-06:00`).getTime();
+      const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}${OFFSET_GUATEMALA}`).getTime();
       const msAntes = r.cantidad * (r.unidad === "horas" ? 3_600_000 : 86_400_000);
       if (ahora < inicio - msAntes) continue; // todavía no toca avisar
 
-      // Todos los que tienen algo asignado en este evento: por ítem del Setlist y por rol del
-      // equipo de alabanza (las dos formas en que miembros_rol vincula a una persona con un evento).
-      const { data: items } = await admin.from("items_servicio").select("id").eq("evento_id", r.evento_id);
-      const { data: roles } = await admin.from("roles_evento").select("id").eq("evento_id", r.evento_id);
-      const itemIds = (items ?? []).map((i: { id: string }) => i.id);
-      const roleIds = (roles ?? []).map((x: { id: string }) => x.id);
-      const usuarioIds = new Set<string>();
-      if (itemIds.length) {
-        const { data: m1 } = await admin.from("miembros_rol").select("usuario_id").in("item_servicio_id", itemIds).not("usuario_id", "is", null);
-        (m1 ?? []).forEach((m: { usuario_id: string }) => usuarioIds.add(m.usuario_id));
-      }
-      if (roleIds.length) {
-        const { data: m2 } = await admin.from("miembros_rol").select("usuario_id").in("rol_id", roleIds).not("usuario_id", "is", null);
-        (m2 ?? []).forEach((m: { usuario_id: string }) => usuarioIds.add(m.usuario_id));
-      }
+      const usuarioIds = await usuariosDelEvento(admin, r.evento_id);
 
       const unidadLabel = r.unidad === "horas" ? "hora" : "día";
       const titulo = `Recordatorio: ${ev.titulo}`;
       const cuerpo = `Faltan ${r.cantidad} ${unidadLabel}${r.cantidad === 1 ? "" : "s"} para "${ev.titulo}".`;
+
+      // OJO IMPORTANTE: antes, si insertar la notificación de UNA sola persona fallaba (ej. un
+      // problema de red pasajero), el error se propagaba y tumbaba TODA la función -- ese
+      // recordatorio se quedaba sin marcar enviado (bien, se reintenta después), pero a las
+      // personas que ya se habían procesado ANTES del error en ese mismo recordatorio se les
+      // podía volver a notificar duplicado en el siguiente intento. Ahora cada persona se procesa
+      // en su propio try/catch: un fallo puntual con una persona no le impide seguir con el resto,
+      // y el recordatorio completo solo se marca enviado si nadie falló.
+      let huboFallo = false;
       for (const usuarioId of usuarioIds) {
-        await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo: "recordatorio", titulo, cuerpo, evento_id: r.evento_id });
-        await enviarPush(admin, usuarioId, { title: titulo, body: cuerpo });
+        try {
+          const { error: insertErr } = await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo: "recordatorio", titulo, cuerpo, evento_id: r.evento_id });
+          if (insertErr) throw insertErr;
+          await enviarPush(admin, usuarioId, { title: titulo, body: cuerpo });
+        } catch (e) {
+          huboFallo = true;
+          const msg = `recordatorio ${r.id} / usuario ${usuarioId}: ${e instanceof Error ? e.message : String(e)}`;
+          console.error(msg);
+          fallos.push(msg);
+        }
       }
-      await admin.from("recordatorios_evento").update({ enviado: true }).eq("id", r.id);
-      procesados++;
+
+      // Si alguien falló (no la persona en sí -- eso ya quedó registrado -- sino el guardado de su
+      // notificación), no se marca enviado: así el próximo ciclo (15 min después) lo vuelve a
+      // intentar en vez de darlo por hecho con gente sin avisar.
+      if (!huboFallo) {
+        await admin.from("recordatorios_evento").update({ enviado: true }).eq("id", r.id);
+        procesados++;
+      }
     }
 
     // Segunda pasada, aparte de los recordatorios normales de arriba: a quien tenga un cargo en un
@@ -124,22 +170,10 @@ Deno.serve(async (req: Request) => {
 
     let avisosConfirmacion = 0;
     for (const ev of eventosProximos ?? []) {
-      const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}-06:00`).getTime();
+      const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}${OFFSET_GUATEMALA}`).getTime();
       if (inicio < ahora || inicio > ahora + VENTANA_MS) continue;
 
-      const { data: items } = await admin.from("items_servicio").select("id").eq("evento_id", ev.id);
-      const { data: roles } = await admin.from("roles_evento").select("id").eq("evento_id", ev.id);
-      const itemIds = (items ?? []).map((i: { id: string }) => i.id);
-      const roleIds = (roles ?? []).map((x: { id: string }) => x.id);
-      const usuarioIds = new Set<string>();
-      if (itemIds.length) {
-        const { data: m1 } = await admin.from("miembros_rol").select("usuario_id").in("item_servicio_id", itemIds).not("usuario_id", "is", null);
-        (m1 ?? []).forEach((m: { usuario_id: string }) => usuarioIds.add(m.usuario_id));
-      }
-      if (roleIds.length) {
-        const { data: m2 } = await admin.from("miembros_rol").select("usuario_id").in("rol_id", roleIds).not("usuario_id", "is", null);
-        (m2 ?? []).forEach((m: { usuario_id: string }) => usuarioIds.add(m.usuario_id));
-      }
+      const usuarioIds = await usuariosDelEvento(admin, ev.id);
       if (usuarioIds.size === 0) continue;
 
       const { data: vistos } = await admin.from("asignaciones_vistas").select("usuario_id").eq("evento_id", ev.id);
@@ -151,14 +185,19 @@ Deno.serve(async (req: Request) => {
       const cuerpo = `Todavía no has confirmado que viste tu asignación para "${ev.titulo}". Ábrela y toca "Te toca..." para avisar que ya la viste.`;
       for (const usuarioId of usuarioIds) {
         if (vistosSet.has(usuarioId) || avisadosSet.has(usuarioId)) continue;
-        await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo: "general", titulo, cuerpo, evento_id: ev.id });
-        await enviarPush(admin, usuarioId, { title: titulo, body: cuerpo });
-        await admin.from("avisos_confirmacion_enviados").insert({ evento_id: ev.id, usuario_id: usuarioId });
-        avisosConfirmacion++;
+        try {
+          const { error: insertErr } = await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo: "general", titulo, cuerpo, evento_id: ev.id });
+          if (insertErr) throw insertErr;
+          await enviarPush(admin, usuarioId, { title: titulo, body: cuerpo });
+          await admin.from("avisos_confirmacion_enviados").insert({ evento_id: ev.id, usuario_id: usuarioId });
+          avisosConfirmacion++;
+        } catch (e) {
+          console.error(`aviso confirmación evento ${ev.id} / usuario ${usuarioId}:`, e);
+        }
       }
     }
 
-    return json({ success: true, procesados, avisosConfirmacion }, 200);
+    return json({ success: true, procesados, fallos, avisosConfirmacion }, 200);
   } catch (e) {
     return json({ error: "Error inesperado: " + (e instanceof Error ? e.message : String(e)) }, 500);
   }
