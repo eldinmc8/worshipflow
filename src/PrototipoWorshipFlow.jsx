@@ -2747,7 +2747,7 @@ function AsistenteChatScreen() {
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 6 }}>
         <div>
           <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Asistente</h2>
-          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginTop: 4 }}>Pídele que arme uno o varios eventos, su setlist y quién queda a cargo — antes de guardar nada te muestra el plan para que lo confirmes.</div>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginTop: 4 }}>Puede crear, editar, borrar o duplicar eventos, su setlist y quién queda a cargo — antes de guardar (o borrar) nada, siempre te muestra el plan para que lo confirmes.</div>
         </div>
         <button onClick={abrirReglas} style={{ ...iconGhost, width: "auto", gap: 6, padding: "6px 10px", background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 10, flexShrink: 0 }}>
           <ClipboardList size={14} /> <span style={{ fontSize: 12, fontWeight: 600 }}>Reglas</span>

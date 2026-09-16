@@ -41,11 +41,17 @@ async function enviarPush(
   }
 }
 
-// Resumen compacto de los últimos cultos ya creados (setlist + quién estuvo en cada cargo) — para
-// que el modelo pueda reconocer el patrón semanal (Miércoles/Viernes/Domingo AM/PM, quién suele
-// tocar qué) y replicarlo cuando le pidan algo como "arma los cultos de octubre". Sin esto, el
-// asistente no tenía forma de saber que esos eventos existían siquiera.
-async function resumenEventosPasados(admin: ReturnType<typeof createClient>): Promise<string> {
+async function notificar(admin: ReturnType<typeof createClient>, usuarioId: string, tipo: string, titulo: string, cuerpo: string, eventoId: string | null) {
+  await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo, titulo, cuerpo, evento_id: eventoId });
+  await enviarPush(admin, usuarioId, { title: titulo, body: cuerpo });
+}
+
+// Contexto de los últimos cultos ya creados — CON sus ids reales (evento/ítem/miembro_rol/rol/
+// recordatorio) para que el modelo pueda editarlos, borrarlos o duplicarlos con precisión, y sin
+// ids para poder reconocer el patrón semanal y replicarlo al crear eventos nuevos. Antes esto solo
+// traía nombres/títulos (sin ids), así que el asistente no tenía forma de referirse a algo que ya
+// existía — solo podía crear cosas nuevas.
+async function contextoEventos(admin: ReturnType<typeof createClient>): Promise<string> {
   const { data: eventos } = await admin
     .from("eventos").select("id, titulo, fecha, hora")
     .eq("es_plantilla", false).order("fecha", { ascending: false }).limit(12);
@@ -56,121 +62,167 @@ async function resumenEventosPasados(admin: ReturnType<typeof createClient>): Pr
     .from("items_servicio").select("id, evento_id, orden, tipo, titulo, cancion_id, canciones(titulo)")
     .in("evento_id", eventoIds).order("orden");
   const { data: roles } = await admin.from("roles_evento").select("id, evento_id, nombre").in("evento_id", eventoIds);
+  const { data: recordatorios } = await admin.from("recordatorios_evento").select("id, evento_id, cantidad, unidad").in("evento_id", eventoIds);
   const itemIds = (items ?? []).map((i: { id: string }) => i.id);
   const roleIds = (roles ?? []).map((r: { id: string }) => r.id);
-  const { data: m1 } = itemIds.length ? await admin.from("miembros_rol").select("item_servicio_id, nombre").in("item_servicio_id", itemIds) : { data: [] };
-  const { data: m2 } = roleIds.length ? await admin.from("miembros_rol").select("rol_id, nombre").in("rol_id", roleIds) : { data: [] };
+  const { data: m1 } = itemIds.length ? await admin.from("miembros_rol").select("id, item_servicio_id, nombre").in("item_servicio_id", itemIds) : { data: [] };
+  const { data: m2 } = roleIds.length ? await admin.from("miembros_rol").select("id, rol_id, nombre").in("rol_id", roleIds) : { data: [] };
 
-  const nombresPorItem = new Map<string, string[]>();
-  (m1 ?? []).forEach((m: { item_servicio_id: string; nombre: string }) => {
-    const arr = nombresPorItem.get(m.item_servicio_id) || [];
-    arr.push(m.nombre);
-    nombresPorItem.set(m.item_servicio_id, arr);
+  const miembrosPorItem = new Map<string, { id: string; nombre: string }[]>();
+  (m1 ?? []).forEach((m: { id: string; item_servicio_id: string; nombre: string }) => {
+    const arr = miembrosPorItem.get(m.item_servicio_id) || [];
+    arr.push({ id: m.id, nombre: m.nombre });
+    miembrosPorItem.set(m.item_servicio_id, arr);
   });
-  const nombresPorRol = new Map<string, string[]>();
-  (m2 ?? []).forEach((m: { rol_id: string; nombre: string }) => {
-    const arr = nombresPorRol.get(m.rol_id) || [];
-    arr.push(m.nombre);
-    nombresPorRol.set(m.rol_id, arr);
+  const miembrosPorRol = new Map<string, { id: string; nombre: string }[]>();
+  (m2 ?? []).forEach((m: { id: string; rol_id: string; nombre: string }) => {
+    const arr = miembrosPorRol.get(m.rol_id) || [];
+    arr.push({ id: m.id, nombre: m.nombre });
+    miembrosPorRol.set(m.rol_id, arr);
   });
 
   return eventos.map((ev: { id: string; titulo: string; fecha: string; hora: string | null }) => {
     const itemsDeEvento = (items ?? []).filter((i: { evento_id: string }) => i.evento_id === ev.id);
     const rolesDeEvento = (roles ?? []).filter((r: { evento_id: string }) => r.evento_id === ev.id);
+    const recDeEvento = (recordatorios ?? []).filter((r: { evento_id: string }) => r.evento_id === ev.id);
     const itemsTxt = itemsDeEvento.map((it: { id: string; tipo: string; titulo: string | null; canciones: { titulo: string } | null }) => {
       const etiqueta = it.tipo === "cancion" ? `canción: ${it.canciones?.titulo || "?"}` : it.titulo ? `${it.tipo}: ${it.titulo}` : it.tipo;
-      const gente = nombresPorItem.get(it.id);
-      return gente?.length ? `${etiqueta} (${gente.join(", ")})` : etiqueta;
+      const gente = miembrosPorItem.get(it.id);
+      const genteTxt = gente?.length ? ` [encargados: ${gente.map((g) => `${g.nombre} (miembro_rol_id: ${g.id})`).join(", ")}]` : "";
+      return `[item_id: ${it.id}] ${etiqueta}${genteTxt}`;
     }).join("; ");
     const rolesTxt = rolesDeEvento.map((r: { id: string; nombre: string }) => {
-      const gente = nombresPorRol.get(r.id);
-      return `${r.nombre}: ${gente?.length ? gente.join(", ") : "sin asignar"}`;
+      const gente = miembrosPorRol.get(r.id);
+      const genteTxt = gente?.length ? gente.map((g) => `${g.nombre} (miembro_rol_id: ${g.id})`).join(", ") : "sin asignar";
+      return `${r.nombre} [rol_id: ${r.id}]: ${genteTxt}`;
     }).join("; ");
-    return `- "${ev.titulo}" (${ev.fecha}${ev.hora ? " " + ev.hora : ""}) — Setlist: ${itemsTxt || "(vacío)"} | Equipo: ${rolesTxt || "(vacío)"}`;
+    const recTxt = recDeEvento.map((r: { id: string; cantidad: number; unidad: string }) => `${r.cantidad} ${r.unidad} antes [recordatorio_id: ${r.id}]`).join("; ");
+    return `- [evento_id: ${ev.id}] "${ev.titulo}" (${ev.fecha}${ev.hora ? " " + ev.hora : ""})\n  Setlist: ${itemsTxt || "(vacío)"}\n  Equipo de alabanza: ${rolesTxt || "(vacío)"}\n  Recordatorios: ${recTxt || "(ninguno)"}`;
   }).join("\n");
 }
 
-// ---- Herramienta que el modelo usa para proponer un plan (nunca para ejecutarlo directo) ----
-const PROPONER_CAMBIOS_TOOL = {
+// ---- Herramienta que el modelo usa para proponer un plan (nunca para ejecutarlo directo). Ahora
+// es una lista de "acciones" tipadas — crear, editar, borrar o duplicar eventos/ítems/asignaciones/
+// recordatorios — en vez de solo "crear eventos" como en la v1. Todas comparten un solo objeto
+// flexible (no un esquema estricto por tipo) para que Claude pueda combinarlas libremente en un
+// mismo plan; el ejecutor (más abajo) usa solo los campos que corresponden a cada "tipo". ----
+const PROPONER_PLAN_TOOL = {
   name: "proponer_cambios",
   description:
-    "Propone un plan concreto de uno o varios eventos para crear en WorshipFlow (por ejemplo, todos " +
-    "los cultos de un mes de una vez) — cada uno con su setlist, asignaciones de personas reales, y " +
-    "recordatorios. Esto NO ejecuta nada todavía — el administrador va a ver un resumen y debe " +
-    "confirmarlo antes de que se guarde de verdad. Úsala solo cuando ya tengas todos los datos que " +
-    "necesitas. Si falta algo importante, pregunta primero en texto normal en vez de inventar un " +
-    "valor — especialmente NUNCA inventes un usuario_id ni un cancion_id que no esté en las listas " +
-    "reales que se te dieron; si no encuentras a la persona o la canción, dilo.",
+    "Propone un plan concreto de acciones sobre WorshipFlow — crear, editar, borrar o duplicar " +
+    "eventos, ítems del setlist, asignaciones de personas y recordatorios — en cualquier combinación. " +
+    "Esto NO ejecuta nada todavía: el administrador ve un resumen claro (incluyendo explícito CUALQUIER " +
+    "borrado) y debe confirmarlo antes de que se guarde de verdad. Úsala solo cuando ya tengas todos los " +
+    "datos que necesitas — para editar/borrar/duplicar algo que ya existe, usa el evento_id/item_id/" +
+    "miembro_rol_id/recordatorio_id REAL del contexto de abajo, nunca inventado; si no encuentras lo que " +
+    "te piden editar/borrar, dilo en vez de adivinar.",
   input_schema: {
     type: "object",
     properties: {
-      resumen: { type: "string", description: "Resumen breve y claro en español de todo lo que se va a crear (todos los eventos), para mostrarle al administrador antes de confirmar." },
-      eventos: {
+      resumen: {
+        type: "string",
+        description: "Resumen breve y claro en español de TODAS las acciones del plan. Si el plan borra algo, dilo explícito y de entrada (ej. \"Esto va a ELIMINAR el evento X y todo su setlist\") — nunca lo escondas entre otros cambios.",
+      },
+      acciones: {
         type: "array",
-        description: "Uno o varios eventos a crear en este mismo plan.",
+        description: "Lista de acciones a aplicar en orden, hasta un máximo de 15 por plan.",
         items: {
           type: "object",
           properties: {
-            titulo: { type: "string" },
-            fecha: { type: "string", description: "YYYY-MM-DD" },
-            hora: { type: "string", description: "HH:MM en 24h, opcional" },
-            ubicacion: { type: "string" },
+            tipo: {
+              type: "string",
+              enum: [
+                "crear_evento", "editar_evento", "eliminar_evento", "duplicar_evento",
+                "agregar_item_setlist", "editar_item_setlist", "eliminar_item_setlist", "reordenar_setlist",
+                "asignar_persona", "eliminar_asignacion",
+                "agregar_recordatorio", "eliminar_recordatorio",
+              ],
+            },
+            // crear_evento (evento nuevo, con su setlist/asignaciones/recordatorios anidados) / editar_evento (requiere evento_id) / duplicar_evento (evento_id = ORIGEN a clonar; estos campos son del evento NUEVO)
+            evento_id: { type: "string", description: "id real del evento — requerido en: editar_evento, eliminar_evento, duplicar_evento (el ORIGEN a clonar), agregar_item_setlist, reordenar_setlist, agregar_recordatorio" },
+            titulo: { type: "string", description: "para crear_evento/editar_evento/duplicar_evento" },
+            fecha: { type: "string", description: "YYYY-MM-DD — para crear_evento/editar_evento/duplicar_evento" },
+            hora: { type: "string", description: "HH:MM 24h — para crear_evento/editar_evento/duplicar_evento" },
+            ubicacion: { type: "string", description: "para crear_evento/editar_evento/duplicar_evento" },
             items_setlist: {
               type: "array",
+              description: "SOLO para crear_evento — el setlist completo del evento nuevo.",
               items: {
                 type: "object",
                 properties: {
                   tipo: { type: "string", enum: ["bloque", "cancion", "biblia", "slide"] },
-                  titulo: { type: "string", description: "para tipo bloque o slide" },
-                  descripcion: { type: "string", description: "para tipo bloque" },
-                  cancion_id: { type: "string", description: "para tipo cancion — debe ser un id real de la lista de canciones dada" },
-                  referencia_biblia: { type: "string", description: "para tipo biblia, ej. 'Juan 3:16'" },
-                  texto_biblia: { type: "string", description: "para tipo biblia, el texto del versículo si se conoce" },
+                  titulo: { type: "string" },
+                  descripcion: { type: "string" },
+                  cancion_id: { type: "string", description: "id real de la lista de canciones" },
+                  referencia_biblia: { type: "string" },
+                  texto_biblia: { type: "string" },
                 },
                 required: ["tipo"],
               },
             },
             asignaciones: {
               type: "array",
+              description: "SOLO para crear_evento — asignaciones del evento nuevo (por índice dentro de items_setlist de esta misma acción). Para asignar a un evento/ítem YA EXISTENTE usa la acción asignar_persona en vez de esto.",
               items: {
                 type: "object",
                 properties: {
-                  usuario_id: { type: "string", description: "id real de la lista de usuarios dada — nunca inventado" },
+                  usuario_id: { type: "string" },
                   destino: { type: "string", enum: ["item_setlist", "equipo_alabanza"] },
-                  item_setlist_indice: { type: "integer", description: "índice (empezando en 0) dentro de items_setlist de ESTE evento — requerido si destino=item_setlist" },
-                  rol_alabanza_nombre: { type: "string", description: "nombre del rol de alabanza (ej. 'Piano', 'Guitarra') — requerido si destino=equipo_alabanza" },
+                  item_setlist_indice: { type: "integer" },
+                  rol_alabanza_nombre: { type: "string" },
                 },
                 required: ["usuario_id", "destino"],
               },
             },
             recordatorios: {
               type: "array",
+              description: "SOLO para crear_evento — recordatorios del evento nuevo.",
               items: {
                 type: "object",
-                properties: {
-                  cantidad: { type: "integer" },
-                  unidad: { type: "string", enum: ["horas", "dias"] },
-                },
+                properties: { cantidad: { type: "integer" }, unidad: { type: "string", enum: ["horas", "dias"] } },
                 required: ["cantidad", "unidad"],
               },
             },
+            // agregar_item_setlist (requiere evento_id arriba) / editar_item_setlist / eliminar_item_setlist (requieren item_id)
+            item_id: { type: "string", description: "id real del ítem del setlist — requerido en editar_item_setlist y eliminar_item_setlist" },
+            item_tipo: { type: "string", enum: ["bloque", "cancion", "biblia", "slide"], description: "para agregar_item_setlist" },
+            item_titulo: { type: "string", description: "para agregar_item_setlist / editar_item_setlist" },
+            item_descripcion: { type: "string", description: "para agregar_item_setlist / editar_item_setlist" },
+            item_cancion_id: { type: "string", description: "para agregar_item_setlist / editar_item_setlist, tipo cancion" },
+            item_referencia_biblia: { type: "string", description: "para agregar_item_setlist / editar_item_setlist, tipo biblia" },
+            item_texto_biblia: { type: "string", description: "para agregar_item_setlist / editar_item_setlist, tipo biblia" },
+            // reordenar_setlist (requiere evento_id arriba)
+            item_ids_en_orden: { type: "array", items: { type: "string" }, description: "para reordenar_setlist — TODOS los item_id del evento, en el orden final deseado" },
+            // asignar_persona (a un evento/ítem YA EXISTENTE)
+            usuario_id: { type: "string", description: "para asignar_persona — id real de la lista de usuarios, nunca inventado" },
+            destino: { type: "string", enum: ["item_setlist", "equipo_alabanza"], description: "para asignar_persona" },
+            destino_item_id: { type: "string", description: "para asignar_persona con destino=item_setlist — item_id real ya existente" },
+            rol_alabanza_nombre: { type: "string", description: "para asignar_persona con destino=equipo_alabanza — nombre del rol (ej. 'Piano'); si no existe en el evento se crea" },
+            // eliminar_asignacion
+            miembro_rol_id: { type: "string", description: "para eliminar_asignacion — id real de la fila de asignación a quitar" },
+            // agregar_recordatorio (requiere evento_id arriba) / eliminar_recordatorio
+            cantidad: { type: "integer", description: "para agregar_recordatorio" },
+            unidad: { type: "string", enum: ["horas", "dias"], description: "para agregar_recordatorio" },
+            recordatorio_id: { type: "string", description: "para eliminar_recordatorio" },
           },
-          required: ["titulo", "fecha"],
+          required: ["tipo"],
         },
       },
     },
-    required: ["resumen", "eventos"],
+    required: ["resumen", "acciones"],
   },
 };
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
+// deno-lint-ignore no-explicit-any
+type Accion = Record<string, any>;
 
 async function llamarClaude(
   messages: ChatMessage[],
   usuarios: { id: string; nombre: string }[],
   canciones: { id: string; titulo: string; artista: string | null }[],
   reglas: string,
-  contextoEventosPasados: string,
+  contexto: string,
   imagen: { mediaType: string; data: string } | null,
 ) {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
@@ -181,23 +233,24 @@ async function llamarClaude(
 
   const system =
     "Eres el asistente de WorshipFlow, una app para armar cultos de una iglesia. Ayudas al administrador " +
-    "a crear eventos (cultos), armar su setlist (bloques, canciones, versículos, slides) y asignar personas " +
-    "reales a cargos — conversando en español, de forma breve y directa. Puedes crear varios eventos de " +
-    "una sola vez (ej. \"arma los cultos de octubre\") reconociendo el patrón de los eventos anteriores que " +
-    "se te dan abajo. " +
+    "a crear, editar, borrar y duplicar eventos (cultos), su setlist (bloques, canciones, versículos, " +
+    "slides), asignaciones de personas reales a cargos, y recordatorios — conversando en español, de " +
+    "forma breve y directa. Puedes combinar varias acciones en un mismo plan (ej. crear varios eventos " +
+    "de una vez, o editar uno y borrar otro a la vez). " +
     "Cuando tengas todo lo necesario para un plan concreto, llama a la herramienta proponer_cambios — no " +
     "describas el plan en texto Y la llames a la vez, usa la herramienta directamente. Si falta información " +
-    "clave (fecha, quién va en qué), pregunta antes. " +
-    "IMPORTANTE — nunca incluyas más de 8 eventos en un solo plan/llamada a proponer_cambios, sin importar " +
-    "cuántos te pidan: si te piden algo grande (ej. \"todo octubre\", que puede ser 16-17 cultos), arma la " +
-    "primera tanda (las primeras semanas, hasta 8 eventos) nada más, dile al administrador en el resumen que " +
-    "es la primera parte y que puede pedirte \"continúa con el resto\" para la siguiente tanda. Una respuesta " +
-    "con demasiados eventos a la vez se corta a la mitad y el plan entero se pierde — mejor repartido en " +
-    "varias tandas chicas y confiables que uno grande que falla.\n\n" +
+    "clave, o no encuentras algo que te piden editar/borrar/duplicar, pregunta antes en vez de adivinar. " +
+    "IMPORTANTE — nunca incluyas más de 15 acciones en un solo plan, sin importar cuántas te pidan: si te " +
+    "piden algo grande (ej. \"todo octubre\", que puede ser 16-17 cultos), arma la primera tanda nada más, " +
+    "dile al administrador en el resumen que es la primera parte y que puede pedirte \"continúa con el " +
+    "resto\" para la siguiente tanda. Una respuesta con demasiadas acciones a la vez se corta a la mitad y " +
+    "el plan entero se pierde — mejor repartido en varias tandas chicas y confiables que uno grande que " +
+    "falla. Y SIEMPRE que el plan incluya borrar algo, dilo explícito y de entrada en el resumen — un " +
+    "borrado es irreversible, el administrador tiene que verlo venir claro antes de confirmar.\n\n" +
     (reglas.trim()
       ? `Reglas y excepciones fijas que estableció el administrador — SIEMPRE aplícalas sin que te las repita, incluso si la conversación no las menciona:\n${reglas.trim()}\n\n`
       : "") +
-    `Últimos cultos ya creados en la app (úsalos para reconocer el patrón semanal — qué tipo de evento va cada día, quién suele estar en cada cargo — y replicarlo cuando te pidan armar eventos nuevos):\n${contextoEventosPasados}\n\n` +
+    `Eventos ya existentes en la app, con sus ids reales de evento/ítem/asignación/recordatorio (úsalos para editar/borrar/duplicar con precisión, y para reconocer el patrón semanal al crear eventos nuevos):\n${contexto}\n\n` +
     `Personas reales registradas en la app (usa SIEMPRE estos usuario_id exactos, nunca inventes uno):\n${listaUsuarios || "(no hay usuarios cargados)"}\n\n` +
     `Canciones reales en el cancionero (usa SIEMPRE estos cancion_id exactos):\n${listaCanciones || "(no hay canciones cargadas)"}` +
     (imagen
@@ -230,16 +283,15 @@ async function llamarClaude(
     },
     body: JSON.stringify({
       model: "claude-sonnet-5",
-      // Un plan de varios eventos completos (setlist + asignaciones + recordatorios de cada uno) es
-      // bastante JSON — con el límite viejo (4096) la respuesta se cortaba a la mitad de generar el
-      // plan: el resumen en texto (que se genera primero) salía completo y convincente, pero el
-      // arreglo "eventos" de verdad quedaba vacío o incompleto, y encima sin ningún aviso de que
-      // pasó. Ver también el tope de "máximo 8 eventos por plan" en el system prompt — ambos
-      // trabajan juntos para que esto no vuelva a pasar.
+      // Un plan de varias acciones completas es bastante JSON — con un límite chico la respuesta se
+      // corta a la mitad de generar el plan: el resumen en texto (que se genera primero) sale
+      // completo y convincente, pero el arreglo "acciones" de verdad queda vacío o incompleto, sin
+      // ningún aviso. Ver también el tope de "máximo 15 acciones por plan" en el system prompt —
+      // ambos trabajan juntos para que esto no vuelva a pasar.
       max_tokens: 8192,
       system,
       messages: anthropicMessages,
-      tools: [PROPONER_CAMBIOS_TOOL],
+      tools: [PROPONER_PLAN_TOOL],
       tool_choice: { type: "auto" },
     }),
   });
@@ -249,12 +301,32 @@ async function llamarClaude(
   }
   const respuesta = await res.json();
   // Si se cortó por llegar al tope de tokens, cualquier plan que haya alcanzado a generar puede
-  // estar incompleto (ej. el arreglo de eventos a medio llenar) — mejor avisar claro que dejar
+  // estar incompleto (ej. el arreglo de acciones a medio llenar) — mejor avisar claro que dejar
   // pasar un plan roto que en "Aplicar" fallaría con un error críptico o, peor, se aplicaría a medias.
   if (respuesta.stop_reason === "max_tokens") {
-    throw new Error("La respuesta del asistente se cortó por ser demasiado larga — pídele menos eventos a la vez (ej. una semana en vez de un mes completo).");
+    throw new Error("La respuesta del asistente se cortó por ser demasiado larga — pídele menos acciones a la vez (ej. una semana en vez de un mes completo).");
   }
   return respuesta;
+}
+
+// Inserta el setlist completo de "crear_evento"/"duplicar_evento" (ítems + sus encargados) y
+// devuelve los item_id nuevos en el mismo orden — reusado por ambos tipos de acción.
+async function crearItemsSetlist(admin: ReturnType<typeof createClient>, eventoId: string, itemsPlan: Accion[]): Promise<string[]> {
+  const itemIds: string[] = [];
+  for (let i = 0; i < itemsPlan.length; i++) {
+    const it = itemsPlan[i];
+    const id = crypto.randomUUID();
+    const base = { id, evento_id: eventoId, orden: i, estructura: [], fondo_tipo: "color", es_punto_bosquejo: false };
+    let fila;
+    if (it.tipo === "cancion") fila = { ...base, tipo: "cancion", cancion_id: it.cancion_id, tonalidad_override: null };
+    else if (it.tipo === "biblia") fila = { ...base, tipo: "biblia", referencia: it.referencia_biblia || "", version_biblia: "RVR1960", texto_biblia: it.texto_biblia || "" };
+    else if (it.tipo === "slide") fila = { ...base, tipo: "slide", titulo: it.titulo || "", subtitulo: "", fondo_color: "#1B2029", fondo_video_url: null, fondo_imagen_url: null };
+    else fila = { ...base, tipo: "bloque", titulo: it.titulo || "Bloque", descripcion: it.descripcion || "", ministerio_id: null };
+    const { error } = await admin.from("items_servicio").insert(fila);
+    if (error) throw new Error(`No se pudo agregar un ítem del setlist: ${error.message}`);
+    itemIds.push(id);
+  }
+  return itemIds;
 }
 
 Deno.serve(async (req: Request) => {
@@ -310,7 +382,7 @@ Deno.serve(async (req: Request) => {
         admin.from("usuarios").select("id, nombre").order("nombre"),
         admin.from("canciones").select("id, titulo, artista").order("titulo"),
         admin.from("asistente_config").select("reglas").eq("id", "default").maybeSingle(),
-        resumenEventosPasados(admin),
+        contextoEventos(admin),
       ]);
 
       const respuesta = await llamarClaude(
@@ -328,113 +400,284 @@ Deno.serve(async (req: Request) => {
 
     // ---- mode "apply": ejecuta el plan ya confirmado por el administrador, determinista, sin IA ----
     const plan = body.plan;
-    const eventosPlan = Array.isArray(plan?.eventos) ? plan.eventos : [];
-    if (!eventosPlan.length) return json({ error: "Plan inválido: no trae ningún evento." }, 400);
+    const acciones: Accion[] = Array.isArray(plan?.acciones) ? plan.acciones : [];
+    if (!acciones.length) return json({ error: "Plan inválido: no trae ninguna acción." }, 400);
 
-    const resultados: { evento_id: string; titulo: string }[] = [];
     const notificadosTotal: string[] = [];
     const avisos: string[] = [];
-    let totalItems = 0, totalAsignaciones = 0, totalRecordatorios = 0;
+    const eventosCreadosOTocados = new Set<string>(); // para la auto-verificación al final
+    let totalAcciones = 0;
 
-    for (const evPlan of eventosPlan) {
-      if (!evPlan.titulo || !evPlan.fecha) return json({ error: "Un evento del plan no trae título o fecha." }, 400);
+    for (const a of acciones) {
+      if (a.tipo === "crear_evento") {
+        if (!a.titulo || !a.fecha) return json({ error: "Un evento del plan no trae título o fecha." }, 400);
+        const eventoId = crypto.randomUUID();
+        const { error: eErr } = await admin.from("eventos").insert({ id: eventoId, titulo: a.titulo, fecha: a.fecha, hora: a.hora || null, ubicacion: a.ubicacion || null, creado_por: caller.id, es_plantilla: false });
+        if (eErr) return json({ error: `No se pudo crear el evento "${a.titulo}": ${eErr.message}` }, 400);
 
-      const eventoId = crypto.randomUUID();
-      const { error: eventoErr } = await admin.from("eventos").insert({
-        id: eventoId,
-        titulo: evPlan.titulo,
-        fecha: evPlan.fecha,
-        hora: evPlan.hora || null,
-        ubicacion: evPlan.ubicacion || null,
-        creado_por: caller.id,
-        es_plantilla: false,
-      });
-      if (eventoErr) return json({ error: `No se pudo crear el evento "${evPlan.titulo}": ` + eventoErr.message }, 400);
+        const itemsPlan = Array.isArray(a.items_setlist) ? a.items_setlist : [];
+        const itemIds = await crearItemsSetlist(admin, eventoId, itemsPlan);
 
-      // Ítems del setlist — mismas columnas base que itemServicioAFila en src/lib/eventos.js
-      // (estructura/fondo_tipo/es_punto_bosquejo son NOT NULL con default, pero el default solo
-      // aplica si se omiten en un insert de una sola fila — mejor mandarlas siempre).
-      const itemIds: string[] = [];
-      const itemsPlan = Array.isArray(evPlan.items_setlist) ? evPlan.items_setlist : [];
-      for (let i = 0; i < itemsPlan.length; i++) {
-        const it = itemsPlan[i];
-        const id = crypto.randomUUID();
-        const base = { id, evento_id: eventoId, orden: i, estructura: [], fondo_tipo: "color", es_punto_bosquejo: false };
-        let fila;
-        if (it.tipo === "cancion") fila = { ...base, tipo: "cancion", cancion_id: it.cancion_id, tonalidad_override: null };
-        else if (it.tipo === "biblia") fila = { ...base, tipo: "biblia", referencia: it.referencia_biblia || "", version_biblia: "RVR1960", texto_biblia: it.texto_biblia || "" };
-        else if (it.tipo === "slide") fila = { ...base, tipo: "slide", titulo: it.titulo || "", subtitulo: "", fondo_color: "#1B2029", fondo_video_url: null, fondo_imagen_url: null };
-        else fila = { ...base, tipo: "bloque", titulo: it.titulo || "Bloque", descripcion: it.descripcion || "", ministerio_id: null };
-        const { error: itemErr } = await admin.from("items_servicio").insert(fila);
-        if (itemErr) return json({ error: `No se pudo agregar el ítem ${i + 1} del setlist de "${evPlan.titulo}": ` + itemErr.message }, 400);
-        itemIds.push(id);
-      }
-
-      // Asignaciones — mismo efecto que addEncargado/addWorshipRoleMember en PrototipoWorshipFlow.jsx:
-      // insertar en miembros_rol Y notificar (in-app + push), no solo lo primero.
-      const asignacionesPlan = Array.isArray(evPlan.asignaciones) ? evPlan.asignaciones : [];
-      const rolesCreados = new Map<string, string>(); // nombre de rol -> rol_id, para no duplicar roles dentro del mismo evento
-      let ordenRol = 0;
-      for (const a of asignacionesPlan) {
-        const { data: usuarioRow } = await admin.from("usuarios").select("id, nombre").eq("id", a.usuario_id).single();
-        if (!usuarioRow) return json({ error: `usuario_id inválido en una asignación de "${evPlan.titulo}": ${a.usuario_id}` }, 400);
-
-        if (a.destino === "item_setlist") {
-          const itemServicioId = itemIds[a.item_setlist_indice];
-          if (!itemServicioId) return json({ error: `Índice de ítem de setlist inválido en una asignación de "${evPlan.titulo}".` }, 400);
-          const { error: mErr } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), item_servicio_id: itemServicioId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
-          if (mErr) return json({ error: "No se pudo asignar a " + usuarioRow.nombre + ": " + mErr.message }, 400);
-        } else {
-          const nombreRol = a.rol_alabanza_nombre || "Equipo de alabanza";
-          let rolId = rolesCreados.get(nombreRol.toLowerCase());
-          if (!rolId) {
-            rolId = crypto.randomUUID();
-            const { error: rolErr } = await admin.from("roles_evento").insert({ id: rolId, evento_id: eventoId, nombre: nombreRol, orden: ordenRol++ });
-            if (rolErr) return json({ error: "No se pudo crear el rol " + nombreRol + ": " + rolErr.message }, 400);
-            rolesCreados.set(nombreRol.toLowerCase(), rolId);
+        const asignacionesPlan = Array.isArray(a.asignaciones) ? a.asignaciones : [];
+        const rolesCreados = new Map<string, string>();
+        let ordenRol = 0;
+        for (const asig of asignacionesPlan) {
+          const { data: usuarioRow } = await admin.from("usuarios").select("id, nombre").eq("id", asig.usuario_id).single();
+          if (!usuarioRow) return json({ error: `usuario_id inválido en una asignación de "${a.titulo}": ${asig.usuario_id}` }, 400);
+          if (asig.destino === "item_setlist") {
+            const itemServicioId = itemIds[asig.item_setlist_indice];
+            if (!itemServicioId) return json({ error: `Índice de ítem de setlist inválido en una asignación de "${a.titulo}".` }, 400);
+            const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), item_servicio_id: itemServicioId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
+            if (error) return json({ error: `No se pudo asignar a ${usuarioRow.nombre}: ${error.message}` }, 400);
+          } else {
+            const nombreRol = asig.rol_alabanza_nombre || "Equipo de alabanza";
+            let rolId = rolesCreados.get(nombreRol.toLowerCase());
+            if (!rolId) {
+              rolId = crypto.randomUUID();
+              const { error } = await admin.from("roles_evento").insert({ id: rolId, evento_id: eventoId, nombre: nombreRol, orden: ordenRol++ });
+              if (error) return json({ error: `No se pudo crear el rol ${nombreRol}: ${error.message}` }, 400);
+              rolesCreados.set(nombreRol.toLowerCase(), rolId);
+            }
+            const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), rol_id: rolId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
+            if (error) return json({ error: `No se pudo asignar a ${usuarioRow.nombre}: ${error.message}` }, 400);
           }
-          const { error: mErr } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), rol_id: rolId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
-          if (mErr) return json({ error: "No se pudo asignar a " + usuarioRow.nombre + ": " + mErr.message }, 400);
+          await notificar(admin, usuarioRow.id, "asignacion", `Te asignaron: ${a.titulo}`, `Quedaste a cargo de algo en "${a.titulo}".`, eventoId);
+          notificadosTotal.push(usuarioRow.nombre);
         }
 
-        const titulo = `Te asignaron: ${evPlan.titulo}`;
-        const cuerpo = `Quedaste a cargo de algo en "${evPlan.titulo}".`;
-        await admin.from("notificaciones").insert({ usuario_id: usuarioRow.id, tipo: "asignacion", titulo, cuerpo, evento_id: eventoId });
-        await enviarPush(admin, usuarioRow.id, { title: titulo, body: cuerpo });
+        const recordatoriosPlan = Array.isArray(a.recordatorios) ? a.recordatorios : [];
+        for (const r of recordatoriosPlan) {
+          const { error } = await admin.from("recordatorios_evento").insert({ id: crypto.randomUUID(), evento_id: eventoId, cantidad: r.cantidad, unidad: r.unidad, enviado: false });
+          if (error) return json({ error: `No se pudo agregar un recordatorio a "${a.titulo}": ${error.message}` }, 400);
+        }
+
+        eventosCreadosOTocados.add(eventoId);
+        totalAcciones++;
+        continue;
+      }
+
+      if (a.tipo === "editar_evento") {
+        if (!a.evento_id) return json({ error: "Falta evento_id en una acción editar_evento." }, 400);
+        const patch: Record<string, unknown> = {};
+        if (a.titulo) patch.titulo = a.titulo;
+        if (a.fecha) patch.fecha = a.fecha;
+        if (a.hora !== undefined) patch.hora = a.hora || null;
+        if (a.ubicacion !== undefined) patch.ubicacion = a.ubicacion || null;
+        const { error } = await admin.from("eventos").update(patch).eq("id", a.evento_id);
+        if (error) return json({ error: `No se pudo editar el evento: ${error.message}` }, 400);
+        eventosCreadosOTocados.add(a.evento_id);
+        totalAcciones++;
+        continue;
+      }
+
+      if (a.tipo === "eliminar_evento") {
+        if (!a.evento_id) return json({ error: "Falta evento_id en una acción eliminar_evento." }, 400);
+        const { error } = await admin.from("eventos").delete().eq("id", a.evento_id);
+        if (error) return json({ error: `No se pudo eliminar el evento: ${error.message}` }, 400);
+        totalAcciones++;
+        continue;
+      }
+
+      if (a.tipo === "duplicar_evento") {
+        if (!a.evento_id || !a.titulo || !a.fecha) return json({ error: "Falta evento_id (origen), título o fecha en una acción duplicar_evento." }, 400);
+        const nuevoEventoId = crypto.randomUUID();
+        const { error: eErr } = await admin.from("eventos").insert({ id: nuevoEventoId, titulo: a.titulo, fecha: a.fecha, hora: a.hora || null, ubicacion: a.ubicacion || null, creado_por: caller.id, es_plantilla: false });
+        if (eErr) return json({ error: `No se pudo crear el evento duplicado: ${eErr.message}` }, 400);
+
+        // Clona items_servicio + sus encargados, y roles_evento + sus miembros — mismo criterio que
+        // "crear desde plantilla" en la app (CLAUDE.md: "clona roles y setlist... reseteando
+        // confirmaciones"): se llevan las mismas personas, pero su estado vuelve a "pendiente" y NO
+        // se les manda una notificación nueva de "te asignaron" (tampoco lo hace crearEventoCompleto
+        // al clonar desde la app).
+        const { data: itemsOrigen } = await admin.from("items_servicio").select("*").eq("evento_id", a.evento_id).order("orden");
+        const mapaItemIds = new Map<string, string>();
+        for (const it of itemsOrigen ?? []) {
+          const nuevoId = crypto.randomUUID();
+          mapaItemIds.set(it.id, nuevoId);
+          const { id: _id, evento_id: _e, created_at: _c, ...resto } = it as Record<string, unknown>;
+          const { error } = await admin.from("items_servicio").insert({ ...resto, id: nuevoId, evento_id: nuevoEventoId });
+          if (error) return json({ error: `No se pudo clonar un ítem del setlist: ${error.message}` }, 400);
+        }
+        if (mapaItemIds.size) {
+          const { data: encargadosOrigen } = await admin.from("miembros_rol").select("*").in("item_servicio_id", [...mapaItemIds.keys()]);
+          for (const m of encargadosOrigen ?? []) {
+            const { id: _id, item_servicio_id, ...resto } = m as Record<string, unknown>;
+            const { error } = await admin.from("miembros_rol").insert({ ...resto, id: crypto.randomUUID(), item_servicio_id: mapaItemIds.get(item_servicio_id as string), estado: "pendiente" });
+            if (error) return json({ error: `No se pudo clonar un encargado: ${error.message}` }, 400);
+          }
+        }
+        const { data: rolesOrigen } = await admin.from("roles_evento").select("*").eq("evento_id", a.evento_id).order("orden");
+        const mapaRolIds = new Map<string, string>();
+        for (const r of rolesOrigen ?? []) {
+          const nuevoId = crypto.randomUUID();
+          mapaRolIds.set(r.id, nuevoId);
+          const { id: _id, evento_id: _e, ...resto } = r as Record<string, unknown>;
+          const { error } = await admin.from("roles_evento").insert({ ...resto, id: nuevoId, evento_id: nuevoEventoId });
+          if (error) return json({ error: `No se pudo clonar un rol de alabanza: ${error.message}` }, 400);
+        }
+        if (mapaRolIds.size) {
+          const { data: miembrosOrigen } = await admin.from("miembros_rol").select("*").in("rol_id", [...mapaRolIds.keys()]);
+          for (const m of miembrosOrigen ?? []) {
+            const { id: _id, rol_id, ...resto } = m as Record<string, unknown>;
+            const { error } = await admin.from("miembros_rol").insert({ ...resto, id: crypto.randomUUID(), rol_id: mapaRolIds.get(rol_id as string), estado: "pendiente" });
+            if (error) return json({ error: `No se pudo clonar un miembro del equipo: ${error.message}` }, 400);
+          }
+        }
+        eventosCreadosOTocados.add(nuevoEventoId);
+        totalAcciones++;
+        continue;
+      }
+
+      if (a.tipo === "agregar_item_setlist") {
+        if (!a.evento_id || !a.item_tipo) return json({ error: "Falta evento_id o item_tipo en una acción agregar_item_setlist." }, 400);
+        const { count } = await admin.from("items_servicio").select("id", { count: "exact", head: true }).eq("evento_id", a.evento_id);
+        const id = crypto.randomUUID();
+        const base = { id, evento_id: a.evento_id, orden: count ?? 0, estructura: [], fondo_tipo: "color", es_punto_bosquejo: false };
+        let fila;
+        if (a.item_tipo === "cancion") fila = { ...base, tipo: "cancion", cancion_id: a.item_cancion_id, tonalidad_override: null };
+        else if (a.item_tipo === "biblia") fila = { ...base, tipo: "biblia", referencia: a.item_referencia_biblia || "", version_biblia: "RVR1960", texto_biblia: a.item_texto_biblia || "" };
+        else if (a.item_tipo === "slide") fila = { ...base, tipo: "slide", titulo: a.item_titulo || "", subtitulo: "", fondo_color: "#1B2029", fondo_video_url: null, fondo_imagen_url: null };
+        else fila = { ...base, tipo: "bloque", titulo: a.item_titulo || "Bloque", descripcion: a.item_descripcion || "", ministerio_id: null };
+        const { error } = await admin.from("items_servicio").insert(fila);
+        if (error) return json({ error: `No se pudo agregar el ítem al setlist: ${error.message}` }, 400);
+        eventosCreadosOTocados.add(a.evento_id);
+        totalAcciones++;
+        continue;
+      }
+
+      if (a.tipo === "editar_item_setlist") {
+        if (!a.item_id) return json({ error: "Falta item_id en una acción editar_item_setlist." }, 400);
+        const patch: Record<string, unknown> = {};
+        if (a.item_titulo !== undefined) patch.titulo = a.item_titulo;
+        if (a.item_descripcion !== undefined) patch.descripcion = a.item_descripcion;
+        if (a.item_cancion_id !== undefined) patch.cancion_id = a.item_cancion_id;
+        if (a.item_referencia_biblia !== undefined) patch.referencia = a.item_referencia_biblia;
+        if (a.item_texto_biblia !== undefined) patch.texto_biblia = a.item_texto_biblia;
+        const { data: itemRow, error } = await admin.from("items_servicio").update(patch).eq("id", a.item_id).select("evento_id").single();
+        if (error) return json({ error: `No se pudo editar el ítem del setlist: ${error.message}` }, 400);
+        if (itemRow) eventosCreadosOTocados.add(itemRow.evento_id);
+        totalAcciones++;
+        continue;
+      }
+
+      if (a.tipo === "eliminar_item_setlist") {
+        if (!a.item_id) return json({ error: "Falta item_id en una acción eliminar_item_setlist." }, 400);
+        // Cascade ya se encarga de borrar sus miembros_rol (ver src/lib/eventos.js).
+        const { error } = await admin.from("items_servicio").delete().eq("id", a.item_id);
+        if (error) return json({ error: `No se pudo eliminar el ítem del setlist: ${error.message}` }, 400);
+        totalAcciones++;
+        continue;
+      }
+
+      if (a.tipo === "reordenar_setlist") {
+        if (!a.evento_id || !Array.isArray(a.item_ids_en_orden)) return json({ error: "Falta evento_id o item_ids_en_orden en una acción reordenar_setlist." }, 400);
+        for (let i = 0; i < a.item_ids_en_orden.length; i++) {
+          const { error } = await admin.from("items_servicio").update({ orden: i }).eq("id", a.item_ids_en_orden[i]).eq("evento_id", a.evento_id);
+          if (error) return json({ error: `No se pudo reordenar el setlist: ${error.message}` }, 400);
+        }
+        eventosCreadosOTocados.add(a.evento_id);
+        totalAcciones++;
+        continue;
+      }
+
+      if (a.tipo === "asignar_persona") {
+        if (!a.usuario_id || !a.destino) return json({ error: "Falta usuario_id o destino en una acción asignar_persona." }, 400);
+        const { data: usuarioRow } = await admin.from("usuarios").select("id, nombre").eq("id", a.usuario_id).single();
+        if (!usuarioRow) return json({ error: `usuario_id inválido en asignar_persona: ${a.usuario_id}` }, 400);
+        let eventoIdDeEsto: string | null = null;
+        if (a.destino === "item_setlist") {
+          if (!a.destino_item_id) return json({ error: "Falta destino_item_id en asignar_persona con destino=item_setlist." }, 400);
+          const { data: itemRow } = await admin.from("items_servicio").select("evento_id").eq("id", a.destino_item_id).single();
+          if (!itemRow) return json({ error: `destino_item_id inválido en asignar_persona: ${a.destino_item_id}` }, 400);
+          eventoIdDeEsto = itemRow.evento_id;
+          const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), item_servicio_id: a.destino_item_id, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
+          if (error) return json({ error: `No se pudo asignar a ${usuarioRow.nombre}: ${error.message}` }, 400);
+        } else {
+          if (!a.evento_id) return json({ error: "Falta evento_id en asignar_persona con destino=equipo_alabanza." }, 400);
+          eventoIdDeEsto = a.evento_id;
+          const nombreRol = a.rol_alabanza_nombre || "Equipo de alabanza";
+          const { data: rolExistente } = await admin.from("roles_evento").select("id").eq("evento_id", a.evento_id).ilike("nombre", nombreRol).maybeSingle();
+          let rolId = rolExistente?.id as string | undefined;
+          if (!rolId) {
+            const { count } = await admin.from("roles_evento").select("id", { count: "exact", head: true }).eq("evento_id", a.evento_id);
+            rolId = crypto.randomUUID();
+            const { error } = await admin.from("roles_evento").insert({ id: rolId, evento_id: a.evento_id, nombre: nombreRol, orden: count ?? 0 });
+            if (error) return json({ error: `No se pudo crear el rol ${nombreRol}: ${error.message}` }, 400);
+          }
+          const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), rol_id: rolId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
+          if (error) return json({ error: `No se pudo asignar a ${usuarioRow.nombre}: ${error.message}` }, 400);
+        }
+        const { data: eventoRow } = eventoIdDeEsto ? await admin.from("eventos").select("titulo").eq("id", eventoIdDeEsto).single() : { data: null };
+        await notificar(admin, usuarioRow.id, "asignacion", `Te asignaron: ${eventoRow?.titulo || "un evento"}`, `Quedaste a cargo de algo en "${eventoRow?.titulo || "un evento"}".`, eventoIdDeEsto);
         notificadosTotal.push(usuarioRow.nombre);
+        if (eventoIdDeEsto) eventosCreadosOTocados.add(eventoIdDeEsto);
+        totalAcciones++;
+        continue;
       }
 
-      // Recordatorios
-      const recordatoriosPlan = Array.isArray(evPlan.recordatorios) ? evPlan.recordatorios : [];
-      for (const r of recordatoriosPlan) {
-        const { error: rErr } = await admin.from("recordatorios_evento").insert({ id: crypto.randomUUID(), evento_id: eventoId, cantidad: r.cantidad, unidad: r.unidad, enviado: false });
-        if (rErr) return json({ error: `No se pudo agregar un recordatorio a "${evPlan.titulo}": ` + rErr.message }, 400);
+      if (a.tipo === "eliminar_asignacion") {
+        if (!a.miembro_rol_id) return json({ error: "Falta miembro_rol_id en una acción eliminar_asignacion." }, 400);
+        const { data: filaVieja } = await admin.from("miembros_rol").select("usuario_id, nombre, item_servicio_id, rol_id").eq("id", a.miembro_rol_id).maybeSingle();
+        const { error } = await admin.from("miembros_rol").delete().eq("id", a.miembro_rol_id);
+        if (error) return json({ error: `No se pudo quitar la asignación: ${error.message}` }, 400);
+        // Mismo aviso que removeEncargado/removeWorshipRoleMember en PrototipoWorshipFlow.jsx.
+        if (filaVieja?.usuario_id) {
+          let eventoId: string | null = null;
+          if (filaVieja.item_servicio_id) {
+            const { data: itemRow } = await admin.from("items_servicio").select("evento_id").eq("id", filaVieja.item_servicio_id).maybeSingle();
+            eventoId = itemRow?.evento_id ?? null;
+          } else if (filaVieja.rol_id) {
+            const { data: rolRow } = await admin.from("roles_evento").select("evento_id").eq("id", filaVieja.rol_id).maybeSingle();
+            eventoId = rolRow?.evento_id ?? null;
+          }
+          await notificar(admin, filaVieja.usuario_id, "general", "Te quitaron un encargo", "Ya no tienes ese encargo asignado.", eventoId);
+        }
+        totalAcciones++;
+        continue;
       }
 
-      // Auto-verificación por evento: revisa lo que acaba de escribir (no accede a nada más) y avisa
-      // si algo quedó incompleto en vez de asumir que salió bien.
-      if (recordatoriosPlan.length === 0) {
-        avisos.push(`"${evPlan.titulo}" quedó sin ningún recordatorio — nadie recibirá aviso antes del evento.`);
+      if (a.tipo === "agregar_recordatorio") {
+        if (!a.evento_id || !a.cantidad || !a.unidad) return json({ error: "Falta evento_id, cantidad o unidad en una acción agregar_recordatorio." }, 400);
+        const { error } = await admin.from("recordatorios_evento").insert({ id: crypto.randomUUID(), evento_id: a.evento_id, cantidad: a.cantidad, unidad: a.unidad, enviado: false });
+        if (error) return json({ error: `No se pudo agregar el recordatorio: ${error.message}` }, 400);
+        eventosCreadosOTocados.add(a.evento_id);
+        totalAcciones++;
+        continue;
       }
+
+      if (a.tipo === "eliminar_recordatorio") {
+        if (!a.recordatorio_id) return json({ error: "Falta recordatorio_id en una acción eliminar_recordatorio." }, 400);
+        const { error } = await admin.from("recordatorios_evento").delete().eq("id", a.recordatorio_id);
+        if (error) return json({ error: `No se pudo eliminar el recordatorio: ${error.message}` }, 400);
+        totalAcciones++;
+        continue;
+      }
+
+      return json({ error: `Tipo de acción desconocido: ${a.tipo}` }, 400);
+    }
+
+    // Auto-verificación: revisa los eventos que este plan tocó (no accede a nada más) y avisa si
+    // algo quedó incompleto en vez de asumir que salió bien.
+    for (const eventoId of eventosCreadosOTocados) {
+      const { count: totalRecordatorios } = await admin.from("recordatorios_evento").select("id", { count: "exact", head: true }).eq("evento_id", eventoId);
+      const { data: eventoRow } = await admin.from("eventos").select("titulo").eq("id", eventoId).maybeSingle();
+      if ((totalRecordatorios ?? 0) === 0) {
+        avisos.push(`"${eventoRow?.titulo || eventoId}" quedó sin ningún recordatorio — nadie recibirá aviso antes del evento.`);
+      }
+      const { data: itemsDelEvento } = await admin.from("items_servicio").select("id").eq("evento_id", eventoId);
+      const itemIds = (itemsDelEvento ?? []).map((i: { id: string }) => i.id);
       const { count: encargadosSinUsuario } = await admin
-        .from("miembros_rol")
-        .select("id", { count: "exact", head: true })
+        .from("miembros_rol").select("id", { count: "exact", head: true })
         .in("item_servicio_id", itemIds.length ? itemIds : ["00000000-0000-0000-0000-000000000000"])
         .is("usuario_id", null);
       if ((encargadosSinUsuario ?? 0) > 0) {
-        avisos.push(`En "${evPlan.titulo}" algún encargado quedó sin cuenta de usuario vinculada — no le llegarán notificaciones.`);
+        avisos.push(`En "${eventoRow?.titulo || eventoId}" algún encargado quedó sin cuenta de usuario vinculada — no le llegarán notificaciones.`);
       }
-
-      resultados.push({ evento_id: eventoId, titulo: evPlan.titulo });
-      totalItems += itemsPlan.length;
-      totalAsignaciones += asignacionesPlan.length;
-      totalRecordatorios += recordatoriosPlan.length;
     }
 
     return json({
       success: true,
-      eventos: resultados,
-      resumen: `Se ${resultados.length === 1 ? "creó" : "crearon"} ${resultados.length} evento(s): ${resultados.map((r) => r.titulo).join(", ")} — ${totalItems} ítem(s) de setlist, ${totalAsignaciones} asignación(es) y ${totalRecordatorios} recordatorio(s) en total.`,
+      resumen: `Se aplicaron ${totalAcciones} acción(es) del plan.`,
       notificados: notificadosTotal,
       avisos,
     }, 200);
