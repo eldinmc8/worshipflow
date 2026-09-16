@@ -187,7 +187,13 @@ async function llamarClaude(
     "se te dan abajo. " +
     "Cuando tengas todo lo necesario para un plan concreto, llama a la herramienta proponer_cambios — no " +
     "describas el plan en texto Y la llames a la vez, usa la herramienta directamente. Si falta información " +
-    "clave (fecha, quién va en qué), pregunta antes.\n\n" +
+    "clave (fecha, quién va en qué), pregunta antes. " +
+    "IMPORTANTE — nunca incluyas más de 8 eventos en un solo plan/llamada a proponer_cambios, sin importar " +
+    "cuántos te pidan: si te piden algo grande (ej. \"todo octubre\", que puede ser 16-17 cultos), arma la " +
+    "primera tanda (las primeras semanas, hasta 8 eventos) nada más, dile al administrador en el resumen que " +
+    "es la primera parte y que puede pedirte \"continúa con el resto\" para la siguiente tanda. Una respuesta " +
+    "con demasiados eventos a la vez se corta a la mitad y el plan entero se pierde — mejor repartido en " +
+    "varias tandas chicas y confiables que uno grande que falla.\n\n" +
     (reglas.trim()
       ? `Reglas y excepciones fijas que estableció el administrador — SIEMPRE aplícalas sin que te las repita, incluso si la conversación no las menciona:\n${reglas.trim()}\n\n`
       : "") +
@@ -224,7 +230,13 @@ async function llamarClaude(
     },
     body: JSON.stringify({
       model: "claude-sonnet-5",
-      max_tokens: 4096,
+      // Un plan de varios eventos completos (setlist + asignaciones + recordatorios de cada uno) es
+      // bastante JSON — con el límite viejo (4096) la respuesta se cortaba a la mitad de generar el
+      // plan: el resumen en texto (que se genera primero) salía completo y convincente, pero el
+      // arreglo "eventos" de verdad quedaba vacío o incompleto, y encima sin ningún aviso de que
+      // pasó. Ver también el tope de "máximo 8 eventos por plan" en el system prompt — ambos
+      // trabajan juntos para que esto no vuelva a pasar.
+      max_tokens: 8192,
       system,
       messages: anthropicMessages,
       tools: [PROPONER_CAMBIOS_TOOL],
@@ -235,7 +247,14 @@ async function llamarClaude(
     const texto = await res.text();
     throw new Error(`La API de Claude respondió ${res.status}: ${texto.slice(0, 300)}`);
   }
-  return await res.json();
+  const respuesta = await res.json();
+  // Si se cortó por llegar al tope de tokens, cualquier plan que haya alcanzado a generar puede
+  // estar incompleto (ej. el arreglo de eventos a medio llenar) — mejor avisar claro que dejar
+  // pasar un plan roto que en "Aplicar" fallaría con un error críptico o, peor, se aplicaría a medias.
+  if (respuesta.stop_reason === "max_tokens") {
+    throw new Error("La respuesta del asistente se cortó por ser demasiado larga — pídele menos eventos a la vez (ej. una semana en vez de un mes completo).");
+  }
+  return respuesta;
 }
 
 Deno.serve(async (req: Request) => {

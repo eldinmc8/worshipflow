@@ -2594,7 +2594,19 @@ function ChangePasswordModal({ onClose }) {
 // Reduce una foto (puede venir pesada directo de la cámara del celular) antes de mandarla al
 // asistente — 1568px del lado más largo es el tamaño que igual usa internamente el modelo de
 // visión, mandarla más grande solo gasta más y tarda más sin ganar nada de lectura.
-function reducirImagenParaAsistente(file, maxDim = 1568, calidad = 0.85) {
+// Una foto de celular reducida a 1568px/calidad alta TODAVÍA puede pesar varios MB (fotos con mucho
+// detalle, o el celular que sea) — más grande de lo que el servidor acepta, y eso corta la conexión
+// ANTES de que llegue cualquier respuesta ("Failed to fetch" críptico, en vez de un error claro).
+// Por eso se intenta en pasos cada vez más chicos hasta quedar bajo un tamaño seguro, en vez de un
+// solo intento con la esperanza de que alcance.
+function reducirImagenParaAsistente(file) {
+  const intentos = [
+    { maxDim: 1400, calidad: 0.75 },
+    { maxDim: 1100, calidad: 0.6 },
+    { maxDim: 850, calidad: 0.5 },
+    { maxDim: 650, calidad: 0.4 },
+  ];
+  const LIMITE_BASE64 = 2_500_000; // deja margen bajo el límite real del servidor
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("No se pudo leer la imagen."));
@@ -2602,18 +2614,24 @@ function reducirImagenParaAsistente(file, maxDim = 1568, calidad = 0.85) {
       const img = new Image();
       img.onerror = () => reject(new Error("No se pudo leer la imagen."));
       img.onload = () => {
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          const escala = maxDim / Math.max(width, height);
-          width = Math.round(width * escala);
-          height = Math.round(height * escala);
+        let ultimo = null;
+        for (const { maxDim, calidad } of intentos) {
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            const escala = maxDim / Math.max(width, height);
+            width = Math.round(width * escala);
+            height = Math.round(height * escala);
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", calidad);
+          const data = dataUrl.split(",")[1];
+          ultimo = { mediaType: "image/jpeg", data, previewUrl: dataUrl };
+          if (data.length <= LIMITE_BASE64) { resolve(ultimo); return; }
         }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL("image/jpeg", calidad);
-        resolve({ mediaType: "image/jpeg", data: dataUrl.split(",")[1], previewUrl: dataUrl });
+        reject(new Error("Esta foto sigue pesando mucho incluso reducida — intenta recortarla o mandar una más chica."));
       };
       img.src = reader.result;
     };
