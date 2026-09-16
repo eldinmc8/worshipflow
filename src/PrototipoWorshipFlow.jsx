@@ -1718,8 +1718,16 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         />
       )}
 
-      {tab === "asistente" && realIsAdmin && (
-        <AsistenteChatScreen />
+      {realIsAdmin && (
+        // A diferencia del resto de las pantallas (que se desmontan al cambiar de pestaña), esta se
+        // mantiene montada siempre y solo se oculta con CSS — así la conversación con el asistente
+        // (y un plan pendiente de confirmar) sobrevive si el admin va a mirar Eventos/Canciones/etc.
+        // y vuelve, en vez de perderse cada vez que sale de esta pestaña. Sigue sin sobrevivir a
+        // cerrar la app del todo o recargar la página — eso sería guardar el historial en Supabase,
+        // que a propósito no se hace (ver AsistenteChatScreen).
+        <div style={{ display: tab === "asistente" ? "contents" : "none" }}>
+          <AsistenteChatScreen />
+        </div>
       )}
 
       {tab === "canciones" && openSong === null && (

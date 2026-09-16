@@ -101,11 +101,11 @@ async function contextoEventos(admin: ReturnType<typeof createClient>): Promise<
   }).join("\n");
 }
 
-// ---- Herramienta que el modelo usa para proponer un plan (nunca para ejecutarlo directo). Ahora
-// es una lista de "acciones" tipadas — crear, editar, borrar o duplicar eventos/ítems/asignaciones/
-// recordatorios — en vez de solo "crear eventos" como en la v1. Todas comparten un solo objeto
-// flexible (no un esquema estricto por tipo) para que Claude pueda combinarlas libremente en un
-// mismo plan; el ejecutor (más abajo) usa solo los campos que corresponden a cada "tipo". ----
+// ---- Herramienta que el modelo usa para proponer un plan (nunca para ejecutarlo directo). Es una
+// lista de "acciones" tipadas — crear, editar, borrar o duplicar eventos/ítems/asignaciones/
+// recordatorios. Todas comparten un solo objeto flexible (no un esquema estricto por tipo) para que
+// Claude pueda combinarlas libremente en un mismo plan; el ejecutor (más abajo) usa solo los campos
+// que corresponden a cada "tipo". ----
 const PROPONER_PLAN_TOOL = {
   name: "proponer_cambios",
   description:
@@ -138,7 +138,6 @@ const PROPONER_PLAN_TOOL = {
                 "agregar_recordatorio", "eliminar_recordatorio",
               ],
             },
-            // crear_evento (evento nuevo, con su setlist/asignaciones/recordatorios anidados) / editar_evento (requiere evento_id) / duplicar_evento (evento_id = ORIGEN a clonar; estos campos son del evento NUEVO)
             evento_id: { type: "string", description: "id real del evento — requerido en: editar_evento, eliminar_evento, duplicar_evento (el ORIGEN a clonar), agregar_item_setlist, reordenar_setlist, agregar_recordatorio" },
             titulo: { type: "string", description: "para crear_evento/editar_evento/duplicar_evento" },
             fecha: { type: "string", description: "YYYY-MM-DD — para crear_evento/editar_evento/duplicar_evento" },
@@ -183,7 +182,6 @@ const PROPONER_PLAN_TOOL = {
                 required: ["cantidad", "unidad"],
               },
             },
-            // agregar_item_setlist (requiere evento_id arriba) / editar_item_setlist / eliminar_item_setlist (requieren item_id)
             item_id: { type: "string", description: "id real del ítem del setlist — requerido en editar_item_setlist y eliminar_item_setlist" },
             item_tipo: { type: "string", enum: ["bloque", "cancion", "biblia", "slide"], description: "para agregar_item_setlist" },
             item_titulo: { type: "string", description: "para agregar_item_setlist / editar_item_setlist" },
@@ -191,16 +189,12 @@ const PROPONER_PLAN_TOOL = {
             item_cancion_id: { type: "string", description: "para agregar_item_setlist / editar_item_setlist, tipo cancion" },
             item_referencia_biblia: { type: "string", description: "para agregar_item_setlist / editar_item_setlist, tipo biblia" },
             item_texto_biblia: { type: "string", description: "para agregar_item_setlist / editar_item_setlist, tipo biblia" },
-            // reordenar_setlist (requiere evento_id arriba)
             item_ids_en_orden: { type: "array", items: { type: "string" }, description: "para reordenar_setlist — TODOS los item_id del evento, en el orden final deseado" },
-            // asignar_persona (a un evento/ítem YA EXISTENTE)
             usuario_id: { type: "string", description: "para asignar_persona — id real de la lista de usuarios, nunca inventado" },
             destino: { type: "string", enum: ["item_setlist", "equipo_alabanza"], description: "para asignar_persona" },
             destino_item_id: { type: "string", description: "para asignar_persona con destino=item_setlist — item_id real ya existente" },
             rol_alabanza_nombre: { type: "string", description: "para asignar_persona con destino=equipo_alabanza — nombre del rol (ej. 'Piano'); si no existe en el evento se crea" },
-            // eliminar_asignacion
             miembro_rol_id: { type: "string", description: "para eliminar_asignacion — id real de la fila de asignación a quitar" },
-            // agregar_recordatorio (requiere evento_id arriba) / eliminar_recordatorio
             cantidad: { type: "integer", description: "para agregar_recordatorio" },
             unidad: { type: "string", enum: ["horas", "dias"], description: "para agregar_recordatorio" },
             recordatorio_id: { type: "string", description: "para eliminar_recordatorio" },
@@ -309,8 +303,6 @@ async function llamarClaude(
   return respuesta;
 }
 
-// Inserta el setlist completo de "crear_evento"/"duplicar_evento" (ítems + sus encargados) y
-// devuelve los item_id nuevos en el mismo orden — reusado por ambos tipos de acción.
 async function crearItemsSetlist(admin: ReturnType<typeof createClient>, eventoId: string, itemsPlan: Accion[]): Promise<string[]> {
   const itemIds: string[] = [];
   for (let i = 0; i < itemsPlan.length; i++) {
@@ -327,6 +319,281 @@ async function crearItemsSetlist(admin: ReturnType<typeof createClient>, eventoI
     itemIds.push(id);
   }
   return itemIds;
+}
+
+// Ejecuta todas las acciones del plan, una por una — separado de Deno.serve a propósito para poder
+// correrlo bajo EdgeRuntime.waitUntil (ver más abajo), es decir DESPUÉS de que la respuesta HTTP ya
+// se le mandó al administrador, en vez de tenerlo esperando con la conexión abierta hasta que
+// termine. Por eso lanza errores (throw) en vez de responder con json() directo — quien la llama
+// decide qué hacer con el resultado (acá: mandar una notificación de éxito o de falla).
+async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId: string, acciones: Accion[]) {
+  const notificadosTotal: string[] = [];
+  const avisos: string[] = [];
+  const eventosCreadosOTocados = new Set<string>();
+  let totalAcciones = 0;
+
+  for (const a of acciones) {
+    if (a.tipo === "crear_evento") {
+      if (!a.titulo || !a.fecha) throw new Error("Un evento del plan no trae título o fecha.");
+      const eventoId = crypto.randomUUID();
+      const { error: eErr } = await admin.from("eventos").insert({ id: eventoId, titulo: a.titulo, fecha: a.fecha, hora: a.hora || null, ubicacion: a.ubicacion || null, creado_por: callerId, es_plantilla: false });
+      if (eErr) throw new Error(`No se pudo crear el evento "${a.titulo}": ${eErr.message}`);
+
+      const itemsPlan = Array.isArray(a.items_setlist) ? a.items_setlist : [];
+      const itemIds = await crearItemsSetlist(admin, eventoId, itemsPlan);
+
+      const asignacionesPlan = Array.isArray(a.asignaciones) ? a.asignaciones : [];
+      const rolesCreados = new Map<string, string>();
+      let ordenRol = 0;
+      for (const asig of asignacionesPlan) {
+        const { data: usuarioRow } = await admin.from("usuarios").select("id, nombre").eq("id", asig.usuario_id).single();
+        if (!usuarioRow) throw new Error(`usuario_id inválido en una asignación de "${a.titulo}": ${asig.usuario_id}`);
+        if (asig.destino === "item_setlist") {
+          const itemServicioId = itemIds[asig.item_setlist_indice];
+          if (!itemServicioId) throw new Error(`Índice de ítem de setlist inválido en una asignación de "${a.titulo}".`);
+          const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), item_servicio_id: itemServicioId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
+          if (error) throw new Error(`No se pudo asignar a ${usuarioRow.nombre}: ${error.message}`);
+        } else {
+          const nombreRol = asig.rol_alabanza_nombre || "Equipo de alabanza";
+          let rolId = rolesCreados.get(nombreRol.toLowerCase());
+          if (!rolId) {
+            rolId = crypto.randomUUID();
+            const { error } = await admin.from("roles_evento").insert({ id: rolId, evento_id: eventoId, nombre: nombreRol, orden: ordenRol++ });
+            if (error) throw new Error(`No se pudo crear el rol ${nombreRol}: ${error.message}`);
+            rolesCreados.set(nombreRol.toLowerCase(), rolId);
+          }
+          const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), rol_id: rolId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
+          if (error) throw new Error(`No se pudo asignar a ${usuarioRow.nombre}: ${error.message}`);
+        }
+        await notificar(admin, usuarioRow.id, "asignacion", `Te asignaron: ${a.titulo}`, `Quedaste a cargo de algo en "${a.titulo}".`, eventoId);
+        notificadosTotal.push(usuarioRow.nombre);
+      }
+
+      const recordatoriosPlan = Array.isArray(a.recordatorios) ? a.recordatorios : [];
+      for (const r of recordatoriosPlan) {
+        const { error } = await admin.from("recordatorios_evento").insert({ id: crypto.randomUUID(), evento_id: eventoId, cantidad: r.cantidad, unidad: r.unidad, enviado: false });
+        if (error) throw new Error(`No se pudo agregar un recordatorio a "${a.titulo}": ${error.message}`);
+      }
+
+      eventosCreadosOTocados.add(eventoId);
+      totalAcciones++;
+      continue;
+    }
+
+    if (a.tipo === "editar_evento") {
+      if (!a.evento_id) throw new Error("Falta evento_id en una acción editar_evento.");
+      const patch: Record<string, unknown> = {};
+      if (a.titulo) patch.titulo = a.titulo;
+      if (a.fecha) patch.fecha = a.fecha;
+      if (a.hora !== undefined) patch.hora = a.hora || null;
+      if (a.ubicacion !== undefined) patch.ubicacion = a.ubicacion || null;
+      const { error } = await admin.from("eventos").update(patch).eq("id", a.evento_id);
+      if (error) throw new Error(`No se pudo editar el evento: ${error.message}`);
+      eventosCreadosOTocados.add(a.evento_id);
+      totalAcciones++;
+      continue;
+    }
+
+    if (a.tipo === "eliminar_evento") {
+      if (!a.evento_id) throw new Error("Falta evento_id en una acción eliminar_evento.");
+      const { error } = await admin.from("eventos").delete().eq("id", a.evento_id);
+      if (error) throw new Error(`No se pudo eliminar el evento: ${error.message}`);
+      totalAcciones++;
+      continue;
+    }
+
+    if (a.tipo === "duplicar_evento") {
+      if (!a.evento_id || !a.titulo || !a.fecha) throw new Error("Falta evento_id (origen), título o fecha en una acción duplicar_evento.");
+      const nuevoEventoId = crypto.randomUUID();
+      const { error: eErr } = await admin.from("eventos").insert({ id: nuevoEventoId, titulo: a.titulo, fecha: a.fecha, hora: a.hora || null, ubicacion: a.ubicacion || null, creado_por: callerId, es_plantilla: false });
+      if (eErr) throw new Error(`No se pudo crear el evento duplicado: ${eErr.message}`);
+
+      const { data: itemsOrigen } = await admin.from("items_servicio").select("*").eq("evento_id", a.evento_id).order("orden");
+      const mapaItemIds = new Map<string, string>();
+      for (const it of itemsOrigen ?? []) {
+        const nuevoId = crypto.randomUUID();
+        mapaItemIds.set(it.id, nuevoId);
+        const { id: _id, evento_id: _e, created_at: _c, ...resto } = it as Record<string, unknown>;
+        const { error } = await admin.from("items_servicio").insert({ ...resto, id: nuevoId, evento_id: nuevoEventoId });
+        if (error) throw new Error(`No se pudo clonar un ítem del setlist: ${error.message}`);
+      }
+      if (mapaItemIds.size) {
+        const { data: encargadosOrigen } = await admin.from("miembros_rol").select("*").in("item_servicio_id", [...mapaItemIds.keys()]);
+        for (const m of encargadosOrigen ?? []) {
+          const { id: _id, item_servicio_id, ...resto } = m as Record<string, unknown>;
+          const { error } = await admin.from("miembros_rol").insert({ ...resto, id: crypto.randomUUID(), item_servicio_id: mapaItemIds.get(item_servicio_id as string), estado: "pendiente" });
+          if (error) throw new Error(`No se pudo clonar un encargado: ${error.message}`);
+        }
+      }
+      const { data: rolesOrigen } = await admin.from("roles_evento").select("*").eq("evento_id", a.evento_id).order("orden");
+      const mapaRolIds = new Map<string, string>();
+      for (const r of rolesOrigen ?? []) {
+        const nuevoId = crypto.randomUUID();
+        mapaRolIds.set(r.id, nuevoId);
+        const { id: _id, evento_id: _e, ...resto } = r as Record<string, unknown>;
+        const { error } = await admin.from("roles_evento").insert({ ...resto, id: nuevoId, evento_id: nuevoEventoId });
+        if (error) throw new Error(`No se pudo clonar un rol de alabanza: ${error.message}`);
+      }
+      if (mapaRolIds.size) {
+        const { data: miembrosOrigen } = await admin.from("miembros_rol").select("*").in("rol_id", [...mapaRolIds.keys()]);
+        for (const m of miembrosOrigen ?? []) {
+          const { id: _id, rol_id, ...resto } = m as Record<string, unknown>;
+          const { error } = await admin.from("miembros_rol").insert({ ...resto, id: crypto.randomUUID(), rol_id: mapaRolIds.get(rol_id as string), estado: "pendiente" });
+          if (error) throw new Error(`No se pudo clonar un miembro del equipo: ${error.message}`);
+        }
+      }
+      eventosCreadosOTocados.add(nuevoEventoId);
+      totalAcciones++;
+      continue;
+    }
+
+    if (a.tipo === "agregar_item_setlist") {
+      if (!a.evento_id || !a.item_tipo) throw new Error("Falta evento_id o item_tipo en una acción agregar_item_setlist.");
+      const { count } = await admin.from("items_servicio").select("id", { count: "exact", head: true }).eq("evento_id", a.evento_id);
+      const id = crypto.randomUUID();
+      const base = { id, evento_id: a.evento_id, orden: count ?? 0, estructura: [], fondo_tipo: "color", es_punto_bosquejo: false };
+      let fila;
+      if (a.item_tipo === "cancion") fila = { ...base, tipo: "cancion", cancion_id: a.item_cancion_id, tonalidad_override: null };
+      else if (a.item_tipo === "biblia") fila = { ...base, tipo: "biblia", referencia: a.item_referencia_biblia || "", version_biblia: "RVR1960", texto_biblia: a.item_texto_biblia || "" };
+      else if (a.item_tipo === "slide") fila = { ...base, tipo: "slide", titulo: a.item_titulo || "", subtitulo: "", fondo_color: "#1B2029", fondo_video_url: null, fondo_imagen_url: null };
+      else fila = { ...base, tipo: "bloque", titulo: a.item_titulo || "Bloque", descripcion: a.item_descripcion || "", ministerio_id: null };
+      const { error } = await admin.from("items_servicio").insert(fila);
+      if (error) throw new Error(`No se pudo agregar el ítem al setlist: ${error.message}`);
+      eventosCreadosOTocados.add(a.evento_id);
+      totalAcciones++;
+      continue;
+    }
+
+    if (a.tipo === "editar_item_setlist") {
+      if (!a.item_id) throw new Error("Falta item_id en una acción editar_item_setlist.");
+      const patch: Record<string, unknown> = {};
+      if (a.item_titulo !== undefined) patch.titulo = a.item_titulo;
+      if (a.item_descripcion !== undefined) patch.descripcion = a.item_descripcion;
+      if (a.item_cancion_id !== undefined) patch.cancion_id = a.item_cancion_id;
+      if (a.item_referencia_biblia !== undefined) patch.referencia = a.item_referencia_biblia;
+      if (a.item_texto_biblia !== undefined) patch.texto_biblia = a.item_texto_biblia;
+      const { data: itemRow, error } = await admin.from("items_servicio").update(patch).eq("id", a.item_id).select("evento_id").single();
+      if (error) throw new Error(`No se pudo editar el ítem del setlist: ${error.message}`);
+      if (itemRow) eventosCreadosOTocados.add(itemRow.evento_id);
+      totalAcciones++;
+      continue;
+    }
+
+    if (a.tipo === "eliminar_item_setlist") {
+      if (!a.item_id) throw new Error("Falta item_id en una acción eliminar_item_setlist.");
+      const { error } = await admin.from("items_servicio").delete().eq("id", a.item_id);
+      if (error) throw new Error(`No se pudo eliminar el ítem del setlist: ${error.message}`);
+      totalAcciones++;
+      continue;
+    }
+
+    if (a.tipo === "reordenar_setlist") {
+      if (!a.evento_id || !Array.isArray(a.item_ids_en_orden)) throw new Error("Falta evento_id o item_ids_en_orden en una acción reordenar_setlist.");
+      for (let i = 0; i < a.item_ids_en_orden.length; i++) {
+        const { error } = await admin.from("items_servicio").update({ orden: i }).eq("id", a.item_ids_en_orden[i]).eq("evento_id", a.evento_id);
+        if (error) throw new Error(`No se pudo reordenar el setlist: ${error.message}`);
+      }
+      eventosCreadosOTocados.add(a.evento_id);
+      totalAcciones++;
+      continue;
+    }
+
+    if (a.tipo === "asignar_persona") {
+      if (!a.usuario_id || !a.destino) throw new Error("Falta usuario_id o destino en una acción asignar_persona.");
+      const { data: usuarioRow } = await admin.from("usuarios").select("id, nombre").eq("id", a.usuario_id).single();
+      if (!usuarioRow) throw new Error(`usuario_id inválido en asignar_persona: ${a.usuario_id}`);
+      let eventoIdDeEsto: string | null = null;
+      if (a.destino === "item_setlist") {
+        if (!a.destino_item_id) throw new Error("Falta destino_item_id en asignar_persona con destino=item_setlist.");
+        const { data: itemRow } = await admin.from("items_servicio").select("evento_id").eq("id", a.destino_item_id).single();
+        if (!itemRow) throw new Error(`destino_item_id inválido en asignar_persona: ${a.destino_item_id}`);
+        eventoIdDeEsto = itemRow.evento_id;
+        const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), item_servicio_id: a.destino_item_id, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
+        if (error) throw new Error(`No se pudo asignar a ${usuarioRow.nombre}: ${error.message}`);
+      } else {
+        if (!a.evento_id) throw new Error("Falta evento_id en asignar_persona con destino=equipo_alabanza.");
+        eventoIdDeEsto = a.evento_id;
+        const nombreRol = a.rol_alabanza_nombre || "Equipo de alabanza";
+        const { data: rolExistente } = await admin.from("roles_evento").select("id").eq("evento_id", a.evento_id).ilike("nombre", nombreRol).maybeSingle();
+        let rolId = rolExistente?.id as string | undefined;
+        if (!rolId) {
+          const { count } = await admin.from("roles_evento").select("id", { count: "exact", head: true }).eq("evento_id", a.evento_id);
+          rolId = crypto.randomUUID();
+          const { error } = await admin.from("roles_evento").insert({ id: rolId, evento_id: a.evento_id, nombre: nombreRol, orden: count ?? 0 });
+          if (error) throw new Error(`No se pudo crear el rol ${nombreRol}: ${error.message}`);
+        }
+        const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), rol_id: rolId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
+        if (error) throw new Error(`No se pudo asignar a ${usuarioRow.nombre}: ${error.message}`);
+      }
+      const { data: eventoRow } = eventoIdDeEsto ? await admin.from("eventos").select("titulo").eq("id", eventoIdDeEsto).single() : { data: null };
+      await notificar(admin, usuarioRow.id, "asignacion", `Te asignaron: ${eventoRow?.titulo || "un evento"}`, `Quedaste a cargo de algo en "${eventoRow?.titulo || "un evento"}".`, eventoIdDeEsto);
+      notificadosTotal.push(usuarioRow.nombre);
+      if (eventoIdDeEsto) eventosCreadosOTocados.add(eventoIdDeEsto);
+      totalAcciones++;
+      continue;
+    }
+
+    if (a.tipo === "eliminar_asignacion") {
+      if (!a.miembro_rol_id) throw new Error("Falta miembro_rol_id en una acción eliminar_asignacion.");
+      const { data: filaVieja } = await admin.from("miembros_rol").select("usuario_id, nombre, item_servicio_id, rol_id").eq("id", a.miembro_rol_id).maybeSingle();
+      const { error } = await admin.from("miembros_rol").delete().eq("id", a.miembro_rol_id);
+      if (error) throw new Error(`No se pudo quitar la asignación: ${error.message}`);
+      // Mismo aviso que removeEncargado/removeWorshipRoleMember en PrototipoWorshipFlow.jsx.
+      if (filaVieja?.usuario_id) {
+        let eventoId: string | null = null;
+        if (filaVieja.item_servicio_id) {
+          const { data: itemRow } = await admin.from("items_servicio").select("evento_id").eq("id", filaVieja.item_servicio_id).maybeSingle();
+          eventoId = itemRow?.evento_id ?? null;
+        } else if (filaVieja.rol_id) {
+          const { data: rolRow } = await admin.from("roles_evento").select("evento_id").eq("id", filaVieja.rol_id).maybeSingle();
+          eventoId = rolRow?.evento_id ?? null;
+        }
+        await notificar(admin, filaVieja.usuario_id, "general", "Te quitaron un encargo", "Ya no tienes ese encargo asignado.", eventoId);
+      }
+      totalAcciones++;
+      continue;
+    }
+
+    if (a.tipo === "agregar_recordatorio") {
+      if (!a.evento_id || !a.cantidad || !a.unidad) throw new Error("Falta evento_id, cantidad o unidad en una acción agregar_recordatorio.");
+      const { error } = await admin.from("recordatorios_evento").insert({ id: crypto.randomUUID(), evento_id: a.evento_id, cantidad: a.cantidad, unidad: a.unidad, enviado: false });
+      if (error) throw new Error(`No se pudo agregar el recordatorio: ${error.message}`);
+      eventosCreadosOTocados.add(a.evento_id);
+      totalAcciones++;
+      continue;
+    }
+
+    if (a.tipo === "eliminar_recordatorio") {
+      if (!a.recordatorio_id) throw new Error("Falta recordatorio_id en una acción eliminar_recordatorio.");
+      const { error } = await admin.from("recordatorios_evento").delete().eq("id", a.recordatorio_id);
+      if (error) throw new Error(`No se pudo eliminar el recordatorio: ${error.message}`);
+      totalAcciones++;
+      continue;
+    }
+
+    throw new Error(`Tipo de acción desconocido: ${a.tipo}`);
+  }
+
+  // Auto-verificación: revisa los eventos que este plan tocó (no accede a nada más) y avisa si algo
+  // quedó incompleto en vez de asumir que salió bien.
+  for (const eventoId of eventosCreadosOTocados) {
+    const { count: totalRecordatorios } = await admin.from("recordatorios_evento").select("id", { count: "exact", head: true }).eq("evento_id", eventoId);
+    const { data: eventoRow } = await admin.from("eventos").select("titulo").eq("id", eventoId).maybeSingle();
+    if ((totalRecordatorios ?? 0) === 0) {
+      avisos.push(`"${eventoRow?.titulo || eventoId}" quedó sin ningún recordatorio — nadie recibirá aviso antes del evento.`);
+    }
+    const { data: itemsDelEvento } = await admin.from("items_servicio").select("id").eq("evento_id", eventoId);
+    const itemIds = (itemsDelEvento ?? []).map((i: { id: string }) => i.id);
+    const { count: encargadosSinUsuario } = await admin
+      .from("miembros_rol").select("id", { count: "exact", head: true })
+      .in("item_servicio_id", itemIds.length ? itemIds : ["00000000-0000-0000-0000-000000000000"])
+      .is("usuario_id", null);
+    if ((encargadosSinUsuario ?? 0) > 0) {
+      avisos.push(`En "${eventoRow?.titulo || eventoId}" algún encargado quedó sin cuenta de usuario vinculada — no le llegarán notificaciones.`);
+    }
+  }
+
+  return { totalAcciones, notificadosTotal, avisos };
 }
 
 Deno.serve(async (req: Request) => {
@@ -398,288 +665,40 @@ Deno.serve(async (req: Request) => {
       return json({ tipo: "texto", texto: texto || "No entendí, ¿puedes reformular?" }, 200);
     }
 
-    // ---- mode "apply": ejecuta el plan ya confirmado por el administrador, determinista, sin IA ----
+    // ---- mode "apply": ejecuta el plan ya confirmado por el administrador, determinista, sin IA.
+    // Corre en segundo plano (EdgeRuntime.waitUntil) en vez de dejar al cliente esperando con la
+    // conexión abierta: si el administrador cierra la app o se le va la señal a mitad de camino, el
+    // trabajo sigue solo del lado del servidor y se entera por una notificación normal cuando
+    // termine (o si algo falló) — la misma campanita/push que ya usa el resto de la app.
     const plan = body.plan;
     const acciones: Accion[] = Array.isArray(plan?.acciones) ? plan.acciones : [];
     if (!acciones.length) return json({ error: "Plan inválido: no trae ninguna acción." }, 400);
 
-    const notificadosTotal: string[] = [];
-    const avisos: string[] = [];
-    const eventosCreadosOTocados = new Set<string>(); // para la auto-verificación al final
-    let totalAcciones = 0;
+    const callerId = caller.id;
+    const tarea = ejecutarAcciones(admin, callerId, acciones)
+      .then(async ({ totalAcciones, notificadosTotal, avisos }) => {
+        const partes = [`Se aplicaron ${totalAcciones} acción(es) del plan del Asistente.`];
+        if (notificadosTotal.length) partes.push(`Se notificó a: ${notificadosTotal.join(", ")}.`);
+        if (avisos.length) partes.push(...avisos);
+        await notificar(admin, callerId, "general", "Tu plan del Asistente ya se aplicó", partes.join(" "), null);
+      })
+      .catch(async (e) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        await notificar(admin, callerId, "general", "El plan del Asistente falló", msg, null);
+      });
 
-    for (const a of acciones) {
-      if (a.tipo === "crear_evento") {
-        if (!a.titulo || !a.fecha) return json({ error: "Un evento del plan no trae título o fecha." }, 400);
-        const eventoId = crypto.randomUUID();
-        const { error: eErr } = await admin.from("eventos").insert({ id: eventoId, titulo: a.titulo, fecha: a.fecha, hora: a.hora || null, ubicacion: a.ubicacion || null, creado_por: caller.id, es_plantilla: false });
-        if (eErr) return json({ error: `No se pudo crear el evento "${a.titulo}": ${eErr.message}` }, 400);
-
-        const itemsPlan = Array.isArray(a.items_setlist) ? a.items_setlist : [];
-        const itemIds = await crearItemsSetlist(admin, eventoId, itemsPlan);
-
-        const asignacionesPlan = Array.isArray(a.asignaciones) ? a.asignaciones : [];
-        const rolesCreados = new Map<string, string>();
-        let ordenRol = 0;
-        for (const asig of asignacionesPlan) {
-          const { data: usuarioRow } = await admin.from("usuarios").select("id, nombre").eq("id", asig.usuario_id).single();
-          if (!usuarioRow) return json({ error: `usuario_id inválido en una asignación de "${a.titulo}": ${asig.usuario_id}` }, 400);
-          if (asig.destino === "item_setlist") {
-            const itemServicioId = itemIds[asig.item_setlist_indice];
-            if (!itemServicioId) return json({ error: `Índice de ítem de setlist inválido en una asignación de "${a.titulo}".` }, 400);
-            const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), item_servicio_id: itemServicioId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
-            if (error) return json({ error: `No se pudo asignar a ${usuarioRow.nombre}: ${error.message}` }, 400);
-          } else {
-            const nombreRol = asig.rol_alabanza_nombre || "Equipo de alabanza";
-            let rolId = rolesCreados.get(nombreRol.toLowerCase());
-            if (!rolId) {
-              rolId = crypto.randomUUID();
-              const { error } = await admin.from("roles_evento").insert({ id: rolId, evento_id: eventoId, nombre: nombreRol, orden: ordenRol++ });
-              if (error) return json({ error: `No se pudo crear el rol ${nombreRol}: ${error.message}` }, 400);
-              rolesCreados.set(nombreRol.toLowerCase(), rolId);
-            }
-            const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), rol_id: rolId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
-            if (error) return json({ error: `No se pudo asignar a ${usuarioRow.nombre}: ${error.message}` }, 400);
-          }
-          await notificar(admin, usuarioRow.id, "asignacion", `Te asignaron: ${a.titulo}`, `Quedaste a cargo de algo en "${a.titulo}".`, eventoId);
-          notificadosTotal.push(usuarioRow.nombre);
-        }
-
-        const recordatoriosPlan = Array.isArray(a.recordatorios) ? a.recordatorios : [];
-        for (const r of recordatoriosPlan) {
-          const { error } = await admin.from("recordatorios_evento").insert({ id: crypto.randomUUID(), evento_id: eventoId, cantidad: r.cantidad, unidad: r.unidad, enviado: false });
-          if (error) return json({ error: `No se pudo agregar un recordatorio a "${a.titulo}": ${error.message}` }, 400);
-        }
-
-        eventosCreadosOTocados.add(eventoId);
-        totalAcciones++;
-        continue;
-      }
-
-      if (a.tipo === "editar_evento") {
-        if (!a.evento_id) return json({ error: "Falta evento_id en una acción editar_evento." }, 400);
-        const patch: Record<string, unknown> = {};
-        if (a.titulo) patch.titulo = a.titulo;
-        if (a.fecha) patch.fecha = a.fecha;
-        if (a.hora !== undefined) patch.hora = a.hora || null;
-        if (a.ubicacion !== undefined) patch.ubicacion = a.ubicacion || null;
-        const { error } = await admin.from("eventos").update(patch).eq("id", a.evento_id);
-        if (error) return json({ error: `No se pudo editar el evento: ${error.message}` }, 400);
-        eventosCreadosOTocados.add(a.evento_id);
-        totalAcciones++;
-        continue;
-      }
-
-      if (a.tipo === "eliminar_evento") {
-        if (!a.evento_id) return json({ error: "Falta evento_id en una acción eliminar_evento." }, 400);
-        const { error } = await admin.from("eventos").delete().eq("id", a.evento_id);
-        if (error) return json({ error: `No se pudo eliminar el evento: ${error.message}` }, 400);
-        totalAcciones++;
-        continue;
-      }
-
-      if (a.tipo === "duplicar_evento") {
-        if (!a.evento_id || !a.titulo || !a.fecha) return json({ error: "Falta evento_id (origen), título o fecha en una acción duplicar_evento." }, 400);
-        const nuevoEventoId = crypto.randomUUID();
-        const { error: eErr } = await admin.from("eventos").insert({ id: nuevoEventoId, titulo: a.titulo, fecha: a.fecha, hora: a.hora || null, ubicacion: a.ubicacion || null, creado_por: caller.id, es_plantilla: false });
-        if (eErr) return json({ error: `No se pudo crear el evento duplicado: ${eErr.message}` }, 400);
-
-        // Clona items_servicio + sus encargados, y roles_evento + sus miembros — mismo criterio que
-        // "crear desde plantilla" en la app (CLAUDE.md: "clona roles y setlist... reseteando
-        // confirmaciones"): se llevan las mismas personas, pero su estado vuelve a "pendiente" y NO
-        // se les manda una notificación nueva de "te asignaron" (tampoco lo hace crearEventoCompleto
-        // al clonar desde la app).
-        const { data: itemsOrigen } = await admin.from("items_servicio").select("*").eq("evento_id", a.evento_id).order("orden");
-        const mapaItemIds = new Map<string, string>();
-        for (const it of itemsOrigen ?? []) {
-          const nuevoId = crypto.randomUUID();
-          mapaItemIds.set(it.id, nuevoId);
-          const { id: _id, evento_id: _e, created_at: _c, ...resto } = it as Record<string, unknown>;
-          const { error } = await admin.from("items_servicio").insert({ ...resto, id: nuevoId, evento_id: nuevoEventoId });
-          if (error) return json({ error: `No se pudo clonar un ítem del setlist: ${error.message}` }, 400);
-        }
-        if (mapaItemIds.size) {
-          const { data: encargadosOrigen } = await admin.from("miembros_rol").select("*").in("item_servicio_id", [...mapaItemIds.keys()]);
-          for (const m of encargadosOrigen ?? []) {
-            const { id: _id, item_servicio_id, ...resto } = m as Record<string, unknown>;
-            const { error } = await admin.from("miembros_rol").insert({ ...resto, id: crypto.randomUUID(), item_servicio_id: mapaItemIds.get(item_servicio_id as string), estado: "pendiente" });
-            if (error) return json({ error: `No se pudo clonar un encargado: ${error.message}` }, 400);
-          }
-        }
-        const { data: rolesOrigen } = await admin.from("roles_evento").select("*").eq("evento_id", a.evento_id).order("orden");
-        const mapaRolIds = new Map<string, string>();
-        for (const r of rolesOrigen ?? []) {
-          const nuevoId = crypto.randomUUID();
-          mapaRolIds.set(r.id, nuevoId);
-          const { id: _id, evento_id: _e, ...resto } = r as Record<string, unknown>;
-          const { error } = await admin.from("roles_evento").insert({ ...resto, id: nuevoId, evento_id: nuevoEventoId });
-          if (error) return json({ error: `No se pudo clonar un rol de alabanza: ${error.message}` }, 400);
-        }
-        if (mapaRolIds.size) {
-          const { data: miembrosOrigen } = await admin.from("miembros_rol").select("*").in("rol_id", [...mapaRolIds.keys()]);
-          for (const m of miembrosOrigen ?? []) {
-            const { id: _id, rol_id, ...resto } = m as Record<string, unknown>;
-            const { error } = await admin.from("miembros_rol").insert({ ...resto, id: crypto.randomUUID(), rol_id: mapaRolIds.get(rol_id as string), estado: "pendiente" });
-            if (error) return json({ error: `No se pudo clonar un miembro del equipo: ${error.message}` }, 400);
-          }
-        }
-        eventosCreadosOTocados.add(nuevoEventoId);
-        totalAcciones++;
-        continue;
-      }
-
-      if (a.tipo === "agregar_item_setlist") {
-        if (!a.evento_id || !a.item_tipo) return json({ error: "Falta evento_id o item_tipo en una acción agregar_item_setlist." }, 400);
-        const { count } = await admin.from("items_servicio").select("id", { count: "exact", head: true }).eq("evento_id", a.evento_id);
-        const id = crypto.randomUUID();
-        const base = { id, evento_id: a.evento_id, orden: count ?? 0, estructura: [], fondo_tipo: "color", es_punto_bosquejo: false };
-        let fila;
-        if (a.item_tipo === "cancion") fila = { ...base, tipo: "cancion", cancion_id: a.item_cancion_id, tonalidad_override: null };
-        else if (a.item_tipo === "biblia") fila = { ...base, tipo: "biblia", referencia: a.item_referencia_biblia || "", version_biblia: "RVR1960", texto_biblia: a.item_texto_biblia || "" };
-        else if (a.item_tipo === "slide") fila = { ...base, tipo: "slide", titulo: a.item_titulo || "", subtitulo: "", fondo_color: "#1B2029", fondo_video_url: null, fondo_imagen_url: null };
-        else fila = { ...base, tipo: "bloque", titulo: a.item_titulo || "Bloque", descripcion: a.item_descripcion || "", ministerio_id: null };
-        const { error } = await admin.from("items_servicio").insert(fila);
-        if (error) return json({ error: `No se pudo agregar el ítem al setlist: ${error.message}` }, 400);
-        eventosCreadosOTocados.add(a.evento_id);
-        totalAcciones++;
-        continue;
-      }
-
-      if (a.tipo === "editar_item_setlist") {
-        if (!a.item_id) return json({ error: "Falta item_id en una acción editar_item_setlist." }, 400);
-        const patch: Record<string, unknown> = {};
-        if (a.item_titulo !== undefined) patch.titulo = a.item_titulo;
-        if (a.item_descripcion !== undefined) patch.descripcion = a.item_descripcion;
-        if (a.item_cancion_id !== undefined) patch.cancion_id = a.item_cancion_id;
-        if (a.item_referencia_biblia !== undefined) patch.referencia = a.item_referencia_biblia;
-        if (a.item_texto_biblia !== undefined) patch.texto_biblia = a.item_texto_biblia;
-        const { data: itemRow, error } = await admin.from("items_servicio").update(patch).eq("id", a.item_id).select("evento_id").single();
-        if (error) return json({ error: `No se pudo editar el ítem del setlist: ${error.message}` }, 400);
-        if (itemRow) eventosCreadosOTocados.add(itemRow.evento_id);
-        totalAcciones++;
-        continue;
-      }
-
-      if (a.tipo === "eliminar_item_setlist") {
-        if (!a.item_id) return json({ error: "Falta item_id en una acción eliminar_item_setlist." }, 400);
-        // Cascade ya se encarga de borrar sus miembros_rol (ver src/lib/eventos.js).
-        const { error } = await admin.from("items_servicio").delete().eq("id", a.item_id);
-        if (error) return json({ error: `No se pudo eliminar el ítem del setlist: ${error.message}` }, 400);
-        totalAcciones++;
-        continue;
-      }
-
-      if (a.tipo === "reordenar_setlist") {
-        if (!a.evento_id || !Array.isArray(a.item_ids_en_orden)) return json({ error: "Falta evento_id o item_ids_en_orden en una acción reordenar_setlist." }, 400);
-        for (let i = 0; i < a.item_ids_en_orden.length; i++) {
-          const { error } = await admin.from("items_servicio").update({ orden: i }).eq("id", a.item_ids_en_orden[i]).eq("evento_id", a.evento_id);
-          if (error) return json({ error: `No se pudo reordenar el setlist: ${error.message}` }, 400);
-        }
-        eventosCreadosOTocados.add(a.evento_id);
-        totalAcciones++;
-        continue;
-      }
-
-      if (a.tipo === "asignar_persona") {
-        if (!a.usuario_id || !a.destino) return json({ error: "Falta usuario_id o destino en una acción asignar_persona." }, 400);
-        const { data: usuarioRow } = await admin.from("usuarios").select("id, nombre").eq("id", a.usuario_id).single();
-        if (!usuarioRow) return json({ error: `usuario_id inválido en asignar_persona: ${a.usuario_id}` }, 400);
-        let eventoIdDeEsto: string | null = null;
-        if (a.destino === "item_setlist") {
-          if (!a.destino_item_id) return json({ error: "Falta destino_item_id en asignar_persona con destino=item_setlist." }, 400);
-          const { data: itemRow } = await admin.from("items_servicio").select("evento_id").eq("id", a.destino_item_id).single();
-          if (!itemRow) return json({ error: `destino_item_id inválido en asignar_persona: ${a.destino_item_id}` }, 400);
-          eventoIdDeEsto = itemRow.evento_id;
-          const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), item_servicio_id: a.destino_item_id, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
-          if (error) return json({ error: `No se pudo asignar a ${usuarioRow.nombre}: ${error.message}` }, 400);
-        } else {
-          if (!a.evento_id) return json({ error: "Falta evento_id en asignar_persona con destino=equipo_alabanza." }, 400);
-          eventoIdDeEsto = a.evento_id;
-          const nombreRol = a.rol_alabanza_nombre || "Equipo de alabanza";
-          const { data: rolExistente } = await admin.from("roles_evento").select("id").eq("evento_id", a.evento_id).ilike("nombre", nombreRol).maybeSingle();
-          let rolId = rolExistente?.id as string | undefined;
-          if (!rolId) {
-            const { count } = await admin.from("roles_evento").select("id", { count: "exact", head: true }).eq("evento_id", a.evento_id);
-            rolId = crypto.randomUUID();
-            const { error } = await admin.from("roles_evento").insert({ id: rolId, evento_id: a.evento_id, nombre: nombreRol, orden: count ?? 0 });
-            if (error) return json({ error: `No se pudo crear el rol ${nombreRol}: ${error.message}` }, 400);
-          }
-          const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), rol_id: rolId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
-          if (error) return json({ error: `No se pudo asignar a ${usuarioRow.nombre}: ${error.message}` }, 400);
-        }
-        const { data: eventoRow } = eventoIdDeEsto ? await admin.from("eventos").select("titulo").eq("id", eventoIdDeEsto).single() : { data: null };
-        await notificar(admin, usuarioRow.id, "asignacion", `Te asignaron: ${eventoRow?.titulo || "un evento"}`, `Quedaste a cargo de algo en "${eventoRow?.titulo || "un evento"}".`, eventoIdDeEsto);
-        notificadosTotal.push(usuarioRow.nombre);
-        if (eventoIdDeEsto) eventosCreadosOTocados.add(eventoIdDeEsto);
-        totalAcciones++;
-        continue;
-      }
-
-      if (a.tipo === "eliminar_asignacion") {
-        if (!a.miembro_rol_id) return json({ error: "Falta miembro_rol_id en una acción eliminar_asignacion." }, 400);
-        const { data: filaVieja } = await admin.from("miembros_rol").select("usuario_id, nombre, item_servicio_id, rol_id").eq("id", a.miembro_rol_id).maybeSingle();
-        const { error } = await admin.from("miembros_rol").delete().eq("id", a.miembro_rol_id);
-        if (error) return json({ error: `No se pudo quitar la asignación: ${error.message}` }, 400);
-        // Mismo aviso que removeEncargado/removeWorshipRoleMember en PrototipoWorshipFlow.jsx.
-        if (filaVieja?.usuario_id) {
-          let eventoId: string | null = null;
-          if (filaVieja.item_servicio_id) {
-            const { data: itemRow } = await admin.from("items_servicio").select("evento_id").eq("id", filaVieja.item_servicio_id).maybeSingle();
-            eventoId = itemRow?.evento_id ?? null;
-          } else if (filaVieja.rol_id) {
-            const { data: rolRow } = await admin.from("roles_evento").select("evento_id").eq("id", filaVieja.rol_id).maybeSingle();
-            eventoId = rolRow?.evento_id ?? null;
-          }
-          await notificar(admin, filaVieja.usuario_id, "general", "Te quitaron un encargo", "Ya no tienes ese encargo asignado.", eventoId);
-        }
-        totalAcciones++;
-        continue;
-      }
-
-      if (a.tipo === "agregar_recordatorio") {
-        if (!a.evento_id || !a.cantidad || !a.unidad) return json({ error: "Falta evento_id, cantidad o unidad en una acción agregar_recordatorio." }, 400);
-        const { error } = await admin.from("recordatorios_evento").insert({ id: crypto.randomUUID(), evento_id: a.evento_id, cantidad: a.cantidad, unidad: a.unidad, enviado: false });
-        if (error) return json({ error: `No se pudo agregar el recordatorio: ${error.message}` }, 400);
-        eventosCreadosOTocados.add(a.evento_id);
-        totalAcciones++;
-        continue;
-      }
-
-      if (a.tipo === "eliminar_recordatorio") {
-        if (!a.recordatorio_id) return json({ error: "Falta recordatorio_id en una acción eliminar_recordatorio." }, 400);
-        const { error } = await admin.from("recordatorios_evento").delete().eq("id", a.recordatorio_id);
-        if (error) return json({ error: `No se pudo eliminar el recordatorio: ${error.message}` }, 400);
-        totalAcciones++;
-        continue;
-      }
-
-      return json({ error: `Tipo de acción desconocido: ${a.tipo}` }, 400);
-    }
-
-    // Auto-verificación: revisa los eventos que este plan tocó (no accede a nada más) y avisa si
-    // algo quedó incompleto en vez de asumir que salió bien.
-    for (const eventoId of eventosCreadosOTocados) {
-      const { count: totalRecordatorios } = await admin.from("recordatorios_evento").select("id", { count: "exact", head: true }).eq("evento_id", eventoId);
-      const { data: eventoRow } = await admin.from("eventos").select("titulo").eq("id", eventoId).maybeSingle();
-      if ((totalRecordatorios ?? 0) === 0) {
-        avisos.push(`"${eventoRow?.titulo || eventoId}" quedó sin ningún recordatorio — nadie recibirá aviso antes del evento.`);
-      }
-      const { data: itemsDelEvento } = await admin.from("items_servicio").select("id").eq("evento_id", eventoId);
-      const itemIds = (itemsDelEvento ?? []).map((i: { id: string }) => i.id);
-      const { count: encargadosSinUsuario } = await admin
-        .from("miembros_rol").select("id", { count: "exact", head: true })
-        .in("item_servicio_id", itemIds.length ? itemIds : ["00000000-0000-0000-0000-000000000000"])
-        .is("usuario_id", null);
-      if ((encargadosSinUsuario ?? 0) > 0) {
-        avisos.push(`En "${eventoRow?.titulo || eventoId}" algún encargado quedó sin cuenta de usuario vinculada — no le llegarán notificaciones.`);
-      }
-    }
+    // EdgeRuntime.waitUntil (Deno Deploy / Supabase Edge Functions) mantiene la función corriendo
+    // DESPUÉS de mandar la respuesta HTTP de abajo — así "Aplicar" no depende de que el administrador
+    // se quede en la app esperando. Si por lo que sea no existiera en este entorno, se espera igual
+    // (más lento para el cliente, pero nunca deja el plan a medio aplicar).
+    const edgeRuntime = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+    if (edgeRuntime?.waitUntil) edgeRuntime.waitUntil(tarea);
+    else await tarea;
 
     return json({
       success: true,
-      resumen: `Se aplicaron ${totalAcciones} acción(es) del plan.`,
-      notificados: notificadosTotal,
-      avisos,
+      enSegundoPlano: true,
+      resumen: `Aplicando ${acciones.length} acción(es) en segundo plano — te llega una notificación cuando termine (o si algo falla), aunque cierres la app.`,
     }, 200);
   } catch (e) {
     return json({ error: "Error inesperado: " + (e instanceof Error ? e.message : String(e)) }, 500);
