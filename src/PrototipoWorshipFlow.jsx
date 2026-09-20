@@ -844,7 +844,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     updateItemEncargados(itemId, (encargados) => [...encargados, { id: nextId(), n: usuario.nombre, usuarioId: usuario.id, status: "pendiente", lead: false }]);
     const item = selectedEvent?.serviceOrder.find((i) => i.id === itemId);
     const label = item ? serviceItemLabel(item, library) : "un encargo";
-    notificarAsignacion(usuario.id, { titulo: `Te asignaron: ${label}`, cuerpo: `Quedaste a cargo de "${label}" en "${selectedEvent?.title}".`, eventoId: selectedEventId });
+    notificarAsignacion(usuario.id, { titulo: "Se te ha asignado", cuerpo: `Para "${label}" en "${selectedEvent?.title}".`, eventoId: selectedEventId });
   };
   const setEncargadoStatus = (itemId, idx, status) =>
     updateItemEncargados(itemId, (encargados) => encargados.map((m, mi) => (mi === idx ? { ...m, status } : m)));
@@ -885,7 +885,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     updateWorshipRoleMembers(roleId, (members) => [...members, { id: nextId(), n: usuario.nombre, usuarioId: usuario.id, status: "pendiente", lead: false }]);
     const role = (selectedEvent?.worshipRoles || []).find((r) => r.id === roleId);
     const label = role?.name || "el equipo de alabanza";
-    notificarAsignacion(usuario.id, { titulo: `Te asignaron: ${label}`, cuerpo: `Quedaste como "${label}" en "${selectedEvent?.title}".`, eventoId: selectedEventId });
+    notificarAsignacion(usuario.id, { titulo: "Se te ha asignado", cuerpo: `Para "${label}" en "${selectedEvent?.title}".`, eventoId: selectedEventId });
   };
   const setWorshipRoleMemberStatus = (roleId, idx, status) =>
     updateWorshipRoleMembers(roleId, (members) => members.map((m, mi) => (mi === idx ? { ...m, status } : m)));
@@ -1338,7 +1338,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     const ministryName = ministries.find((m) => m.id === id)?.name || "un grupo";
     setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, leaderId: leaderId || null, leaderName } : m)));
     actualizarLiderMinisterio(id, leaderId || null).catch((e) => notifyError("No se pudo actualizar el líder", e));
-    if (leaderId) notificarAsignacion(leaderId, { titulo: "Te asignaron como líder", cuerpo: `Ahora eres líder del grupo "${ministryName}".` });
+    if (leaderId) notificarAsignacion(leaderId, { titulo: "Se te ha asignado", cuerpo: `Como líder del grupo "${ministryName}".` });
     if (previousLeaderId && previousLeaderId !== leaderId) notificarAsignacion(previousLeaderId, { titulo: "Ya no eres líder", cuerpo: `Dejaste de ser líder del grupo "${ministryName}".` });
   };
   const setMinistryName = (id, name) => {

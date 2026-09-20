@@ -39,32 +39,52 @@ async function enviarPush(
   }
 }
 
-// Todos los que tienen algo que ver con este evento: por ítem del Setlist, por rol del equipo de
-// alabanza (las dos formas en que miembros_rol vincula a una persona con un evento), y el LÍDER de
-// cualquier ministerio vinculado a un bloque del Setlist (items_servicio.ministerio_id) — antes se
-// quedaba afuera si ese líder no tenía además una fila propia en miembros_rol para ese bloque, así
-// que un líder de ministerio podía no enterarse nunca de un recordatorio de "su" evento.
-async function usuariosDelEvento(admin: ReturnType<typeof createClient>, eventoId: string): Promise<Set<string>> {
-  const { data: items } = await admin.from("items_servicio").select("id, ministerio_id").eq("evento_id", eventoId);
-  const { data: roles } = await admin.from("roles_evento").select("id").eq("evento_id", eventoId);
-  const itemIds = (items ?? []).map((i: { id: string }) => i.id);
-  const roleIds = (roles ?? []).map((x: { id: string }) => x.id);
-  const ministerioIds = [...new Set((items ?? []).map((i: { ministerio_id: string | null }) => i.ministerio_id).filter((id): id is string => !!id))];
+// Todos los que tienen algo que ver con este evento, y CON QUÉ tarea puntual — por ítem del Setlist
+// (título del bloque, o título de la canción si es tipo "cancion"), por rol del equipo de alabanza
+// (Piano, Guitarra, Dirección de cantos...), y el LÍDER de cualquier ministerio vinculado a un bloque
+// del Setlist (items_servicio.ministerio_id) — antes se quedaba afuera si ese líder no tenía además
+// una fila propia en miembros_rol para ese bloque, así que un líder de ministerio podía no enterarse
+// nunca de un recordatorio de "su" evento. Devuelve un mapa usuario_id -> lista de tareas (una persona
+// puede tener más de una en el mismo evento, ej. Piano y Dirección de cantos a la vez) para poder
+// personalizar el recordatorio ("te toca: Piano, Dirección de cantos") en vez de un aviso genérico.
+type ItemServicioTarea = { id: string; tipo: string; titulo: string | null; ministerio_id: string | null; canciones: { titulo: string } | null };
 
-  const usuarioIds = new Set<string>();
+async function tareasPorUsuario(admin: ReturnType<typeof createClient>, eventoId: string): Promise<Map<string, string[]>> {
+  const { data: items } = await admin
+    .from("items_servicio").select("id, tipo, titulo, ministerio_id, canciones(titulo)").eq("evento_id", eventoId) as { data: ItemServicioTarea[] | null };
+  const { data: roles } = await admin.from("roles_evento").select("id, nombre").eq("evento_id", eventoId) as { data: { id: string; nombre: string }[] | null };
+  const itemIds = (items ?? []).map((i: ItemServicioTarea) => i.id);
+  const roleIds = (roles ?? []).map((r: { id: string }) => r.id);
+  const ministerioIds = [...new Set((items ?? []).map((i: ItemServicioTarea) => i.ministerio_id).filter((id): id is string => !!id))];
+
+  const mapa = new Map<string, string[]>();
+  const agregar = (usuarioId: string, tarea: string) => {
+    const lista = mapa.get(usuarioId) ?? [];
+    if (!lista.includes(tarea)) lista.push(tarea);
+    mapa.set(usuarioId, lista);
+  };
+
   if (itemIds.length) {
-    const { data: m1 } = await admin.from("miembros_rol").select("usuario_id").in("item_servicio_id", itemIds).not("usuario_id", "is", null);
-    (m1 ?? []).forEach((m: { usuario_id: string }) => usuarioIds.add(m.usuario_id));
+    const { data: m1 } = await admin.from("miembros_rol").select("usuario_id, item_servicio_id").in("item_servicio_id", itemIds).not("usuario_id", "is", null);
+    const itemsPorId = new Map((items ?? []).map((i: ItemServicioTarea) => [i.id, i]));
+    (m1 ?? []).forEach((m: { usuario_id: string; item_servicio_id: string }) => {
+      const it = itemsPorId.get(m.item_servicio_id);
+      const tarea = it?.tipo === "cancion" ? (it.canciones?.titulo || "una canción") : (it?.titulo || "un bloque del setlist");
+      agregar(m.usuario_id, tarea);
+    });
   }
   if (roleIds.length) {
-    const { data: m2 } = await admin.from("miembros_rol").select("usuario_id").in("rol_id", roleIds).not("usuario_id", "is", null);
-    (m2 ?? []).forEach((m: { usuario_id: string }) => usuarioIds.add(m.usuario_id));
+    const { data: m2 } = await admin.from("miembros_rol").select("usuario_id, rol_id").in("rol_id", roleIds).not("usuario_id", "is", null);
+    const rolesPorId = new Map((roles ?? []).map((r: { id: string; nombre: string }) => [r.id, r.nombre]));
+    (m2 ?? []).forEach((m: { usuario_id: string; rol_id: string }) => agregar(m.usuario_id, rolesPorId.get(m.rol_id) || "el equipo de alabanza"));
   }
   if (ministerioIds.length) {
-    const { data: lideres } = await admin.from("ministerios").select("lider_id").in("id", ministerioIds).not("lider_id", "is", null);
-    (lideres ?? []).forEach((m: { lider_id: string }) => usuarioIds.add(m.lider_id));
+    const { data: ministerios } = await admin.from("ministerios").select("id, nombre, lider_id").in("id", ministerioIds);
+    (ministerios ?? []).forEach((min: { id: string; nombre: string; lider_id: string | null }) => {
+      if (min.lider_id) agregar(min.lider_id, `Líder de ${min.nombre}`);
+    });
   }
-  return usuarioIds;
+  return mapa;
 }
 
 type Reminder = {
@@ -123,8 +143,8 @@ Deno.serve(async (req: Request) => {
       const msAntes = r.cantidad * (r.unidad === "horas" ? 3_600_000 : 86_400_000);
       if (ahora < inicio - msAntes) continue; // todavía no toca avisar
 
-      const usuarioIds = await usuariosDelEvento(admin, r.evento_id);
-      if (usuarioIds.size === 0) continue; // nadie asignado todavía -- se reintenta el próximo ciclo
+      const mapaTareas = await tareasPorUsuario(admin, r.evento_id);
+      if (mapaTareas.size === 0) continue; // nadie asignado todavía -- se reintenta el próximo ciclo
 
       // ANTES: un solo booleano "enviado" por fila de recordatorios_evento, marcado una vez y para
       // siempre. Eso significaba que si alguien se agregaba al equipo del evento DESPUÉS de que ese
@@ -137,15 +157,21 @@ Deno.serve(async (req: Request) => {
       // todavía sigan vigentes (el evento no haya empezado) en el próximo ciclo.
       const { data: yaNotificados } = await admin.from("recordatorio_notificados").select("usuario_id").eq("recordatorio_id", r.id);
       const yaNotificadosSet = new Set((yaNotificados ?? []).map((n: { usuario_id: string }) => n.usuario_id));
-      const pendientesDeEste = [...usuarioIds].filter((id) => !yaNotificadosSet.has(id));
+      const pendientesDeEste = [...mapaTareas.keys()].filter((id) => !yaNotificadosSet.has(id));
       if (pendientesDeEste.length === 0) continue; // ya se le avisó a todos los que hay hasta ahora
 
       const unidadLabel = r.unidad === "horas" ? "hora" : "día";
+      const faltan = `${r.cantidad} ${unidadLabel}${r.cantidad === 1 ? "" : "s"}`;
       const titulo = `Recordatorio: ${ev.titulo}`;
-      const cuerpo = `Faltan ${r.cantidad} ${unidadLabel}${r.cantidad === 1 ? "" : "s"} para "${ev.titulo}".`;
 
       for (const usuarioId of pendientesDeEste) {
         try {
+          // Personalizado con SU tarea puntual (ej. "Piano, Dirección de cantos") en vez de un aviso
+          // genérico -- así cada quien sabe de una vez qué le toca, sin tener que abrir la app.
+          const tareas = mapaTareas.get(usuarioId) ?? [];
+          const cuerpo = tareas.length
+            ? `Recuerda que en ${faltan} te toca: ${tareas.join(", ")}.`
+            : `Faltan ${faltan} para "${ev.titulo}".`;
           const { error: insertErr } = await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo: "recordatorio", titulo, cuerpo, evento_id: r.evento_id });
           if (insertErr) throw insertErr;
           await enviarPush(admin, usuarioId, { title: titulo, body: cuerpo });
@@ -179,7 +205,7 @@ Deno.serve(async (req: Request) => {
       const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}${OFFSET_GUATEMALA}`).getTime();
       if (inicio < ahora || inicio > ahora + VENTANA_MS) continue;
 
-      const usuarioIds = await usuariosDelEvento(admin, ev.id);
+      const usuarioIds = new Set((await tareasPorUsuario(admin, ev.id)).keys());
       if (usuarioIds.size === 0) continue;
 
       const { data: vistos } = await admin.from("asignaciones_vistas").select("usuario_id").eq("evento_id", ev.id);

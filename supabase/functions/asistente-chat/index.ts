@@ -372,13 +372,17 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
       for (const asig of asignacionesPlan) {
         const { data: usuarioRow } = await admin.from("usuarios").select("id, nombre").eq("id", asig.usuario_id).single();
         if (!usuarioRow) throw new Error(`usuario_id inválido en una asignación de "${a.titulo}": ${asig.usuario_id}`);
+        let labelAsignacion = "un encargo";
         if (asig.destino === "item_setlist") {
           const itemServicioId = itemIds[asig.item_setlist_indice];
           if (!itemServicioId) throw new Error(`Índice de ítem de setlist inválido en una asignación de "${a.titulo}".`);
+          const itemPlan = itemsPlan[asig.item_setlist_indice];
+          labelAsignacion = itemPlan?.titulo || (itemPlan?.tipo === "cancion" ? "una canción" : itemPlan?.tipo) || "un ítem del setlist";
           const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), item_servicio_id: itemServicioId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
           if (error) throw new Error(`No se pudo asignar a ${usuarioRow.nombre}: ${error.message}`);
         } else {
           const nombreRol = asig.rol_alabanza_nombre || "Equipo de alabanza";
+          labelAsignacion = nombreRol;
           let rolId = rolesCreados.get(nombreRol.toLowerCase());
           if (!rolId) {
             rolId = crypto.randomUUID();
@@ -389,7 +393,7 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
           const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), rol_id: rolId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
           if (error) throw new Error(`No se pudo asignar a ${usuarioRow.nombre}: ${error.message}`);
         }
-        await notificar(admin, usuarioRow.id, "asignacion", `Te asignaron: ${a.titulo}`, `Quedaste a cargo de algo en "${a.titulo}".`, eventoId);
+        await notificar(admin, usuarioRow.id, "asignacion", "Se te ha asignado", `Para "${labelAsignacion}" en "${a.titulo}".`, eventoId);
         notificadosTotal.push(usuarioRow.nombre);
       }
 
@@ -527,17 +531,20 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
       const { data: usuarioRow } = await admin.from("usuarios").select("id, nombre").eq("id", a.usuario_id).single();
       if (!usuarioRow) throw new Error(`usuario_id inválido en asignar_persona: ${a.usuario_id}`);
       let eventoIdDeEsto: string | null = null;
+      let labelAsignacion = "un encargo";
       if (a.destino === "item_setlist") {
         if (!a.destino_item_id) throw new Error("Falta destino_item_id en asignar_persona con destino=item_setlist.");
-        const { data: itemRow } = await admin.from("items_servicio").select("evento_id").eq("id", a.destino_item_id).single();
+        const { data: itemRow } = await admin.from("items_servicio").select("evento_id, tipo, titulo, canciones(titulo)").eq("id", a.destino_item_id).single();
         if (!itemRow) throw new Error(`destino_item_id inválido en asignar_persona: ${a.destino_item_id}`);
         eventoIdDeEsto = itemRow.evento_id;
+        labelAsignacion = itemRow.tipo === "cancion" ? (itemRow.canciones?.titulo || "una canción") : (itemRow.titulo || itemRow.tipo || "un ítem del setlist");
         const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), item_servicio_id: a.destino_item_id, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
         if (error) throw new Error(`No se pudo asignar a ${usuarioRow.nombre}: ${error.message}`);
       } else {
         if (!a.evento_id) throw new Error("Falta evento_id en asignar_persona con destino=equipo_alabanza.");
         eventoIdDeEsto = a.evento_id;
         const nombreRol = a.rol_alabanza_nombre || "Equipo de alabanza";
+        labelAsignacion = nombreRol;
         const { data: rolExistente } = await admin.from("roles_evento").select("id").eq("evento_id", a.evento_id).ilike("nombre", nombreRol).maybeSingle();
         let rolId = rolExistente?.id as string | undefined;
         if (!rolId) {
@@ -550,7 +557,7 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
         if (error) throw new Error(`No se pudo asignar a ${usuarioRow.nombre}: ${error.message}`);
       }
       const { data: eventoRow } = eventoIdDeEsto ? await admin.from("eventos").select("titulo").eq("id", eventoIdDeEsto).single() : { data: null };
-      await notificar(admin, usuarioRow.id, "asignacion", `Te asignaron: ${eventoRow?.titulo || "un evento"}`, `Quedaste a cargo de algo en "${eventoRow?.titulo || "un evento"}".`, eventoIdDeEsto);
+      await notificar(admin, usuarioRow.id, "asignacion", "Se te ha asignado", `Para "${labelAsignacion}" en "${eventoRow?.titulo || "un evento"}".`, eventoIdDeEsto);
       notificadosTotal.push(usuarioRow.nombre);
       if (eventoIdDeEsto) eventosCreadosOTocados.add(eventoIdDeEsto);
       totalAcciones++;
