@@ -162,14 +162,17 @@ Deno.serve(async (req: Request) => {
 
       const unidadLabel = r.unidad === "horas" ? "hora" : "día";
       const faltan = `${r.cantidad} ${unidadLabel}${r.cantidad === 1 ? "" : "s"}`;
-      const titulo = `Recordatorio: ${ev.titulo}`;
+      // El título es lo grande/bold del push, el cuerpo lo chico -- por eso la tarea puntual (lo que
+      // más le importa ver de un vistazo) va en el título, y el nombre del evento como aclaración
+      // abajo, en vez de al revés.
+      const cuerpo = `Recordatorio: ${ev.titulo}`;
 
       for (const usuarioId of pendientesDeEste) {
         try {
           // Personalizado con SU tarea puntual (ej. "Piano, Dirección de cantos") en vez de un aviso
           // genérico -- así cada quien sabe de una vez qué le toca, sin tener que abrir la app.
           const tareas = mapaTareas.get(usuarioId) ?? [];
-          const cuerpo = tareas.length
+          const titulo = tareas.length
             ? `Recuerda que en ${faltan} te toca: ${tareas.join(", ")}.`
             : `Faltan ${faltan} para "${ev.titulo}".`;
           const { error: insertErr } = await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo: "recordatorio", titulo, cuerpo, evento_id: r.evento_id });
