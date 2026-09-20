@@ -205,6 +205,9 @@ const PROPONER_PLAN_TOOL = {
     },
     required: ["resumen", "acciones"],
   },
+  // Esta herramienta es idéntica en cada llamada — se marca para caché igual que el bloque estable
+  // del system prompt, así el prefijo cacheado cubre "tools + la parte fija del system" completo.
+  cache_control: { type: "ephemeral" },
 };
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
@@ -225,7 +228,15 @@ async function llamarClaude(
   const listaUsuarios = usuarios.map((u) => `- ${u.nombre} (usuario_id: ${u.id})`).join("\n");
   const listaCanciones = canciones.map((c) => `- ${c.titulo}${c.artista ? ` (${c.artista})` : ""} (cancion_id: ${c.id})`).join("\n");
 
-  const system =
+  // Partido en dos bloques a propósito para poder cachear el primero (caching de prompts de la API de
+  // Claude): instrucciones/reglas/usuarios/canciones casi nunca cambian de un mensaje a otro dentro de
+  // una misma conversación (ni siquiera entre conversaciones distintas, mientras nadie edite las reglas
+  // ni agregue gente/canciones) — sin cachear, esto se vuelve a cobrar COMPLETO en cada mensaje, aunque
+  // la pregunta sea cortita. Lo volátil (el resumen de eventos existentes, que cambia apenas se crea/
+  // edita algo, y el aviso de imagen adjunta) va DESPUÉS del corte de caché, nunca antes — cachear es
+  // "todo lo de antes de este punto", así que meter algo volátil antes del corte invalida el caché en
+  // cada mensaje y no ahorra nada.
+  const systemEstable =
     "Eres el asistente de WorshipFlow, una app para armar cultos de una iglesia. Ayudas al administrador " +
     "a crear, editar, borrar y duplicar eventos (cultos), su setlist (bloques, canciones, versículos, " +
     "slides), asignaciones de personas reales a cargos, y recordatorios — conversando en español, de " +
@@ -244,12 +255,19 @@ async function llamarClaude(
     (reglas.trim()
       ? `Reglas y excepciones fijas que estableció el administrador — SIEMPRE aplícalas sin que te las repita, incluso si la conversación no las menciona:\n${reglas.trim()}\n\n`
       : "") +
-    `Eventos ya existentes en la app, con sus ids reales de evento/ítem/asignación/recordatorio (úsalos para editar/borrar/duplicar con precisión, y para reconocer el patrón semanal al crear eventos nuevos):\n${contexto}\n\n` +
     `Personas reales registradas en la app (usa SIEMPRE estos usuario_id exactos, nunca inventes uno):\n${listaUsuarios || "(no hay usuarios cargados)"}\n\n` +
-    `Canciones reales en el cancionero (usa SIEMPRE estos cancion_id exactos):\n${listaCanciones || "(no hay canciones cargadas)"}` +
+    `Canciones reales en el cancionero (usa SIEMPRE estos cancion_id exactos):\n${listaCanciones || "(no hay canciones cargadas)"}`;
+
+  const systemVolatil =
+    `\n\nEventos ya existentes en la app, con sus ids reales de evento/ítem/asignación/recordatorio (úsalos para editar/borrar/duplicar con precisión, y para reconocer el patrón semanal al crear eventos nuevos):\n${contexto}` +
     (imagen
       ? "\n\nEl administrador adjuntó una imagen en su último mensaje (ej. una foto de una lista de canciones escrita a mano, una nota, una captura). Léela y úsala como contexto — si es una lista de títulos de canciones, búscalos en el cancionero real de arriba por nombre (aunque estén mal escritos o abreviados) y usa su cancion_id real; si algún título no se parece a ninguna canción real, dilo en vez de inventar un id."
       : "");
+
+  const system = [
+    { type: "text", text: systemEstable, cache_control: { type: "ephemeral" } },
+    { type: "text", text: systemVolatil },
+  ];
 
   // El adjunto (si hay) va SOLO en el último mensaje del historial — los turnos anteriores ya se
   // guardaron como texto plano nada más (ver enviarMensajeAsistente), así que la imagen nunca se
@@ -294,6 +312,12 @@ async function llamarClaude(
     throw new Error(`La API de Claude respondió ${res.status}: ${texto.slice(0, 300)}`);
   }
   const respuesta = await res.json();
+  // Para poder confirmar en los logs que el caché de verdad está funcionando (cache_read_input_tokens
+  // > 0 en la segunda llamada en adelante) — si algún día vuelve a salir caro sin explicación, revisar
+  // esto primero antes de sospechar de otra cosa.
+  if (respuesta.usage) {
+    console.log(`uso: input=${respuesta.usage.input_tokens} output=${respuesta.usage.output_tokens} cache_write=${respuesta.usage.cache_creation_input_tokens ?? 0} cache_read=${respuesta.usage.cache_read_input_tokens ?? 0}`);
+  }
   // Si se cortó por llegar al tope de tokens, cualquier plan que haya alcanzado a generar puede
   // estar incompleto (ej. el arreglo de acciones a medio llenar) — mejor avisar claro que dejar
   // pasar un plan roto que en "Aplicar" fallaría con un error críptico o, peor, se aplicaría a medias.
