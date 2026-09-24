@@ -1734,7 +1734,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         <CancionesList library={library} isAdminViewer={isAdminViewer} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onDelete={deleteSong} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "view" && (
-        <SongView song={library.find((s) => s.id === openSong.id)} isAdminViewer={isAdminViewer} onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
+        <SongView song={library.find((s) => s.id === openSong.id)} isAdminViewer={isAdminViewer} mode="biblioteca" onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "edit" && (
         <SongEditor
@@ -1832,7 +1832,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
         return (
           <SongView
             key={currentItem?.id ?? openSong.id}
-            song={displaySong} isAdminViewer={isAdminViewer} positionLabel={positionLabel}
+            song={displaySong} isAdminViewer={isAdminViewer} mode="setlist" positionLabel={positionLabel}
             structureOverride={currentItem?.structure}
             enterDirection={openSong.enterDir}
             onBack={() => window.history.back()}
@@ -3217,7 +3217,64 @@ const SECTION_TYPES = [
   { id: "instrumental", label: "Instrumental", prefix: "INS" },
 ];
 
-function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, enterDirection, structureOverride, liveSync }) {
+// Selector de tonalidad + cejilla — reemplaza al viejo <select> de transportar + la caja de Capo
+// separada. Una sola pantalla para las dos capas: la raíz (letra natural + ♭/♯, el modo mayor/menor
+// SIEMPRE se conserva del original, nunca se ofrece cambiarlo — tocar una tonalidad menor en otra
+// tonalidad sigue siendo menor) y la cejilla (traste físico, siempre ≥0 — ya NO es un "transportador"
+// con signo negativo como el Capo viejo). Quién puede tocar "Guardar" y qué hace ese guardado
+// depende de dónde se abrió este modal — ver SongView, que decide puedeCambiarPermanente/Local.
+function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResultKey, puedeCambiarPermanente, puedeCambiarLocal, onClose, onGuardarPermanente, onGuardarLocal }) {
+  const isMinorKey = song.key.endsWith("m");
+  const parsed = displayedKey.match(/^([A-G])(#|b)?/);
+  const [letra, setLetra] = useState(parsed?.[1] || "C");
+  const [alteracion, setAlteracion] = useState(parsed?.[2] || null);
+  const puedeCambiarRoot = puedeCambiarPermanente || puedeCambiarLocal;
+  const nuevaTonalidad = `${letra}${alteracion || ""}${isMinorKey ? "m" : ""}`;
+  const guardar = () => {
+    if (puedeCambiarPermanente) onGuardarPermanente(nuevaTonalidad);
+    else if (puedeCambiarLocal) onGuardarLocal(nuevaTonalidad);
+  };
+  const LETRAS = ["C", "D", "E", "F", "G", "A", "B"];
+  const activeStyle = { background: "#E8821E", color: "#16324F" };
+  const inactiveStyle = { background: "var(--wf-hover)", color: "var(--wf-text)" };
+  return (
+    <ModalShell title="Cambiar tonalidad" icon={Music} color="#E8821E" onClose={onClose}>
+      <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>Original {song.key}</div>
+
+      {puedeCambiarRoot ? (
+        <>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+            {LETRAS.map((l) => (
+              <button key={l} onClick={() => setLetra(l)} className="hoverable" style={{ flex: "1 1 36px", padding: "10px 0", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 700, ...(letra === l ? activeStyle : inactiveStyle) }}>
+                {l}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", borderRadius: 10, overflow: "hidden", border: "1px solid var(--wf-border)", marginBottom: 16 }}>
+            <button onClick={() => setAlteracion(alteracion === "b" ? null : "b")} style={{ flex: 1, padding: "9px 0", border: "none", cursor: "pointer", fontSize: 16, fontWeight: 700, ...(alteracion === "b" ? activeStyle : inactiveStyle) }}>♭</button>
+            <button onClick={() => setAlteracion(alteracion === "#" ? null : "#")} style={{ flex: 1, padding: "9px 0", border: "none", cursor: "pointer", fontSize: 16, fontWeight: 700, ...(alteracion === "#" ? activeStyle : inactiveStyle) }}>♯</button>
+          </div>
+        </>
+      ) : (
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16 }}>
+          {displayedKey} <span style={{ fontWeight: 400, color: "var(--wf-faint)", fontSize: 11 }}>— solo un administrador puede cambiar la tonalidad desde la biblioteca (sería permanente)</span>
+        </div>
+      )}
+
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-faint)", marginBottom: 6, textTransform: "uppercase" }}>Cejilla</div>
+      <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 8 }}>En qué traste pones el capo — 0 es sin capo. Solo cambia lo que TÚ ves, nunca se guarda.</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 8px", marginBottom: 16 }}>
+        <button onClick={() => setCejilla((c) => Math.max(0, c - 1))} className="hoverable" style={{ ...iconGhost, width: 28, height: 28 }}><Minus size={14} /></button>
+        <span style={{ flex: 1, textAlign: "center", fontSize: 14, fontWeight: 700 }}>{cejilla}{cejillaResultKey ? ` (${cejillaResultKey})` : ""}</span>
+        <button onClick={() => setCejilla((c) => Math.min(11, c + 1))} className="hoverable" style={{ ...iconGhost, width: 28, height: 28 }}><Plus size={14} /></button>
+      </div>
+
+      {puedeCambiarRoot && <button onClick={guardar} style={primaryBtn}>Guardar</button>}
+    </ModalShell>
+  );
+}
+
+function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, enterDirection, structureOverride, liveSync }) {
   const sectionRefs = useRef({});
   // Ref aparte, por POSICIÓN en el orden (no por clave de sección): si una sección se repite (V1, V2,
   // V1, Coro...) sectionRefs solo guarda la primera aparición (para los pills de arriba, que son un
@@ -3277,18 +3334,29 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
   const tapTimesRef = useRef([]);
 
-  // ---- Capo: sube/baja medio tono a la vez SOLO en lo que ve este dispositivo — a diferencia de
-  // "Transportar" (arriba, solo administradores, cambia la tonalidad guardada de la canción para
-  // TODOS), esto es del músico: nunca se manda a musico_en_vivo/musicoState ni a ningún otro
-  // dispositivo, ni siquiera si este músico es el líder — el líder solo transmite EN QUÉ SECCIÓN
-  // está, jamás su capo. Antes se guardaba en este dispositivo (localStorage) bajo una sola clave
-  // fija para TODAS las canciones, así que arrastraba el mismo capo de una canción a la siguiente —
-  // un guitarrista que puso capo 2 para una canción seguía viéndolo en la próxima aunque no le
-  // correspondiera. Como este componente se remonta entero al cambiar de canción (ver el `key=` en
-  // el sitio donde se usa <SongView>), un simple useState(0) ya alcanza para que cada canción nueva
-  // arranque siempre sin capo, sin arrastrar nada de la anterior.
-  const [capoSemitones, setCapoSemitones] = useState(0);
-  const capoResultKey = song && capoSemitones ? transposeChordToken(song.key, capoSemitones) : null;
+  // ---- Tonalidad + cejilla de ESTA vista — ver TonalidadModal más abajo para el porqué de cada capa:
+  // "tonalidadLocal" es un ajuste que SOLO ve quien lo puso, nunca se guarda en ningún lado (ni
+  // siquiera para el mismo usuario en otra sesión) — sustituye a `song.key` únicamente para calcular
+  // qué se muestra, nunca lo que hay guardado de verdad (ni la canción de la biblioteca, ni el
+  // tonalidad_override compartido del ítem del Setlist, que ya viene aplicado en `song.key` cuando
+  // corresponde — ver songWithKeyOverride). "cejilla" es lo que antes se llamaba "Capo": sube/baja
+  // medio tono a la vez SOLO en lo que ve este dispositivo, nunca se manda a musico_en_vivo/
+  // musicoState ni a ningún otro dispositivo, ni siquiera si este músico es el líder — el líder solo
+  // transmite EN QUÉ SECCIÓN está, jamás su cejilla. A diferencia del capo viejo (que podía ir
+  // negativo, ej. "Capo -2"), la cejilla representa un traste FÍSICO real — nunca negativa — así que
+  // para "ver los acordes de un tono más abajo" ahora se cambia la tonalidad, no la cejilla.
+  // Como este componente se remonta entero al cambiar de canción (ver el `key=` en el sitio donde se
+  // usa <SongView>), un simple useState ya alcanza para que cada canción nueva arranque limpia, sin
+  // arrastrar nada de la anterior.
+  const [tonalidadLocal, setTonalidadLocal] = useState(null);
+  const [cejilla, setCejilla] = useState(0);
+  const [showTonalidadModal, setShowTonalidadModal] = useState(false);
+  const displayedKey = tonalidadLocal || song?.key;
+  // Semitonos totales a aplicar sobre los acordes TAL COMO están guardados (en song.key): primero lo
+  // que haga falta para llegar a la tonalidad mostrada, y encima, la cejilla resta (tocar más abajo
+  // porque el capo físico ya sube esos semitonos al sonar).
+  const semitonesDesdeOriginal = song ? semitoneShift(song.key, displayedKey) - cejilla : 0;
+  const cejillaResultKey = song ? transposeChordToken(displayedKey, -cejilla) : null;
 
   // ---- Fuera de una transmisión en vivo (repaso/ensayo): sigue igual que siempre — cualquiera que
   // tenga la MISMA canción abierta se sincroniza por un canal ad-hoc (song.id), sin un líder fijo,
@@ -3440,8 +3508,6 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
   }, [autoMode, currentSectionIdx, liveBpm, order, song, isLive]);
   if (!song) return null;
   const scrollTo = (key) => sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
-  const isMinorKey = song.key.endsWith("m");
-  const keyChoices = KEY_OPTIONS.filter((k) => k.endsWith("m") === isMinorKey);
   const canSwipe = onPrev || onNext;
   const completeSwipe = (dir, distance) => {
     setPhase("exiting");
@@ -3506,18 +3572,28 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {isAdminViewer && (
-            <select
-              value={song.key}
-              onChange={(e) => onTranspose(song.id, e.target.value)}
-              title="Transportar la canción a otra tonalidad"
-              style={{ fontSize: 11, fontWeight: 700, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 10, padding: "5px 6px", color: "var(--wf-text-2)" }}
-            >
-              {keyChoices.map((k) => <option key={k} value={k}>{k}</option>)}
-            </select>
-          )}
-          {!isAdminViewer && (
-            <span style={{ fontSize: 11, fontWeight: 700, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 10, padding: "5px 8px", color: "var(--wf-text-2)" }}>{song.key}</span>
+          <button
+            onClick={() => setShowTonalidadModal(true)}
+            title="Cambiar tonalidad"
+            className="hoverable"
+            style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 10, padding: "5px 8px", color: "var(--wf-text-2)", cursor: "pointer" }}
+          >
+            {displayedKey}{cejilla > 0 ? ` · cejilla ${cejilla}` : ""}
+            <ChevronDown size={12} />
+          </button>
+          {showTonalidadModal && (
+            <TonalidadModal
+              song={song}
+              displayedKey={displayedKey}
+              cejilla={cejilla}
+              setCejilla={setCejilla}
+              cejillaResultKey={cejillaResultKey}
+              puedeCambiarPermanente={mode === "biblioteca" && isAdminViewer}
+              puedeCambiarLocal={mode === "setlist"}
+              onClose={() => setShowTonalidadModal(false)}
+              onGuardarPermanente={(nuevaTonalidad) => { onTranspose(song.id, nuevaTonalidad); setTonalidadLocal(null); setShowTonalidadModal(false); }}
+              onGuardarLocal={(nuevaTonalidad) => { setTonalidadLocal(nuevaTonalidad === song.key ? null : nuevaTonalidad); setShowTonalidadModal(false); }}
+            />
           )}
           {song.hasAttachment && <Paperclip size={16} color="var(--wf-faint)" />}
           {isAdminViewer && (
@@ -3592,17 +3668,6 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-muted)" }}>{liveBpm} bpm</span>
           </>
         )}
-
-        <div style={{ display: "flex", alignItems: "center", gap: 2, background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "3px 4px", marginLeft: "auto" }} title="Sube o baja medio tono a la vez, como mover un capo — no cambia la tonalidad guardada de la canción, solo cómo la ves en este dispositivo.">
-          <button onClick={() => setCapoSemitones((s) => s - 1)} className="hoverable" style={{ ...iconGhost, width: 22, height: 22 }}><Minus size={12} /></button>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)", minWidth: 74, textAlign: "center" }}>
-            Capo {capoSemitones > 0 ? `+${capoSemitones}` : capoSemitones}{capoResultKey ? ` (${capoResultKey})` : ""}
-          </span>
-          <button onClick={() => setCapoSemitones((s) => s + 1)} className="hoverable" style={{ ...iconGhost, width: 22, height: 22 }}><Plus size={12} /></button>
-          {capoSemitones !== 0 && (
-            <button onClick={() => setCapoSemitones(0)} title="Quitar capo" className="hoverable" style={{ ...iconGhost, width: 22, height: 22 }}><RefreshCw size={11} /></button>
-          )}
-        </div>
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
@@ -3643,7 +3708,7 @@ function SongView({ song, isAdminViewer, onBack, onEdit, onTranspose, onDelete, 
               <span style={{ fontSize: 13, fontWeight: 700 }}>{b.label}</span>
             </div>
             <div style={{ background: isActive ? "var(--wf-active-bg)" : "var(--wf-hover)", borderRadius: 14, padding: 16 }}>
-              {b.lines.map((l, i2) => <ChordsAboveLyrics key={i2} raw={l} semitones={capoSemitones} />)}
+              {b.lines.map((l, i2) => <ChordsAboveLyrics key={i2} raw={l} semitones={semitonesDesdeOriginal} />)}
             </div>
           </div>
         );
