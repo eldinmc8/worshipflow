@@ -5628,7 +5628,13 @@ function AdHocVideoModal({ onClose, onPlay }) {
 }
 function ModalShell({ title, icon: Icon, color, onClose, children }) {
   return (
-    <div style={{ position: "absolute", inset: 0, background: "rgba(8,10,14,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+    // position: fixed (no "absolute") a propósito — el overlay tiene que cubrir y centrarse en la
+    // PANTALLA visible, no en el ancestro posicionado más cercano. Con "absolute", si ese ancestro es
+    // una vista larga con scroll (ej. SongView, que puede medir varias pantallas de alto por la
+    // letra), el overlay sí se veía (cubre TODO el alto del contenido) pero la tarjeta del modal se
+    // centraba a la mitad de ESE alto completo — muy por debajo de lo que se ve en pantalla — así que
+    // parecía que el modal "no abría", solo se veía el fondo oscuro.
+    <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
       <div style={{ background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 16, padding: 20, width: 360, maxHeight: "80vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Icon size={16} color={color} /><span style={{ fontWeight: 700, fontSize: 14 }}>{title}</span></div>
