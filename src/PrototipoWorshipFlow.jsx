@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Music, Mic2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus,
   Radio, ListMusic, BookOpen, Image as ImgIcon, Trash2, GripVertical,
@@ -5627,13 +5628,13 @@ function AdHocVideoModal({ onClose, onPlay }) {
   );
 }
 function ModalShell({ title, icon: Icon, color, onClose, children }) {
-  return (
-    // position: fixed (no "absolute") a propósito — el overlay tiene que cubrir y centrarse en la
-    // PANTALLA visible, no en el ancestro posicionado más cercano. Con "absolute", si ese ancestro es
-    // una vista larga con scroll (ej. SongView, que puede medir varias pantallas de alto por la
-    // letra), el overlay sí se veía (cubre TODO el alto del contenido) pero la tarjeta del modal se
-    // centraba a la mitad de ESE alto completo — muy por debajo de lo que se ve en pantalla — así que
-    // parecía que el modal "no abría", solo se veía el fondo oscuro.
+  // Portal a document.body (no un <div> normal en el sitio donde se usa <ModalShell>) — "position:
+  // fixed" por sí solo no basta: si algún ancestro tiene un transform activo (ej. SongView, que anima
+  // transform al deslizar entre canciones del Setlist), ese ancestro se vuelve el "contenedor" del
+  // fixed y el modal queda atrapado ahí en vez de la pantalla real — mezclado con el scroll de esa
+  // vista, a veces cortado a la mitad. Un portal a <body> lo saca del todo de ese árbol, así que
+  // siempre se ve completo y centrado en la pantalla real, sin importar desde dónde se abra.
+  return createPortal(
     <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
       <div style={{ background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 16, padding: 20, width: 360, maxHeight: "80vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -5642,7 +5643,8 @@ function ModalShell({ title, icon: Icon, color, onClose, children }) {
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
