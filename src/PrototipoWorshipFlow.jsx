@@ -3218,6 +3218,10 @@ const SECTION_TYPES = [
   { id: "instrumental", label: "Instrumental", prefix: "INS" },
 ];
 
+// Clave de sessionStorage donde SongView guarda la cejilla de cada canción, songId → traste (ver ahí).
+// Nombre distinto al de la versión anterior ("wf-cejilla", un solo número global) para no leer ese formato.
+const CEJILLA_SESSION_KEY = "wf-cejilla-por-cancion";
+
 // Selector de tonalidad + cejilla — reemplaza al viejo <select> de transportar + la caja de Capo
 // separada. Una sola pantalla para las dos capas: la raíz (letra natural + ♭/♯, el modo mayor/menor
 // SIEMPRE se conserva del original, nunca se ofrece cambiarlo — tocar una tonalidad menor en otra
@@ -3263,7 +3267,7 @@ function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResult
       )}
 
       <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-faint)", marginBottom: 6, textTransform: "uppercase" }}>Cejilla</div>
-      <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 8 }}>En qué traste pones el capo — 0 es sin capo. Solo cambia lo que TÚ ves, nunca se guarda.</div>
+      <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 8 }}>En qué traste pones el capo — 0 es sin capo. Solo cambia lo que TÚ ves, solo en esta canción, y se recuerda hasta que cierres la app.</div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 8px", marginBottom: 16 }}>
         <button onClick={() => setCejilla((c) => Math.max(0, c - 1))} className="hoverable" style={{ ...iconGhost, width: 28, height: 28 }}><Minus size={14} /></button>
         <span style={{ flex: 1, textAlign: "center", fontSize: 14, fontWeight: 700 }}>{cejilla}{cejillaResultKey ? ` (${cejillaResultKey})` : ""}</span>
@@ -3347,10 +3351,24 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
   // negativo, ej. "Capo -2"), la cejilla representa un traste FÍSICO real — nunca negativa — así que
   // para "ver los acordes de un tono más abajo" ahora se cambia la tonalidad, no la cejilla.
   // Como este componente se remonta entero al cambiar de canción (ver el `key=` en el sitio donde se
-  // usa <SongView>), un simple useState ya alcanza para que cada canción nueva arranque limpia, sin
-  // arrastrar nada de la anterior.
+  // usa <SongView>), tonalidadLocal arranca limpia en cada canción nueva. La cejilla NO: cada canción
+  // recuerda la suya (solo las que el músico decidió ponerle capo), así al ir y volver entre las
+  // canciones de una cadena no tiene que reponerla. Vive en sessionStorage como mapa songId → traste
+  // (solo este dispositivo, dura hasta cerrar la app/pestaña, nunca se manda a nadie).
   const [tonalidadLocal, setTonalidadLocal] = useState(null);
-  const [cejilla, setCejilla] = useState(0);
+  const [cejilla, setCejilla] = useState(() => {
+    if (!song) return 0;
+    try { return Math.min(11, Math.max(0, parseInt(JSON.parse(sessionStorage.getItem(CEJILLA_SESSION_KEY) || "{}")[song.id]) || 0)); } catch { return 0; }
+  });
+  useEffect(() => {
+    if (!song) return;
+    try {
+      const map = JSON.parse(sessionStorage.getItem(CEJILLA_SESSION_KEY) || "{}");
+      if (cejilla > 0) map[song.id] = cejilla; else delete map[song.id];
+      sessionStorage.setItem(CEJILLA_SESSION_KEY, JSON.stringify(map));
+    } catch { /* sin storage: la cejilla solo dura mientras esta canción esté abierta */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cejilla, song?.id]);
   const [showTonalidadModal, setShowTonalidadModal] = useState(false);
   const displayedKey = tonalidadLocal || song?.key;
   // Semitonos totales a aplicar sobre los acordes TAL COMO están guardados (en song.key): primero lo
@@ -3942,6 +3960,33 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
     });
   };
 
+  // Retroceso con el cursor justo después del "]" de un acorde "[Am7]" borra el acorde entero. Borrar
+  // desde adentro del acorde sigue siendo letra por letra, para poder corregirlo (ej. [G] → [Gm]).
+  // Se detecta comparando el texto antes/después en onChange y no en keydown, porque los teclados de
+  // Android no siempre reportan la tecla de borrar como "Backspace".
+  const onContentChange = (key, e) => {
+    const prev = draft.blocks[key].lines.join("\n");
+    const next = e.target.value;
+    const pos = e.target.selectionStart;
+    const inputType = e.nativeEvent && e.nativeEvent.inputType;
+    const isBackspace = !inputType || inputType === "deleteContentBackward";
+    if (isBackspace && prev[pos] === "]" && next.length === prev.length - 1 && prev.slice(0, pos) + prev.slice(pos + 1) === next) {
+      const chordRe = /\[[^[\]\n]*\]/g;
+      let m;
+      while ((m = chordRe.exec(prev))) {
+        if (pos === m.index + m[0].length - 1) {
+          setBlockLines(key, prev.slice(0, m.index) + prev.slice(m.index + m[0].length));
+          requestAnimationFrame(() => {
+            const el = textareaRefs.current[key];
+            if (el) el.setSelectionRange(m.index, m.index);
+          });
+          return;
+        }
+      }
+    }
+    setBlockLines(key, next);
+  };
+
   const entries = groupConsecutive(draft.defaultStructure);
   const setEntries = (newEntries) => setDraft((d) => ({ ...d, defaultStructure: expandEntries(newEntries) }));
   const changeCount = (idx, delta) => {
@@ -4044,7 +4089,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
                 ref={(el) => { textareaRefs.current[key] = el; }}
                 onFocus={() => setActiveBlockKey(key)}
                 value={draft.blocks[key].lines.join("\n")}
-                onChange={(e) => setBlockLines(key, e.target.value)}
+                onChange={(e) => onContentChange(key, e)}
                 rows={draft.blocks[key].lines.length + 1}
                 style={{ ...inputStyle, resize: "vertical", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, marginBottom: 8, border: activeBlockKey === key ? "1px solid #1F8A73" : "1px solid var(--wf-border)" }}
               />
