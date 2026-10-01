@@ -7,7 +7,7 @@ import {
   MonitorOff, X, Search, Sparkles, Calendar, MapPin, Users, Check,
   UserPlus, Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
-  ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette,
+  ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
   Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, corregirDiapositivaCancion, agregarDiapositivaCancion } from "./lib/canciones.js";
@@ -524,7 +524,7 @@ function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event }) {
   );
 }
 
-export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, onGoToRoles }) {
+export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, onGoToRoles, onGoToPlataforma }) {
   const isCompact = useIsCompact(); // vista de celular: en pantallas angostas se activan los layouts compactos y se oculta Multimedia
   const [tab, setTab] = useState("inicio"); // inicio | canciones | eventos | envivo | proyeccion
   // Multimedia y Pantalla son de escritorio (quien controla la proyección); si la pantalla se vuelve angosta
@@ -1761,6 +1761,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
           onSelectEvent={goToEvent}
           onGoToUsuarios={onGoToUsuarios}
           onGoToRoles={onGoToRoles}
+          onGoToPlataforma={onGoToPlataforma}
           userId={userId}
           myIglesiaId={myIglesiaId}
           teamName={myIglesia.nombre}
@@ -2356,7 +2357,7 @@ function BibleDownloadSection() {
   );
 }
 
-function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, onGoToRoles, userId, myIglesiaId, teamName, isCompact }) {
+function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, onGoToRoles, onGoToPlataforma, userId, myIglesiaId, teamName, isCompact }) {
   const [horarioAbierto, setHorarioAbierto] = useState(false);
   const [showTeamList, setShowTeamList] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -2557,6 +2558,9 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           <NavRow icon={Settings} label="Roles" onClick={onGoToRoles} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
           <NavRow icon={Palette} label="Identidad de la iglesia" onClick={() => setShowIdentidad(true)} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
           {showIdentidad && <IdentidadIglesiaModal iglesiaId={myIglesiaId} onClose={() => setShowIdentidad(false)} />}
+          {/* Visible solo si soy_super_admin() dio true para esta cuenta (ver AuthGate.jsx) — nadie
+              más la ve nunca, ni siquiera otro administrador de esta misma iglesia. */}
+          {onGoToPlataforma && <NavRow icon={Shield} label="Consola general" onClick={onGoToPlataforma} right={<ChevronRight size={16} color="var(--wf-faint)" />} />}
 
           <SectionLabel>SIMULAR IDENTIDAD (SOLO ADMINISTRADORES)</SectionLabel>
           <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 8 }}>

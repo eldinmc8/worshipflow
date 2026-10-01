@@ -23,6 +23,7 @@ const ZONAS = [
 // Eldin comparte a mano con quien esté invitando a probar la app, no un botón público de "Registrarse"
 // (decisión explícita, 2026-09-30 — mismo motivo por el que Login.jsx ya no ofrece auto-registro).
 export default function CrearIglesia() {
+  const [codigoInvitacion, setCodigoInvitacion] = useState("");
   const [iglesiaNombre, setIglesiaNombre] = useState("");
   const [zonaHoraria, setZonaHoraria] = useState("Etc/GMT+6");
   const [adminNombre, setAdminNombre] = useState("");
@@ -37,6 +38,7 @@ export default function CrearIglesia() {
     setLoading(true); setError("");
     try {
       await callUsersFunction("crear-iglesia", {
+        codigo_invitacion: codigoInvitacion.trim(),
         iglesia_nombre: iglesiaNombre.trim(),
         zona_horaria: zonaHoraria,
         admin_nombre: adminNombre.trim(),
@@ -79,6 +81,10 @@ export default function CrearIglesia() {
         </div>
 
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <span style={labelStyle}>Código de invitación</span>
+            <input required placeholder="El que te dio quien te invitó" value={codigoInvitacion} onChange={(e) => setCodigoInvitacion(e.target.value)} style={inputStyle} />
+          </div>
           <div>
             <span style={labelStyle}>Nombre de la iglesia</span>
             <input required placeholder="Ej. Iglesia Fe y Esperanza" value={iglesiaNombre} onChange={(e) => setIglesiaNombre(e.target.value)} style={inputStyle} />

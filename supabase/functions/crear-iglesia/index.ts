@@ -48,6 +48,18 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
     const body = await req.json();
+
+    // Consola general (Fase: super admin): sin el código correcto, ni llegar a validar el resto —
+    // antes cualquiera con el enlace ?crear-iglesia podía dar de alta una iglesia, y ese enlace podía
+    // reenviarse a un tercero sin que Eldin se enterara. El código lo ve y cambia Eldin desde la
+    // consola general (plataforma_config, solo accesible para super admin).
+    const codigoIngresado = String(body.codigo_invitacion || "").trim();
+    const { data: config } = await admin.from("plataforma_config").select("codigo_invitacion").eq("id", "default").maybeSingle();
+    const codigoVigente = config?.codigo_invitacion;
+    if (codigoVigente && codigoIngresado !== codigoVigente) {
+      return json({ error: "Código de invitación incorrecto." }, 403);
+    }
+
     const iglesiaNombre = String(body.iglesia_nombre || "").trim();
     const zonaHoraria = ZONAS_VALIDAS.includes(body.zona_horaria) ? body.zona_horaria : "Etc/GMT+6";
     const adminNombre = String(body.admin_nombre || "").trim();

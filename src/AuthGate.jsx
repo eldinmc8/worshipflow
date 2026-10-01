@@ -5,6 +5,7 @@ import { suscribirPush } from "./lib/notificaciones.js";
 import Login from "./Login.jsx";
 import UsersAdmin from "./UsersAdmin.jsx";
 import RolesAdmin from "./RolesAdmin.jsx";
+import PlataformaAdmin from "./PlataformaAdmin.jsx";
 import PrototipoWorshipFlow from "./PrototipoWorshipFlow.jsx";
 import GenericMark from "./GenericMark.jsx";
 import MarkCircle from "./MarkCircle.jsx";
@@ -32,6 +33,15 @@ export default function AuthGate() {
   // El acceso sigue siendo de lista cerrada aunque se agregue "Continuar con Google": esa sesión se
   // cierra de una y se explica por qué, en vez de dejarlo entrar a la app sin rol.
   const [accessDenied, setAccessDenied] = useState(false);
+  // Consola general (super admin DE LA PLATAFORMA, no de una iglesia) — soy_super_admin() es una
+  // función de la base (ver migración 20261001000000) que revisa una tabla que ningún cliente puede
+  // leer directamente (super_admins); esto es solo para decidir si mostrar la entrada en Ajustes,
+  // la seguridad real vive en las políticas RLS que usan esa misma función, no acá.
+  const [esSuperAdmin, setEsSuperAdmin] = useState(false);
+  useEffect(() => {
+    if (!perfil) { setEsSuperAdmin(false); return; }
+    supabase.rpc("soy_super_admin").then(({ data }) => setEsSuperAdmin(!!data));
+  }, [perfil]);
 
   const [errorSesion, setErrorSesion] = useState("");
   useEffect(() => {
@@ -68,6 +78,7 @@ export default function AuthGate() {
       if (!screen) return;
       if (screen === "usuarios-root" || screen === "usuarios-profile") setView("usuarios");
       else if (screen === "roles-root") setView("roles");
+      else if (screen === "plataforma-root") setView("plataforma");
       else if (screen === "app-root" || screen === "app-nav") setView("app");
     };
     window.addEventListener("popstate", onPopState);
@@ -148,12 +159,15 @@ export default function AuthGate() {
     <UsersAdmin myEmail={session.user.email} onExit={() => window.history.back()} />
   ) : view === "roles" && esAdmin ? (
     <RolesAdmin onExit={() => window.history.back()} />
+  ) : view === "plataforma" && esSuperAdmin ? (
+    <PlataformaAdmin onExit={() => window.history.back()} />
   ) : (
     <PrototipoWorshipFlow
       userId={session.user.id}
       perfil={perfil}
       onGoToUsuarios={esAdmin ? () => { window.history.pushState({ screen: "usuarios-root" }, ""); setView("usuarios"); } : null}
       onGoToRoles={esAdmin ? () => { window.history.pushState({ screen: "roles-root" }, ""); setView("roles"); } : null}
+      onGoToPlataforma={esSuperAdmin ? () => { window.history.pushState({ screen: "plataforma-root" }, ""); setView("plataforma"); } : null}
     />
   );
 }
