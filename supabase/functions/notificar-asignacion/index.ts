@@ -68,7 +68,7 @@ Deno.serve(async (req: Request) => {
     });
     const { data: { user: caller }, error: callerError } = await callerClient.auth.getUser();
     if (callerError || !caller) return json({ error: "Sesión inválida." }, 401);
-    const { data: callerRow } = await admin.from("usuarios").select("rol").eq("id", caller.id).single();
+    const { data: callerRow } = await admin.from("usuarios").select("rol, iglesia_id").eq("id", caller.id).single();
     if (!callerRow || callerRow.rol !== "admin") {
       return json({ error: "Solo un administrador puede hacer esto." }, 403);
     }
@@ -82,9 +82,18 @@ Deno.serve(async (req: Request) => {
     if (!usuario_id) return json({ error: "Falta usuario_id." }, 400);
     if (!titulo) return json({ error: "Falta título." }, 400);
 
+    // La notificación necesita SU iglesia_id explícito (ver el mismo problema arreglado en
+    // crear-usuario) — se toma la del USUARIO QUE LA RECIBE, no la del admin que la manda, y de paso
+    // sirve de chequeo: un admin no debería poder notificar a alguien de otra iglesia (no tendría
+    // cómo haberlo visto en su propia app para asignarlo en primer lugar, pero por si acaso).
+    const { data: destinatario } = await admin.from("usuarios").select("iglesia_id").eq("id", usuario_id).single();
+    if (!destinatario || destinatario.iglesia_id !== callerRow.iglesia_id) {
+      return json({ error: "Ese usuario no pertenece a tu iglesia." }, 403);
+    }
+
     const { error: insertError } = await admin
       .from("notificaciones")
-      .insert({ usuario_id, tipo, titulo, cuerpo, evento_id });
+      .insert({ usuario_id, tipo, titulo, cuerpo, evento_id, iglesia_id: destinatario.iglesia_id });
     if (insertError) return json({ error: "No se pudo guardar la notificación: " + insertError.message }, 400);
 
     await enviarPush(admin, usuario_id, { title: titulo, body: cuerpo || "" });

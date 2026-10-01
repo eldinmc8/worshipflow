@@ -197,7 +197,7 @@ Deno.serve(async (req: Request) => {
           const titulo = tareas.length
             ? `Recuerda que en ${faltan} te toca: ${tareas.join(", ")}.`
             : `Faltan ${faltan} para "${ev.titulo}".`;
-          const { error: insertErr } = await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo: "recordatorio", titulo, cuerpo, evento_id: r.evento_id });
+          const { error: insertErr } = await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo: "recordatorio", titulo, cuerpo, evento_id: r.evento_id, iglesia_id: ev.iglesia_id });
           if (insertErr) throw insertErr;
           await enviarPush(admin, usuarioId, { title: titulo, body: cuerpo });
           await admin.from("recordatorio_notificados").insert({ recordatorio_id: r.id, usuario_id: usuarioId });
@@ -244,10 +244,10 @@ Deno.serve(async (req: Request) => {
       for (const usuarioId of usuarioIds) {
         if (vistosSet.has(usuarioId) || avisadosSet.has(usuarioId)) continue;
         try {
-          const { error: insertErr } = await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo: "general", titulo, cuerpo, evento_id: ev.id });
+          const { error: insertErr } = await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo: "general", titulo, cuerpo, evento_id: ev.id, iglesia_id: ev.iglesia_id });
           if (insertErr) throw insertErr;
           await enviarPush(admin, usuarioId, { title: titulo, body: cuerpo });
-          await admin.from("avisos_confirmacion_enviados").insert({ evento_id: ev.id, usuario_id: usuarioId });
+          await admin.from("avisos_confirmacion_enviados").insert({ evento_id: ev.id, usuario_id: usuarioId, iglesia_id: ev.iglesia_id });
           avisosConfirmacion++;
         } catch (e) {
           console.error(`aviso confirmación evento ${ev.id} / usuario ${usuarioId}:`, e);

@@ -59,6 +59,13 @@ Deno.serve(async (req: Request) => {
     const { count } = await admin.from("usuarios").select("*", { count: "exact", head: true });
     const isBootstrap = (count ?? 0) === 0;
 
+    // Fase 4+ (multi-iglesia): la fila nueva en "usuarios" necesita SU iglesia_id explícito. Esta
+    // función corre con la service role (sin auth.uid()), así que el default de columna
+    // (mi_iglesia_id()) no sabe nada del admin que llama y cae SIEMPRE a la iglesia más antigua —
+    // antes de esto, un admin de CUALQUIER iglesia que no fuera la primera invitaba gente que
+    // terminaba asignada a esa otra iglesia por error (nadie lo había notado: hasta ahora solo
+    // existía una). callerIglesiaId se resuelve una vez acá y se usa en el insert de abajo.
+    let callerIglesiaId: string | null = null;
     if (!isBootstrap) {
       // 1. Confirmar que quien llama tiene sesión iniciada
       const authHeader = req.headers.get("Authorization");
@@ -72,10 +79,11 @@ Deno.serve(async (req: Request) => {
 
       // 2. Confirmar que quien llama es administrador
       const { data: callerRow, error: rolError } = await admin
-        .from("usuarios").select("rol").eq("email", caller.email).single();
+        .from("usuarios").select("rol, iglesia_id").eq("email", caller.email).single();
       if (rolError || !callerRow || callerRow.rol !== "admin") {
         return json({ error: "Solo un administrador puede crear usuarios." }, 403);
       }
+      callerIglesiaId = callerRow.iglesia_id;
     }
 
     // 3. Leer los datos del formulario. El nombre es opcional — un admin solo tiene que dar correo y
@@ -141,9 +149,13 @@ Deno.serve(async (req: Request) => {
       newUserId = invited.user.id;
     }
 
-    // 6. Guardar la fila en usuarios (mismo id que auth.users, por eso el insert lo trae explícito)
+    // 6. Guardar la fila en usuarios (mismo id que auth.users, por eso el insert lo trae explícito).
+    // iglesia_id: la del admin que invita; en bootstrap no hay admin llamando (es el primer usuario
+    // de TODA la base) así que se omite y queda el default de columna, que para ese caso puntual sí
+    // es correcto (cae a la única iglesia que puede existir en ese momento).
     const { error: insertError } = await admin.from("usuarios").insert({
       id: newUserId, email, nombre, rol, estado: "activo", perfil_completo: perfilCompleto,
+      ...(callerIglesiaId ? { iglesia_id: callerIglesiaId } : {}),
     });
     if (insertError) {
       await admin.auth.admin.deleteUser(newUserId);
