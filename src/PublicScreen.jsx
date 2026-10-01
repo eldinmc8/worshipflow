@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { ProjectionPanel } from "./PrototipoWorshipFlow.jsx";
 import { getLiveSession, subscribeLiveSession, subscribeLiveBroadcast } from "./lib/liveSession.js";
+import { supabase } from "./lib/supabaseClient.js";
 
 const CURSOR_IDLE_MS = 3000;
 
@@ -11,6 +12,22 @@ export default function PublicScreen() {
   const [needsTapToFullscreen, setNeedsTapToFullscreen] = useState(false);
   const idleTimerRef = useRef(null);
 
+  // Fase 2b (multi-iglesia): esta pantalla no tiene sesión iniciada (es la que ve la congregación,
+  // anclada a una URL fija), así que no puede saber "mi iglesia" vía auth.uid() como el resto de la
+  // app — lo trae de la URL (?screen=publico&igl=<slug>, puesta por openOnOtherScreen en
+  // PrototipoWorshipFlow.jsx) y la resuelve a un id con la función iglesia_id_por_slug (de solo
+  // lectura, ejecutable sin sesión — ver migración 20260930000300_sesion_en_vivo_por_iglesia.sql).
+  // Sin slug en la URL (pantalla instalada antes de este cambio), cae a iglesia_id_por_defecto() —
+  // correcto mientras exista una sola iglesia.
+  const [iglesiaId, setIglesiaId] = useState(null);
+  useEffect(() => {
+    const slug = new URLSearchParams(window.location.search).get("igl");
+    const resolver = slug
+      ? supabase.rpc("iglesia_id_por_slug", { p_slug: slug })
+      : supabase.rpc("iglesia_id_por_defecto");
+    resolver.then(({ data }) => setIglesiaId(data || null)).catch(() => {});
+  }, []);
+
   // Dos caminos a la vez: BroadcastChannel llega al instante (sin depender de internet) cuando esta
   // pantalla está en la MISMA computadora que el panel de control — el caso típico: TV conectado por
   // HDMI como segunda pantalla, igual que un presentador local (tipo PowerPoint). Supabase Realtime
@@ -18,12 +35,13 @@ export default function PublicScreen() {
   // sesión en vivo al entrar y se sigue seguido por Realtime, más lento si el internet del lugar anda
   // mal, pero funciona aunque control y proyección estén en computadoras distintas.
   useEffect(() => {
+    if (!iglesiaId) return;
     const aplicar = (fila) => setLive({ slide: fila.slide_actual, blanked: fila.blanked, liveStyle: fila.estilo_en_vivo || { theme: "stage", font: "elegante" } });
-    getLiveSession().then(aplicar).catch(() => {});
-    const unsubscribeRealtime = subscribeLiveSession(aplicar);
-    const unsubscribeBroadcast = subscribeLiveBroadcast(aplicar);
+    getLiveSession(iglesiaId).then(aplicar).catch(() => {});
+    const unsubscribeRealtime = subscribeLiveSession(iglesiaId, aplicar);
+    const unsubscribeBroadcast = subscribeLiveBroadcast(iglesiaId, aplicar);
     return () => { unsubscribeRealtime(); unsubscribeBroadcast(); };
-  }, []);
+  }, [iglesiaId]);
 
   useEffect(() => {
     const resetIdle = () => {

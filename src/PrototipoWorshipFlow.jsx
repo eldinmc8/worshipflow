@@ -927,7 +927,11 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
     window.getScreenDetails().then((sd) => { screenDetailsRef.current = sd; }).catch(() => {});
   }, []);
   const openOnOtherScreen = (screenDetails) => {
-    const url = `${window.location.origin}${window.location.pathname}?screen=publico`;
+    // ?igl=<slug> le dice a PublicScreen (que no tiene sesión iniciada) de qué iglesia leer la sesión
+    // en vivo — ver iglesia_id_por_slug en la migración 20260930000300 y PublicScreen.jsx. Si el slug
+    // todavía no cargó (carrera rara al abrir muy rápido), PublicScreen cae a iglesia_id_por_defecto(),
+    // que sigue siendo correcto mientras exista una sola iglesia.
+    const url = `${window.location.origin}${window.location.pathname}?screen=publico${myIglesiaSlug ? `&igl=${encodeURIComponent(myIglesiaSlug)}` : ""}`;
     const otherScreen = screenDetails.screens.find((s) => s !== screenDetails.currentScreen);
     if (!otherScreen) {
       showToast("No se detectó una segunda pantalla conectada. Conecta el proyector/monitor y vuelve a intentar para que se abra ahí solo.");
@@ -981,14 +985,14 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
     if ("bpm" in patch) dbPatch.bpm = patch.bpm;
     if ("auto" in patch) dbPatch.auto = patch.auto;
     if ("heartbeat" in patch) dbPatch.heartbeat = patch.heartbeat;
-    updateMusicoLive(dbPatch).catch(() => {});
+    updateMusicoLive(myIglesiaId, dbPatch).catch(() => {});
   };
   // Nadie hereda como "líder" de Modo Músico al culto de hoy solo porque lo fue en el anterior — se
   // limpia al arrancar una transmisión nueva Y al finalizar una (ver endEvent), así que ni "reemplazar"
   // una en vivo por otra sin pasar por Finalizar (confirmReplaceLive arriba) deja un líder colgado.
   const resetMusicoLive = () => {
     setMusicoState(null);
-    clearMusicoLive().catch(() => {});
+    clearMusicoLive(myIglesiaId).catch(() => {});
   };
   const startEvent = async (eventId) => {
     if (!(await confirmReplaceLive(eventId))) return;
@@ -1005,7 +1009,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
   };
   const endEvent = () => {
     setLiveEventId(null); setLiveLibre(false); setLiveOwnerId(null); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); setTab("eventos");
-    clearLiveSession().catch((e) => notifyError("No se pudo cerrar la sesión en vivo", e));
+    clearLiveSession(myIglesiaId).catch((e) => notifyError("No se pudo cerrar la sesión en vivo", e));
     resetMusicoLive();
   };
 
@@ -1157,6 +1161,18 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
   const realIsAdmin = perfil?.rol === "admin";
   const realRoleLabel = ROLE_DB_TO_LABEL[perfil?.rol] || "Miembro";
   const realName = perfil?.nombre || "";
+  // Fase 2b (multi-iglesia): sesiones_en_vivo/musico_en_vivo son una fila POR IGLESIA, no una sola
+  // para toda la base — ver src/lib/liveSession.js y src/lib/musicoLive.js. Todo lo que las toca en
+  // este componente necesita saber la iglesia del usuario actual; perfil ya la trae (columna
+  // iglesia_id agregada en la Fase 2a).
+  const myIglesiaId = perfil?.iglesia_id;
+  // El slug de la iglesia (no el id) es lo que va en la URL de Proyección — la pantalla pública no
+  // tiene sesión iniciada y lo resuelve a un id vía iglesia_id_por_slug (ver openOnOtherScreen).
+  const [myIglesiaSlug, setMyIglesiaSlug] = useState(null);
+  useEffect(() => {
+    if (!myIglesiaId) return;
+    supabase.from("iglesias").select("slug").eq("id", myIglesiaId).single().then(({ data }) => setMyIglesiaSlug(data?.slug || null));
+  }, [myIglesiaId]);
   const [roleOverride, setRoleOverride] = useState(null); // solo un admin lo puede poner (ver Ajustes)
   const [nameOverride, setNameOverride] = useState(null);
   const [usuariosReales, setUsuariosReales] = useState([]); // lista real de miembros ya registrados (RLS: cualquier autenticado puede leerla)
@@ -1266,9 +1282,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
     // proyección está en la MISMA computadora (caso típico: TV por HDMI como segunda pantalla) — así el
     // cambio de diapositiva no depende del internet del lugar, igual que un presentador local. Supabase
     // sigue siendo el camino real cuando la proyección de verdad está en otro dispositivo aparte.
-    broadcastLiveSession(fila);
-    updateLiveSession(fila).catch((e) => notifyError("No se pudo actualizar la proyección", e));
-  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId]);
+    if (!myIglesiaId) return;
+    broadcastLiveSession(myIglesiaId, fila);
+    updateLiveSession(myIglesiaId, fila).catch((e) => notifyError("No se pudo actualizar la proyección", e));
+  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId]);
 
   // ---- Sincroniza EN TIEMPO REAL, en todos los dispositivos, si hay un evento en vivo ahora mismo y
   // quién lo está llevando — así el indicador "En vivo" (pestaña, franja de Inicio, tarjeta del evento)
@@ -1276,7 +1293,8 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
   // que haberlo iniciado desde su propio teléfono. Antes esto era solo estado local: cada dispositivo
   // solo se enteraba de un evento en vivo si ÉL MISMO lo había iniciado.
   useEffect(() => {
-    getLiveSession()
+    if (!myIglesiaId) return;
+    getLiveSession(myIglesiaId)
       .then((fila) => {
         // Si a alguien se le olvidó tocar "Finalizar evento" (ej. se cerró la compu al terminar el
         // culto), la sesión se queda marcada en vivo para SIEMPRE — cualquiera que abra la app un día
@@ -1286,29 +1304,30 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
         // abre la app después de eso la cierra sola, sin pedirle nada a nadie.
         const abandonada = (fila?.evento_id || fila?.libre) && fila?.updated_at && (Date.now() - new Date(fila.updated_at).getTime() > LIVE_SESSION_STALE_MS);
         if (abandonada) {
-          clearLiveSession().catch(() => {});
+          clearLiveSession(myIglesiaId).catch(() => {});
           setLiveEventId(null); setLiveOwnerId(null); setLiveLibre(false);
           return;
         }
         setLiveEventId(fila?.evento_id || null); setLiveOwnerId(fila?.liderado_por || null); setLiveLibre(!!fila?.libre);
       })
       .catch(() => {});
-    const unsubscribe = subscribeLiveSession((fila) => {
+    const unsubscribe = subscribeLiveSession(myIglesiaId, (fila) => {
       setLiveEventId(fila.evento_id || null);
       setLiveOwnerId(fila.liderado_por || null);
       setLiveLibre(!!fila.libre);
     });
     return unsubscribe;
-  }, []);
+  }, [myIglesiaId]);
 
   // ---- Modo Músico líder/seguidor: estado propio (tabla musico_en_vivo, no sesiones_en_vivo — ver
   // src/lib/musicoLive.js) para que cualquier músico pueda tomar el mando sin necesitar el permiso de
   // escritura restringido a Multimedia. Se sincroniza siempre (no solo mientras hay un evento en vivo):
   // el "active" real por evento lo decide cada SongView con isLiveNow, esto solo mantiene musicoState al día.
   useEffect(() => {
-    const refrescar = () => getMusicoLive().then((fila) => setMusicoState(filaAMusicoState(fila))).catch(() => {});
+    if (!myIglesiaId) return;
+    const refrescar = () => getMusicoLive(myIglesiaId).then((fila) => setMusicoState(filaAMusicoState(fila))).catch(() => {});
     refrescar();
-    const unsubscribe = subscribeMusicoLive((fila) => setMusicoState(filaAMusicoState(fila)));
+    const unsubscribe = subscribeMusicoLive(myIglesiaId, (fila) => setMusicoState(filaAMusicoState(fila)));
     // Si ESTE dispositivo (el líder, por ejemplo) es el que se quedó sin internet, no solo deja de
     // avisar que sigue vivo — también deja de ENTERARSE de lo que pasó mientras estuvo desconectado
     // (ej. que alguien más tomó el mando con el botón de "reiniciar"). Realtime no reenvía los
@@ -1317,7 +1336,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
     // verdad. "online" fuerza a traer el estado real de una en cuanto vuelve la conexión.
     window.addEventListener("online", refrescar);
     return () => { unsubscribe(); window.removeEventListener("online", refrescar); };
-  }, []);
+  }, [myIglesiaId]);
 
   // ---- Ministerios ----
   const [ministries, setMinistries] = useState([]);
@@ -1861,6 +1880,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
         return (
           <SongView
             key={currentItem?.id ?? openSong.id}
+            iglesiaId={myIglesiaId}
             song={displaySong} isAdminViewer={isAdminViewer} mode="setlist" positionLabel={positionLabel}
             structureOverride={currentItem?.structure}
             enterDirection={openSong.enterDir}
@@ -3309,7 +3329,7 @@ function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResult
   );
 }
 
-function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, enterDirection, structureOverride, liveSync }) {
+function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, enterDirection, structureOverride, liveSync, iglesiaId }) {
   const sectionRefs = useRef({});
   // Ref aparte, por POSICIÓN en el orden (no por clave de sección): si una sección se repite (V1, V2,
   // V1, Coro...) sectionRefs solo guarda la primera aparición (para los pills de arriba, que son un
@@ -3701,7 +3721,7 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
           <button
             onClick={async () => {
               if (!(await confirmDialog("¿Reiniciar Modo Músico? Nadie va a quedar de líder — el próximo que toque \"Modo Músico\" toma el mando.", { textoConfirmar: "Reiniciar" }))) return;
-              clearMusicoLive().catch((e) => notifyError("No se pudo reiniciar Modo Músico", e));
+              clearMusicoLive(iglesiaId).catch((e) => notifyError("No se pudo reiniciar Modo Músico", e));
             }}
             title="El líder se quedó pegado (perdió conexión, cerró la app) — esto reinicia Modo Músico para todos"
             className="hoverable" style={iconGhost}
