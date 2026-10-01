@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { WifiOff } from "lucide-react";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { suscribirPush } from "./lib/notificaciones.js";
@@ -20,6 +20,11 @@ export default function AuthGate() {
   const [session, setSession] = useState(undefined); // undefined: cargando · null: sin sesión · objeto: con sesión
   const [perfil, setPerfil] = useState(null); // fila de "usuarios" para la sesión actual
   const [view, setView] = useState("app"); // 'app' | 'usuarios'
+  // Dónde estaba el scroll de la app al abrir Usuarios/Roles/Consola, para devolverlo al volver.
+  const scrollAppRef = useRef(0);
+  useLayoutEffect(() => {
+    if (view === "app") window.scrollTo(0, scrollAppRef.current);
+  }, [view]);
   // Un enlace de invitación (o de recuperar contraseña, si se agrega luego) trae type=invite/recovery
   // en el hash de la URL — el cliente de Supabase ya deja la sesión activa solo con eso, pero la cuenta
   // todavía no tiene contraseña propia: hay que pedirla antes de dejar entrar a la app de una.
@@ -211,13 +216,27 @@ export default function AuthGate() {
 
   const esAdmin = perfil?.rol === "admin";
 
-  return view === "usuarios" && esAdmin ? (
+  // Usuarios/Roles/Consola general se muestran ENCIMA de la app, pero la app NO se desmonta: queda
+  // oculta con display:none. Antes se desmontaba y, al volver con "atrás", arrancaba de cero en
+  // Inicio en vez de regresar a donde estaba (Ajustes, un evento abierto, etc.). La posición del
+  // scroll se guarda al salir y se restaura al volver, por la misma razón.
+  const pantallaAdmin = view === "usuarios" && esAdmin ? (
     <UsersAdmin myEmail={session.user.email} onExit={() => window.history.back()} />
   ) : view === "roles" && esAdmin ? (
     <RolesAdmin onExit={() => window.history.back()} />
   ) : view === "plataforma" && esSuperAdmin ? (
     <PlataformaAdmin onExit={() => window.history.back()} />
-  ) : (
+  ) : null;
+  const irAPantallaAdmin = (screen, nuevaView) => {
+    scrollAppRef.current = window.scrollY;
+    window.history.pushState({ screen }, "");
+    setView(nuevaView);
+  };
+
+  return (
+    <>
+      {pantallaAdmin}
+      <div style={{ display: pantallaAdmin ? "none" : "contents" }}>
     <PrototipoWorshipFlow
       userId={session.user.id}
       perfil={perfil}
@@ -225,10 +244,12 @@ export default function AuthGate() {
       // Para cambios de la iglesia que se guardan sin recargar la página (ej. clasificaciones de
       // canciones): actualiza la copia local del perfil, así myIglesia se recalcula al instante.
       onIglesiaActualizada={(patch) => setPerfil((p) => (p ? { ...p, iglesias: { ...p.iglesias, ...patch } } : p))}
-      onGoToUsuarios={esAdmin ? () => { window.history.pushState({ screen: "usuarios-root" }, ""); setView("usuarios"); } : null}
-      onGoToRoles={esAdmin ? () => { window.history.pushState({ screen: "roles-root" }, ""); setView("roles"); } : null}
-      onGoToPlataforma={esSuperAdmin ? () => { window.history.pushState({ screen: "plataforma-root" }, ""); setView("plataforma"); } : null}
+      onGoToUsuarios={esAdmin ? () => irAPantallaAdmin("usuarios-root", "usuarios") : null}
+      onGoToRoles={esAdmin ? () => irAPantallaAdmin("roles-root", "roles") : null}
+      onGoToPlataforma={esSuperAdmin ? () => irAPantallaAdmin("plataforma-root", "plataforma") : null}
     />
+      </div>
+    </>
   );
 }
 
