@@ -92,12 +92,27 @@ type Reminder = {
   evento_id: string;
   cantidad: number;
   unidad: "horas" | "dias";
-  eventos: { fecha: string; hora: string | null; titulo: string } | null;
+  eventos: { fecha: string; hora: string | null; titulo: string; iglesia_id: string } | null;
 };
 
-// Guatemala no usa horario de verano, así que el offset es fijo todo el año -- no hace falta una
-// librería de zonas horarias para esto, solo escribirlo explícito.
-const OFFSET_GUATEMALA = "-06:00";
+// Fase 3 (multi-iglesia): antes esto era un offset fijo "-06:00" escrito a mano, correcto solo para
+// Guatemala/El Salvador/Honduras -- ahora cada iglesia tiene su zona_horaria (Fase 2a) y este
+// calculo sirve para cualquiera, tenga o no horario de verano. "YYYY-MM-DDTHH:mm:ss" + "Z" ancla una
+// fecha aproximada SOLO para preguntarle a Intl qué offset rige esa zona alrededor de esa fecha (si
+// tiene horario de verano, cuál de los dos le toca) -- no hace falta que el ancla sea exacta al
+// segundo, un evento nunca cae justo en el instante exacto en que cambia el horario de verano.
+function offsetParaZona(zonaHoraria: string, fechaHoraLocal: string): string {
+  try {
+    const ancla = new Date(fechaHoraLocal + "Z");
+    const partes = new Intl.DateTimeFormat("en-US", { timeZone: zonaHoraria, timeZoneName: "longOffset" }).formatToParts(ancla);
+    const offset = partes.find((p) => p.type === "timeZoneName")?.value; // ej. "GMT-06:00"
+    if (offset && offset.startsWith("GMT") && offset.length > 3) return offset.slice(3);
+  } catch {
+    // zona_horaria inválida/desconocida para Intl -- cae al respaldo de abajo en vez de reventar
+    // todo el procesamiento de recordatorios de todas las iglesias por una fila mal configurada.
+  }
+  return "-06:00"; // respaldo: la zona de Jesús El Buen Pastor, correcta mientras sea la única iglesia
+}
 
 // La llama pg_cron cada 15 minutos (no un usuario) — por eso no hay sesión que verificar, sino un
 // secreto compartido simple en el header (ver el cron job "procesar-recordatorios-evento").
@@ -112,11 +127,18 @@ Deno.serve(async (req: Request) => {
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+    // Esta función corre con la service role (no hay un usuario detrás, la llama pg_cron) y procesa
+    // TODAS las iglesias de una pasada -- por eso necesita su propio mapa de zonas horarias en vez de
+    // apoyarse en mi_iglesia_id() (pensada para un usuario con sesión). Son pocas iglesias, un solo
+    // fetch al inicio alcanza para toda la ejecución.
+    const { data: iglesiasRows } = await admin.from("iglesias").select("id, zona_horaria");
+    const zonaPorIglesia = new Map((iglesiasRows ?? []).map((i: { id: string; zona_horaria: string }) => [i.id, i.zona_horaria]));
+
     // Ya no se filtra por "enviado" -- ver por qué en el bloque de abajo. El total de recordatorios de
     // esta iglesia es chico (unos pocos por evento), así que traerlos todos cada 15 min no pesa nada.
     const { data: pendientes, error } = await admin
       .from("recordatorios_evento")
-      .select("id, evento_id, cantidad, unidad, eventos(fecha, hora, titulo)")
+      .select("id, evento_id, cantidad, unidad, eventos(fecha, hora, titulo, iglesia_id)")
       .returns<Reminder[]>();
     if (error) throw error;
 
@@ -130,11 +152,11 @@ Deno.serve(async (req: Request) => {
       // precisión — se deja pendiente hasta que se le asigne una hora.
       if (r.unidad === "horas" && !ev.hora) continue;
       // Sin offset explícito, "YYYY-MM-DDTHH:mm:ss" se interpreta como hora LOCAL DEL SERVIDOR (que en
-      // Supabase Edge Functions corre en UTC) — no como la hora de la iglesia. Eso hacía que un evento
-      // a las 10am (hora de Guatemala/El Salvador/Honduras, UTC-6) se calculara como si fuera 10am UTC,
-      // es decir 6 horas antes de lo real, y los recordatorios avisaran mucho antes de tiempo. Con el
-      // offset fijo -06:00 (estos países no usan horario de verano) el cálculo queda en la hora real.
-      const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}${OFFSET_GUATEMALA}`).getTime();
+      // Supabase Edge Functions corre en UTC) — no como la hora de la iglesia de ESTE evento. Eso hacía
+      // que un evento a las 10am se calculara como si fuera 10am UTC, y los recordatorios avisaran
+      // mucho antes de tiempo. offsetParaZona trae la zona REAL de la iglesia dueña de este evento.
+      const zona = zonaPorIglesia.get(ev.iglesia_id) || "Etc/GMT+6";
+      const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}${offsetParaZona(zona, `${ev.fecha}T${ev.hora || "00:00:00"}`)}`).getTime();
       // Una vez que el evento ya empezó, un recordatorio de "faltan X" ya no tiene sentido para nadie
       // más -- se le haya avisado a todos o no, no hay nada que "alcanzar a avisar" de un evento que
       // ya está pasando o pasó. Esto además acota el trabajo: sin esto, cada recordatorio de cada
@@ -200,12 +222,13 @@ Deno.serve(async (req: Request) => {
     const VENTANA_MS = 24 * 3_600_000;
     const probe = await admin.from("avisos_confirmacion_enviados").select("evento_id").limit(1);
     const { data: eventosProximos } = probe.error
-      ? { data: [] as { id: string; titulo: string; fecha: string; hora: string | null }[] }
-      : await admin.from("eventos").select("id, titulo, fecha, hora").eq("es_plantilla", false).not("fecha", "is", null);
+      ? { data: [] as { id: string; titulo: string; fecha: string; hora: string | null; iglesia_id: string }[] }
+      : await admin.from("eventos").select("id, titulo, fecha, hora, iglesia_id").eq("es_plantilla", false).not("fecha", "is", null);
 
     let avisosConfirmacion = 0;
     for (const ev of eventosProximos ?? []) {
-      const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}${OFFSET_GUATEMALA}`).getTime();
+      const zonaEv = zonaPorIglesia.get(ev.iglesia_id) || "Etc/GMT+6";
+      const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}${offsetParaZona(zonaEv, `${ev.fecha}T${ev.hora || "00:00:00"}`)}`).getTime();
       if (inicio < ahora || inicio > ahora + VENTANA_MS) continue;
 
       const usuarioIds = new Set((await tareasPorUsuario(admin, ev.id)).keys());

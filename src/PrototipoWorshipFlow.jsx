@@ -254,7 +254,8 @@ const nextId = () => crypto.randomUUID();
 const nextSongId = () => crypto.randomUUID();
 
 // ---------- Equipo / iglesia ----------
-const TEAM_NAME = "Iglesia Jesús El Buen Pastor";
+// El nombre de la iglesia ya NO está fijo acá (Fase 3) — InicioView y SettingsView lo reciben como
+// prop `teamName`, leído de iglesias.nombre (ver myIglesia en WorshipFlowPrototype).
 
 // ---------- Convierte una canción + estructura en diapositivas proyectables (planeada o improvisada) ----------
 function songToSlides(idPrefix, song, structure) {
@@ -931,7 +932,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
     // en vivo — ver iglesia_id_por_slug en la migración 20260930000300 y PublicScreen.jsx. Si el slug
     // todavía no cargó (carrera rara al abrir muy rápido), PublicScreen cae a iglesia_id_por_defecto(),
     // que sigue siendo correcto mientras exista una sola iglesia.
-    const url = `${window.location.origin}${window.location.pathname}?screen=publico${myIglesiaSlug ? `&igl=${encodeURIComponent(myIglesiaSlug)}` : ""}`;
+    const url = `${window.location.origin}${window.location.pathname}?screen=publico${myIglesia.slug ? `&igl=${encodeURIComponent(myIglesia.slug)}` : ""}`;
     const otherScreen = screenDetails.screens.find((s) => s !== screenDetails.currentScreen);
     if (!otherScreen) {
       showToast("No se detectó una segunda pantalla conectada. Conecta el proyector/monitor y vuelve a intentar para que se abra ahí solo.");
@@ -1166,12 +1167,13 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
   // este componente necesita saber la iglesia del usuario actual; perfil ya la trae (columna
   // iglesia_id agregada en la Fase 2a).
   const myIglesiaId = perfil?.iglesia_id;
-  // El slug de la iglesia (no el id) es lo que va en la URL de Proyección — la pantalla pública no
-  // tiene sesión iniciada y lo resuelve a un id vía iglesia_id_por_slug (ver openOnOtherScreen).
-  const [myIglesiaSlug, setMyIglesiaSlug] = useState(null);
+  // El slug es lo que va en la URL de Proyección (ver openOnOtherScreen) y el nombre reemplaza al
+  // viejo TEAM_NAME fijo — Fase 3: el nombre de la iglesia ya no está escrito en el código, sale de
+  // la base. Un solo fetch para los dos: ambos viven en la misma fila de `iglesias`.
+  const [myIglesia, setMyIglesia] = useState({ slug: null, nombre: "" });
   useEffect(() => {
     if (!myIglesiaId) return;
-    supabase.from("iglesias").select("slug").eq("id", myIglesiaId).single().then(({ data }) => setMyIglesiaSlug(data?.slug || null));
+    supabase.from("iglesias").select("slug, nombre").eq("id", myIglesiaId).single().then(({ data }) => setMyIglesia({ slug: data?.slug || null, nombre: data?.nombre || "" }));
   }, [myIglesiaId]);
   const [roleOverride, setRoleOverride] = useState(null); // solo un admin lo puede poner (ver Ajustes)
   const [nameOverride, setNameOverride] = useState(null);
@@ -1723,7 +1725,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
       {!["envivo", "proyeccion"].includes(tab) && (
       <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: tab === "inicio" ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {tab === "inicio" && (
-        <InicioView events={realEvents} library={library} myUserId={myUserId} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} canSeeCanciones={canSeeCanciones} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} />
+        <InicioView events={realEvents} library={library} myUserId={myUserId} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} canSeeCanciones={canSeeCanciones} teamName={myIglesia.nombre} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} />
       )}
 
       {tab === "ajustes" && (
@@ -1742,6 +1744,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
           onGoToUsuarios={onGoToUsuarios}
           onGoToRoles={onGoToRoles}
           userId={userId}
+          teamName={myIglesia.nombre}
           isCompact={isCompact}
         />
       )}
@@ -1946,7 +1949,9 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
             .filter(([val]) => !isCompact || (val !== "envivo" && val !== "proyeccion")) // Control en vivo/Proyección son de escritorio: en celular no aparecen
             .filter(([val]) => val !== "ministerios" || canSeeGrupos) // Grupos: solo admins o quien lidera al menos uno
             .filter(([val]) => val !== "canciones" || canSeeCanciones) // Canciones: solo admins, músicos o rol con "ver_canciones"
-            .filter(([val]) => val !== "asistente" || realIsAdmin) // Asistente de IA: solo administradores reales, ni siquiera simulando el rol
+            .filter(([val]) => val !== "asistente") // Escondido a propósito (2026-09-30, pedido de Eldin: no convence todavía) — el código y la
+            // Edge Function siguen intactos para retomarlo más adelante; para reactivarlo, volver a
+            // `val !== "asistente" || realIsAdmin`.
             .map(([val, label, Icon]) => {
             const needsLive = val === "envivo" || val === "proyeccion";
             const needsLiveControlRole = (val === "envivo" || val === "proyeccion") && !canControlLive;
@@ -2040,7 +2045,7 @@ function nextUpcomingEvent(events, liveEventId) {
     .sort(compareByDay)[0];
 }
 
-function InicioView({ events, library, myUserId, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact, canSeeCanciones }) {
+function InicioView({ events, library, myUserId, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact, canSeeCanciones, teamName }) {
   const liveEvent = liveLibre ? EVENTO_LIBRE : events.find((e) => e.id === liveEventId);
   const [showFavorites, setShowFavorites] = useState(false);
   const favoriteSongs = library.filter((s) => s.favorite);
@@ -2068,7 +2073,7 @@ function InicioView({ events, library, myUserId, favoritesCount, memberCount, li
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 16, flexShrink: 0 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600 }}>{greetingWord()}</div>
-          <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 2 }}>{TEAM_NAME}</div>
+          <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 2 }}>{teamName}</div>
         </div>
         {liveEvent && (
           // El título del evento en vivo puede ser largo ("Domingo AM - Septiembre 6 - Servicio
@@ -2332,7 +2337,7 @@ function BibleDownloadSection() {
   );
 }
 
-function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, onGoToRoles, userId, isCompact }) {
+function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, onGoToRoles, userId, teamName, isCompact }) {
   const [horarioAbierto, setHorarioAbierto] = useState(false);
   const [showTeamList, setShowTeamList] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -2545,7 +2550,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
       <SectionLabel>EQUIPO</SectionLabel>
       <button onClick={() => setShowTeamList(true)} className="hoverable" style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 16, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", cursor: "pointer", textAlign: "left" }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>{TEAM_NAME}</div>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>{teamName}</div>
           <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{usuariosReales.length} {usuariosReales.length === 1 ? "miembro" : "miembros"}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -2554,7 +2559,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
         </div>
       </button>
       {showTeamList && (
-        <ModalShell title={TEAM_NAME} icon={Users} color="#6E63C7" onClose={() => setShowTeamList(false)}>
+        <ModalShell title={teamName} icon={Users} color="#6E63C7" onClose={() => setShowTeamList(false)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: "60vh", overflowY: "auto" }}>
             {usuariosReales.map((u) => (
               <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 2px", borderBottom: "1px solid var(--wf-hover)" }}>
