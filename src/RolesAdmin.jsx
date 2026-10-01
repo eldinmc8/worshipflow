@@ -4,7 +4,7 @@ import { showToast } from "./lib/toast.js";
 import { confirmDialog } from "./lib/confirm.js";
 
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "9px 10px", fontSize: 13, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
-const primaryBtn = { background: "#E8821E", border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: "#16324F", cursor: "pointer" };
+const primaryBtn = { background: "var(--wf-brand-accent)", border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: "var(--wf-brand-primary)", cursor: "pointer" };
 const ghostBtn = { background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer" };
 const cardStyle = { background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: "12px 14px", marginBottom: 8 };
 
@@ -24,7 +24,7 @@ function PermisoToggle({ permiso, activo, disabled, onToggle }) {
         disabled={disabled}
         style={{
           flexShrink: 0, width: 42, height: 24, borderRadius: 14, border: "none", position: "relative",
-          background: activo ? "#E8821E" : "var(--wf-border)", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.6 : 1,
+          background: activo ? "var(--wf-brand-accent)" : "var(--wf-border)", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.6 : 1,
         }}
       >
         <span style={{ position: "absolute", top: 3, left: activo ? 21 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />

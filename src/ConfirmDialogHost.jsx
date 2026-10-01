@@ -62,7 +62,7 @@ export default function ConfirmDialogHost() {
           </button>
           <button
             onClick={aceptar}
-            style={{ background: dialog.danger ? "#C23B32" : "#E8821E", border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: dialog.danger ? "#fff" : "#16324F", cursor: "pointer" }}
+            style={{ background: dialog.danger ? "#C23B32" : "var(--wf-brand-accent)", border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: dialog.danger ? "#fff" : "var(--wf-brand-primary)", cursor: "pointer" }}
           >
             {dialog.textoConfirmar || "Aceptar"}
           </button>

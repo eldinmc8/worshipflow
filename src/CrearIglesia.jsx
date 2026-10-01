@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
-import AppLogo from "./AppLogo.jsx";
+import MarkCircle from "./MarkCircle.jsx";
 
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
 const labelStyle = { fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 4, display: "block" };
@@ -73,7 +73,7 @@ export default function CrearIglesia() {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Poppins:wght@400;500;600;700&display=swap');`}</style>
       <div className="screen-enter" style={{ width: 400, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 20 }}>
-          <AppLogo width={160} />
+          <MarkCircle size={80} />
           <span style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, color: "var(--wf-heading)", textAlign: "center" }}>Crear mi iglesia en WorshipFlow</span>
           <span style={{ fontSize: 12, color: "var(--wf-muted)", textAlign: "center" }}>Quedas como administrador — luego invitas a tu equipo desde Ajustes.</span>
         </div>

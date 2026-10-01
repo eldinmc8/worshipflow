@@ -29,6 +29,13 @@
      (var(--wf-text), casi blanco ahí) invisible sobre un fondo igual de claro. */
   --wf-active-bg: #FFF4E8;
   --wf-active-text: #8A4F0E;
+  /* Colores DE MARCA (header/nav navy, botones/acentos naranja) — a propósito NO se redeclaran en
+     [data-theme="dark"] más abajo: se quedan iguales en los dos temas (el navy del header, por
+     ejemplo, nunca se aclara en modo oscuro). Por defecto son los de Jesús El Buen Pastor; cada
+     iglesia puede pisarlos en tiempo de ejecución desde iglesias.color_primario/color_acento (ver
+     WorshipFlowPrototype → aplicarColoresDeIglesia en PrototipoWorshipFlow.jsx). */
+  --wf-brand-primary: #16324F;
+  --wf-brand-accent: #E8821E;
 }
 [data-theme="dark"] {
   --wf-bg: #10151C;

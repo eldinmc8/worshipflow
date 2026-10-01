@@ -6,7 +6,8 @@ import Login from "./Login.jsx";
 import UsersAdmin from "./UsersAdmin.jsx";
 import RolesAdmin from "./RolesAdmin.jsx";
 import PrototipoWorshipFlow from "./PrototipoWorshipFlow.jsx";
-import AppLogo from "./AppLogo.jsx";
+import GenericMark from "./GenericMark.jsx";
+import MarkCircle from "./MarkCircle.jsx";
 
 // Puerta de acceso real: exige sesión de Supabase antes de mostrar la app. La app en sí ya es el
 // prototipo completo (Canciones, Eventos, En vivo, Ministerios...), pero ahora leyendo y guardando
@@ -89,7 +90,7 @@ export default function AuthGate() {
         ) : (
           <div className="screen-enter" style={{ width: 320, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center" }}>
             <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--wf-active-bg)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-              <WifiOff size={22} color="#E8821E" />
+              <WifiOff size={22} color="var(--wf-brand-accent)" />
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: "var(--wf-text)", marginBottom: 8 }}>Sin conexión</div>
             <div style={{ fontSize: 13, color: "var(--wf-muted)", lineHeight: 1.5, marginBottom: 18 }}>No pudimos conectar con el servidor. Revisa tu internet e intenta de nuevo.</div>
@@ -158,7 +159,7 @@ export default function AuthGate() {
 }
 
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
-const primaryBtn = { width: "100%", background: "#E8821E", border: "none", borderRadius: 8, padding: "11px", fontSize: 14, fontWeight: 700, color: "#16324F", cursor: "pointer" };
+const primaryBtn = { width: "100%", background: "var(--wf-brand-accent)", border: "none", borderRadius: 8, padding: "11px", fontSize: 14, fontWeight: 700, color: "var(--wf-brand-primary)", cursor: "pointer" };
 
 // Pantalla que ve quien acaba de aceptar una invitación (o, más adelante, un enlace de "olvidé mi
 // contraseña"): ya tiene sesión válida gracias al enlace, solo le falta elegir su propia contraseña.
@@ -195,9 +196,8 @@ function SetPassword({ onDone }) {
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "'Poppins', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Poppins:wght@400;500;600;700&display=swap');`}</style>
       <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 16 }}>
-          <AppLogo width={180} />
-          <span style={{ fontFamily: "'Fraunces', serif", fontSize: 14, fontWeight: 600, color: "var(--wf-heading)" }}>JBP App</span>
+        <div style={{ marginBottom: 16 }}>
+          <GenericMark size={70} />
         </div>
         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-text)", marginBottom: 4 }}>¡Bienvenido/a!</div>
         <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>Elige cómo quieres entrar de ahora en adelante.</div>
@@ -268,7 +268,7 @@ function CompleteProfile({ session, onDone }) {
           {fotoGoogle ? (
             <img src={fotoGoogle} alt="" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover" }} />
           ) : (
-            <AppLogo width={140} />
+            <MarkCircle size={72} />
           )}
         </div>
         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-text)", marginBottom: 4 }}>Ya casi — ¿cómo te llamas?</div>

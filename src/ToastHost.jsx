@@ -9,7 +9,7 @@ import { subscribeToast } from "./lib/toast.js";
 // como si algo estuviera roto.
 const ESTILOS = {
   error: { accent: "#C23B32", Icon: AlertTriangle },
-  offline: { accent: "#E8821E", Icon: WifiOff },
+  offline: { accent: "var(--wf-brand-accent)", Icon: WifiOff },
   info: { accent: "#2F5FA8", Icon: Info },
 };
 

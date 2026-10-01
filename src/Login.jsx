@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { supabase } from "./lib/supabaseClient.js";
-import AppLogo from "./AppLogo.jsx";
+import GenericMark from "./GenericMark.jsx";
 
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
 const primaryBtn = { width: "100%", background: "#E8821E", border: "none", borderRadius: 8, padding: "11px", fontSize: 14, fontWeight: 700, color: "#16324F", cursor: "pointer" };
@@ -36,9 +36,8 @@ export default function Login() {
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "'Poppins', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Poppins:wght@400;500;600;700&display=swap');`}</style>
       <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 20 }}>
-          <AppLogo width={200} />
-          <span style={{ fontFamily: "'Fraunces', serif", fontSize: 15, fontWeight: 600, color: "var(--wf-heading)" }}>JBP App</span>
+        <div style={{ marginBottom: 20 }}>
+          <GenericMark size={80} />
         </div>
 
         <form onSubmit={submitLogin} style={{ display: "flex", flexDirection: "column", gap: 10 }}>

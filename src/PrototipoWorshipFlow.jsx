@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
+import AppLogo from "./AppLogo.jsx";
 import {
   Music, Mic2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus,
   Radio, ListMusic, BookOpen, Image as ImgIcon, Trash2, GripVertical,
@@ -196,7 +197,7 @@ function isMusicoLeaderFresh(musicoState) {
 }
 
 const TYPE_META = {
-  cancion: { label: "Canción", color: "#E8821E", icon: Music },
+  cancion: { label: "Canción", color: "var(--wf-brand-accent)", icon: Music },
   biblia: { label: "Versículo", color: "#2F5FA8", icon: BookOpen },
   slide: { label: "Slide", color: "#B15EA0", icon: ImgIcon },
   seccion: { label: "Bloque", color: "#5661B3", icon: ListMusic },
@@ -319,11 +320,11 @@ function buildSlides(serviceOrder, library) {
 }
 
 const DEFAULT_COVERS = [
-  "linear-gradient(135deg, #16324F 0%, #2F5FA8 60%, #E8821E 100%)",
-  "linear-gradient(135deg, #16324F 0%, #1F8A73 60%, #2E86AB 100%)",
-  "linear-gradient(135deg, #16324F 0%, #B15EA0 60%, #E8821E 100%)",
+  "linear-gradient(135deg, var(--wf-brand-primary) 0%, #2F5FA8 60%, var(--wf-brand-accent) 100%)",
+  "linear-gradient(135deg, var(--wf-brand-primary) 0%, #1F8A73 60%, #2E86AB 100%)",
+  "linear-gradient(135deg, var(--wf-brand-primary) 0%, #B15EA0 60%, var(--wf-brand-accent) 100%)",
 ];
-const MINISTRY_COLORS = ["#E8821E", "#2E86AB", "#B15EA0", "#1F8A73", "#C23B32", "#5661B3"];
+const MINISTRY_COLORS = ["var(--wf-brand-accent)", "#2E86AB", "#B15EA0", "#1F8A73", "#C23B32", "#5661B3"];
 const nextMinistryChildId = () => crypto.randomUUID();
 
 // Nuevos ids al clonar un evento plantilla: si se copiaran los ids, chocarían en la base de datos real
@@ -492,7 +493,7 @@ function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event }) {
                 {block.encargados.map((m, i) => (
                   <div key={m.id || i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0 }}>{m.n.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</div>
-                    <span style={{ fontSize: 13 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "#E8821E", fontWeight: 700 }}> · Encargado</span>}</span>
+                    <span style={{ fontSize: 13 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "var(--wf-brand-accent)", fontWeight: 700 }}> · Encargado</span>}</span>
                   </div>
                 ))}
               </div>
@@ -502,7 +503,7 @@ function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event }) {
         })}
         {worshipRoles.map((role) => (
           <div key={role.id} style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 18, padding: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><Sparkles size={13} color="#E8821E" /> EQUIPO DE ALABANZA</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><Sparkles size={13} color="var(--wf-brand-accent)" /> EQUIPO DE ALABANZA</div>
             <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, marginBottom: 10 }}>{role.name}</div>
             {(role.members || []).length === 0 ? (
               <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>Nadie asignado todavía.</div>
@@ -511,7 +512,7 @@ function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event }) {
                 {role.members.map((m, i) => (
                   <div key={m.id || i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0 }}>{m.n.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</div>
-                    <span style={{ fontSize: 13 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "#E8821E", fontWeight: 700 }}> · Encargado</span>}</span>
+                    <span style={{ fontSize: 13 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "var(--wf-brand-accent)", fontWeight: 700 }}> · Encargado</span>}</span>
                   </div>
                 ))}
               </div>
@@ -807,7 +808,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
   // cualquier otra), marcada con isSermonPoint para distinguirla visualmente en el Setlist y en el grid en vivo.
   const addSermonPoint = () => {
     if (!sermonPointText.trim()) return;
-    updateOrder((o) => [...o, { id: nextId(), type: "slide", title: sermonPointText.trim(), subtitle: "", bg: "#16324F", bgType: "color", isSermonPoint: true }]);
+    updateOrder((o) => [...o, { id: nextId(), type: "slide", title: sermonPointText.trim(), subtitle: "", bg: "var(--wf-brand-primary)", bgType: "color", isSermonPoint: true }]);
     setSermonPointText("");
     setShowSermonForm(false);
   };
@@ -1167,14 +1168,29 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
   // este componente necesita saber la iglesia del usuario actual; perfil ya la trae (columna
   // iglesia_id agregada en la Fase 2a).
   const myIglesiaId = perfil?.iglesia_id;
-  // El slug es lo que va en la URL de Proyección (ver openOnOtherScreen) y el nombre reemplaza al
-  // viejo TEAM_NAME fijo — Fase 3: el nombre de la iglesia ya no está escrito en el código, sale de
-  // la base. Un solo fetch para los dos: ambos viven en la misma fila de `iglesias`.
-  const [myIglesia, setMyIglesia] = useState({ slug: null, nombre: "" });
+  // El slug es para la URL de Proyección (ver openOnOtherScreen), el nombre reemplaza al viejo
+  // TEAM_NAME fijo (Fase 3), y logoUrl/colorPrimario/colorAcento son la Fase 5: todos viven en la
+  // misma fila de `iglesias`, un solo fetch para los cinco. Jesús El Buen Pastor ya tiene su logo y
+  // sus colores guardados ahí (ver migración 20260930000700) — para su equipo esto se ve exactamente
+  // igual que antes de esta fase; una iglesia nueva sin nada configurado cae a los valores por
+  // defecto de abajo (el genérico de WorshipFlow, no el de Buen Pastor).
+  const [myIglesia, setMyIglesia] = useState({ slug: null, nombre: "", logoUrl: null, colorPrimario: null, colorAcento: null });
   useEffect(() => {
     if (!myIglesiaId) return;
-    supabase.from("iglesias").select("slug, nombre").eq("id", myIglesiaId).single().then(({ data }) => setMyIglesia({ slug: data?.slug || null, nombre: data?.nombre || "" }));
+    supabase.from("iglesias").select("slug, nombre, logo_url, color_primario, color_acento").eq("id", myIglesiaId).single().then(({ data }) => setMyIglesia({
+      slug: data?.slug || null, nombre: data?.nombre || "",
+      logoUrl: data?.logo_url || null, colorPrimario: data?.color_primario || null, colorAcento: data?.color_acento || null,
+    }));
   }, [myIglesiaId]);
+  // Pisa los valores por defecto de --wf-brand-primary/--wf-brand-accent (ver index.css) con los de
+  // ESTA iglesia, si los tiene configurados. Se limpia solo al desmontar (ej. cerrar sesión) para
+  // que el próximo que use este navegador no herede sin querer el color de quien inició sesión antes.
+  useEffect(() => {
+    const root = document.documentElement.style;
+    if (myIglesia.colorPrimario) root.setProperty("--wf-brand-primary", myIglesia.colorPrimario);
+    if (myIglesia.colorAcento) root.setProperty("--wf-brand-accent", myIglesia.colorAcento);
+    return () => { root.removeProperty("--wf-brand-primary"); root.removeProperty("--wf-brand-accent"); };
+  }, [myIglesia.colorPrimario, myIglesia.colorAcento]);
   const [roleOverride, setRoleOverride] = useState(null); // solo un admin lo puede poner (ver Ajustes)
   const [nameOverride, setNameOverride] = useState(null);
   const [usuariosReales, setUsuariosReales] = useState([]); // lista real de miembros ya registrados (RLS: cualquier autenticado puede leerla)
@@ -1609,7 +1625,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
       `}</style>
 
       {(usingCachedData || isOffline) && (
-        <div style={{ background: "#E8821E", color: "var(--wf-text)", fontSize: 12, fontWeight: 700, textAlign: "center", padding: "6px 10px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+        <div style={{ background: "var(--wf-brand-accent)", color: "var(--wf-text)", fontSize: 12, fontWeight: 700, textAlign: "center", padding: "6px 10px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
           <WifiOff size={13} />
           {usingCachedData
             ? "Sin conexión — mostrando la última versión guardada en este dispositivo. Los cambios no se guardarán hasta que vuelva el internet."
@@ -1625,7 +1641,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
           <div style={{ background: "var(--wf-card)", borderRadius: 20, padding: 22, width: 380, maxWidth: "100%", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(0,0,0,0.4)" }}>
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
               <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--wf-active-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <EyeOff size={20} color="#E8821E" />
+                <EyeOff size={20} color="var(--wf-brand-accent)" />
               </div>
             </div>
             <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, textAlign: "center", marginBottom: 4 }}>
@@ -1640,14 +1656,14 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
                   key={ev.id}
                   onClick={() => confirmarAsignacionVista(ev.id)}
                   className="hoverable"
-                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "var(--wf-active-bg)", border: "1.5px solid #E8821E", borderRadius: 14, padding: "12px 14px", cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "var(--wf-active-bg)", border: "1.5px solid var(--wf-brand-accent)", borderRadius: 14, padding: "12px 14px", cursor: "pointer" }}
                 >
                   <EyeOff size={18} color="var(--wf-active-text)" style={{ flexShrink: 0 }} />
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>{ev.title}</div>
                     <div style={{ fontSize: 11.5, color: "var(--wf-active-text)", marginTop: 1 }}>{formatFullDate(ev.date) || ev.dateLabel} · Te toca: {cargos.join(", ")}</div>
                   </span>
-                  <ChevronRight size={16} color="#E8821E" style={{ flexShrink: 0 }} />
+                  <ChevronRight size={16} color="var(--wf-brand-accent)" style={{ flexShrink: 0 }} />
                 </button>
               ))}
             </div>
@@ -1660,18 +1676,20 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
           index.css) — así el navy del header llega hasta el borde físico de la pantalla, detrás del
           notch/la muesca, en vez de dejar una franja sin pintar ahí (que en modo oscuro de iOS se veía
           negra en vez de fundirse con la app). */}
-      <div style={{ background: "#16324F", padding: "calc(16px + env(safe-area-inset-top)) 20px 26px", borderRadius: "0 0 28px 28px", position: "relative", overflow: "hidden" }}>
+      <div style={{ background: "var(--wf-brand-primary)", padding: "calc(16px + env(safe-area-inset-top)) 20px 26px", borderRadius: "0 0 28px 28px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(232,130,30,0.15)" }} />
         <div style={{ position: "absolute", bottom: -40, left: 40, width: 90, height: 90, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
             {/* Fondo blanco detrás del logo (el ícono ya trae su propio fondo blanco, pero el círculo
                 asegura que se vea igual sobre el header azul marino) — sin zoom (contain, no cover) para
-                que se vea el logo COMPLETO (antes se recortaba la "J" de "Jesús" al hacerle zoom). */}
+                que se vea el logo COMPLETO (antes se recortaba la "J" de "Jesús" al hacerle zoom). El
+                logo de ESTA iglesia (Fase 5) — ver AppLogo.jsx: sin logoUrl cae al trazo genérico, no
+                al de Jesús El Buen Pastor, para que una iglesia nueva no vea un logo que no es el suyo. */}
             <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--wf-card)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
-              <img src="/pwa-192x192.png" alt="Iglesia Jesús El Buen Pastor" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+              <AppLogo width={32} logoUrl={myIglesia.logoUrl} />
             </div>
-            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "#fff" }}>JBP App</span>
+            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "#fff" }}>WorshipFlow</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {liveEvent && (
@@ -1683,7 +1701,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
             <button onClick={() => setShowNotifications(true)} title="Notificaciones" style={{ position: "relative", width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
               <Bell size={15} color="#fff" />
               {unreadCount > 0 && (
-                <span style={{ position: "absolute", top: -3, right: -3, background: "#E8821E", color: "#16324F", fontSize: 9, fontWeight: 800, borderRadius: 12, minWidth: 14, height: 14, lineHeight: "14px", textAlign: "center", padding: "0 2px" }}>{unreadCount > 9 ? "9+" : unreadCount}</span>
+                <span style={{ position: "absolute", top: -3, right: -3, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", fontSize: 9, fontWeight: 800, borderRadius: 12, minWidth: 14, height: 14, lineHeight: "14px", textAlign: "center", padding: "0 2px" }}>{unreadCount > 9 ? "9+" : unreadCount}</span>
               )}
             </button>
           </div>
@@ -1691,7 +1709,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
       </div>
 
       {showNotifications && (
-        <ModalShell title="Notificaciones" icon={Bell} color="#E8821E" onClose={() => setShowNotifications(false)}>
+        <ModalShell title="Notificaciones" icon={Bell} color="var(--wf-brand-accent)" onClose={() => setShowNotifications(false)}>
           {unreadCount > 0 && (
             <button onClick={markAllNotificationsRead} style={{ ...ghostToggleBtn, marginBottom: 10 }}>Marcar todas como leídas</button>
           )}
@@ -1705,7 +1723,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
                 style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%", textAlign: "left", background: n.leido ? "var(--wf-card)" : "var(--wf-active-bg)", border: n.leido ? "1px solid var(--wf-hover)" : "1px solid var(--wf-active-text)", borderRadius: 14, padding: "10px 12px", cursor: n.evento_id ? "pointer" : "default" }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {!n.leido && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#E8821E", flexShrink: 0 }} />}
+                  {!n.leido && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--wf-brand-accent)", flexShrink: 0 }} />}
                   <span style={{ fontSize: 13, fontWeight: 700 }}>{n.titulo}</span>
                 </div>
                 {n.cuerpo && <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{n.cuerpo}</div>}
@@ -1744,6 +1762,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
           onGoToUsuarios={onGoToUsuarios}
           onGoToRoles={onGoToRoles}
           userId={userId}
+          myIglesiaId={myIglesiaId}
           teamName={myIglesia.nombre}
           isCompact={isCompact}
         />
@@ -1798,7 +1817,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
         />
       )}
       {songExitPrompt && (
-        <ModalShell title="Cambios sin guardar" icon={Pencil} color="#E8821E" onClose={handleKeepEditingSong}>
+        <ModalShell title="Cambios sin guardar" icon={Pencil} color="var(--wf-brand-accent)" onClose={handleKeepEditingSong}>
           <div style={{ fontSize: 13, color: "var(--wf-text-2)", marginBottom: 16 }}>Esta canción tiene cambios sin guardar. ¿Qué quieres hacer antes de salir?</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <button onClick={handleSaveSongEdit} style={primaryBtn}>Guardar y salir</button>
@@ -1808,7 +1827,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
         </ModalShell>
       )}
       {songAutoSaveToast && (
-        <div style={{ position: "fixed", left: "50%", bottom: 88, transform: "translateX(-50%)", background: "#16324F", color: "#FFFFFF", fontSize: 13, fontWeight: 600, padding: "10px 18px", borderRadius: 999, boxShadow: "0 8px 24px rgba(22,50,79,0.3)", zIndex: 200, display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ position: "fixed", left: "50%", bottom: 88, transform: "translateX(-50%)", background: "var(--wf-brand-primary)", color: "#FFFFFF", fontSize: 13, fontWeight: 600, padding: "10px 18px", borderRadius: 999, boxShadow: "0 8px 24px rgba(22,50,79,0.3)", zIndex: 200, display: "flex", alignItems: "center", gap: 8 }}>
           <Check size={16} color="#5CD6A9" /> Cambios guardados
         </div>
       )}
@@ -1944,7 +1963,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
           fondo claro de la app en vez de negro por defecto — y de paso la nav flotante queda de verdad
           fija arriba de esa barra, no flotando "a medias" sobre ella. */}
       <div ref={bottomNavRef} style={{ flexShrink: 0, display: "flex", justifyContent: "center", padding: "10px 0 calc(14px + env(safe-area-inset-bottom))", zIndex: 40 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 2, background: "#16324F", borderRadius: 24, padding: 6, boxShadow: "0 8px 24px rgba(22,50,79,0.35)", maxWidth: "94vw", overflowX: "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 2, background: "var(--wf-brand-primary)", borderRadius: 24, padding: 6, boxShadow: "0 8px 24px rgba(22,50,79,0.35)", maxWidth: "94vw", overflowX: "auto" }}>
           {[["inicio", "Inicio", Home], ["canciones", "Canciones", Music], ["eventos", "Eventos", Calendar], ["ministerios", "Grupos", LayoutGrid], ["asistente", "Asistente", MessageCircle], ["envivo", "En vivo", Radio], ["proyeccion", "Pantalla", ImgIcon], ["ajustes", "Ajustes", Settings]]
             .filter(([val]) => !isCompact || (val !== "envivo" && val !== "proyeccion")) // Control en vivo/Proyección son de escritorio: en celular no aparecen
             .filter(([val]) => val !== "ministerios" || canSeeGrupos) // Grupos: solo admins o quien lidera al menos uno
@@ -1968,10 +1987,10 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
                 })}
                 disabled={isDisabled}
                 className="navitem"
-                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: active ? "#E8821E" : "transparent", border: "none", borderRadius: 18, padding: "8px 12px", cursor: isDisabled ? "not-allowed" : "pointer", opacity: isDisabled ? 0.35 : 1, flexShrink: 0 }}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: active ? "var(--wf-brand-accent)" : "transparent", border: "none", borderRadius: 18, padding: "8px 12px", cursor: isDisabled ? "not-allowed" : "pointer", opacity: isDisabled ? 0.35 : 1, flexShrink: 0 }}
               >
-                <Icon size={17} color={active ? "#16324F" : "rgba(255,255,255,0.8)"} />
-                <span style={{ fontSize: 9, fontWeight: 700, color: active ? "#16324F" : "rgba(255,255,255,0.6)" }}>{label}</span>
+                <Icon size={17} color={active ? "var(--wf-brand-primary)" : "rgba(255,255,255,0.8)"} />
+                <span style={{ fontSize: 9, fontWeight: 700, color: active ? "var(--wf-brand-primary)" : "rgba(255,255,255,0.6)" }}>{label}</span>
               </button>
             );
           })}
@@ -1990,7 +2009,7 @@ function AvatarStack({ initials, max = 3 }) {
       {shown.map((init, i) => (
         <div key={i} style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", border: "2px solid var(--wf-text)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, marginLeft: i === 0 ? 0 : -8 }}>{init}</div>
       ))}
-      {rest > 0 && <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#E8821E", color: "var(--wf-text)", border: "2px solid var(--wf-text)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, marginLeft: -8 }}>+{rest}</div>}
+      {rest > 0 && <div style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--wf-brand-accent)", color: "var(--wf-text)", border: "2px solid var(--wf-text)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, marginLeft: -8 }}>+{rest}</div>}
     </div>
   );
 }
@@ -2081,8 +2100,8 @@ function InicioView({ events, library, myUserId, favoritesCount, memberCount, li
           // terminaba más ancho que la pantalla, corriendo toda la fila (y arrastrando la página
           // entera, ya que el contenedor de arriba permitía overflow horizontal). Ahora el botón se
           // achica hasta un máximo razonable y el título se corta con "..." en vez de desbordar.
-          <button onClick={() => (liveLibre ? onGoLive() : onSelectEvent(liveEvent.id))} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, maxWidth: "62%", background: "#16324F", borderRadius: 20, padding: "9px 16px", border: "none", cursor: "pointer" }}>
-            <span className="live-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "#E8821E", flexShrink: 0 }} />
+          <button onClick={() => (liveLibre ? onGoLive() : onSelectEvent(liveEvent.id))} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, maxWidth: "62%", background: "var(--wf-brand-primary)", borderRadius: 20, padding: "9px 16px", border: "none", cursor: "pointer" }}>
+            <span className="live-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--wf-brand-accent)", flexShrink: 0 }} />
             <span style={{ color: "#fff", fontWeight: 700, fontSize: 12, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>En vivo: {liveEvent.title}</span>
             <ChevronRight size={14} color="rgba(255,255,255,0.7)" style={{ flexShrink: 0 }} />
           </button>
@@ -2125,13 +2144,13 @@ function InicioView({ events, library, myUserId, favoritesCount, memberCount, li
                       style={{
                         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
                         borderRadius: 14, border: isToday && !isNext ? "1.5px solid #2F5FA8" : "1.5px solid transparent",
-                        background: isNext ? "#E8821E" : dayEvents.length ? "var(--wf-hover)" : "transparent",
+                        background: isNext ? "var(--wf-brand-accent)" : dayEvents.length ? "var(--wf-hover)" : "transparent",
                         cursor: dayEvents.length ? "pointer" : "default", padding: 0,
                       }}
                     >
                       <span style={{ fontSize: 12, fontWeight: isNext ? 800 : 600, color: isNext ? "#fff" : "var(--wf-text-2)" }}>{day}</span>
                       {dayEvents.length > 0 && (
-                        <span style={{ width: 4, height: 4, borderRadius: "50%", background: isNext ? "#fff" : "#E8821E" }} />
+                        <span style={{ width: 4, height: 4, borderRadius: "50%", background: isNext ? "#fff" : "var(--wf-brand-accent)" }} />
                       )}
                     </button>
                   );
@@ -2219,7 +2238,7 @@ function InicioView({ events, library, myUserId, favoritesCount, memberCount, li
 // ---------------- AJUSTES ----------------
 function ToggleSwitch({ checked, onChange }) {
   return (
-    <button onClick={() => onChange(!checked)} style={{ width: 44, height: 26, borderRadius: 20, background: checked ? "#E8821E" : "var(--wf-border)", border: "none", position: "relative", cursor: "pointer", flexShrink: 0 }}>
+    <button onClick={() => onChange(!checked)} style={{ width: 44, height: 26, borderRadius: 20, background: checked ? "var(--wf-brand-accent)" : "var(--wf-border)", border: "none", position: "relative", cursor: "pointer", flexShrink: 0 }}>
       <span style={{ position: "absolute", top: 3, left: checked ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: "var(--wf-card)", transition: "left .15s" }} />
     </button>
   );
@@ -2337,10 +2356,11 @@ function BibleDownloadSection() {
   );
 }
 
-function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, onGoToRoles, userId, teamName, isCompact }) {
+function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, onGoToRoles, userId, myIglesiaId, teamName, isCompact }) {
   const [horarioAbierto, setHorarioAbierto] = useState(false);
   const [showTeamList, setShowTeamList] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showIdentidad, setShowIdentidad] = useState(false);
   const [pushEstado, setPushEstado] = useState("cargando"); // cargando | activo | inactivo | sin-soporte
   const [pushBusy, setPushBusy] = useState(false);
   // Modo oscuro del chrome — de este dispositivo nada más (ver lib/theme.js), NO afecta a Proyección.
@@ -2461,7 +2481,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           {[["claro", "Claro"], ["oscuro", "Oscuro"], ["auto", "Automático"]].map(([val, label]) => (
             <button
               key={val} onClick={() => cambiarTema(val)}
-              style={{ flex: 1, fontSize: 12, fontWeight: 700, padding: "8px 6px", borderRadius: 12, border: "none", cursor: "pointer", background: tema === val ? "#E8821E" : "var(--wf-hover)", color: tema === val ? "#16324F" : "var(--wf-text)" }}
+              style={{ flex: 1, fontSize: 12, fontWeight: 700, padding: "8px 6px", borderRadius: 12, border: "none", cursor: "pointer", background: tema === val ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: tema === val ? "var(--wf-brand-primary)" : "var(--wf-text)" }}
             >
               {label}
             </button>
@@ -2509,10 +2529,10 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
         <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10 }}>Solo los roles <b>Administrador</b> y <b>Multimedia</b> pueden controlar la transmisión y finalizar un evento en vivo — así ningún músico o miembro puede detenerla por accidente desde su teléfono. Tu rol lo asigna un administrador desde Usuarios.</div>
         {realIsAdmin ? (
           <>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#E8821E", marginBottom: 8 }}>Como administrador puedes probar cómo se ve la app con otro rol:</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-brand-accent)", marginBottom: 8 }}>Como administrador puedes probar cómo se ve la app con otro rol:</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {ROLE_OPTIONS.map((r) => (
-                <button key={r} onClick={() => setRoleOverride(r === myRole && roleOverride ? null : r)} style={{ fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: "none", cursor: "pointer", background: myRole === r ? "#E8821E" : "var(--wf-hover)", color: myRole === r ? "#16324F" : "var(--wf-text)" }}>{r}</button>
+                <button key={r} onClick={() => setRoleOverride(r === myRole && roleOverride ? null : r)} style={{ fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: "none", cursor: "pointer", background: myRole === r ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: myRole === r ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{r}</button>
               ))}
             </div>
           </>
@@ -2535,6 +2555,8 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           <SectionLabel>ADMINISTRACIÓN</SectionLabel>
           <NavRow icon={Settings} label="Usuarios" onClick={onGoToUsuarios} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
           <NavRow icon={Settings} label="Roles" onClick={onGoToRoles} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
+          <NavRow icon={Palette} label="Identidad de la iglesia" onClick={() => setShowIdentidad(true)} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
+          {showIdentidad && <IdentidadIglesiaModal iglesiaId={myIglesiaId} onClose={() => setShowIdentidad(false)} />}
 
           <SectionLabel>SIMULAR IDENTIDAD (SOLO ADMINISTRADORES)</SectionLabel>
           <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
@@ -2612,7 +2634,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
 
       {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
 
-      <div style={{ textAlign: "center", fontSize: 11, color: "var(--wf-border-soft)", marginTop: 20 }}>JBP App</div>
+      <div style={{ textAlign: "center", fontSize: 11, color: "var(--wf-border-soft)", marginTop: 20 }}>WorshipFlow</div>
     </div>
   );
 }
@@ -2620,6 +2642,105 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
 // Cambiar la propia contraseña sin depender de un administrador — a diferencia de "Reiniciar
 // contraseña" en Usuarios (que un admin usa para OTRA persona), esto es autoservicio: updateUser()
 // de Supabase Auth ya cambia la contraseña de la sesión actual sin pedir la anterior.
+// Zonas de ejemplo más comunes — mismo criterio que CrearIglesia.jsx (la base acepta cualquier
+// nombre IANA válido, esto es solo para no obligar a escribir uno a mano).
+const ZONAS_HORARIAS = [
+  { value: "Etc/GMT+6", label: "Guatemala / El Salvador / Honduras (UTC-6, sin horario de verano)" },
+  { value: "America/Mexico_City", label: "Ciudad de México" },
+  { value: "America/Managua", label: "Nicaragua" },
+  { value: "America/Costa_Rica", label: "Costa Rica" },
+  { value: "America/Bogota", label: "Colombia" },
+  { value: "America/Lima", label: "Perú" },
+];
+
+// Fase 5: nombre, zona horaria, logo y colores de ESTA iglesia — antes de esto, lo único que existía
+// era la base de datos lista para guardarlos (Fase 3) y mostrarlos (ver myIglesia en
+// WorshipFlowPrototype), pero ningún administrador podía cambiarlos desde la app. Recarga la página
+// al guardar en vez de propagar el cambio en memoria -- es la forma más simple y confiable de que el
+// logo/colores nuevos se vean de una en TODA la app (nav, header, botones...), y esto no se usa
+// seguido como para que valga la pena evitar ese recargo.
+function IdentidadIglesiaModal({ iglesiaId, onClose }) {
+  const [cargando, setCargando] = useState(true);
+  const [nombre, setNombre] = useState("");
+  const [zonaHoraria, setZonaHoraria] = useState("Etc/GMT+6");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [colorPrimario, setColorPrimario] = useState("#16324F");
+  const [colorAcento, setColorAcento] = useState("#E8821E");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    supabase.from("iglesias").select("nombre, zona_horaria, logo_url, color_primario, color_acento").eq("id", iglesiaId).single()
+      .then(({ data }) => {
+        if (data) {
+          setNombre(data.nombre || "");
+          setZonaHoraria(data.zona_horaria || "Etc/GMT+6");
+          setLogoUrl(data.logo_url || "");
+          setColorPrimario(data.color_primario || "#16324F");
+          setColorAcento(data.color_acento || "#E8821E");
+        }
+        setCargando(false);
+      });
+  }, [iglesiaId]);
+
+  const HEX_VALIDO = /^#[0-9A-Fa-f]{6}$/;
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!nombre.trim()) { setError("El nombre no puede quedar vacío."); return; }
+    // El selector de color SIEMPRE escribe un hex válido, pero el campo de texto a su lado se puede
+    // editar a mano -- un valor inválido ahí (ej. "naranja" en vez de "#E8821E") dejaría ese color
+    // sin efecto en TODA la app (var() sin valor válido = transparente), no solo en esta pantalla.
+    if (!HEX_VALIDO.test(colorPrimario) || !HEX_VALIDO.test(colorAcento)) {
+      setError("Los colores deben ser un código hexadecimal válido, ej. #16324F.");
+      return;
+    }
+    setBusy(true); setError("");
+    const { error } = await supabase.from("iglesias").update({
+      nombre: nombre.trim(), zona_horaria: zonaHoraria,
+      logo_url: logoUrl.trim() || null, color_primario: colorPrimario, color_acento: colorAcento,
+    }).eq("id", iglesiaId);
+    if (error) { setError(error.message); setBusy(false); return; }
+    window.location.reload();
+  };
+
+  return (
+    <ModalShell title="Identidad de la iglesia" icon={Palette} color="var(--wf-brand-accent)" onClose={onClose}>
+      {cargando ? (
+        <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Cargando…</div>
+      ) : (
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 2 }}>
+            <AppLogo width={64} logoUrl={logoUrl.trim() || null} />
+          </div>
+          <Field label="Nombre de la iglesia"><input required value={nombre} onChange={(e) => setNombre(e.target.value)} style={inputStyle} /></Field>
+          <Field label="Enlace del logo (opcional)">
+            <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://… (vacío = trazo genérico de WorshipFlow)" style={inputStyle} />
+          </Field>
+          <Field label="Color primario (fondos oscuros: encabezado, navegación)">
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input type="color" value={colorPrimario} onChange={(e) => setColorPrimario(e.target.value)} style={{ width: 40, height: 36, padding: 2, border: "1px solid var(--wf-border)", borderRadius: 8, background: "none", cursor: "pointer" }} />
+              <input value={colorPrimario} onChange={(e) => setColorPrimario(e.target.value)} style={{ ...inputStyle, flex: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }} />
+            </div>
+          </Field>
+          <Field label="Color de acento (botones, resaltados)">
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input type="color" value={colorAcento} onChange={(e) => setColorAcento(e.target.value)} style={{ width: 40, height: 36, padding: 2, border: "1px solid var(--wf-border)", borderRadius: 8, background: "none", cursor: "pointer" }} />
+              <input value={colorAcento} onChange={(e) => setColorAcento(e.target.value)} style={{ ...inputStyle, flex: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }} />
+            </div>
+          </Field>
+          <Field label="Zona horaria">
+            <select value={zonaHoraria} onChange={(e) => setZonaHoraria(e.target.value)} style={inputStyle}>
+              {ZONAS_HORARIAS.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
+            </select>
+          </Field>
+          {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
+          <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
+        </form>
+      )}
+    </ModalShell>
+  );
+}
+
 function ChangePasswordModal({ onClose }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -2819,7 +2940,7 @@ function AsistenteChatScreen() {
       </div>
 
       {showReglas && (
-        <ModalShell title="Reglas fijas del asistente" icon={ClipboardList} color="#E8821E" onClose={() => setShowReglas(false)}>
+        <ModalShell title="Reglas fijas del asistente" icon={ClipboardList} color="var(--wf-brand-accent)" onClose={() => setShowReglas(false)}>
           <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10 }}>
             Excepciones y reglas que el asistente debe aplicar SIEMPRE, sin que se las repitas en cada conversación — ej. "en Multimedia, el primer domingo de cada mes va Juan en vez de María". Se guardan aparte de la conversación.
           </div>
@@ -2850,7 +2971,7 @@ function AsistenteChatScreen() {
           <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
             <div style={{
               maxWidth: "80%", padding: "10px 14px", borderRadius: 16,
-              background: m.role === "user" ? "#16324F" : "var(--wf-card)",
+              background: m.role === "user" ? "var(--wf-brand-primary)" : "var(--wf-card)",
               color: m.role === "user" ? "#fff" : "var(--wf-text)",
               boxShadow: m.role === "user" ? "none" : "0 3px 14px rgba(22,50,79,0.09)",
               whiteSpace: "pre-wrap", fontSize: 13, lineHeight: 1.45,
@@ -2863,8 +2984,8 @@ function AsistenteChatScreen() {
         {loading && <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>Pensando…</div>}
 
         {pendingPlan && (
-          <div style={{ background: "var(--wf-card)", border: "1px solid #E8821E55", borderRadius: 16, padding: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#E8821E", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Plan propuesto — todavía no se guardó nada</div>
+          <div style={{ background: "var(--wf-card)", border: "1px solid color-mix(in srgb, var(--wf-brand-accent) 33%, transparent)", borderRadius: 16, padding: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-brand-accent)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Plan propuesto — todavía no se guardó nada</div>
             <div style={{ fontSize: 13, marginBottom: 12, whiteSpace: "pre-wrap" }}>{pendingPlan.resumen}</div>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={confirmarPlan} disabled={applying} style={{ ...primaryBtn, width: "auto", flex: 1, opacity: applying ? 0.6 : 1 }}>{applying ? "Aplicando…" : "Aplicar"}</button>
@@ -2898,7 +3019,7 @@ function AsistenteChatScreen() {
           rows={1}
           style={{ ...inputStyle, resize: "none", flex: 1 }}
         />
-        <button onClick={send} disabled={loading || !!pendingPlan || (!input.trim() && !pendingImage)} style={{ ...iconGhost, width: 40, height: 40, background: "#E8821E", color: "#16324F", opacity: (loading || !!pendingPlan || (!input.trim() && !pendingImage)) ? 0.4 : 1 }}>
+        <button onClick={send} disabled={loading || !!pendingPlan || (!input.trim() && !pendingImage)} style={{ ...iconGhost, width: 40, height: 40, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", opacity: (loading || !!pendingPlan || (!input.trim() && !pendingImage)) ? 0.4 : 1 }}>
           <Send size={17} />
         </button>
       </div>
@@ -3112,7 +3233,7 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
           <button onClick={savePlan} disabled={!planDirty || savingPlan} className="hoverable" style={{ ...primaryBtn, width: "auto", padding: "9px 18px", opacity: planDirty && !savingPlan ? 1 : 0.5, cursor: planDirty && !savingPlan ? "pointer" : "default" }}>
             {savingPlan ? "Guardando…" : "Guardar planificación"}
           </button>
-          {planDirty && !savingPlan && <span style={{ fontSize: 11, color: "#E8821E", fontWeight: 700 }}>● Cambios sin guardar</span>}
+          {planDirty && !savingPlan && <span style={{ fontSize: 11, color: "var(--wf-brand-accent)", fontWeight: 700 }}>● Cambios sin guardar</span>}
         </div>
       )}
 
@@ -3165,7 +3286,7 @@ function CancionesList({ library, isAdminViewer, onToggleFavorite, onOpen, onNew
       </div>
       <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 12 }}>
         {[["todos", "Todos"], ...Object.entries(SONG_CATEGORIES).map(([key, c]) => [key, c.label])].map(([key, label]) => (
-          <button key={key} onClick={() => setCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 20, border: "none", background: categoryFilter === key ? "#E8821E" : "var(--wf-hover)", color: categoryFilter === key ? "#16324F" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
+          <button key={key} onClick={() => setCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 20, border: "none", background: categoryFilter === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: categoryFilter === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
         ))}
       </div>
       {filtered.map((s) => (
@@ -3295,10 +3416,10 @@ function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResult
     else if (puedeCambiarLocal) onGuardarLocal(nuevaTonalidad);
   };
   const LETRAS = ["C", "D", "E", "F", "G", "A", "B"];
-  const activeStyle = { background: "#E8821E", color: "#16324F" };
+  const activeStyle = { background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)" };
   const inactiveStyle = { background: "var(--wf-hover)", color: "var(--wf-text)" };
   return (
-    <ModalShell title="Cambiar tonalidad" icon={Music} color="#E8821E" onClose={onClose}>
+    <ModalShell title="Cambiar tonalidad" icon={Music} color="var(--wf-brand-accent)" onClose={onClose}>
       <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>Original {song.key}</div>
 
       {puedeCambiarRoot ? (
@@ -3686,20 +3807,20 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
       <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600, margin: "0 0 4px" }}>{song.title}</h2>
       <div style={{ fontSize: 13, color: "var(--wf-muted)", marginBottom: 16 }}>
         {song.artist || "Unknown"} · {song.tempo} bpm
-        {positionLabel && <span style={{ marginLeft: 8, fontWeight: 700, color: "#E8821E" }}>· {positionLabel} en el setlist</span>}
+        {positionLabel && <span style={{ marginLeft: 8, fontWeight: 700, color: "var(--wf-brand-accent)" }}>· {positionLabel} en el setlist</span>}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, background: (autoMode || isLeaderMe) ? "var(--wf-active-bg)" : "var(--wf-bg)", border: `1px solid ${(autoMode || isLeaderMe) ? "#E8821E" : "var(--wf-divider)"}`, borderRadius: 16, padding: "8px 10px", marginBottom: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, background: (autoMode || isLeaderMe) ? "var(--wf-active-bg)" : "var(--wf-bg)", border: `1px solid ${(autoMode || isLeaderMe) ? "var(--wf-brand-accent)" : "var(--wf-divider)"}`, borderRadius: 16, padding: "8px 10px", marginBottom: 16, flexWrap: "wrap" }}>
         {isFollowingNow ? (
           // Seguidor: la sección la decide el líder — acá solo se avisa que se está siguiendo, en vez de
           // un botón que de todos modos no haría nada.
-          <span style={{ display: "flex", alignItems: "center", gap: 6, background: "#E8821E", color: "var(--wf-text)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-brand-accent)", color: "var(--wf-text)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>
             <Radio size={13} /> Siguiendo al líder
           </span>
         ) : isLeaderMe ? (
           // Líder en vivo: no hay on/off que alternar — se avanza a mano con ‹›/pills, cada toque se
           // refleja al instante en todos los seguidores (espejo, sin BPM/compases de por medio).
-          <span style={{ display: "flex", alignItems: "center", gap: 6, background: "#E8821E", color: "var(--wf-text)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-brand-accent)", color: "var(--wf-text)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>
             <Radio size={13} /> Eres el líder
           </span>
         ) : wasFollowingStaleLeader ? (
@@ -3710,7 +3831,7 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
             <Pause size={13} /> Pausado — el líder se desconectó
           </span>
         ) : (
-          <button onClick={toggleAutoMode} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: autoMode ? "#E8821E" : "var(--wf-card)", color: autoMode ? "#16324F" : "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          <button onClick={toggleAutoMode} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: autoMode ? "var(--wf-brand-accent)" : "var(--wf-card)", color: autoMode ? "var(--wf-brand-primary)" : "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             {autoMode ? <><Radio size={13} /> Modo Músico: ON</> : <><Play size={13} /> Modo Músico</>}
           </button>
         )}
@@ -3775,7 +3896,7 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
             role="button"
             tabIndex={0}
             className="hoverable"
-            style={{ marginBottom: 16, borderRadius: 14, outline: isActive ? "2px solid #E8821E" : "none", outlineOffset: 3, cursor: "pointer" }}
+            style={{ marginBottom: 16, borderRadius: 14, outline: isActive ? "2px solid var(--wf-brand-accent)" : "none", outlineOffset: 3, cursor: "pointer" }}
           >
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${color}22`, borderRadius: 20, padding: "5px 12px", marginBottom: 10 }}>
               <span style={{ width: 22, height: 22, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{b.badge}</span>
@@ -4106,7 +4227,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
           <Field label="Clasificación" required>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {Object.entries(SONG_CATEGORIES).map(([key, c]) => (
-                <button key={key} type="button" onClick={() => setDraft({ ...draft, category: key })} style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: "none", background: draft.category === key ? "#E8821E" : "var(--wf-hover)", color: draft.category === key ? "#16324F" : "var(--wf-text)", cursor: "pointer" }}>{c.label}</button>
+                <button key={key} type="button" onClick={() => setDraft({ ...draft, category: key })} style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: "none", background: draft.category === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: draft.category === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{c.label}</button>
               ))}
             </div>
             <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Define a qué bloque del Setlist se manda esta canción al agregarla (Himno/Corito/Canto especial → Alabanza, Adoración → Adoración).</span>
@@ -4162,7 +4283,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
       {subTab === "letra" && (
         <div>
           <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
-            <Sparkles size={13} color="#E8821E" /> Arma aquí las diapositivas exactas que se van a proyectar. Multimedia solo las va a ejecutar en vivo — no necesita escribir nada ese día.
+            <Sparkles size={13} color="var(--wf-brand-accent)" /> Arma aquí las diapositivas exactas que se van a proyectar. Multimedia solo las va a ejecutar en vivo — no necesita escribir nada ese día.
           </div>
           {blockKeys.map((key) => {
             const slideGroup = draft.letra[key] || [[""]];
@@ -4231,7 +4352,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
               <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "8px 10px", marginBottom: 6 }}>
                 <span style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--wf-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{draft.blocks[key].badge}</span>
                 <span style={{ fontSize: 13, flex: 1 }}>{draft.blocks[key].label}</span>
-                <button onClick={() => addEntry(key)} style={iconGhost}><Plus size={15} color="#E8821E" /></button>
+                <button onClick={() => addEntry(key)} style={iconGhost}><Plus size={15} color="var(--wf-brand-accent)" /></button>
               </div>
             ))}
             {blockKeys.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12 }}>Primero agrega secciones en la pestaña Contenido.</div>}
@@ -4290,7 +4411,7 @@ function MiniTicket({ ev, isLive, onClick }) {
   const time = (ev.dateLabel.split("·")[1] || "").trim();
   const shortTitle = ev.title.split("–")[0].trim();
   return (
-    <button onClick={onClick} className="hoverable" style={{ width: "100%", textAlign: "left", border: isLive ? "2px solid #E8821E" : "none", cursor: "pointer", borderRadius: 12, padding: "5px 6px", background: ev.cover || DEFAULT_COVERS[0], color: "#fff", lineHeight: 1.25 }}>
+    <button onClick={onClick} className="hoverable" style={{ width: "100%", textAlign: "left", border: isLive ? "2px solid var(--wf-brand-accent)" : "none", cursor: "pointer", borderRadius: 12, padding: "5px 6px", background: ev.cover || DEFAULT_COVERS[0], color: "#fff", lineHeight: 1.25 }}>
       <div style={{ fontSize: 9.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shortTitle}</div>
       <div style={{ fontSize: 8.5, opacity: 0.85 }}>{time}</div>
     </button>
@@ -4417,8 +4538,8 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
       </div>
 
       {canStartLive && (
-        <button onClick={onStartFree} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: liveLibre ? "var(--wf-active-bg)" : "var(--wf-card)", border: liveLibre ? "1px solid #E8821E" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 18, padding: "12px 14px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
-          <div style={{ width: 34, height: 34, borderRadius: 14, background: liveLibre ? "#E8821E" : "var(--wf-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Radio size={16} color={liveLibre ? "#fff" : "#C23B32"} /></div>
+        <button onClick={onStartFree} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: liveLibre ? "var(--wf-active-bg)" : "var(--wf-card)", border: liveLibre ? "1px solid var(--wf-brand-accent)" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 18, padding: "12px 14px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
+          <div style={{ width: 34, height: 34, borderRadius: 14, background: liveLibre ? "var(--wf-brand-accent)" : "var(--wf-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Radio size={16} color={liveLibre ? "#fff" : "#C23B32"} /></div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700 }}>{liveLibre ? "Transmisión libre en vivo" : "Transmitir sin evento"}</div>
             <div style={{ fontSize: 11, color: "var(--wf-faint)" }}>{liveLibre ? 'Toca "En vivo" abajo para controlarla' : "Para anuncios, oración u otro contenido suelto sin un evento planificado"}</div>
@@ -4435,7 +4556,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
                 <div style={{ background: "rgba(255,255,255,0.92)", borderRadius: 14, padding: "3px 9px", textAlign: "center", minWidth: 38 }}>
                   <div style={{ fontSize: 16, fontWeight: 800, color: "var(--wf-heading)", lineHeight: 1.1 }}>{heroDate ? heroDate.getDate() : "–"}</div>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: "#E8821E" }}>{heroDate ? MONTH_ABBR[heroDate.getMonth()] : ""}</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-brand-accent)" }}>{heroDate ? MONTH_ABBR[heroDate.getMonth()] : ""}</div>
                 </div>
                 <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: "rgba(255,255,255,0.85)" }}>PRÓXIMO EVENTO</span>
               </div>
@@ -4487,7 +4608,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
                 <span style={{ marginLeft: 8, display: "flex", alignItems: "center", gap: 4 }}><Users size={11} /> {totalMembers}</span>
               </div>
               {misCargos.length > 0 && (
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#E8821E", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-brand-accent)", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   Te toca: {misCargos.join(", ")}
                 </div>
               )}
@@ -4498,8 +4619,8 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
 
       {/* Botón flotante circular para crear evento — solo administradores */}
       {isAdminViewer && (
-        <button onClick={openCreate} style={{ position: "fixed", right: 20, bottom: 92, width: 54, height: 54, borderRadius: "50%", background: "#E8821E", border: "none", boxShadow: "0 8px 18px rgba(232,130,30,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 41 }}>
-          <Plus size={24} color="#16324F" />
+        <button onClick={openCreate} style={{ position: "fixed", right: 20, bottom: 92, width: 54, height: 54, borderRadius: "50%", background: "var(--wf-brand-accent)", border: "none", boxShadow: "0 8px 18px rgba(232,130,30,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 41 }}>
+          <Plus size={24} color="var(--wf-brand-primary)" />
         </button>
       )}
 
@@ -4524,7 +4645,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
       )}
 
       {step === "details" && (
-        <ModalShell title="Detalles del evento" icon={Calendar} color="#E8821E" onClose={() => setStep(null)}>
+        <ModalShell title="Detalles del evento" icon={Calendar} color="var(--wf-brand-accent)" onClose={() => setStep(null)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <Field label="Título" required><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ej. Domingo AM – 19 Jul" style={inputStyle} /></Field>
             <Field label="Fecha del calendario" required>
@@ -4638,7 +4759,7 @@ function EventDetail({
           {isAdminViewer && (
             <div style={{ marginTop: 22, background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><Bell size={14} color="#E8821E" /> Recordatorios</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><Bell size={14} color="var(--wf-brand-accent)" /> Recordatorios</div>
                 <button onClick={() => setShowReminderForm(true)} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar</button>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: event.esPlantilla ? 0 : 10 }}>
@@ -4664,7 +4785,7 @@ function EventDetail({
         </div>
 
         {showReminderForm && (
-          <ModalShell title="Agregar recordatorio" icon={Bell} color="#E8821E" onClose={() => setShowReminderForm(false)}>
+          <ModalShell title="Agregar recordatorio" icon={Bell} color="var(--wf-brand-accent)" onClose={() => setShowReminderForm(false)}>
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
               <Field label="Cantidad">
                 <input type="number" min={1} value={reminderDraft.cantidad} onChange={(e) => setReminderDraft({ ...reminderDraft, cantidad: e.target.value })} style={inputStyle} />
@@ -4723,7 +4844,7 @@ function EventDetail({
           <button
             onClick={marcarMisAsignacionesVistas}
             className="hoverable"
-            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: yaVistoPorMi ? "#EAF6F1" : "var(--wf-active-bg)", border: `1.5px solid ${yaVistoPorMi ? "#1F8A73" : "#E8821E"}`, borderRadius: 14, padding: "12px 14px", marginBottom: 16, cursor: "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: yaVistoPorMi ? "#EAF6F1" : "var(--wf-active-bg)", border: `1.5px solid ${yaVistoPorMi ? "#1F8A73" : "var(--wf-brand-accent)"}`, borderRadius: 14, padding: "12px 14px", marginBottom: 16, cursor: "pointer" }}
           >
             {yaVistoPorMi ? <Eye size={20} color="#1F8A73" style={{ flexShrink: 0 }} /> : <EyeOff size={20} color="var(--wf-active-text)" style={{ flexShrink: 0 }} />}
             <span style={{ flex: 1, minWidth: 0 }}>
@@ -4739,7 +4860,7 @@ function EventDetail({
                 </>
               )}
             </span>
-            {!yaVistoPorMi && <ChevronRight size={18} color="#E8821E" style={{ flexShrink: 0 }} />}
+            {!yaVistoPorMi && <ChevronRight size={18} color="var(--wf-brand-accent)" style={{ flexShrink: 0 }} />}
           </button>
         )}
 
@@ -4787,13 +4908,13 @@ function EventDetail({
           <div style={{ fontSize: 12, color: "var(--wf-faint)", marginBottom: 14 }}>Esta es una plantilla — no se transmite en vivo, solo sirve como base para nuevos eventos ("Selecciona plantilla" al crear uno).</div>
         ) : canStartLive ? (
           <>
-            <button onClick={isLive ? onGoLive : onStart} style={{ ...primaryBtn, width: "100%", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: isLive ? "#C23B32" : "#E8821E", color: isLive ? "#fff" : "var(--wf-text)" }}>
+            <button onClick={isLive ? onGoLive : onStart} style={{ ...primaryBtn, width: "100%", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: isLive ? "#C23B32" : "var(--wf-brand-accent)", color: isLive ? "#fff" : "var(--wf-text)" }}>
               <Play size={15} /> {isLive ? "Ya en vivo · Ir al control" : "Iniciar evento"}
             </button>
             <div style={{ marginBottom: 20 }} />
           </>
         ) : (
-          isLive && <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#E8821E", marginBottom: 14 }}><span className="live-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "#E8821E" }} /> Este evento está en vivo ahora mismo.</div>
+          isLive && <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-brand-accent)", marginBottom: 14 }}><span className="live-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--wf-brand-accent)" }} /> Este evento está en vivo ahora mismo.</div>
         )}
       </div>
       {isDraftFromTemplate && isAdminViewer && (
@@ -4846,7 +4967,7 @@ function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLe
         return (
           <div key={m.id || i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--wf-divider)" }}>
             <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0, color: "#fff" }}>{m.n.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</div>
-            <span style={{ fontSize: 13, flex: 1 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "#E8821E", fontWeight: 700 }}> · Encargado</span>}</span>
+            <span style={{ fontSize: 13, flex: 1 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "var(--wf-brand-accent)", fontWeight: 700 }}> · Encargado</span>}</span>
             {/* Solo visible para administradores — le dice si la persona siquiera abrió el evento a ver
                 qué le toca, algo que "confirmado/pendiente" no puede responder porque ESE estado lo
                 cambia el admin a mano, no la persona misma. A propósito NO depende de "canEdit": el
@@ -4858,8 +4979,8 @@ function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLe
                 : <EyeOff size={14} color="var(--wf-border-soft)" title="Todavía no ha abierto el evento para ver qué le toca" />
             )}
             {canEdit && (
-              <button onClick={() => onSetLead(i)} title={m.lead ? "Quitar como encargado principal" : "Marcar como encargado principal"} style={{ ...iconGhost, color: m.lead ? "#E8821E" : "var(--wf-border-soft)" }}>
-                <Star size={14} fill={m.lead ? "#E8821E" : "none"} />
+              <button onClick={() => onSetLead(i)} title={m.lead ? "Quitar como encargado principal" : "Marcar como encargado principal"} style={{ ...iconGhost, color: m.lead ? "var(--wf-brand-accent)" : "var(--wf-border-soft)" }}>
+                <Star size={14} fill={m.lead ? "var(--wf-brand-accent)" : "none"} />
               </button>
             )}
             {canEdit ? (
@@ -4951,9 +5072,9 @@ function WorshipRolesEditor({ roles, canEdit, allUsuarios, onAddRole, onRemoveRo
 function EncargadosToggleButton({ count, onClick }) {
   return (
     <button onClick={onClick} title="Encargados" style={{ ...iconGhost, position: "relative" }}>
-      <Users size={14} color={count > 0 ? "#E8821E" : undefined} />
+      <Users size={14} color={count > 0 ? "var(--wf-brand-accent)" : undefined} />
       {count > 0 && (
-        <span style={{ position: "absolute", top: -2, right: -2, background: "#E8821E", color: "#16324F", fontSize: 8, fontWeight: 800, borderRadius: 12, minWidth: 12, height: 12, lineHeight: "12px", textAlign: "center", padding: "0 2px" }}>{count}</span>
+        <span style={{ position: "absolute", top: -2, right: -2, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", fontSize: 8, fontWeight: 800, borderRadius: 12, minWidth: 12, height: 12, lineHeight: "12px", textAlign: "center", padding: "0 2px" }}>{count}</span>
       )}
     </button>
   );
@@ -5081,13 +5202,13 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
           </div>
           <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
             {[["todos", "Todos"], ...Object.entries(SONG_CATEGORIES).map(([key, c]) => [key, c.label])].map(([key, label]) => (
-              <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 20, border: "none", background: libraryCategoryFilter === key ? "#E8821E" : "var(--wf-hover)", color: libraryCategoryFilter === key ? "#16324F" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
+              <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 20, border: "none", background: libraryCategoryFilter === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: libraryCategoryFilter === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
             ))}
           </div>
           {filtered.map((s) => (
             <button key={s.id} onClick={() => handleAddSong(s.id)} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 6, borderRadius: 12, background: "transparent", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{s.key} · {s.tempo} bpm</div></div>
-              <Plus size={15} color="#E8821E" />
+              <Plus size={15} color="var(--wf-brand-accent)" />
             </button>
           ))}
           {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, padding: "6px 0" }}>Ninguna canción coincide.</div>}
@@ -5128,7 +5249,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
           </div>
         </div>
         <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
-          <Sparkles size={13} color="#E8821E" /> Solo se agrega en orden — las canciones ya traen su letra lista para proyectar.
+          <Sparkles size={13} color="var(--wf-brand-accent)" /> Solo se agrega en orden — las canciones ya traen su letra lista para proyectar.
         </div>
         {visibleServiceOrder.map((item, idx) => {
           const meta = TYPE_META[item.type];
@@ -5152,7 +5273,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
               <div
                 key={item.id} ref={rowRefProp(idx)}
                 style={{
-                  background: "rgba(124,140,216,0.16)", border: overIndex === idx && dragIndex !== null && dragIndex !== idx ? "2px solid #E8821E" : "1px solid #5661B3", borderRadius: 14, padding: "12px 14px", marginBottom: 8,
+                  background: "rgba(124,140,216,0.16)", border: overIndex === idx && dragIndex !== null && dragIndex !== idx ? "2px solid var(--wf-brand-accent)" : "1px solid #5661B3", borderRadius: 14, padding: "12px 14px", marginBottom: 8,
                   transform: dragIndex === idx ? `translateY(${dragTranslateY}px)` : undefined,
                   position: dragIndex === idx ? "relative" : undefined, zIndex: dragIndex === idx ? 5 : undefined,
                   boxShadow: dragIndex === idx ? "0 10px 24px rgba(22,50,79,0.35)" : undefined,
@@ -5301,7 +5422,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
               <div
                 ref={rowRefProp(idx)}
                 style={{
-                  display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "var(--wf-card)", border: overIndex === idx && dragIndex !== null && dragIndex !== idx ? "2px solid #E8821E" : "none", boxShadow: dragIndex === idx ? "0 10px 24px rgba(22,50,79,0.35)" : "0 3px 14px rgba(22,50,79,0.09)",
+                  display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "var(--wf-card)", border: overIndex === idx && dragIndex !== null && dragIndex !== idx ? "2px solid var(--wf-brand-accent)" : "none", boxShadow: dragIndex === idx ? "0 10px 24px rgba(22,50,79,0.35)" : "0 3px 14px rgba(22,50,79,0.09)",
                   transform: dragIndex === idx ? `translateY(${dragTranslateY}px)` : undefined,
                   position: dragIndex === idx ? "relative" : undefined, zIndex: dragIndex === idx ? 5 : undefined,
                 }}
@@ -5314,7 +5435,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                         value={effectiveKey}
                         onChange={(e) => onSetSongKey(item.id, e.target.value, song.key)}
                         title="Tonalidad para este evento"
-                        style={{ width: 46, borderRadius: 10, border: `1px solid ${item.keyOverride ? "#E8821E" : "var(--wf-border-soft)"}`, fontSize: 10, fontWeight: 700, padding: "3px 2px", color: item.keyOverride ? "#E8821E" : "var(--wf-text-2)", background: "var(--wf-card)", flexShrink: 0 }}
+                        style={{ width: 46, borderRadius: 10, border: `1px solid ${item.keyOverride ? "var(--wf-brand-accent)" : "var(--wf-border-soft)"}`, fontSize: 10, fontWeight: 700, padding: "3px 2px", color: item.keyOverride ? "var(--wf-brand-accent)" : "var(--wf-text-2)", background: "var(--wf-card)", flexShrink: 0 }}
                       >
                         {KEY_OPTIONS.map((k) => <option key={k} value={k}>{k}</option>)}
                       </select>
@@ -5516,7 +5637,7 @@ function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", splitVer
     <>
       <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 12, width: "fit-content" }}>
         {[["browse", "Buscar en la Biblia"], ["manual", "Escribir manualmente"]].map(([val, label]) => (
-          <button key={val} onClick={() => setMode(val)} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: mode === val ? "#E8821E" : "transparent", color: mode === val ? "#16324F" : "var(--wf-text)" }}>{label}</button>
+          <button key={val} onClick={() => setMode(val)} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: mode === val ? "var(--wf-brand-accent)" : "transparent", color: mode === val ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{label}</button>
         ))}
       </div>
 
@@ -5649,12 +5770,12 @@ function SlideModal({ draft, setDraft, onClose, onAdd, title = "Slide personaliz
       <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, margin: "14px 0 8px" }}>FONDO</div>
       <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 10, width: "fit-content" }}>
         {[["color", "Color"], ["imagen", "Imagen"], ["video", "Video"]].map(([val, label]) => (
-          <button key={val} onClick={() => setDraft({ ...draft, bgType: val })} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: bgType === val ? "#E8821E" : "transparent", color: bgType === val ? "#16324F" : "var(--wf-text)" }}>{label}</button>
+          <button key={val} onClick={() => setDraft({ ...draft, bgType: val })} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: bgType === val ? "var(--wf-brand-accent)" : "transparent", color: bgType === val ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{label}</button>
         ))}
       </div>
       {bgType === "color" && (
         <div style={{ display: "flex", gap: 8 }}>
-          {bgOptions.map((c) => (<button key={c} onClick={() => setDraft({ ...draft, bg: c })} style={{ width: 34, height: 34, borderRadius: 12, background: c, border: draft.bg === c ? "2px solid #E8821E" : "1px solid var(--wf-border)", cursor: "pointer" }} />))}
+          {bgOptions.map((c) => (<button key={c} onClick={() => setDraft({ ...draft, bg: c })} style={{ width: 34, height: 34, borderRadius: 12, background: c, border: draft.bg === c ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", cursor: "pointer" }} />))}
         </div>
       )}
       {bgType === "imagen" && (
@@ -5838,7 +5959,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
   const matchesFilter = (name) => !bookFilter || name.toLowerCase().includes(bookFilter.toLowerCase());
   const oldTestament = books ? books.filter((b) => b.bookid <= 39 && matchesFilter(b.name)) : [];
   const newTestament = books ? books.filter((b) => b.bookid >= 40 && matchesFilter(b.name)) : [];
-  const bookListStyle = (b) => ({ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", padding: "3px 4px", borderRadius: 10, cursor: "pointer", fontSize: 12, fontWeight: selectedBook?.bookid === b.bookid ? 700 : 500, color: selectedBook?.bookid === b.bookid ? "#E8821E" : "#2F5FA8" });
+  const bookListStyle = (b) => ({ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", padding: "3px 4px", borderRadius: 10, cursor: "pointer", fontSize: 12, fontWeight: selectedBook?.bookid === b.bookid ? 700 : 500, color: selectedBook?.bookid === b.bookid ? "var(--wf-brand-accent)" : "#2F5FA8" });
 
   return (
     <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0 }}>
@@ -5878,7 +5999,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>CAPÍTULOS DE {selectedBook.name.toUpperCase()}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4, marginBottom: 14 }}>
               {Array.from({ length: selectedBook.chapters }, (_, i) => i + 1).map((c) => (
-                <button key={c} onClick={() => openChapter(c)} style={{ padding: "6px 0", borderRadius: 10, border: "none", background: selectedChapter === c ? "#E8821E" : "var(--wf-hover)", color: selectedChapter === c ? "#16324F" : "var(--wf-text)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{c}</button>
+                <button key={c} onClick={() => openChapter(c)} style={{ padding: "6px 0", borderRadius: 10, border: "none", background: selectedChapter === c ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: selectedChapter === c ? "var(--wf-brand-primary)" : "var(--wf-text)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{c}</button>
               ))}
             </div>
           </>
@@ -5894,7 +6015,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
             {history.map((h) => {
               const isLive = liveVerse && liveVerse.ref === h.ref && liveVerse.version === h.version;
               return (
-                <button key={`${h.ref}-${h.version}`} onClick={() => openHistoryEntry(h)} style={{ textAlign: "left", background: isLive ? "var(--wf-active-bg)" : "#fff", border: isLive ? "1px solid #E8821E" : "1px solid transparent", borderRadius: 10, padding: "5px 7px", cursor: "pointer", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
+                <button key={`${h.ref}-${h.version}`} onClick={() => openHistoryEntry(h)} style={{ textAlign: "left", background: isLive ? "var(--wf-active-bg)" : "#fff", border: isLive ? "1px solid var(--wf-brand-accent)" : "1px solid transparent", borderRadius: 10, padding: "5px 7px", cursor: "pointer", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)" }}>{h.ref} <span style={{ color: "#2F5FA8", fontWeight: 700 }}>· {h.version}</span></div>
                   <div style={{ fontSize: 10.5, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.text}</div>
                 </button>
@@ -6076,7 +6197,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
 
       {/* Barra de herramientas: pantalla 2, negro */}
       <div style={{ display: "flex", gap: 8, padding: "8px 16px 10px", flexWrap: "wrap" }}>
-        <button onClick={onOpenPublicScreen} style={{ ...ctrlBtn, background: "#16324F", color: "#fff" }}><Radio size={14} /> Reabrir proyección</button>
+        <button onClick={onOpenPublicScreen} style={{ ...ctrlBtn, background: "var(--wf-brand-primary)", color: "#fff" }}><Radio size={14} /> Reabrir proyección</button>
         <button onClick={() => setBlanked((b) => !b)} style={{ ...ctrlBtn, background: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)" }}><MonitorOff size={14} /> {blanked ? "Reanudar" : "Pantalla en negro"}</button>
       </div>
 
@@ -6084,10 +6205,10 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
           canciones al que volver). Biblia/Texto/Video nunca fueron parte del plan del Setlist — no hay
           "plan" al que regresar, así que ahí se deja solo el indicador de qué está en vivo. */}
       {adHoc && (
-        <div style={{ margin: "0 16px 10px", background: "var(--wf-active-bg)", border: "1px solid #E8821E", borderRadius: 14, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ margin: "0 16px 10px", background: "var(--wf-active-bg)", border: "1px solid var(--wf-brand-accent)", borderRadius: 14, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-active-text)" }}>● {adHoc.label}</span>
           {adHoc.slides[0]?.type === "cancion" && (
-            <button onClick={onExitAdHoc} style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-active-text)", background: "transparent", border: "1px solid #E8821E", borderRadius: 18, padding: "3px 8px", cursor: "pointer", flexShrink: 0 }}>Volver al plan</button>
+            <button onClick={onExitAdHoc} style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-active-text)", background: "transparent", border: "1px solid var(--wf-brand-accent)", borderRadius: 18, padding: "3px 8px", cursor: "pointer", flexShrink: 0 }}>Volver al plan</button>
           )}
         </div>
       )}
@@ -6103,7 +6224,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
           ].map(({ key, icon: Icon, title }) => (
             <button
               key={key} onClick={() => setMmPanel(key)} title={title}
-              style={{ width: 40, height: 40, borderRadius: 16, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: mmPanel === key ? "#E8821E" : "var(--wf-hover)", color: mmPanel === key ? "#fff" : "var(--wf-muted)", boxShadow: mmPanel === key ? "0 3px 10px rgba(232,130,30,0.35)" : "none" }}
+              style={{ width: 40, height: 40, borderRadius: 16, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: mmPanel === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: mmPanel === key ? "#fff" : "var(--wf-muted)", boxShadow: mmPanel === key ? "0 3px 10px rgba(232,130,30,0.35)" : "none" }}
             ><Icon size={18} /></button>
           ))}
         </div>
@@ -6181,7 +6302,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
                 type="range" min={0.6} max={1.8} step={0.05}
                 value={fontScale}
                 onChange={(e) => setLiveStyle((s) => ({ ...s, fontScale: parseFloat(e.target.value) }))}
-                style={{ flex: 1, accentColor: "#E8821E", cursor: "pointer" }}
+                style={{ flex: 1, accentColor: "var(--wf-brand-accent)", cursor: "pointer" }}
               />
               <span style={{ fontSize: 19, fontWeight: 700, color: "var(--wf-faint)" }}>A</span>
               <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)", width: 34, textAlign: "right" }}>{Math.round(fontScale * 100)}%</span>
@@ -6212,7 +6333,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
               return (
                 <div
                   key={s.slideId} onClick={() => gotoPlanSlide(i)} className="thumb" role="button" tabIndex={0}
-                  style={{ textAlign: "left", padding: 0, borderRadius: 14, cursor: "pointer", border: isActive ? "2px solid #E8821E" : "1px solid transparent", background: "transparent", overflow: "hidden", boxShadow: isActive ? "0 4px 14px rgba(232,130,30,0.3)" : "0 1px 5px rgba(22,50,79,0.12)" }}
+                  style={{ textAlign: "left", padding: 0, borderRadius: 14, cursor: "pointer", border: isActive ? "2px solid var(--wf-brand-accent)" : "1px solid transparent", background: "transparent", overflow: "hidden", boxShadow: isActive ? "0 4px 14px rgba(232,130,30,0.3)" : "0 1px 5px rgba(22,50,79,0.12)" }}
                 >
                   <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#0a0e14", display: "flex", alignItems: "center", justifyContent: "center", padding: 8 }}>
                     <span style={{ position: "absolute", top: 4, left: 6, fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.45)" }}>{i + 1}</span>
@@ -6297,7 +6418,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
                 {customSlides.map((s) => {
                   const isLive = !adHoc && current?.slideId === s.slideId;
                   return (
-                    <div key={s.slideId} style={{ display: "flex", alignItems: "center", gap: 6, background: isLive ? "var(--wf-active-bg)" : "#fff", border: isLive ? "1px solid #E8821E" : "1px solid transparent", borderRadius: 12, padding: "5px 6px", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
+                    <div key={s.slideId} style={{ display: "flex", alignItems: "center", gap: 6, background: isLive ? "var(--wf-active-bg)" : "#fff", border: isLive ? "1px solid var(--wf-brand-accent)" : "1px solid transparent", borderRadius: 12, padding: "5px 6px", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
                       <button onClick={() => gotoPlanSlide(slides.findIndex((x) => x.slideId === s.slideId))} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {s.title || "(sin título)"}
                       </button>
@@ -6334,7 +6455,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
         <SlideModal title="Editar diapositiva" submitLabel="Guardar cambios" draft={editDraft} setDraft={setEditDraft} onClose={() => setEditingSlide(null)} onAdd={saveSlideEdit} />
       )}
       {editingSlide && editingSlide.type === "cancion" && (
-        <ModalShell title="Corregir letra" icon={Music} color="#E8821E" onClose={() => setEditingSlide(null)}>
+        <ModalShell title="Corregir letra" icon={Music} color="var(--wf-brand-accent)" onClose={() => setEditingSlide(null)}>
           <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>
             {editingSlide.songTitle} · {editingSlide.blockLabel}
           </div>
@@ -6449,7 +6570,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           {!videoSrc && <div className="spotlight-glow" style={{ position: "absolute", width: thumbnail ? 140 : 420, height: thumbnail ? 140 : 420, borderRadius: "50%", background: `radial-gradient(circle, ${TYPE_META[slide.type].color}22 0%, transparent 70%)` }} />}
           {slide.type === "cancion" && (
             <>
-              <div style={{ fontSize: thumbnail ? 9 : 12, fontWeight: 700, letterSpacing: thumbnail ? 1 : 2, color: "#E8821E", marginBottom: thumbnail ? 6 : 14, zIndex: 1 }}>{slide.blockLabel.toUpperCase()}</div>
+              <div style={{ fontSize: thumbnail ? 9 : 12, fontWeight: 700, letterSpacing: thumbnail ? 1 : 2, color: "var(--wf-brand-accent)", marginBottom: thumbnail ? 6 : 14, zIndex: 1 }}>{slide.blockLabel.toUpperCase()}</div>
               <AutoFitText
                 lines={slide.lines} targetRatio={cancionRatio} minPx={thumbnail ? 7 : 15} maxWidth="90%"
                 style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", textAlign: "center", zIndex: 1, lineHeight: 1.35, color: textColor }}
@@ -6523,4 +6644,4 @@ const ctrlBtn = { display: "flex", alignItems: "center", gap: 6, background: "va
 const ghostToggleBtn = { fontSize: 12, fontWeight: 700, padding: "8px 12px", borderRadius: 12, border: "1px solid var(--wf-border)", background: "var(--wf-hover)", color: "var(--wf-heading)", cursor: "pointer" };
 const addBtnStyle = { display: "flex", alignItems: "center", gap: 8, width: "100%", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "9px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer" };
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "9px 10px", fontSize: 13, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
-const primaryBtn = { width: "100%", background: "#E8821E", border: "none", borderRadius: 12, padding: "10px", fontSize: 13, fontWeight: 700, color: "#16324F", cursor: "pointer" };
+const primaryBtn = { width: "100%", background: "var(--wf-brand-accent)", border: "none", borderRadius: 12, padding: "10px", fontSize: 13, fontWeight: 700, color: "var(--wf-brand-primary)", cursor: "pointer" };

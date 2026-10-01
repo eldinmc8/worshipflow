@@ -1,13 +1,20 @@
-// El PNG del logo tiene el azul marino de sus letras/ilustración fijo (es una imagen, no texto real),
-// así que no puede recolorearse con CSS — por eso existe logo-iglesia-oscuro.png, la misma imagen con
-// esas letras recoloreadas a blanco, y este componente muestra una u otra según el tema (ver
-// .logo-claro/.logo-oscuro en index.css). El banner naranja y su texto blanco no cambiaron: ya se ven
-// bien en los dos temas.
-export default function AppLogo({ width }) {
-  return (
-    <>
-      <img className="logo-claro" src="/logo-iglesia.png" alt="Iglesia Jesús El Buen Pastor" style={{ width, maxWidth: "100%", height: "auto" }} />
-      <img className="logo-oscuro" src="/logo-iglesia-oscuro.png" alt="Iglesia Jesús El Buen Pastor" style={{ width, maxWidth: "100%", height: "auto" }} />
-    </>
-  );
+import MarkCircle from "./MarkCircle.jsx";
+
+// Fase 5 (identidad por iglesia): antes esto mostraba SIEMPRE el logo de Jesús El Buen Pastor (dos
+// PNGs fijos, uno para tema claro y otro para oscuro, swapeados por CSS). Ahora recibe logoUrl —
+// Buen Pastor ya tiene el suyo guardado en iglesias.logo_url (ver migración
+// 20260930000700_logo_y_colores_buen_pastor.sql), así que para su propio equipo esto se ve
+// exactamente igual que antes. Sin logoUrl (iglesia nueva que todavía no subió el suyo, o una
+// pantalla que corre ANTES de iniciar sesión y por lo tanto no sabe de qué iglesia es — ver
+// GenericMark.jsx, que es el que de verdad se usa ahí) se cae a un trazo de báculo genérico en vez
+// de mostrarle a cualquiera el logo de una iglesia que no es la suya.
+//
+// Un logo personalizado es una sola imagen (no dos, una por tema) — a diferencia del PNG viejo, una
+// iglesia normalmente no va a subir una versión aparte "para modo oscuro", así que se muestra igual
+// en los dos temas; en la práctica la mayoría de logos se ven bien sobre cualquier fondo.
+export default function AppLogo({ width, logoUrl }) {
+  if (logoUrl) {
+    return <img src={logoUrl} alt="" style={{ width, maxWidth: "100%", height: "auto", objectFit: "contain" }} />;
+  }
+  return <MarkCircle size={width} />;
 }

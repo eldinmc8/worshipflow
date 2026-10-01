@@ -43,11 +43,11 @@ function App() {
   return (
     <>
       {updateReady && (
-        <div style={{ position: 'fixed', left: 0, right: 0, top: 0, zIndex: 10000, background: '#16324F', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 10, padding: '10px 16px', fontFamily: "'Poppins', sans-serif", fontSize: 13, fontWeight: 600, boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
+        <div style={{ position: 'fixed', left: 0, right: 0, top: 0, zIndex: 10000, background: 'var(--wf-brand-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 10, padding: '10px 16px', fontFamily: "'Poppins', sans-serif", fontSize: 13, fontWeight: 600, boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
           <span>Hay una nueva actualización disponible</span>
           <button
             onClick={() => aplicarActualizacion()}
-            style={{ background: '#E8821E', color: '#16233A', border: 'none', borderRadius: 20, padding: '6px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            style={{ background: 'var(--wf-brand-accent)', color: '#16233A', border: 'none', borderRadius: 20, padding: '6px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
           >
             Actualizar
           </button>

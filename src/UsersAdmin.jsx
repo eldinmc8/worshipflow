@@ -14,7 +14,7 @@ const ROLES = [
 const roleLabel = (v) => ROLES.find((r) => r.value === v)?.label || v;
 
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "9px 10px", fontSize: 13, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
-const primaryBtn = { background: "#E8821E", border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: "#16324F", cursor: "pointer" };
+const primaryBtn = { background: "var(--wf-brand-accent)", border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: "var(--wf-brand-primary)", cursor: "pointer" };
 const ghostBtn = { background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer" };
 const cardStyle = { background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: "12px 14px", marginBottom: 8 };
 
@@ -94,13 +94,13 @@ function UserProfile({ user, myEmail, busy, rolesApp, onUpdateField, onChangeRol
         <div style={{ fontSize: 17, fontWeight: 700, color: "var(--wf-text)" }}>{user.nombre}</div>
         <span style={{ display: "inline-block", marginTop: 4, background: "#E8F1FB", border: "1px solid #2F5FA8", borderRadius: 20, padding: "2px 12px", fontSize: 11, fontWeight: 700, color: "#2F5FA8" }}>{currentRoleLabel.toUpperCase()}</span>
         {!user.perfil_completo && (
-          <div style={{ marginTop: 8, fontSize: 11, color: "var(--wf-active-text)", background: "var(--wf-active-bg)", border: "1px solid #E8821E", borderRadius: 20, padding: "3px 12px", display: "inline-block" }}>Todavía no completó su perfil — este nombre es provisional</div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "var(--wf-active-text)", background: "var(--wf-active-bg)", border: "1px solid var(--wf-brand-accent)", borderRadius: 20, padding: "3px 12px", display: "inline-block" }}>Todavía no completó su perfil — este nombre es provisional</div>
         )}
       </div>
 
       <div style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 14, padding: 4, marginBottom: 16 }}>
-        <button onClick={() => setTab("info")} style={{ flex: 1, border: "none", borderRadius: 12, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: tab === "info" ? "#E8821E" : "transparent", color: tab === "info" ? "#16324F" : "var(--wf-text)" }}>Información personal</button>
-        <button onClick={() => setTab("horario")} style={{ flex: 1, border: "none", borderRadius: 12, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: tab === "horario" ? "#E8821E" : "transparent", color: tab === "horario" ? "#16324F" : "var(--wf-text)" }}>Horario</button>
+        <button onClick={() => setTab("info")} style={{ flex: 1, border: "none", borderRadius: 12, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: tab === "info" ? "var(--wf-brand-accent)" : "transparent", color: tab === "info" ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>Información personal</button>
+        <button onClick={() => setTab("horario")} style={{ flex: 1, border: "none", borderRadius: 12, padding: "8px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: tab === "horario" ? "var(--wf-brand-accent)" : "transparent", color: tab === "horario" ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>Horario</button>
       </div>
 
       {tab === "info" ? (
@@ -191,12 +191,12 @@ function UserProfile({ user, myEmail, busy, rolesApp, onUpdateField, onChangeRol
                           style={{
                             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, height: 36,
                             borderRadius: 12, border: isToday && !isSelected ? "1.5px solid #2F5FA8" : "1.5px solid transparent",
-                            background: isSelected ? "#E8821E" : dayEvents.length ? "var(--wf-hover)" : "transparent",
+                            background: isSelected ? "var(--wf-brand-accent)" : dayEvents.length ? "var(--wf-hover)" : "transparent",
                             cursor: "pointer", padding: 0,
                           }}
                         >
                           <span style={{ fontSize: 12, fontWeight: isSelected ? 800 : 600, color: isSelected ? "#fff" : "var(--wf-text-2)" }}>{day}</span>
-                          {dayEvents.length > 0 && <span style={{ width: 4, height: 4, borderRadius: "50%", background: isSelected ? "#fff" : "#E8821E" }} />}
+                          {dayEvents.length > 0 && <span style={{ width: 4, height: 4, borderRadius: "50%", background: isSelected ? "#fff" : "var(--wf-brand-accent)" }} />}
                         </button>
                       );
                     })}
@@ -367,7 +367,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
                   <div style={{ flex: "1 1 auto", minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>
                       {row.nombre} {row.email === myEmail && <span style={{ fontSize: 10, color: "var(--wf-faint)" }}>(tú)</span>}
-                      {!row.perfil_completo && <span title="Todavía no completó su perfil" style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-active-text)", background: "var(--wf-active-bg)", border: "1px solid #E8821E", borderRadius: 14, padding: "1px 6px", marginLeft: 6 }}>PENDIENTE</span>}
+                      {!row.perfil_completo && <span title="Todavía no completó su perfil" style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-active-text)", background: "var(--wf-active-bg)", border: "1px solid var(--wf-brand-accent)", borderRadius: 14, padding: "1px 6px", marginLeft: 6 }}>PENDIENTE</span>}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis" }}>{row.email}</div>
                   </div>
