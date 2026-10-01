@@ -2646,6 +2646,12 @@ const ZONAS_HORARIAS = [
 // al guardar en vez de propagar el cambio en memoria -- es la forma más simple y confiable de que el
 // logo/colores nuevos se vean de una en TODA la app (nav, header, botones...), y esto no se usa
 // seguido como para que valga la pena evitar ese recargo.
+// Peso máximo que deja subir el bucket "logos-iglesias" (ver migración 20261001000100) — se
+// comprueba también acá, antes de intentar subir, para un error inmediato en vez de esperar a que
+// el servidor lo rechace.
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+const LOGO_TIPOS_VALIDOS = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+
 function IdentidadIglesiaModal({ iglesiaId, onClose }) {
   const [cargando, setCargando] = useState(true);
   const [nombre, setNombre] = useState("");
@@ -2655,6 +2661,8 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
   const [colorAcento, setColorAcento] = useState("#E8821E");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
+  const [mostrarEnlaceManual, setMostrarEnlaceManual] = useState(false);
 
   useEffect(() => {
     supabase.from("iglesias").select("nombre, zona_horaria, logo_url, color_primario, color_acento").eq("id", iglesiaId).single()
@@ -2669,6 +2677,22 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
         setCargando(false);
       });
   }, [iglesiaId]);
+
+  // Un archivo por iglesia, siempre en la MISMA ruta ("<iglesia_id>/logo.<ext>") — volver a subir
+  // reemplaza el anterior (upsert). Como el navegador podría tener cacheada la imagen vieja en esa
+  // misma URL, se le agrega "?v=<hora>" al guardar para que SIEMPRE pida la versión nueva.
+  const subirLogo = async (file) => {
+    if (!LOGO_TIPOS_VALIDOS.includes(file.type)) { setError("El logo debe ser una imagen (PNG, JPG, WEBP o SVG)."); return; }
+    if (file.size > LOGO_MAX_BYTES) { setError("El logo no puede pesar más de 2 MB."); return; }
+    setSubiendoLogo(true); setError("");
+    const ext = file.name.split(".").pop().toLowerCase();
+    const ruta = `${iglesiaId}/logo.${ext}`;
+    const { error: uploadError } = await supabase.storage.from("logos-iglesias").upload(ruta, file, { upsert: true, contentType: file.type });
+    if (uploadError) { setError("No se pudo subir el logo: " + uploadError.message); setSubiendoLogo(false); return; }
+    const { data } = supabase.storage.from("logos-iglesias").getPublicUrl(ruta);
+    setLogoUrl(`${data.publicUrl}?v=${Date.now()}`);
+    setSubiendoLogo(false);
+  };
 
   const HEX_VALIDO = /^#[0-9A-Fa-f]{6}$/;
   const submit = async (e) => {
@@ -2700,8 +2724,23 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
             <AppLogo width={64} logoUrl={logoUrl.trim() || null} />
           </div>
           <Field label="Nombre de la iglesia"><input required value={nombre} onChange={(e) => setNombre(e.target.value)} style={inputStyle} /></Field>
-          <Field label="Enlace del logo (opcional)">
-            <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://… (vacío = trazo genérico de WorshipFlow)" style={inputStyle} />
+          <Field label="Logo (opcional)">
+            <label className="hoverable" style={{ ...addBtnStyle, justifyContent: "center", opacity: subiendoLogo ? 0.6 : 1, cursor: subiendoLogo ? "not-allowed" : "pointer" }}>
+              <Download size={14} style={{ transform: "rotate(180deg)" }} />
+              {subiendoLogo ? "Subiendo…" : logoUrl ? "Cambiar imagen" : "Subir una imagen"}
+              <input
+                type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" disabled={subiendoLogo}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) subirLogo(f); e.target.value = ""; }}
+                style={{ display: "none" }}
+              />
+            </label>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>PNG, JPG, WEBP o SVG — máximo 2 MB. Vacío = trazo genérico de WorshipFlow.</div>
+            <button type="button" onClick={() => setMostrarEnlaceManual((v) => !v)} style={{ background: "none", border: "none", color: "var(--wf-muted)", fontSize: 11, textDecoration: "underline", cursor: "pointer", padding: "6px 0 0" }}>
+              {mostrarEnlaceManual ? "Ocultar enlace manual" : "O pega un enlace en su lugar"}
+            </button>
+            {mostrarEnlaceManual && (
+              <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://…" style={{ ...inputStyle, marginTop: 6 }} />
+            )}
           </Field>
           <Field label="Color primario (fondos oscuros: encabezado, navegación)">
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
