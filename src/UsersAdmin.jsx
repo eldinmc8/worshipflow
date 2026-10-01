@@ -44,9 +44,14 @@ async function fetchScheduleForUser(usuarioId) {
   return data;
 }
 
-function UserProfile({ user, myEmail, busy, onBack, onUpdateField, onResetPassword, onRemoveUser }) {
+function UserProfile({ user, myEmail, busy, rolesApp, onUpdateField, onChangeRole, onBack, onResetPassword, onRemoveUser }) {
   const [tab, setTab] = useState("info"); // info | horario
   const [showRoleSelect, setShowRoleSelect] = useState(false);
+  // Roles personalizados que un administrador haya creado en Ajustes → Roles, aparte de los 5 de
+  // fábrica (esos siguen viniendo de ROLES arriba, con su propio valor de texto en usuarios.rol).
+  const rolesPersonalizados = (rolesApp || []).filter((r) => !ROLES.some((legacy) => legacy.label === r.nombre));
+  const currentRoleValue = user.rol_id && rolesPersonalizados.some((r) => r.id === user.rol_id) ? `custom:${user.rol_id}` : `legacy:${user.rol}`;
+  const currentRoleLabel = user.rol_id && rolesPersonalizados.find((r) => r.id === user.rol_id)?.nombre || roleLabel(user.rol);
   const [schedule, setSchedule] = useState(null); // null = cargando
   const today = todayLocal();
   const [viewedMonth, setViewedMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
@@ -87,7 +92,7 @@ function UserProfile({ user, myEmail, busy, onBack, onUpdateField, onResetPasswo
           <div style={{ width: 74, height: 74, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 auto 10px" }}>{initials}</div>
         )}
         <div style={{ fontSize: 17, fontWeight: 700, color: "var(--wf-text)" }}>{user.nombre}</div>
-        <span style={{ display: "inline-block", marginTop: 4, background: "#E8F1FB", border: "1px solid #2F5FA8", borderRadius: 20, padding: "2px 12px", fontSize: 11, fontWeight: 700, color: "#2F5FA8" }}>{roleLabel(user.rol).toUpperCase()}</span>
+        <span style={{ display: "inline-block", marginTop: 4, background: "#E8F1FB", border: "1px solid #2F5FA8", borderRadius: 20, padding: "2px 12px", fontSize: 11, fontWeight: 700, color: "#2F5FA8" }}>{currentRoleLabel.toUpperCase()}</span>
         {!user.perfil_completo && (
           <div style={{ marginTop: 8, fontSize: 11, color: "var(--wf-active-text)", background: "var(--wf-active-bg)", border: "1px solid #E8821E", borderRadius: 20, padding: "3px 12px", display: "inline-block" }}>Todavía no completó su perfil — este nombre es provisional</div>
         )}
@@ -107,12 +112,31 @@ function UserProfile({ user, myEmail, busy, onBack, onUpdateField, onResetPasswo
 
           <button onClick={() => setShowRoleSelect((v) => !v)} style={{ ...cardStyle, width: "100%", textAlign: "left", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>Cambiar rol</div>
-            <span style={{ fontSize: 12, color: "var(--wf-muted)" }}>{roleLabel(user.rol)} {showRoleSelect ? "▲" : "▼"}</span>
+            <span style={{ fontSize: 12, color: "var(--wf-muted)" }}>{currentRoleLabel} {showRoleSelect ? "▲" : "▼"}</span>
           </button>
           {showRoleSelect && (
             <div style={{ ...cardStyle, marginTop: -4 }}>
-              <select value={user.rol} onChange={(e) => onUpdateField(user.id, "rol", e.target.value)} style={inputStyle}>
-                {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+              <select
+                value={currentRoleValue}
+                onChange={(e) => {
+                  const [tipo, valor] = e.target.value.split(":");
+                  // Un rol personalizado no tiene equivalente en el texto viejo (usuarios.rol) — se deja
+                  // en "miembro" como base segura (sin ningún acceso especial de los 5 roles de fábrica),
+                  // y todo lo que ese rol personalizado sí permite viene de rol_id (ver tienePermiso en
+                  // PrototipoWorshipFlow.jsx).
+                  if (tipo === "custom") onChangeRole(user.id, { rol: "miembro", rol_id: valor });
+                  else onChangeRole(user.id, { rol: valor, rol_id: null });
+                }}
+                style={inputStyle}
+              >
+                <optgroup label="Roles de fábrica">
+                  {ROLES.map((r) => <option key={r.value} value={`legacy:${r.value}`}>{r.label}</option>)}
+                </optgroup>
+                {rolesPersonalizados.length > 0 && (
+                  <optgroup label="Roles personalizados">
+                    {rolesPersonalizados.map((r) => <option key={r.id} value={`custom:${r.id}`}>{r.nombre}</option>)}
+                  </optgroup>
+                )}
               </select>
             </div>
           )}
@@ -205,6 +229,10 @@ export default function UsersAdmin({ myEmail, onExit }) {
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState({ email: "", rol: "miembro" });
   const [selectedUserId, setSelectedUserId] = useState(null);
+  // Roles personalizados (Ajustes → Roles) para poder asignárselos a alguien desde su perfil, además
+  // de los 5 de fábrica de arriba.
+  const [rolesApp, setRolesApp] = useState([]);
+  useEffect(() => { supabase.from("roles_app").select("id, nombre").order("orden").then(({ data }) => setRolesApp(data || [])); }, []);
 
   // Abrir el perfil de alguien empuja su propia entrada del historial ("usuarios-profile") — así el
   // botón/gesto "atrás" regresa a la lista de Usuarios en vez de salir de la app de un salto.
@@ -252,6 +280,13 @@ export default function UsersAdmin({ myEmail, onExit }) {
     else load();
   };
 
+  const changeRole = async (id, patch) => {
+    setError("");
+    const { error } = await supabase.from("usuarios").update(patch).eq("id", id);
+    if (error) setError(error.message);
+    else load();
+  };
+
   const resetPassword = async (id) => {
     const password = await promptDialog("Nueva contraseña (mínimo 6 caracteres):", { esPassword: true, textoConfirmar: "Guardar" });
     if (!password) return;
@@ -291,7 +326,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
               <button onClick={onExit} style={ghostBtn}>← Volver a la app</button>
             </div>
             {error && <div style={{ background: "#FDECEA", border: "1px solid #C23B32", color: "#8A2A24", borderRadius: 12, padding: "8px 12px", fontSize: 13, marginBottom: 14 }}>{error}</div>}
-            <UserProfile user={selectedUser} myEmail={myEmail} busy={busy} onBack={() => window.history.back()} onUpdateField={updateField} onResetPassword={resetPassword} onRemoveUser={removeUser} />
+            <UserProfile user={selectedUser} myEmail={myEmail} busy={busy} rolesApp={rolesApp} onBack={() => window.history.back()} onUpdateField={updateField} onChangeRole={changeRole} onResetPassword={resetPassword} onRemoveUser={removeUser} />
           </>
         ) : (
           <div className="screen-enter">
@@ -336,7 +371,7 @@ export default function UsersAdmin({ myEmail, onExit }) {
                     </div>
                     <div style={{ fontSize: 12, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis" }}>{row.email}</div>
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#2F5FA8", background: "#E8F1FB", border: "1px solid #2F5FA8", borderRadius: 20, padding: "2px 10px", flexShrink: 0 }}>{roleLabel(row.rol)}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#2F5FA8", background: "#E8F1FB", border: "1px solid #2F5FA8", borderRadius: 20, padding: "2px 10px", flexShrink: 0 }}>{row.rol_id && rolesApp.find((r) => r.id === row.rol_id && !ROLES.some((legacy) => legacy.label === r.nombre))?.nombre || roleLabel(row.rol)}</span>
                   <span style={{ fontSize: 11, fontWeight: 700, flexShrink: 0, color: row.estado === "activo" ? "#1F8A73" : "#C23B32" }}>{row.estado === "activo" ? "Activo" : "Inactivo"}</span>
                 </button>
               ))}

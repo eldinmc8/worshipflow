@@ -522,7 +522,7 @@ function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event }) {
   );
 }
 
-export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios }) {
+export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, onGoToRoles }) {
   const isCompact = useIsCompact(); // vista de celular: en pantallas angostas se activan los layouts compactos y se oculta Multimedia
   const [tab, setTab] = useState("inicio"); // inicio | canciones | eventos | envivo | proyeccion
   // Multimedia y Pantalla son de escritorio (quien controla la proyección); si la pantalla se vuelve angosta
@@ -1161,7 +1161,17 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   const [nameOverride, setNameOverride] = useState(null);
   const [usuariosReales, setUsuariosReales] = useState([]); // lista real de miembros ya registrados (RLS: cualquier autenticado puede leerla)
   useEffect(() => {
-    supabase.from("usuarios").select("id, nombre, rol, foto_url").order("nombre").then(({ data }) => setUsuariosReales(data || []));
+    supabase.from("usuarios").select("id, nombre, rol, rol_id, foto_url").order("nombre").then(({ data }) => setUsuariosReales(data || []));
+  }, []);
+  // ---- Roles configurables (Ajustes → Roles): además de los 5 roles de fábrica (admin/multimedia/
+  // musico/miembro/supervisor, chequeados por texto en todo el código de abajo), un administrador
+  // puede crear roles nuevos con permisos a la medida — ver src/lib/roles.js. Los permisos de un rol
+  // configurable se SUMAN (con OR) a los chequeos de texto existentes, nunca los reemplazan: así
+  // ningún rol de fábrica pierde nada, y un rol nuevo solo gana exactamente lo que el administrador
+  // le activó.
+  const [rolesApp, setRolesApp] = useState([]);
+  useEffect(() => {
+    supabase.from("roles_app").select("id, nombre, permisos, protegido").then(({ data }) => setRolesApp(data || []));
   }, []);
 
   // ---- Notificaciones (campanita del header): carga las propias al entrar y se suscribe en tiempo
@@ -1186,15 +1196,32 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
     marcarTodasLeidas(userId).catch(() => {});
   };
   const myRole = realIsAdmin && roleOverride ? roleOverride : realRoleLabel;
+  // ---- Permisos de un rol CONFIGURABLE (Ajustes → Roles) para la identidad actualmente activa —
+  // la real, o la que se esté simulando si es un administrador probando "Simular identidad". Se
+  // resuelve aquí (antes de myUserId, que no existe todavía en este punto) para poder usarlo abajo
+  // en canControlLive/canStartLive/isAdminViewer/esSupervisorViewer.
+  const identidadActivaRow = realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride) : usuariosReales.find((u) => u.id === userId);
+  const rolPersonalizadoActivo = identidadActivaRow?.rol_id ? rolesApp.find((r) => r.id === identidadActivaRow.rol_id) : null;
+  const tienePermiso = (clave) => !!rolPersonalizadoActivo?.permisos?.[clave];
   // Administrador y Multimedia controlan la transmisión en vivo — así ningún músico o miembro puede
-  // detenerla por accidente desde su teléfono (ver Ajustes → "Rol de este dispositivo").
-  const canControlLive = myRole === "Administrador" || myRole === "Multimedia";
+  // detenerla por accidente desde su teléfono (ver Ajustes → "Rol de este dispositivo"). Un rol
+  // configurable con el permiso "iniciar_finalizar_vivo"/"controlar_estilo_vivo" también puede.
+  const canControlLive = myRole === "Administrador" || myRole === "Multimedia" || tienePermiso("iniciar_finalizar_vivo") || tienePermiso("controlar_estilo_vivo");
   // Iniciar la transmisión es más delicado que solo controlarla ya en marcha: Multimedia y Administrador
   // ven el botón "Iniciar evento", y únicamente desde un escritorio — nunca desde un teléfono, para que
-  // solo se inicie desde el equipo conectado de verdad.
-  const canStartLive = (myRole === "Multimedia" || myRole === "Administrador") && !isCompact;
+  // solo se inicie desde el equipo conectado de verdad. Mismo criterio para un rol configurable.
+  const canStartLive = (myRole === "Multimedia" || myRole === "Administrador" || tienePermiso("iniciar_finalizar_vivo")) && !isCompact;
+  // Biblioteca de Canciones (pestaña + favoritas de Inicio): solo Administrador, Músico o un rol
+  // configurable con "ver_canciones" — es lo que distingue a Músico de Miembro. OJO: no afecta el
+  // Setlist de un evento — quien está asignado a Alabanza esa semana sigue viendo sus canciones y
+  // acordes desde el evento (ver decidirVisibilidadSetlist), tenga el rol que tenga.
+  const canSeeCanciones = myRole === "Administrador" || myRole === "Músico" || tienePermiso("ver_canciones");
+  useEffect(() => {
+    if (!canSeeCanciones && tab === "canciones") { setTab("inicio"); setOpenSong(null); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSeeCanciones, tab]);
   const myName = realIsAdmin && nameOverride ? nameOverride : realName;
-  const isAdminViewer = realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride)?.rol === "admin" : realIsAdmin;
+  const isAdminViewer = (realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride)?.rol === "admin" : realIsAdmin) || tienePermiso("editar_eventos_setlist");
   // Al simular otra identidad (ver "Simular identidad" en Ajustes) los eventos visibles también deben
   // ser los de ESA persona, no los del admin real — si no, probar "¿ve Miembro X solo lo suyo?" no
   // serviría de nada.
@@ -1213,7 +1240,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
   // ningún bloque del Setlist) ni siquiera veía que ese evento existiera — no alcanzaba con que
   // decidirVisibilidadSetlist lo dejara ver todo POR DENTRO del evento, si la lista de Eventos ya lo
   // filtraba afuera antes de poder entrar.
-  const esSupervisorViewer = usuariosReales.find((u) => u.id === myUserId)?.rol === "supervisor";
+  const esSupervisorViewer = usuariosReales.find((u) => u.id === myUserId)?.rol === "supervisor" || tienePermiso("ver_todos_eventos");
   const realEvents = events.filter((e) => !e.esPlantilla && (isAdminViewer || esSupervisorViewer || isEventAssignedToMe(e, myUserId)));
   const plantillas = events.filter((e) => e.esPlantilla);
   // Agregar versículos al Setlist es de administradores, con una sola excepción: quien esté asignado
@@ -1677,7 +1704,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
       {!["envivo", "proyeccion"].includes(tab) && (
       <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: tab === "inicio" ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {tab === "inicio" && (
-        <InicioView events={realEvents} library={library} myUserId={myUserId} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} />
+        <InicioView events={realEvents} library={library} myUserId={myUserId} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} canSeeCanciones={canSeeCanciones} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} />
       )}
 
       {tab === "ajustes" && (
@@ -1694,6 +1721,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           events={realEvents}
           onSelectEvent={goToEvent}
           onGoToUsuarios={onGoToUsuarios}
+          onGoToRoles={onGoToRoles}
           userId={userId}
           isCompact={isCompact}
         />
@@ -1897,6 +1925,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios })
           {[["inicio", "Inicio", Home], ["canciones", "Canciones", Music], ["eventos", "Eventos", Calendar], ["ministerios", "Grupos", LayoutGrid], ["asistente", "Asistente", MessageCircle], ["envivo", "En vivo", Radio], ["proyeccion", "Pantalla", ImgIcon], ["ajustes", "Ajustes", Settings]]
             .filter(([val]) => !isCompact || (val !== "envivo" && val !== "proyeccion")) // Control en vivo/Proyección son de escritorio: en celular no aparecen
             .filter(([val]) => val !== "ministerios" || canSeeGrupos) // Grupos: solo admins o quien lidera al menos uno
+            .filter(([val]) => val !== "canciones" || canSeeCanciones) // Canciones: solo admins, músicos o rol con "ver_canciones"
             .filter(([val]) => val !== "asistente" || realIsAdmin) // Asistente de IA: solo administradores reales, ni siquiera simulando el rol
             .map(([val, label, Icon]) => {
             const needsLive = val === "envivo" || val === "proyeccion";
@@ -1991,7 +2020,7 @@ function nextUpcomingEvent(events, liveEventId) {
     .sort(compareByDay)[0];
 }
 
-function InicioView({ events, library, myUserId, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact }) {
+function InicioView({ events, library, myUserId, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact, canSeeCanciones }) {
   const liveEvent = liveLibre ? EVENTO_LIBRE : events.find((e) => e.id === liveEventId);
   const [showFavorites, setShowFavorites] = useState(false);
   const favoriteSongs = library.filter((s) => s.favorite);
@@ -2117,7 +2146,7 @@ function InicioView({ events, library, myUserId, favoritesCount, memberCount, li
           )}
 
           <div style={{ display: "flex", gap: 12, flexShrink: 0 }}>
-            <StatCard icon={Heart} label="Canciones favoritas" value={favoritesCount} onClick={() => setShowFavorites(true)} />
+            {canSeeCanciones && <StatCard icon={Heart} label="Canciones favoritas" value={favoritesCount} onClick={() => setShowFavorites(true)} />}
             <StatCard icon={Users} label="Miembros del equipo" value={memberCount} onClick={onGoToTeam} />
           </div>
         </div>
@@ -2283,7 +2312,7 @@ function BibleDownloadSection() {
   );
 }
 
-function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, userId, isCompact }) {
+function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, onGoToRoles, userId, isCompact }) {
   const [horarioAbierto, setHorarioAbierto] = useState(false);
   const [showTeamList, setShowTeamList] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -2480,6 +2509,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
         <>
           <SectionLabel>ADMINISTRACIÓN</SectionLabel>
           <NavRow icon={Settings} label="Usuarios" onClick={onGoToUsuarios} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
+          <NavRow icon={Settings} label="Roles" onClick={onGoToRoles} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
 
           <SectionLabel>SIMULAR IDENTIDAD (SOLO ADMINISTRADORES)</SectionLabel>
           <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 8 }}>

@@ -4,6 +4,7 @@ import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { suscribirPush } from "./lib/notificaciones.js";
 import Login from "./Login.jsx";
 import UsersAdmin from "./UsersAdmin.jsx";
+import RolesAdmin from "./RolesAdmin.jsx";
 import PrototipoWorshipFlow from "./PrototipoWorshipFlow.jsx";
 import AppLogo from "./AppLogo.jsx";
 
@@ -65,6 +66,7 @@ export default function AuthGate() {
       const screen = e.state?.screen;
       if (!screen) return;
       if (screen === "usuarios-root" || screen === "usuarios-profile") setView("usuarios");
+      else if (screen === "roles-root") setView("roles");
       else if (screen === "app-root" || screen === "app-nav") setView("app");
     };
     window.addEventListener("popstate", onPopState);
@@ -143,11 +145,14 @@ export default function AuthGate() {
 
   return view === "usuarios" && esAdmin ? (
     <UsersAdmin myEmail={session.user.email} onExit={() => window.history.back()} />
+  ) : view === "roles" && esAdmin ? (
+    <RolesAdmin onExit={() => window.history.back()} />
   ) : (
     <PrototipoWorshipFlow
       userId={session.user.id}
       perfil={perfil}
       onGoToUsuarios={esAdmin ? () => { window.history.pushState({ screen: "usuarios-root" }, ""); setView("usuarios"); } : null}
+      onGoToRoles={esAdmin ? () => { window.history.pushState({ screen: "roles-root" }, ""); setView("roles"); } : null}
     />
   );
 }
