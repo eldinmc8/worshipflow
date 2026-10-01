@@ -776,14 +776,16 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoTo
       sincronizarServiceOrder(selectedEventId, nuevoOrden).catch((err) => notifyError("No se pudo guardar el setlist", err)).finally(() => pendingSavesRef.current--);
     }
   };
-  // Cada canción se manda sola al bloque que le corresponde según su clasificación (Himno/Corito/Canto
-  // especial → Alabanza; Adoración → Adoración) — se agrega al final de ese bloque, o se crea el bloque si
-  // el evento todavía no lo tiene. Los bloques son simples marcadores de posición (no hay anidado real en
-  // los datos), así que "pertenecer a un bloque" es estar entre ese marcador y el siguiente.
+  // Cada canción se manda sola al bloque que le corresponde según su clasificación — a qué bloque
+  // exactamente lo decide CADA iglesia (Ajustes → Identidad de la iglesia → Bloques del Setlist,
+  // iglesias.bloques_categoria), ya no está fijo en el código ("Alabanza" para las 4 antes). Se
+  // agrega al final de ese bloque, o se crea el bloque si el evento todavía no lo tiene. Los bloques
+  // son simples marcadores de posición (no hay anidado real en los datos), así que "pertenecer a un
+  // bloque" es estar entre ese marcador y el siguiente.
   const addSong = (songId) => {
     const song = library.find((s) => s.id === songId);
     const newItem = { id: nextId(), type: "cancion", songId, structure: song.defaultStructure };
-    const targetBlock = SONG_CATEGORIES[song.category]?.block;
+    const targetBlock = myIglesia.bloquesCategoria?.[song.category] ?? SONG_CATEGORIES[song.category]?.block;
     updateOrder((o) => {
       if (!targetBlock) return [...o, newItem]; // sin clasificación: al final, como antes
       let blockIdx = -1;
@@ -1239,6 +1241,14 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoTo
   }, [canSeeCanciones, tab]);
   const myName = realIsAdmin && nameOverride ? nameOverride : realName;
   const isAdminViewer = (realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride)?.rol === "admin" : realIsAdmin) || tienePermiso("editar_eventos_setlist");
+  // Permisos más finos que "editar_eventos_setlist" (que sigue existiendo, sin tocar, para quien ya
+  // lo usa): cada uno amplía isAdminViewer SOLO en su propia área, en vez de dar acceso de admin a
+  // todo. Se aplican en el único sitio donde cada componente recibe isAdminViewer como prop (ver más
+  // abajo) — no reemplazan isAdminViewer en general, que sigue gobernando lo demás (crear eventos,
+  // gestionar usuarios/roles, etc.).
+  const puedeEditarSetlist = isAdminViewer || tienePermiso("editar_setlist"); // Setlist de un evento: agregar/quitar/reordenar, versículos, slides, tonalidades por evento, encargados y equipo de alabanza
+  const puedeGestionarCanciones = isAdminViewer || tienePermiso("gestionar_canciones"); // Biblioteca: crear/editar/transportar/borrar canciones
+  const puedeGestionarMinisterios = isAdminViewer || tienePermiso("gestionar_ministerios"); // Crear ministerios, su planificación, recursos y líder
   // Al simular otra identidad (ver "Simular identidad" en Ajustes) los eventos visibles también deben
   // ser los de ESA persona, no los del admin real — si no, probar "¿ve Miembro X solo lo suyo?" no
   // serviría de nada.
@@ -1753,14 +1763,14 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoTo
       )}
 
       {tab === "ministerios" && !selectedMinistryId && (
-        <MinistriesList ministries={visibleMinistries} usuariosReales={usuariosReales} isAdminViewer={isAdminViewer} onSelect={setSelectedMinistryId} onCreate={createMinistry} />
+        <MinistriesList ministries={visibleMinistries} usuariosReales={usuariosReales} isAdminViewer={puedeGestionarMinisterios} onSelect={setSelectedMinistryId} onCreate={createMinistry} />
       )}
       {tab === "ministerios" && selectedMinistryId && (
         <MinistryDetail
           ministry={ministries.find((m) => m.id === selectedMinistryId)}
           usuariosReales={usuariosReales}
-          isAdminViewer={isAdminViewer}
-          canEdit={isAdminViewer || ministries.find((m) => m.id === selectedMinistryId)?.leaderId === myUserId}
+          isAdminViewer={puedeGestionarMinisterios}
+          canEdit={puedeGestionarMinisterios || ministries.find((m) => m.id === selectedMinistryId)?.leaderId === myUserId}
           onBack={() => window.history.back()}
           onSavePlan={(plan) => savePlanForMinistry(selectedMinistryId, plan)}
           onAddResource={(resource) => addResource(selectedMinistryId, resource)}
@@ -1785,15 +1795,15 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoTo
       )}
 
       {tab === "canciones" && openSong === null && (
-        <CancionesList library={library} isAdminViewer={isAdminViewer} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onDelete={deleteSong} />
+        <CancionesList library={library} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onDelete={deleteSong} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "view" && (
-        <SongView song={library.find((s) => s.id === openSong.id)} isAdminViewer={isAdminViewer} mode="biblioteca" onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
+        <SongView song={library.find((s) => s.id === openSong.id)} isAdminViewer={puedeGestionarCanciones} mode="biblioteca" onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "edit" && (
         <SongEditor
           song={openSong.id ? library.find((s) => s.id === openSong.id) : null}
-          isAdminViewer={isAdminViewer}
+          isAdminViewer={puedeGestionarCanciones}
           onCancel={() => requestLeaveSongEditor(() => window.history.back())}
           onSave={saveSong}
           onDirtyChange={(d) => { songEditDirtyRef.current = d; }}
@@ -1824,6 +1834,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoTo
         <EventDetail
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
           isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={isAdminViewer}
+          puedeEditarSetlist={puedeEditarSetlist}
           userId={myUserId} usuariosReales={usuariosReales}
           onBack={() => window.history.back()}
           isDraftFromTemplate={selectedEvent.id === draftFromTemplateId}
@@ -2663,9 +2674,13 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
   const [error, setError] = useState("");
   const [subiendoLogo, setSubiendoLogo] = useState(false);
   const [mostrarEnlaceManual, setMostrarEnlaceManual] = useState(false);
+  // A qué bloque del Setlist se manda cada clasificación de canción al agregarla — antes era fijo
+  // ("Alabanza" para las 4) en SONG_CATEGORIES; ahora cada iglesia decide sus propios "momentos"
+  // (ver addSong, que ya lee esto en vez del valor fijo del código).
+  const [bloquesCategoria, setBloquesCategoria] = useState({});
 
   useEffect(() => {
-    supabase.from("iglesias").select("nombre, zona_horaria, logo_url, color_primario, color_acento").eq("id", iglesiaId).single()
+    supabase.from("iglesias").select("nombre, zona_horaria, logo_url, color_primario, color_acento, bloques_categoria").eq("id", iglesiaId).single()
       .then(({ data }) => {
         if (data) {
           setNombre(data.nombre || "");
@@ -2673,6 +2688,7 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
           setLogoUrl(data.logo_url || "");
           setColorPrimario(data.color_primario || "#16324F");
           setColorAcento(data.color_acento || "#E8821E");
+          setBloquesCategoria(data.bloques_categoria || {});
         }
         setCargando(false);
       });
@@ -2709,6 +2725,7 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
     const { error } = await supabase.from("iglesias").update({
       nombre: nombre.trim(), zona_horaria: zonaHoraria,
       logo_url: logoUrl.trim() || null, color_primario: colorPrimario, color_acento: colorAcento,
+      bloques_categoria: Object.fromEntries(Object.entries(bloquesCategoria).map(([k, v]) => [k, (v || "").trim() || "Alabanza"])),
     }).eq("id", iglesiaId);
     if (error) { setError(error.message); setBusy(false); return; }
     window.location.reload();
@@ -2758,6 +2775,24 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
             <select value={zonaHoraria} onChange={(e) => setZonaHoraria(e.target.value)} style={inputStyle}>
               {ZONAS_HORARIAS.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
             </select>
+          </Field>
+          <Field label="Bloques del Setlist">
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 8 }}>
+              A qué bloque se manda sola cada canción al agregarla desde la biblioteca, según su clasificación — si tu iglesia llama distinto a sus "momentos" del culto, cámbialo acá.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {Object.entries(SONG_CATEGORIES).map(([key, c]) => (
+                <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12, color: "var(--wf-muted)", width: 110, flexShrink: 0 }}>{c.label}</span>
+                  <input
+                    value={bloquesCategoria[key] ?? ""}
+                    onChange={(e) => setBloquesCategoria((b) => ({ ...b, [key]: e.target.value }))}
+                    placeholder="Alabanza"
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                </div>
+              ))}
+            </div>
           </Field>
           {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
           <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
@@ -4694,7 +4729,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
 
 // ---------------- DETALLE DE EVENTO ----------------
 function EventDetail({
-  event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, userId, usuariosReales, onBack, onStart, onGoLive, onDelete,
+  event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onGoLive, onDelete,
   isDraftFromTemplate, onPublish,
   onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
@@ -4951,7 +4986,7 @@ function EventDetail({
         </div>
       )}
       <SetlistPane
-        event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer} userId={userId} usuariosReales={usuariosReales}
+        event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer || puedeEditarSetlist} userId={userId} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onAddSeccion={onAddSeccion}
         onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick}
         onRemove={onRemove} onDuplicate={onDuplicate} onReorder={onReorder}
