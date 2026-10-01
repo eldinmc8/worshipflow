@@ -58,8 +58,8 @@ export default function AuthGate() {
   // useEffect que aplicaba los colores vivía en WorshipFlowPrototype y se desmontaba (limpiando las
   // variables de color) apenas se entraba a Usuarios/Roles/Consola general.
   const myIglesia = perfil?.iglesias
-    ? { slug: perfil.iglesias.slug || null, nombre: perfil.iglesias.nombre || "", logoUrl: perfil.iglesias.logo_url || null, colorPrimario: perfil.iglesias.color_primario || null, colorAcento: perfil.iglesias.color_acento || null, bloquesCategoria: perfil.iglesias.bloques_categoria || null }
-    : { slug: null, nombre: "", logoUrl: null, colorPrimario: null, colorAcento: null, bloquesCategoria: null };
+    ? { slug: perfil.iglesias.slug || null, nombre: perfil.iglesias.nombre || "", logoUrl: perfil.iglesias.logo_url || null, colorPrimario: perfil.iglesias.color_primario || null, colorAcento: perfil.iglesias.color_acento || null, categoriasCanciones: perfil.iglesias.categorias_canciones || null }
+    : { slug: null, nombre: "", logoUrl: null, colorPrimario: null, colorAcento: null, categoriasCanciones: null };
   // Pisa los valores por defecto de --wf-brand-primary/--wf-brand-accent (ver index.css) con los de
   // ESTA iglesia, si los tiene configurados. De paso calcula --wf-on-brand-primary/--wf-on-brand-
   // accent (el color de texto/ícono legible ENCIMA de cada uno, ver colorLegibleSobre) — se
@@ -92,7 +92,7 @@ export default function AuthGate() {
 
   useEffect(() => {
     if (!session) { setPerfil(null); return; }
-    supabase.from("usuarios").select("*, iglesias(nombre, activa, slug, logo_url, color_primario, color_acento, bloques_categoria)").eq("id", session.user.id).single()
+    supabase.from("usuarios").select("*, iglesias(nombre, activa, slug, logo_url, color_primario, color_acento, categorias_canciones)").eq("id", session.user.id).single()
       .then(({ data }) => {
         if (!data) {
           setAccessDenied(true);
@@ -222,6 +222,9 @@ export default function AuthGate() {
       userId={session.user.id}
       perfil={perfil}
       myIglesia={myIglesia}
+      // Para cambios de la iglesia que se guardan sin recargar la página (ej. clasificaciones de
+      // canciones): actualiza la copia local del perfil, así myIglesia se recalcula al instante.
+      onIglesiaActualizada={(patch) => setPerfil((p) => (p ? { ...p, iglesias: { ...p.iglesias, ...patch } } : p))}
       onGoToUsuarios={esAdmin ? () => { window.history.pushState({ screen: "usuarios-root" }, ""); setView("usuarios"); } : null}
       onGoToRoles={esAdmin ? () => { window.history.pushState({ screen: "roles-root" }, ""); setView("roles"); } : null}
       onGoToPlataforma={esSuperAdmin ? () => { window.history.pushState({ screen: "plataforma-root" }, ""); setView("plataforma"); } : null}

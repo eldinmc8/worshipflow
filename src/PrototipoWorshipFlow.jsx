@@ -139,15 +139,21 @@ function songWithKeyOverride(song, overrideKey) {
 const KEY_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "Dm", "Em", "Fm", "Gm", "Am", "Bm"];
 
 // ---------- Librería de canciones (estado inicial) ----------
-// Clasificación de la canción: determina a qué bloque del Setlist se manda automáticamente al agregarla
-// (ver addSong) — todas las categorías van al mismo "Bloque de Alabanza" (antes Adoración creaba su
-// propio bloque aparte; se unificó a pedido para que cualquier canción caiga siempre en uno solo).
-const SONG_CATEGORIES = {
-  himno: { label: "Himno", block: "Alabanza" },
-  corito: { label: "Corito", block: "Alabanza" },
-  especial: { label: "Canto especial", block: "Alabanza" },
-  adoracion: { label: "Adoración", block: "Alabanza" },
-};
+// Clasificaciones de canción: cada iglesia define las suyas (iglesias.categorias_canciones, editable
+// desde Canciones → botón de ajustes junto a los filtros). Cada una dice a qué bloque del Setlist se
+// manda sola la canción al agregarla (ver addSong). "clave" es lo que se guarda en
+// canciones.categoria y nunca cambia, aunque se renombre la clasificación. Esta lista es solo el
+// respaldo si la iglesia todavía no tiene ninguna (mismo valor que el default de la base).
+const CLASIFICACIONES_DEFAULT = [
+  { clave: "himno", nombre: "Himno", bloque: "Alabanza" },
+  { clave: "corito", nombre: "Corito", bloque: "Alabanza" },
+  { clave: "especial", nombre: "Canto especial", bloque: "Alabanza" },
+  { clave: "adoracion", nombre: "Adoración", bloque: "Alabanza" },
+];
+// Clasificaciones de la iglesia con sesión abierta. Se actualiza al inicio de cada render de
+// WorshipFlowPrototype (antes de que se rendericen sus hijos), así SongEditor, SetlistPane e
+// isWorshipBlock la leen directo sin pasarla como prop por varios componentes intermedios.
+let clasificacionesActuales = CLASIFICACIONES_DEFAULT;
 // Versiones disponibles a través de la Biblia completa y buscable (ver BibleModal). "RVR1960"/"NVI"/"NTV" son
 // las que pediste; "TLA"/"DHH" no están disponibles en la fuente de datos gratuita usada por el prototipo, así
 // que se agregaron "PDT" (también en lenguaje sencillo, como TLA) y "LBLA" (más literal, como DHH) en su lugar.
@@ -348,10 +354,15 @@ function cloneWorshipRoles(roles) {
 function cloneRecordatorios(reminders) {
   return (reminders || []).map((r) => ({ ...r, id: nextId(), enviado: false }));
 }
-// Un bloque "pertenece" al equipo de alabanza si su título incluye Alabanza o Adoración — mismo criterio
-// que ya usa addSong para mandar canciones al bloque correcto (SONG_CATEGORIES).
+// Un bloque "pertenece" al equipo de alabanza si su título incluye Alabanza o Adoración, o el nombre
+// de cualquier bloque al que esta iglesia manda sus canciones — así
+// una iglesia que llama distinto a ese momento del culto no pierde el equipo de alabanza del bloque.
+// (ver clasificacionesActuales)
 function isWorshipBlock(item) {
-  return item.type === "seccion" && /alabanza|ador/i.test(item.title || "");
+  if (item.type !== "seccion") return false;
+  if (/alabanza|ador/i.test(item.title || "")) return true;
+  const titulo = normalizarTitulo(item.title);
+  return clasificacionesActuales.some((c) => c.bloque && titulo.includes(normalizarTitulo(c.bloque)));
 }
 // Un bloque "pertenece" a lectura bíblica/oración por el mismo criterio (título) — el encargado de
 // ESE bloque en el evento puede agregar su propio versículo, aunque no sea administrador.
@@ -524,7 +535,17 @@ function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event }) {
   );
 }
 
-export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoToUsuarios, onGoToRoles, onGoToPlataforma }) {
+export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIglesiaActualizada, onGoToUsuarios, onGoToRoles, onGoToPlataforma }) {
+  // Clasificaciones de canción de ESTA iglesia (ver CLASIFICACIONES_DEFAULT).
+  const clasificaciones = myIglesia.categoriasCanciones?.length ? myIglesia.categoriasCanciones : CLASIFICACIONES_DEFAULT;
+  clasificacionesActuales = clasificaciones;
+  // Solo el Administrador real puede guardarlas (la RLS de iglesias exige usuarios.rol = 'admin').
+  const guardarClasificaciones = async (lista) => {
+    const { error } = await supabase.from("iglesias").update({ categorias_canciones: lista }).eq("id", perfil?.iglesia_id);
+    if (error) throw new Error("No se pudieron guardar las clasificaciones: " + error.message);
+    onIglesiaActualizada?.({ categorias_canciones: lista });
+    showToast("Clasificaciones guardadas.", "info");
+  };
   const isCompact = useIsCompact(); // vista de celular: en pantallas angostas se activan los layouts compactos y se oculta Multimedia
   const [tab, setTab] = useState("inicio"); // inicio | canciones | eventos | envivo | proyeccion
   // Multimedia y Pantalla son de escritorio (quien controla la proyección); si la pantalla se vuelve angosta
@@ -777,15 +798,15 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoTo
     }
   };
   // Cada canción se manda sola al bloque que le corresponde según su clasificación — a qué bloque
-  // exactamente lo decide CADA iglesia (Ajustes → Identidad de la iglesia → Bloques del Setlist,
-  // iglesias.bloques_categoria), ya no está fijo en el código ("Alabanza" para las 4 antes). Se
+  // exactamente lo decide CADA iglesia (Canciones → Clasificaciones, iglesias.categorias_canciones),
+  // ya no está fijo en el código ("Alabanza" para las 4 antes). Se
   // agrega al final de ese bloque, o se crea el bloque si el evento todavía no lo tiene. Los bloques
   // son simples marcadores de posición (no hay anidado real en los datos), así que "pertenecer a un
   // bloque" es estar entre ese marcador y el siguiente.
   const addSong = (songId) => {
     const song = library.find((s) => s.id === songId);
     const newItem = { id: nextId(), type: "cancion", songId, structure: song.defaultStructure };
-    const targetBlock = myIglesia.bloquesCategoria?.[song.category] ?? SONG_CATEGORIES[song.category]?.block;
+    const targetBlock = clasificaciones.find((c) => c.clave === song.category)?.bloque?.trim();
     updateOrder((o) => {
       if (!targetBlock) return [...o, newItem]; // sin clasificación: al final, como antes
       let blockIdx = -1;
@@ -1234,7 +1255,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoTo
   // configurable con "ver_canciones" — es lo que distingue a Músico de Miembro. OJO: no afecta el
   // Setlist de un evento — quien está asignado a Alabanza esa semana sigue viendo sus canciones y
   // acordes desde el evento (ver decidirVisibilidadSetlist), tenga el rol que tenga.
-  const canSeeCanciones = myRole === "Administrador" || myRole === "Músico" || tienePermiso("ver_canciones");
+  const canSeeCanciones = myRole === "Administrador" || myRole === "Músico" || tienePermiso("ver_canciones") || tienePermiso("gestionar_canciones");
   useEffect(() => {
     if (!canSeeCanciones && tab === "canciones") { setTab("inicio"); setOpenSong(null); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1244,9 +1265,12 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoTo
   // Permisos más finos que "editar_eventos_setlist" (que sigue existiendo, sin tocar, para quien ya
   // lo usa): cada uno amplía isAdminViewer SOLO en su propia área, en vez de dar acceso de admin a
   // todo. Se aplican en el único sitio donde cada componente recibe isAdminViewer como prop (ver más
-  // abajo) — no reemplazan isAdminViewer en general, que sigue gobernando lo demás (crear eventos,
-  // gestionar usuarios/roles, etc.).
-  const puedeEditarSetlist = isAdminViewer || tienePermiso("editar_setlist"); // Setlist de un evento: agregar/quitar/reordenar, versículos, slides, tonalidades por evento, encargados y equipo de alabanza
+  // abajo) — no reemplazan isAdminViewer en general, que sigue gobernando lo demás (simular
+  // identidad, asistente, etc.). Usuarios, roles e identidad de la iglesia son solo del
+  // Administrador real (además lo exige la RLS de usuarios/roles_app/iglesias).
+  // "Organizar eventos" incluye ver todos los eventos y editar su Setlist (ver PERMISOS_APP.incluye).
+  const puedeGestionarEventos = isAdminViewer || tienePermiso("gestionar_eventos"); // Crear eventos y plantillas, ajustes del evento, recordatorios, publicar y eliminar
+  const puedeEditarSetlist = puedeGestionarEventos || tienePermiso("editar_setlist"); // Setlist de un evento: agregar/quitar/reordenar, versículos, slides, tonalidades por evento, encargados y equipo de alabanza
   const puedeGestionarCanciones = isAdminViewer || tienePermiso("gestionar_canciones"); // Biblioteca: crear/editar/transportar/borrar canciones
   const puedeGestionarMinisterios = isAdminViewer || tienePermiso("gestionar_ministerios"); // Crear ministerios, su planificación, recursos y líder
   // Al simular otra identidad (ver "Simular identidad" en Ajustes) los eventos visibles también deben
@@ -1268,15 +1292,15 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoTo
   // decidirVisibilidadSetlist lo dejara ver todo POR DENTRO del evento, si la lista de Eventos ya lo
   // filtraba afuera antes de poder entrar.
   const esSupervisorViewer = usuariosReales.find((u) => u.id === myUserId)?.rol === "supervisor" || tienePermiso("ver_todos_eventos");
-  const realEvents = events.filter((e) => !e.esPlantilla && (isAdminViewer || esSupervisorViewer || isEventAssignedToMe(e, myUserId)));
+  const realEvents = events.filter((e) => !e.esPlantilla && (puedeEditarSetlist || esSupervisorViewer || isEventAssignedToMe(e, myUserId)));
   const plantillas = events.filter((e) => e.esPlantilla);
   // Agregar versículos al Setlist es de administradores, con una sola excepción: quien esté asignado
   // como encargado de un bloque de Lectura bíblica/Oración EN ESTE EVENTO puede agregar su propio
   // versículo para esa lectura, aunque no sea administrador.
-  const canAddBibleReading = () => isAdminViewer || !!(selectedEvent?.serviceOrder || []).find(
+  const canAddBibleReading = () => puedeEditarSetlist || !!(selectedEvent?.serviceOrder || []).find(
     (it) => isBibleReadingBlock(it) && (it.encargados || []).some((m) => m.usuarioId === myUserId)
   );
-  const canAddSermonPoints = () => isAdminViewer;
+  const canAddSermonPoints = () => puedeEditarSetlist;
 
   // ---- Estilo en vivo de la proyección (fondo/tipografía/tamaño), editable solo por Multimedia mientras transmite ----
   const [liveStyle, setLiveStyle] = useState({ theme: "stage", font: "elegante", fontScale: 1 });
@@ -1358,8 +1382,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoTo
   // ve la planificación y los recursos completos directamente en su bloque del Setlist (ver
   // RestrictedGroupPanel), sin exponerle una pestaña aparte.
   const myMinistries = ministries.filter((m) => m.leaderId === myUserId);
-  const canSeeGrupos = isAdminViewer || myMinistries.length > 0;
-  const visibleMinistries = isAdminViewer ? ministries : myMinistries;
+  const canSeeGrupos = puedeGestionarMinisterios || myMinistries.length > 0;
+  const visibleMinistries = puedeGestionarMinisterios ? ministries : myMinistries;
   // Guarda en Supabase solo la parte que de verdad cambió (plan o recursos), comparando por
   // referencia — cada mutador de abajo crea un array nuevo únicamente para lo que tocó.
   const updateMinistry = (id, fn) => {
@@ -1795,7 +1819,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoTo
       )}
 
       {tab === "canciones" && openSong === null && (
-        <CancionesList library={library} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onDelete={deleteSong} />
+        <CancionesList library={library} clasificaciones={clasificaciones} puedeConfigurarClasificaciones={realIsAdmin && isAdminViewer} onGuardarClasificaciones={guardarClasificaciones} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onDelete={deleteSong} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "view" && (
         <SongView song={library.find((s) => s.id === openSong.id)} isAdminViewer={puedeGestionarCanciones} mode="biblioteca" onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
@@ -1827,13 +1851,13 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoTo
       )}
 
       {tab === "eventos" && !selectedEvent && (
-        <EventList events={realEvents} plantillas={plantillas} isAdminViewer={isAdminViewer} liveEventId={liveEventId} liveLibre={liveLibre} onSelect={setSelectedEventId} onCreate={createEvent} canStartLive={canStartLive} onStartFree={startFreeEvent} library={library} myUserId={myUserId} />
+        <EventList events={realEvents} plantillas={plantillas} isAdminViewer={puedeGestionarEventos} liveEventId={liveEventId} liveLibre={liveLibre} onSelect={setSelectedEventId} onCreate={createEvent} canStartLive={canStartLive} onStartFree={startFreeEvent} library={library} myUserId={myUserId} />
       )}
 
       {tab === "eventos" && selectedEvent && !openSong && (
         <EventDetail
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
-          isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={isAdminViewer}
+          isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={puedeGestionarEventos}
           puedeEditarSetlist={puedeEditarSetlist}
           userId={myUserId} usuariosReales={usuariosReales}
           onBack={() => window.history.back()}
@@ -1898,7 +1922,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoTo
           <SongView
             key={currentItem?.id ?? openSong.id}
             iglesiaId={myIglesiaId}
-            song={displaySong} isAdminViewer={isAdminViewer} mode="setlist" positionLabel={positionLabel}
+            song={displaySong} isAdminViewer={puedeGestionarCanciones} mode="setlist" positionLabel={positionLabel}
             structureOverride={currentItem?.structure}
             enterDirection={openSong.enterDir}
             onBack={() => window.history.back()}
@@ -2674,13 +2698,9 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
   const [error, setError] = useState("");
   const [subiendoLogo, setSubiendoLogo] = useState(false);
   const [mostrarEnlaceManual, setMostrarEnlaceManual] = useState(false);
-  // A qué bloque del Setlist se manda cada clasificación de canción al agregarla — antes era fijo
-  // ("Alabanza" para las 4) en SONG_CATEGORIES; ahora cada iglesia decide sus propios "momentos"
-  // (ver addSong, que ya lee esto en vez del valor fijo del código).
-  const [bloquesCategoria, setBloquesCategoria] = useState({});
 
   useEffect(() => {
-    supabase.from("iglesias").select("nombre, zona_horaria, logo_url, color_primario, color_acento, bloques_categoria").eq("id", iglesiaId).single()
+    supabase.from("iglesias").select("nombre, zona_horaria, logo_url, color_primario, color_acento").eq("id", iglesiaId).single()
       .then(({ data }) => {
         if (data) {
           setNombre(data.nombre || "");
@@ -2688,7 +2708,6 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
           setLogoUrl(data.logo_url || "");
           setColorPrimario(data.color_primario || "#16324F");
           setColorAcento(data.color_acento || "#E8821E");
-          setBloquesCategoria(data.bloques_categoria || {});
         }
         setCargando(false);
       });
@@ -2725,7 +2744,6 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
     const { error } = await supabase.from("iglesias").update({
       nombre: nombre.trim(), zona_horaria: zonaHoraria,
       logo_url: logoUrl.trim() || null, color_primario: colorPrimario, color_acento: colorAcento,
-      bloques_categoria: Object.fromEntries(Object.entries(bloquesCategoria).map(([k, v]) => [k, (v || "").trim() || "Alabanza"])),
     }).eq("id", iglesiaId);
     if (error) { setError(error.message); setBusy(false); return; }
     window.location.reload();
@@ -2775,24 +2793,6 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
             <select value={zonaHoraria} onChange={(e) => setZonaHoraria(e.target.value)} style={inputStyle}>
               {ZONAS_HORARIAS.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
             </select>
-          </Field>
-          <Field label="Bloques del Setlist">
-            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 8 }}>
-              A qué bloque se manda sola cada canción al agregarla desde la biblioteca, según su clasificación — si tu iglesia llama distinto a sus "momentos" del culto, cámbialo acá.
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {Object.entries(SONG_CATEGORIES).map(([key, c]) => (
-                <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 12, color: "var(--wf-muted)", width: 110, flexShrink: 0 }}>{c.label}</span>
-                  <input
-                    value={bloquesCategoria[key] ?? ""}
-                    onChange={(e) => setBloquesCategoria((b) => ({ ...b, [key]: e.target.value }))}
-                    placeholder="Alabanza"
-                    style={{ ...inputStyle, flex: 1 }}
-                  />
-                </div>
-              ))}
-            </div>
           </Field>
           {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
           <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
@@ -3327,13 +3327,16 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
 }
 
 // ---------------- CANCIONES: LISTA ----------------
-function CancionesList({ library, isAdminViewer, onToggleFavorite, onOpen, onNew, onDelete }) {
+function CancionesList({ library, clasificaciones, puedeConfigurarClasificaciones, onGuardarClasificaciones, isAdminViewer, onToggleFavorite, onOpen, onNew, onDelete }) {
   const [query, setQuery] = useState("");
-  // "todos" + las 4 clasificaciones reales de SONG_CATEGORIES — así si el día de mañana se agrega una
-  // clasificación nueva ahí, aparece sola acá también, sin tener que acordarse de tocar dos lugares.
+  // "todos" + las clasificaciones de ESTA iglesia. "sin" (Sin clasificar) solo aparece si hay
+  // canciones cuya clasificación ya no existe (ej. la borraron), para que no queden escondidas.
   const [categoryFilter, setCategoryFilter] = useState("todos");
+  const [showClasificaciones, setShowClasificaciones] = useState(false);
+  const claves = new Set(clasificaciones.map((c) => c.clave));
+  const haySinClasificar = library.some((s) => !claves.has(s.category));
   const filtered = library
-    .filter((s) => categoryFilter === "todos" || s.category === categoryFilter)
+    .filter((s) => categoryFilter === "todos" || (categoryFilter === "sin" ? !claves.has(s.category) : s.category === categoryFilter))
     .filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
   return (
     <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
@@ -3346,10 +3349,23 @@ function CancionesList({ library, isAdminViewer, onToggleFavorite, onOpen, onNew
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por título o letra" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 13, width: "100%" }} />
       </div>
       <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 12 }}>
-        {[["todos", "Todos"], ...Object.entries(SONG_CATEGORIES).map(([key, c]) => [key, c.label])].map(([key, label]) => (
+        {[["todos", "Todos"], ...clasificaciones.map((c) => [c.clave, c.nombre]), ...(haySinClasificar ? [["sin", "Sin clasificar"]] : [])].map(([key, label]) => (
           <button key={key} onClick={() => setCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 20, border: "none", background: categoryFilter === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: categoryFilter === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
         ))}
+        {puedeConfigurarClasificaciones && (
+          <button onClick={() => setShowClasificaciones(true)} title="Editar clasificaciones" style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: "1px dashed var(--wf-border)", background: "transparent", color: "var(--wf-muted)", cursor: "pointer" }}>
+            <Pencil size={12} /> Editar
+          </button>
+        )}
       </div>
+      {showClasificaciones && (
+        <ClasificacionesModal
+          clasificaciones={clasificaciones}
+          library={library}
+          onClose={() => setShowClasificaciones(false)}
+          onGuardar={async (lista) => { await onGuardarClasificaciones(lista); setShowClasificaciones(false); if (!lista.some((c) => c.clave === categoryFilter)) setCategoryFilter("todos"); }}
+        />
+      )}
       {filtered.map((s) => (
         <div key={s.id} onClick={() => onOpen(s.id)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: "pointer" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -3368,9 +3384,56 @@ function CancionesList({ library, isAdminViewer, onToggleFavorite, onOpen, onNew
   );
 }
 
+// Editor de las clasificaciones de canción de la iglesia — a propósito una sola lista corta (nombre +
+// bloque del Setlist), sin más opciones, para que configurarlo tome segundos. Se abre desde el botón
+// "Editar" junto a los filtros de Canciones, donde el administrador ve el resultado al instante.
+function ClasificacionesModal({ clasificaciones, library, onClose, onGuardar }) {
+  const [lista, setLista] = useState(() => clasificaciones.map((c) => ({ ...c })));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const cambiar = (i, campo, valor) => setLista((l) => l.map((c, j) => (j === i ? { ...c, [campo]: valor } : c)));
+  const quitar = async (i) => {
+    const c = lista[i];
+    const usadas = library.filter((s) => s.category === c.clave).length;
+    if (usadas > 0 && !(await confirmDialog(`${usadas} canción(es) tienen "${c.nombre || "esta clasificación"}". Si la quitas, quedarán como "Sin clasificar" hasta que les pongas otra. ¿Quitarla?`, { danger: true, textoConfirmar: "Quitar" }))) return;
+    setLista((l) => l.filter((_, j) => j !== i));
+  };
+  const agregar = () => setLista((l) => [...l, { clave: `c_${Date.now().toString(36)}`, nombre: "", bloque: l[l.length - 1]?.bloque || "Alabanza" }]);
+  const guardar = async () => {
+    const limpia = lista.map((c) => ({ clave: c.clave, nombre: (c.nombre || "").trim(), bloque: (c.bloque || "").trim() }));
+    if (limpia.length === 0) { setError("Deja al menos una clasificación."); return; }
+    if (limpia.some((c) => !c.nombre)) { setError("Ponle nombre a cada clasificación (o quita las vacías)."); return; }
+    setBusy(true); setError("");
+    try { await onGuardar(limpia); } catch (e) { setError(e.message); setBusy(false); }
+  };
+  return (
+    <ModalShell title="Clasificaciones" icon={ListMusic} color="var(--wf-brand-accent)" onClose={onClose}>
+      <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>
+        Cómo agrupa tu iglesia sus canciones, y a qué bloque del Setlist va cada una al agregarla.
+      </div>
+      <div style={{ display: "flex", fontSize: 10, fontWeight: 700, color: "var(--wf-faint)", textTransform: "uppercase", gap: 6, marginBottom: 4 }}>
+        <span style={{ flex: 1 }}>Nombre</span><span style={{ flex: 1 }}>Va al bloque</span><span style={{ width: 24 }} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+        {lista.map((c, i) => (
+          <div key={c.clave} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input value={c.nombre} onChange={(e) => cambiar(i, "nombre", e.target.value)} placeholder="Ej. Himno" style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
+            <input value={c.bloque} onChange={(e) => cambiar(i, "bloque", e.target.value)} placeholder="Al final" style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
+            <button type="button" onClick={() => quitar(i)} title="Quitar" style={iconGhost}><Trash2 size={14} color="var(--wf-faint)" /></button>
+          </div>
+        ))}
+      </div>
+      <button type="button" onClick={agregar} className="hoverable" style={{ ...addBtnStyle, justifyContent: "center", marginBottom: 8 }}><Plus size={14} /> Agregar clasificación</button>
+      <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 12 }}>Si dejas el bloque vacío, la canción se agrega al final del Setlist.</div>
+      {error && <div style={{ fontSize: 12, color: "#C23B32", marginBottom: 8 }}>{error}</div>}
+      <button type="button" onClick={guardar} disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
+    </ModalShell>
+  );
+}
+
 // ---------------- CANCIONES: EDITOR ----------------
 function blankSong() {
-  return { id: nextSongId(), title: "", tempo: "", key: "", artist: "", themes: "", category: "corito", favorite: false, hasAttachment: false, defaultStructure: [], blocks: {}, letra: {} };
+  return { id: nextSongId(), title: "", tempo: "", key: "", artist: "", themes: "", category: clasificacionesActuales[0]?.clave || "corito", favorite: false, hasAttachment: false, defaultStructure: [], blocks: {}, letra: {} };
 }
 function parseChordLine(raw) {
   let plain = "";
@@ -4287,11 +4350,11 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
           <Field label="Temas"><input value={draft.themes} onChange={(e) => setDraft({ ...draft, themes: e.target.value })} placeholder="Ej. Adoración, Fe" style={inputStyle} /></Field>
           <Field label="Clasificación" required>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {Object.entries(SONG_CATEGORIES).map(([key, c]) => (
+              {clasificacionesActuales.map(({ clave: key, nombre }) => ({ key, c: { label: nombre } })).map(({ key, c }) => (
                 <button key={key} type="button" onClick={() => setDraft({ ...draft, category: key })} style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: "none", background: draft.category === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: draft.category === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{c.label}</button>
               ))}
             </div>
-            <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Define a qué bloque del Setlist se manda esta canción al agregarla (Himno/Corito/Canto especial → Alabanza, Adoración → Adoración).</span>
+            <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Define a qué bloque del Setlist se manda esta canción al agregarla{(() => { const b = clasificacionesActuales.find((c) => c.clave === draft.category)?.bloque; return b ? ` (esta va a "${b}")` : " (esta va al final)"; })()}.</span>
           </Field>
         </div>
       )}
@@ -5262,7 +5325,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 12, width: "100%" }} />
           </div>
           <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
-            {[["todos", "Todos"], ...Object.entries(SONG_CATEGORIES).map(([key, c]) => [key, c.label])].map(([key, label]) => (
+            {[["todos", "Todos"], ...clasificacionesActuales.map((c) => [c.clave, c.nombre])].map(([key, label]) => (
               <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 20, border: "none", background: libraryCategoryFilter === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: libraryCategoryFilter === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
             ))}
           </div>

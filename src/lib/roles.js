@@ -4,24 +4,52 @@ import { supabase } from "./supabaseClient.js";
 // una acción real que ya existe en la app (ver PrototipoWorshipFlow.jsx: canControlLive, canStartLive,
 // esSupervisorViewer, isAdminViewer). Agregar un permiso nuevo aquí no hace nada por sí solo: hay que
 // además wirearlo en el punto del código que hoy decide esa acción.
+// Agrupados por área de la iglesia (grupo) para que la pantalla de Roles se lea de un vistazo.
+// "incluye": activar ese permiso ya da los otros (se muestran encendidos y bloqueados, y el código
+// en PrototipoWorshipFlow.jsx aplica la misma regla), así el administrador no tiene que adivinar
+// combinaciones.
+//
+// Fuera de la lista a propósito:
+// - editar_eventos_setlist: el viejo "todo en uno". Lo sigue leyendo isAdminViewer en el código y
+//   solo lo tiene el rol Administrador (protegido, ya tiene todo). Se reemplazó por los finos de abajo.
+// - usar_asistente_ia, gestionar_usuarios, gestionar_roles: son solo del Administrador real (la Edge
+//   Function y la RLS de usuarios/roles_app/iglesias exigen rol = 'admin'). Además, dejar que un rol
+//   no-admin gestione usuarios o roles le permitiría darse a sí mismo más permisos.
+export const GRUPOS_PERMISOS = ["Eventos", "Canciones", "Ministerios", "En vivo"];
+
 export const PERMISOS_APP = [
-  { clave: "iniciar_finalizar_vivo", etiqueta: "Iniciar y finalizar el culto en vivo", detalle: "Puede empezar y terminar la transmisión de un evento." },
-  { clave: "controlar_estilo_vivo", etiqueta: "Controlar el estilo de la proyección en vivo", detalle: "Puede cambiar fondo, tipografía y tamaño mientras se transmite." },
-  { clave: "ver_canciones", etiqueta: "Ver canciones y acordes", detalle: "Tiene la pestaña Canciones para repasar el cancionero cuando quiera, aunque esa semana no esté asignado. (Si está en Alabanza en un evento, ve esas canciones desde el evento de todas formas.)" },
-  { clave: "ver_todos_eventos", etiqueta: "Ver todos los eventos", detalle: "Ve todos los cultos aunque no esté asignado a ellos — no puede editarlos si no tiene además algún permiso de editar." },
-  // editar_eventos_setlist sigue siendo el interruptor "todo en uno" (lo sigue usando isAdminViewer
-  // directo en el código) — los 3 de abajo son más finos: cada uno amplía isAdminViewer SOLO en su
-  // propia área, así un rol puede, por ejemplo, editar el Setlist sin poder tocar la lista de
-  // usuarios ni crear eventos nuevos. Tenerlos activos a los 3 equivale a tener el de arriba.
-  { clave: "editar_eventos_setlist", etiqueta: "Todo lo de abajo junto (eventos, setlist, canciones y ministerios)", detalle: "Crear eventos nuevos, editar el setlist de cualquier evento, gestionar el cancionero y los ministerios — los 3 permisos de abajo juntos en uno solo." },
-  { clave: "editar_setlist", etiqueta: "Editar el Setlist de los eventos", detalle: "Agregar/quitar canciones, versículos, slides y bloques; reordenar; cambiar la tonalidad de una canción solo para ese evento; agregar encargados y equipo de alabanza. No crea eventos nuevos por sí solo." },
-  { clave: "gestionar_canciones", etiqueta: "Gestionar el cancionero", detalle: "Crear, editar, transportar de tonalidad (de forma permanente) y borrar canciones de la biblioteca." },
-  { clave: "gestionar_ministerios", etiqueta: "Gestionar ministerios", detalle: "Crear ministerios, editar su planificación mensual, sus recursos y asignarles líder." },
-  // Fuera de la lista a propósito hasta que se wireen de verdad (mostrarlos sin efecto confundía):
-  // usar_asistente_ia (la Edge Function asistente-chat exige Administrador real), gestionar_usuarios y
-  // gestionar_roles (esas pantallas son solo del Administrador real, y la RLS de roles_app solo deja
-  // escribir a rol = 'admin'). El rol Administrador en la base todavía los tiene en true — no estorba.
+  { clave: "ver_todos_eventos", grupo: "Eventos", etiqueta: "Ver todos los eventos", detalle: "Aunque no esté asignado. Solo mirar." },
+  { clave: "editar_setlist", grupo: "Eventos", etiqueta: "Editar el Setlist", detalle: "Canciones, versículos, slides, bloques, orden, tonalidad para ese evento y encargados.", incluye: ["ver_todos_eventos"] },
+  { clave: "gestionar_eventos", grupo: "Eventos", etiqueta: "Organizar eventos", detalle: "Crear eventos y plantillas, cambiar fecha y hora, recordatorios, publicar y eliminar.", incluye: ["ver_todos_eventos", "editar_setlist"] },
+  { clave: "ver_canciones", grupo: "Canciones", etiqueta: "Ver el cancionero", detalle: "La pestaña Canciones con letras y acordes." },
+  { clave: "gestionar_canciones", grupo: "Canciones", etiqueta: "Gestionar canciones", detalle: "Crear, editar, cambiar la tonalidad original y borrar canciones.", incluye: ["ver_canciones"] },
+  { clave: "gestionar_ministerios", grupo: "Ministerios", etiqueta: "Gestionar ministerios", detalle: "Crear ministerios, su planificación, recursos y líder." },
+  { clave: "iniciar_finalizar_vivo", grupo: "En vivo", etiqueta: "Iniciar y finalizar el culto en vivo", detalle: "Desde una computadora." },
+  { clave: "controlar_estilo_vivo", grupo: "En vivo", etiqueta: "Cambiar el estilo de la proyección", detalle: "Fondo, letra y tamaño mientras se transmite." },
 ];
+
+// ¿Este permiso está encendido porque otro activo ya lo incluye?
+export function permisoIncluidoPor(clave, permisos) {
+  return PERMISOS_APP.find((p) => permisos?.[p.clave] && p.incluye?.includes(clave)) || null;
+}
+
+// Puntos de partida al crear un rol: un toque y el rol queda casi listo, en vez de revisar cada
+// interruptor. Después se puede ajustar lo que haga falta.
+export const PLANTILLAS_ROL = [
+  { nombre: "Líder de alabanza", permisos: { gestionar_canciones: true, editar_setlist: true } },
+  { nombre: "Coordinador de eventos", permisos: { gestionar_eventos: true } },
+  { nombre: "Líder de ministerio", permisos: { gestionar_ministerios: true } },
+  { nombre: "Equipo de proyección", permisos: { iniciar_finalizar_vivo: true, controlar_estilo_vivo: true } },
+  { nombre: "Pastor / Supervisor", permisos: { ver_todos_eventos: true, ver_canciones: true } },
+];
+
+// Resumen corto de lo que puede hacer un rol, para la lista de roles (ej. "Eventos · Canciones").
+export function resumenPermisos(rol) {
+  if (rol.protegido) return "Control total";
+  const activos = PERMISOS_APP.filter((p) => rol.permisos?.[p.clave] || permisoIncluidoPor(p.clave, rol.permisos));
+  if (activos.length === 0) return "Solo lo que le asignen";
+  return [...new Set(activos.map((p) => p.grupo))].join(" · ");
+}
 
 export async function listarRoles() {
   const { data, error } = await supabase.from("roles_app").select("*").order("orden");
@@ -29,16 +57,19 @@ export async function listarRoles() {
   return data;
 }
 
+// El nombre de un rol es único dentro de la iglesia (roles_app_iglesia_nombre_key).
+const errorRol = (error) => (error.code === "23505" ? new Error("Ya existe un rol con ese nombre en tu iglesia.") : error);
+
 export async function crearRol({ nombre, permisos }) {
   const { count } = await supabase.from("roles_app").select("id", { count: "exact", head: true });
   const { data, error } = await supabase.from("roles_app").insert({ nombre: nombre.trim(), permisos: permisos || {}, orden: count ?? 0 }).select().single();
-  if (error) throw error;
+  if (error) throw errorRol(error);
   return data;
 }
 
 export async function actualizarRol(id, patch) {
   const { error } = await supabase.from("roles_app").update(patch).eq("id", id);
-  if (error) throw error;
+  if (error) throw errorRol(error);
 }
 
 // No deja borrar el rol protegido, ni un rol que todavía tiene gente asignada — evita que alguien

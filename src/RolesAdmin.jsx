@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { listarRoles, crearRol, actualizarRol, eliminarRol, PERMISOS_APP } from "./lib/roles.js";
+import { listarRoles, crearRol, actualizarRol, eliminarRol, PERMISOS_APP, GRUPOS_PERMISOS, PLANTILLAS_ROL, permisoIncluidoPor, resumenPermisos } from "./lib/roles.js";
 import { showToast } from "./lib/toast.js";
 import { confirmDialog } from "./lib/confirm.js";
 
@@ -11,12 +11,12 @@ const cardStyle = { background: "var(--wf-card)", borderRadius: 14, boxShadow: "
 // Fila de interruptor para un permiso — igual de simple que "Estado de la cuenta" en UsersAdmin, solo
 // que aquí cada permiso tiene además una línea de explicación (PERMISOS_APP.detalle) porque el nombre
 // solo no siempre deja claro qué desbloquea exactamente.
-function PermisoToggle({ permiso, activo, disabled, onToggle }) {
+function PermisoToggle({ permiso, activo, disabled, incluidoPor, onToggle }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 0", borderBottom: "1px solid var(--wf-hover)" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 0" }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>{permiso.etiqueta}</div>
-        <div style={{ fontSize: 11, color: "var(--wf-muted)", marginTop: 1 }}>{permiso.detalle}</div>
+        <div style={{ fontSize: 11, color: "var(--wf-muted)", marginTop: 1 }}>{incluidoPor ? `Incluido en "${incluidoPor.etiqueta}"` : permiso.detalle}</div>
       </div>
       <button
         type="button"
@@ -37,6 +37,7 @@ function RoleEditor({ role, onBack, onSaved, onDeleted }) {
   const isNew = !role;
   const [nombre, setNombre] = useState(role?.nombre || "");
   const [permisos, setPermisos] = useState(role?.permisos || {});
+  const [plantilla, setPlantilla] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const protegido = !!role?.protegido;
@@ -80,6 +81,27 @@ function RoleEditor({ role, onBack, onSaved, onDeleted }) {
     <div className="screen-enter" style={{ maxWidth: 480, margin: "0 auto" }}>
       <button onClick={onBack} style={{ ...ghostBtn, marginBottom: 14 }}>← Volver a Roles</button>
 
+      {isNew && (
+        <div style={cardStyle}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-faint)", textTransform: "uppercase", marginBottom: 8 }}>Empieza rápido desde</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {PLANTILLAS_ROL.map((p) => {
+              const elegida = plantilla === p.nombre;
+              return (
+                <button
+                  key={p.nombre} type="button"
+                  onClick={() => { setPlantilla(p.nombre); setPermisos({ ...p.permisos }); if (!nombre.trim() || PLANTILLAS_ROL.some((x) => x.nombre === nombre)) setNombre(p.nombre); }}
+                  style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: "none", cursor: "pointer", background: elegida ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: elegida ? "var(--wf-on-brand-accent)" : "var(--wf-text)" }}
+                >
+                  {p.nombre}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 8 }}>Después puedes cambiarle el nombre y ajustar los permisos.</div>
+        </div>
+      )}
+
       <div style={cardStyle}>
         <label style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)" }}>Nombre del rol</label>
         <input value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={protegido} style={{ ...inputStyle, marginTop: 4, opacity: protegido ? 0.7 : 1 }} placeholder="Ej. Supervisor de sonido" />
@@ -87,10 +109,25 @@ function RoleEditor({ role, onBack, onSaved, onDeleted }) {
       </div>
 
       <div style={cardStyle}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-faint)", marginBottom: 4, textTransform: "uppercase" }}>Qué puede hacer este rol</div>
-        {PERMISOS_APP.map((p) => (
-          <PermisoToggle key={p.clave} permiso={p} activo={protegido ? true : !!permisos[p.clave]} disabled={protegido} onToggle={(v) => togglePermiso(p.clave, v)} />
+        {GRUPOS_PERMISOS.map((grupo, gi) => (
+          <div key={grupo} style={{ paddingTop: gi === 0 ? 0 : 10, marginTop: gi === 0 ? 0 : 6, borderTop: gi === 0 ? "none" : "1px solid var(--wf-hover)" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-faint)", textTransform: "uppercase" }}>{grupo}</div>
+            {PERMISOS_APP.filter((p) => p.grupo === grupo).map((p) => {
+              const incluidoPor = protegido ? null : permisoIncluidoPor(p.clave, permisos);
+              return (
+                <PermisoToggle
+                  key={p.clave} permiso={p} incluidoPor={incluidoPor}
+                  activo={protegido || !!permisos[p.clave] || !!incluidoPor}
+                  disabled={protegido || !!incluidoPor}
+                  onToggle={(v) => togglePermiso(p.clave, v)}
+                />
+              );
+            })}
+          </div>
         ))}
+        <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--wf-hover)" }}>
+          Sin ningún permiso, la persona ve solo lo que le asignen (sus eventos y su parte del Setlist). Usuarios, Roles e Identidad de la iglesia son siempre solo del Administrador.
+        </div>
       </div>
 
       {error && <div style={{ background: "#FDECEA", border: "1px solid #C23B32", color: "#8A2A24", borderRadius: 12, padding: "8px 12px", fontSize: 13, marginBottom: 14 }}>{error}</div>}
@@ -138,7 +175,7 @@ export default function RolesAdmin({ onExit }) {
             <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, color: "var(--wf-heading)", margin: 0 }}>Roles</h1>
             <button onClick={onExit} style={ghostBtn}>← Volver a la app</button>
           </div>
-          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>Crea roles a la medida de esta iglesia y decide exactamente qué puede hacer cada uno. Los roles de fábrica (Administrador, Multimedia, Músico, Miembro, Supervisor) siguen funcionando igual — puedes editarlos o crear otros nuevos junto a ellos.</div>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>Cada rol decide qué puede hacer una persona en la app. Toca uno para cambiarlo, o crea uno nuevo.</div>
 
           {error && <div style={{ background: "#FDECEA", border: "1px solid #C23B32", color: "#8A2A24", borderRadius: 12, padding: "8px 12px", fontSize: 13, marginBottom: 14 }}>{error}</div>}
 
@@ -147,14 +184,13 @@ export default function RolesAdmin({ onExit }) {
           <div style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", overflow: "hidden" }}>
             {roles === null && <div style={{ padding: 20, color: "var(--wf-faint)", fontSize: 13 }}>Cargando…</div>}
             {roles?.map((r) => {
-              const activos = r.protegido ? PERMISOS_APP.length : PERMISOS_APP.filter((p) => r.permisos?.[p.clave]).length;
               return (
                 <button key={r.id} onClick={() => setEditingRole(r)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "none", border: "none", padding: "12px 16px", borderBottom: "1px solid var(--wf-hover)", cursor: "pointer" }}>
                   <div style={{ flex: "1 1 auto", minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>
                       {r.nombre} {r.protegido && <span style={{ fontSize: 10, fontWeight: 700, color: "#2F5FA8", background: "#E8F1FB", border: "1px solid #2F5FA8", borderRadius: 16, padding: "2px 8px", marginLeft: 6 }}>PROTEGIDO</span>}
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{activos} de {PERMISOS_APP.length} permisos activos</div>
+                    <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{resumenPermisos(r)}</div>
                   </div>
                 </button>
               );
