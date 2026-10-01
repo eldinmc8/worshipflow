@@ -6,6 +6,7 @@ import { iniciarActualizacionAutomatica, aplicarActualizacion } from './lib/swUp
 import { iniciarTema } from './lib/theme.js'
 import AuthGate from './AuthGate.jsx'
 import PublicScreen from './PublicScreen.jsx'
+import CrearIglesia from './CrearIglesia.jsx'
 import ToastHost from './ToastHost.jsx'
 import ConfirmDialogHost from './ConfirmDialogHost.jsx'
 
@@ -15,6 +16,9 @@ import ConfirmDialogHost from './ConfirmDialogHost.jsx'
 // sin ese parámetro) usa el manifest principal — cada uno con su propio manifest.webmanifest para
 // que "Instalar app" abra la pantalla correcta según desde dónde se instaló.
 const isPublicScreen = new URLSearchParams(window.location.search).get('screen') === 'publico'
+// Alta de una iglesia nueva (Fase 4) — su propia URL (?crear-iglesia), sin ningún enlace visible
+// hacia ella desde el resto de la app (ver CrearIglesia.jsx para el porqué).
+const isCrearIglesia = new URLSearchParams(window.location.search).has('crear-iglesia')
 if (isPublicScreen) {
   const link = document.querySelector('link[rel="manifest"]')
   if (link) link.setAttribute('href', '/manifest-pantalla.webmanifest')
@@ -49,7 +53,7 @@ function App() {
           </button>
         </div>
       )}
-      {isPublicScreen ? <PublicScreen /> : <AuthGate />}
+      {isPublicScreen ? <PublicScreen /> : isCrearIglesia ? <CrearIglesia /> : <AuthGate />}
       <ToastHost />
       <ConfirmDialogHost />
     </>
