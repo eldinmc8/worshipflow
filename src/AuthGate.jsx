@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { WifiOff } from "lucide-react";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { suscribirPush } from "./lib/notificaciones.js";
+import { colorLegibleSobre } from "./lib/colores.js";
 import Login from "./Login.jsx";
 import UsersAdmin from "./UsersAdmin.jsx";
 import RolesAdmin from "./RolesAdmin.jsx";
@@ -33,6 +34,12 @@ export default function AuthGate() {
   // El acceso sigue siendo de lista cerrada aunque se agregue "Continuar con Google": esa sesión se
   // cierra de una y se explica por qué, en vez de dejarlo entrar a la app sin rol.
   const [accessDenied, setAccessDenied] = useState(false);
+  // Consola general, acción "desactivar iglesia" (ver PlataformaAdmin.jsx) — hasta ahora iglesias.
+  // activa no bloqueaba nada, era solo un interruptor sin efecto. Nada se borra al desactivar: sus
+  // datos siguen intactos en la base, nada más se le niega la entrada a la app con un aviso claro,
+  // igual que a Eldin le pasó con OnStage al dejar de pagar — y se reactiva solo con el interruptor,
+  // sin que nadie tenga que recrear ni reconfigurar nada.
+  const [iglesiaInactiva, setIglesiaInactiva] = useState(null); // null | nombre de la iglesia
   // Consola general (super admin DE LA PLATAFORMA, no de una iglesia) — soy_super_admin() es una
   // función de la base (ver migración 20261001000000) que revisa una tabla que ningún cliente puede
   // leer directamente (super_admins); esto es solo para decidir si mostrar la entrada en Ajustes,
@@ -42,6 +49,37 @@ export default function AuthGate() {
     if (!perfil) { setEsSuperAdmin(false); return; }
     supabase.rpc("soy_super_admin").then(({ data }) => setEsSuperAdmin(!!data));
   }, [perfil]);
+
+  // Identidad de la iglesia (Fase 3/5: nombre, slug, logo, colores) — viene gratis del mismo select
+  // de perfil de arriba (nested select sobre la FK iglesia_id), sin una consulta aparte. Vive ACÁ (no
+  // dentro de WorshipFlowPrototype, donde vivía antes) porque este componente es el único que se
+  // queda montado SIEMPRE que haya sesión, sin importar qué vista se esté mostrando (app/usuarios/
+  // roles/plataforma son hermanas, no hijas una de otra — ver el return de más abajo); antes, el
+  // useEffect que aplicaba los colores vivía en WorshipFlowPrototype y se desmontaba (limpiando las
+  // variables de color) apenas se entraba a Usuarios/Roles/Consola general.
+  const myIglesia = perfil?.iglesias
+    ? { slug: perfil.iglesias.slug || null, nombre: perfil.iglesias.nombre || "", logoUrl: perfil.iglesias.logo_url || null, colorPrimario: perfil.iglesias.color_primario || null, colorAcento: perfil.iglesias.color_acento || null }
+    : { slug: null, nombre: "", logoUrl: null, colorPrimario: null, colorAcento: null };
+  // Pisa los valores por defecto de --wf-brand-primary/--wf-brand-accent (ver index.css) con los de
+  // ESTA iglesia, si los tiene configurados. De paso calcula --wf-on-brand-primary/--wf-on-brand-
+  // accent (el color de texto/ícono legible ENCIMA de cada uno, ver colorLegibleSobre) — se
+  // recalculan siempre, incluso sin personalización, para que el texto siga viéndose bien aunque
+  // algún día cambien los valores por defecto del CSS. React limpia solo (vuelve a los default) en
+  // cuanto myIglesia.colorPrimario/colorAcento cambian de valor — ej. al cerrar sesión, o al entrar
+  // con otra cuenta de otra iglesia — sin necesitar código aparte para ese caso.
+  useEffect(() => {
+    const root = document.documentElement.style;
+    const primario = myIglesia.colorPrimario || "#16324F";
+    const acento = myIglesia.colorAcento || "#E8821E";
+    if (myIglesia.colorPrimario) root.setProperty("--wf-brand-primary", primario);
+    if (myIglesia.colorAcento) root.setProperty("--wf-brand-accent", acento);
+    root.setProperty("--wf-on-brand-primary", colorLegibleSobre(primario));
+    root.setProperty("--wf-on-brand-accent", colorLegibleSobre(acento));
+    return () => {
+      root.removeProperty("--wf-brand-primary"); root.removeProperty("--wf-brand-accent");
+      root.removeProperty("--wf-on-brand-primary"); root.removeProperty("--wf-on-brand-accent");
+    };
+  }, [myIglesia.colorPrimario, myIglesia.colorAcento]);
 
   const [errorSesion, setErrorSesion] = useState("");
   useEffect(() => {
@@ -54,7 +92,7 @@ export default function AuthGate() {
 
   useEffect(() => {
     if (!session) { setPerfil(null); return; }
-    supabase.from("usuarios").select("*").eq("id", session.user.id).single()
+    supabase.from("usuarios").select("*, iglesias(nombre, activa, slug, logo_url, color_primario, color_acento)").eq("id", session.user.id).single()
       .then(({ data }) => {
         if (!data) {
           setAccessDenied(true);
@@ -63,6 +101,13 @@ export default function AuthGate() {
           // topa con "ya registrado" (ver crear-usuario/index.ts). Si falla (sin red, etc.) no importa:
           // ese Edge Function se auto-repara sola la próxima vez que un admin intente invitar.
           callUsersFunction("descartar-acceso-no-invitado", {}).catch(() => {}).finally(() => supabase.auth.signOut());
+          return;
+        }
+        if (data.iglesias && data.iglesias.activa === false) {
+          // Cierra la sesión también acá (no solo deja de mostrar la app) — así, si se reactiva
+          // después, no queda una sesión vieja que nunca pasó por este chequeo otra vez.
+          setIglesiaInactiva(data.iglesias.nombre || "tu iglesia");
+          supabase.auth.signOut();
           return;
         }
         setPerfil(data);
@@ -122,6 +167,17 @@ export default function AuthGate() {
       </div>
     );
   }
+  if (iglesiaInactiva) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "'Poppins', sans-serif", padding: 20 }}>
+        <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--wf-text)", marginBottom: 8 }}>{iglesiaInactiva} está pausada</div>
+          <div style={{ fontSize: 13, color: "var(--wf-muted)", lineHeight: 1.5, marginBottom: 18 }}>El acceso está temporalmente desactivado. Nada de tu información se perdió — en cuanto se reactive, vuelves a entrar con normalidad.</div>
+          <button onClick={() => setIglesiaInactiva(null)} style={primaryBtn}>Volver</button>
+        </div>
+      </div>
+    );
+  }
   if (!session) return <Login />;
 
   if (needsPassword) {
@@ -165,6 +221,7 @@ export default function AuthGate() {
     <PrototipoWorshipFlow
       userId={session.user.id}
       perfil={perfil}
+      myIglesia={myIglesia}
       onGoToUsuarios={esAdmin ? () => { window.history.pushState({ screen: "usuarios-root" }, ""); setView("usuarios"); } : null}
       onGoToRoles={esAdmin ? () => { window.history.pushState({ screen: "roles-root" }, ""); setView("roles"); } : null}
       onGoToPlataforma={esSuperAdmin ? () => { window.history.pushState({ screen: "plataforma-root" }, ""); setView("plataforma"); } : null}

@@ -36,6 +36,12 @@
      WorshipFlowPrototype → aplicarColoresDeIglesia en PrototipoWorshipFlow.jsx). */
   --wf-brand-primary: #16324F;
   --wf-brand-accent: #E8821E;
+  /* Texto/ícono legible ENCIMA de cada uno de arriba — por defecto, los mismos blanco/navy que ya se
+     usaban fijos en todo el código. Se recalculan en tiempo de ejecución según qué tan claro sea el
+     color de cada iglesia (ver colorLegibleSobre en PrototipoWorshipFlow.jsx); esto es solo el valor
+     antes de que ese cálculo corra. */
+  --wf-on-brand-primary: #FFFFFF;
+  --wf-on-brand-accent: #16233A;
 }
 [data-theme="dark"] {
   --wf-bg: #10151C;

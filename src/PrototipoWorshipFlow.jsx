@@ -524,7 +524,7 @@ function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event }) {
   );
 }
 
-export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, onGoToRoles, onGoToPlataforma }) {
+export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onGoToUsuarios, onGoToRoles, onGoToPlataforma }) {
   const isCompact = useIsCompact(); // vista de celular: en pantallas angostas se activan los layouts compactos y se oculta Multimedia
   const [tab, setTab] = useState("inicio"); // inicio | canciones | eventos | envivo | proyeccion
   // Multimedia y Pantalla son de escritorio (quien controla la proyección); si la pantalla se vuelve angosta
@@ -1168,29 +1168,12 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
   // este componente necesita saber la iglesia del usuario actual; perfil ya la trae (columna
   // iglesia_id agregada en la Fase 2a).
   const myIglesiaId = perfil?.iglesia_id;
-  // El slug es para la URL de Proyección (ver openOnOtherScreen), el nombre reemplaza al viejo
-  // TEAM_NAME fijo (Fase 3), y logoUrl/colorPrimario/colorAcento son la Fase 5: todos viven en la
-  // misma fila de `iglesias`, un solo fetch para los cinco. Jesús El Buen Pastor ya tiene su logo y
-  // sus colores guardados ahí (ver migración 20260930000700) — para su equipo esto se ve exactamente
-  // igual que antes de esta fase; una iglesia nueva sin nada configurado cae a los valores por
-  // defecto de abajo (el genérico de WorshipFlow, no el de Buen Pastor).
-  const [myIglesia, setMyIglesia] = useState({ slug: null, nombre: "", logoUrl: null, colorPrimario: null, colorAcento: null });
-  useEffect(() => {
-    if (!myIglesiaId) return;
-    supabase.from("iglesias").select("slug, nombre, logo_url, color_primario, color_acento").eq("id", myIglesiaId).single().then(({ data }) => setMyIglesia({
-      slug: data?.slug || null, nombre: data?.nombre || "",
-      logoUrl: data?.logo_url || null, colorPrimario: data?.color_primario || null, colorAcento: data?.color_acento || null,
-    }));
-  }, [myIglesiaId]);
-  // Pisa los valores por defecto de --wf-brand-primary/--wf-brand-accent (ver index.css) con los de
-  // ESTA iglesia, si los tiene configurados. Se limpia solo al desmontar (ej. cerrar sesión) para
-  // que el próximo que use este navegador no herede sin querer el color de quien inició sesión antes.
-  useEffect(() => {
-    const root = document.documentElement.style;
-    if (myIglesia.colorPrimario) root.setProperty("--wf-brand-primary", myIglesia.colorPrimario);
-    if (myIglesia.colorAcento) root.setProperty("--wf-brand-accent", myIglesia.colorAcento);
-    return () => { root.removeProperty("--wf-brand-primary"); root.removeProperty("--wf-brand-accent"); };
-  }, [myIglesia.colorPrimario, myIglesia.colorAcento]);
+  // myIglesia (slug/nombre/logo/colores) y el useEffect que aplica --wf-brand-primary/accent ya NO
+  // viven acá — se movieron a AuthGate.jsx (que los pasa como prop) porque este componente se
+  // DESMONTA por completo al entrar a Usuarios/Roles/Consola general (son vistas hermanas, no hijas,
+  // ver AuthGate.jsx) — el useEffect de acá limpiaba las variables de color apenas se desmontaba,
+  // así que el color personalizado "se perdía" (volvía al de Buen Pastor) justo al entrar a esas
+  // pantallas. AuthGate SÍ se queda montado siempre que haya sesión, sin importar la vista.
   const [roleOverride, setRoleOverride] = useState(null); // solo un admin lo puede poner (ver Ajustes)
   const [nameOverride, setNameOverride] = useState(null);
   const [usuariosReales, setUsuariosReales] = useState([]); // lista real de miembros ya registrados (RLS: cualquier autenticado puede leerla)
@@ -1689,7 +1672,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
             <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--wf-card)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
               <AppLogo width={32} logoUrl={myIglesia.logoUrl} />
             </div>
-            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "#fff" }}>WorshipFlow</span>
+            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "var(--wf-on-brand-primary)" }}>WorshipFlow</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {liveEvent && (
@@ -1701,7 +1684,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
             <button onClick={() => setShowNotifications(true)} title="Notificaciones" style={{ position: "relative", width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
               <Bell size={15} color="#fff" />
               {unreadCount > 0 && (
-                <span style={{ position: "absolute", top: -3, right: -3, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", fontSize: 9, fontWeight: 800, borderRadius: 12, minWidth: 14, height: 14, lineHeight: "14px", textAlign: "center", padding: "0 2px" }}>{unreadCount > 9 ? "9+" : unreadCount}</span>
+                <span style={{ position: "absolute", top: -3, right: -3, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", fontSize: 9, fontWeight: 800, borderRadius: 12, minWidth: 14, height: 14, lineHeight: "14px", textAlign: "center", padding: "0 2px" }}>{unreadCount > 9 ? "9+" : unreadCount}</span>
               )}
             </button>
           </div>
@@ -1828,7 +1811,7 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
         </ModalShell>
       )}
       {songAutoSaveToast && (
-        <div style={{ position: "fixed", left: "50%", bottom: 88, transform: "translateX(-50%)", background: "var(--wf-brand-primary)", color: "#FFFFFF", fontSize: 13, fontWeight: 600, padding: "10px 18px", borderRadius: 999, boxShadow: "0 8px 24px rgba(22,50,79,0.3)", zIndex: 200, display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ position: "fixed", left: "50%", bottom: 88, transform: "translateX(-50%)", background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)", fontSize: 13, fontWeight: 600, padding: "10px 18px", borderRadius: 999, boxShadow: "0 8px 24px rgba(22,50,79,0.3)", zIndex: 200, display: "flex", alignItems: "center", gap: 8 }}>
           <Check size={16} color="#5CD6A9" /> Cambios guardados
         </div>
       )}
@@ -1990,8 +1973,8 @@ export default function WorshipFlowPrototype({ userId, perfil, onGoToUsuarios, o
                 className="navitem"
                 style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: active ? "var(--wf-brand-accent)" : "transparent", border: "none", borderRadius: 18, padding: "8px 12px", cursor: isDisabled ? "not-allowed" : "pointer", opacity: isDisabled ? 0.35 : 1, flexShrink: 0 }}
               >
-                <Icon size={17} color={active ? "var(--wf-brand-primary)" : "rgba(255,255,255,0.8)"} />
-                <span style={{ fontSize: 9, fontWeight: 700, color: active ? "var(--wf-brand-primary)" : "rgba(255,255,255,0.6)" }}>{label}</span>
+                <Icon size={17} color={active ? "var(--wf-on-brand-accent)" : "color-mix(in srgb, var(--wf-on-brand-primary) 80%, transparent)"} />
+                <span style={{ fontSize: 9, fontWeight: 700, color: active ? "var(--wf-on-brand-accent)" : "color-mix(in srgb, var(--wf-on-brand-primary) 60%, transparent)" }}>{label}</span>
               </button>
             );
           })}
@@ -2103,8 +2086,8 @@ function InicioView({ events, library, myUserId, favoritesCount, memberCount, li
           // achica hasta un máximo razonable y el título se corta con "..." en vez de desbordar.
           <button onClick={() => (liveLibre ? onGoLive() : onSelectEvent(liveEvent.id))} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, maxWidth: "62%", background: "var(--wf-brand-primary)", borderRadius: 20, padding: "9px 16px", border: "none", cursor: "pointer" }}>
             <span className="live-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--wf-brand-accent)", flexShrink: 0 }} />
-            <span style={{ color: "#fff", fontWeight: 700, fontSize: 12, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>En vivo: {liveEvent.title}</span>
-            <ChevronRight size={14} color="rgba(255,255,255,0.7)" style={{ flexShrink: 0 }} />
+            <span style={{ color: "var(--wf-on-brand-primary)", fontWeight: 700, fontSize: 12, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>En vivo: {liveEvent.title}</span>
+            <ChevronRight size={14} color="color-mix(in srgb, var(--wf-on-brand-primary) 70%, transparent)" style={{ flexShrink: 0 }} />
           </button>
         )}
       </div>
@@ -3023,7 +3006,7 @@ function AsistenteChatScreen() {
           rows={1}
           style={{ ...inputStyle, resize: "none", flex: 1 }}
         />
-        <button onClick={send} disabled={loading || !!pendingPlan || (!input.trim() && !pendingImage)} style={{ ...iconGhost, width: 40, height: 40, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", opacity: (loading || !!pendingPlan || (!input.trim() && !pendingImage)) ? 0.4 : 1 }}>
+        <button onClick={send} disabled={loading || !!pendingPlan || (!input.trim() && !pendingImage)} style={{ ...iconGhost, width: 40, height: 40, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", opacity: (loading || !!pendingPlan || (!input.trim() && !pendingImage)) ? 0.4 : 1 }}>
           <Send size={17} />
         </button>
       </div>
@@ -3420,7 +3403,7 @@ function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResult
     else if (puedeCambiarLocal) onGuardarLocal(nuevaTonalidad);
   };
   const LETRAS = ["C", "D", "E", "F", "G", "A", "B"];
-  const activeStyle = { background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)" };
+  const activeStyle = { background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)" };
   const inactiveStyle = { background: "var(--wf-hover)", color: "var(--wf-text)" };
   return (
     <ModalShell title="Cambiar tonalidad" icon={Music} color="var(--wf-brand-accent)" onClose={onClose}>
@@ -5078,7 +5061,7 @@ function EncargadosToggleButton({ count, onClick }) {
     <button onClick={onClick} title="Encargados" style={{ ...iconGhost, position: "relative" }}>
       <Users size={14} color={count > 0 ? "var(--wf-brand-accent)" : undefined} />
       {count > 0 && (
-        <span style={{ position: "absolute", top: -2, right: -2, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", fontSize: 8, fontWeight: 800, borderRadius: 12, minWidth: 12, height: 12, lineHeight: "12px", textAlign: "center", padding: "0 2px" }}>{count}</span>
+        <span style={{ position: "absolute", top: -2, right: -2, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", fontSize: 8, fontWeight: 800, borderRadius: 12, minWidth: 12, height: 12, lineHeight: "12px", textAlign: "center", padding: "0 2px" }}>{count}</span>
       )}
     </button>
   );
@@ -6201,7 +6184,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
 
       {/* Barra de herramientas: pantalla 2, negro */}
       <div style={{ display: "flex", gap: 8, padding: "8px 16px 10px", flexWrap: "wrap" }}>
-        <button onClick={onOpenPublicScreen} style={{ ...ctrlBtn, background: "var(--wf-brand-primary)", color: "#fff" }}><Radio size={14} /> Reabrir proyección</button>
+        <button onClick={onOpenPublicScreen} style={{ ...ctrlBtn, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)" }}><Radio size={14} /> Reabrir proyección</button>
         <button onClick={() => setBlanked((b) => !b)} style={{ ...ctrlBtn, background: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)" }}><MonitorOff size={14} /> {blanked ? "Reanudar" : "Pantalla en negro"}</button>
       </div>
 
@@ -6648,4 +6631,4 @@ const ctrlBtn = { display: "flex", alignItems: "center", gap: 6, background: "va
 const ghostToggleBtn = { fontSize: 12, fontWeight: 700, padding: "8px 12px", borderRadius: 12, border: "1px solid var(--wf-border)", background: "var(--wf-hover)", color: "var(--wf-heading)", cursor: "pointer" };
 const addBtnStyle = { display: "flex", alignItems: "center", gap: 8, width: "100%", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "9px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer" };
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "9px 10px", fontSize: 13, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
-const primaryBtn = { width: "100%", background: "var(--wf-brand-accent)", border: "none", borderRadius: 12, padding: "10px", fontSize: 13, fontWeight: 700, color: "var(--wf-brand-primary)", cursor: "pointer" };
+const primaryBtn = { width: "100%", background: "var(--wf-brand-accent)", border: "none", borderRadius: 12, padding: "10px", fontSize: 13, fontWeight: 700, color: "var(--wf-on-brand-accent)", cursor: "pointer" };
