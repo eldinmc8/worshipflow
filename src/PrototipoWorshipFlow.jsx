@@ -5,7 +5,7 @@ import {
   Music, Mic2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus,
   Radio, ListMusic, BookOpen, Image as ImgIcon, Trash2, GripVertical,
   MonitorOff, X, Search, Sparkles, Calendar, MapPin, Users, Check,
-  UserPlus, Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
+  Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
   Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send,
@@ -5254,10 +5254,10 @@ const STATUS_STYLE = {
 // texto libre). Solo quien tiene permiso sobre este bloque (admin, o el líder del ministerio vinculado)
 // puede editar la lista — para los demás se muestra de solo lectura.
 function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLead, onAddEncargado, onRemove, vistasPorUsuario, showVistas }) {
-  const [addQuery, setAddQuery] = useState("");
-  const disponibles = allUsuarios
-    .filter((u) => !encargados.some((m) => m.usuarioId === u.id))
-    .filter((u) => u.nombre.toLowerCase().includes(addQuery.toLowerCase()));
+  // Id seleccionado en el desplegable de "agregar persona" — se vuelve a "" apenas se agrega a alguien,
+  // así el desplegable queda listo para la siguiente persona en vez de quedarse mostrando a la última.
+  const [seleccionId, setSeleccionId] = useState("");
+  const disponibles = allUsuarios.filter((u) => !encargados.some((m) => m.usuarioId === u.id));
   return (
     <div>
       {encargados.map((m, i) => {
@@ -5302,17 +5302,21 @@ function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLe
           de que la asignación "no se guardó". */}
       {canEdit && (
         <div style={{ marginTop: 10 }}>
-          {allUsuarios.length > 6 && (
-            <input value={addQuery} onChange={(e) => setAddQuery(e.target.value)} placeholder="Buscar persona..." style={{ ...inputStyle, marginBottom: 6 }} />
-          )}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <select
+            value={seleccionId}
+            onChange={(e) => {
+              const u = disponibles.find((x) => x.id === e.target.value);
+              if (u) onAddEncargado(u);
+              setSeleccionId("");
+            }}
+            disabled={disponibles.length === 0}
+            style={{ ...inputStyle, color: seleccionId ? "var(--wf-text)" : "var(--wf-faint)", cursor: disponibles.length ? "pointer" : "default" }}
+          >
+            <option value="" disabled>{disponibles.length === 0 ? "No hay más personas disponibles para agregar" : "+ Agregar persona…"}</option>
             {disponibles.map((u) => (
-              <button key={u.id} onClick={() => { onAddEncargado(u); setAddQuery(""); }} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 5, background: "#EAF0FA", border: "1px solid var(--wf-border)", borderRadius: 20, padding: "5px 10px", fontSize: 12, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>
-                <UserPlus size={12} /> {u.nombre}
-              </button>
+              <option key={u.id} value={u.id}>{u.nombre}</option>
             ))}
-            {disponibles.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12 }}>{addQuery ? "Nadie coincide con esa búsqueda." : "No hay más personas disponibles para agregar."}</div>}
-          </div>
+          </select>
         </div>
       )}
     </div>
