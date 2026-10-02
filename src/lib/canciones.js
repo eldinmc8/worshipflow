@@ -141,7 +141,7 @@ export function cancionCompletaAFormatoEditor({ cancion, secciones, estructura, 
     Object.keys(blocks).forEach((k) => { if (!letra[k]) letra[k] = []; });
   }
   return {
-    id: cancion.id, title: cancion.titulo, key: cancion.tonalidad, tempo: cancion.tempo || "",
+    id: cancion.id, title: cancion.titulo, key: cancion.tonalidad, tempo: cancion.tempo || "", compas: cancion.compas || "",
     artist: cancion.artista || "", themes: cancion.temas || "", category: cancion.categoria,
     favorite: cancion.favorito, hasAttachment: false,
     defaultStructure, blocks, letra,
@@ -170,7 +170,7 @@ function agruparEstructura(flat) {
 export async function guardarCancionDesdeEditor(draft, existeEnDb, userId) {
   const datosBase = {
     titulo: draft.title, artista: draft.artist || null, tonalidad: draft.key,
-    tempo: draft.tempo ? Number(draft.tempo) : null, temas: draft.themes || null,
+    tempo: draft.tempo ? Number(draft.tempo) : null, compas: draft.compas || null, temas: draft.themes || null,
     categoria: draft.category, favorito: !!draft.favorite,
   };
   let id = draft.id;

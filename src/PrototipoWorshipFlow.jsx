@@ -229,6 +229,7 @@ function filaAMusicoState(fila) {
   if (!fila) return null;
   return {
     liderId: fila.lider_id || null,
+    liderNombre: fila.lider_nombre || null,
     songItemId: fila.song_item_id || null,
     sectionIdx: fila.section_idx ?? 0,
     bpm: fila.bpm || null,
@@ -751,6 +752,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // Estado de Modo Músico líder/seguidor de la sesión en vivo (ver columnas musico_* en sesiones_en_vivo
   // y el useEffect de subscribeLiveSession más abajo, que lo llena junto con liveEventId/liveOwnerId).
   const [musicoState, setMusicoState] = useState(null);
+  // Modo Músico en vivo es VOLUNTARIO: este dispositivo solo sigue a quien dirige si tocó "Unirme".
+  // Vive aquí (no en SongView) para que siga unido al pasar de canción. Se suelta al terminar el culto.
+  const [unidoAlLider, setUnidoAlLider] = useState(false);
   // "En vivo sin evento": transmisión libre, sin ningún plan/setlist detrás — solo contenido improvisado
   // (Biblia/canción/video/slide). liveEventId se queda en null en este caso, igual que cuando no hay nada
   // en vivo, así que se necesita esta bandera aparte para distinguir ambos casos.
@@ -1043,6 +1047,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     setMusicoState((s) => ({ ...(s || {}), ...patch }));
     const dbPatch = {};
     if ("liderId" in patch) dbPatch.lider_id = patch.liderId;
+    if ("liderNombre" in patch) dbPatch.lider_nombre = patch.liderNombre;
     if ("songItemId" in patch) dbPatch.song_item_id = patch.songItemId;
     if ("sectionIdx" in patch) dbPatch.section_idx = patch.sectionIdx;
     if ("bpm" in patch) dbPatch.bpm = patch.bpm;
@@ -1055,6 +1060,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // una en vivo por otra sin pasar por Finalizar (confirmReplaceLive arriba) deja un líder colgado.
   const resetMusicoLive = () => {
     setMusicoState(null);
+    setUnidoAlLider(false);
     clearMusicoLive(myIglesiaId).catch(() => {});
   };
   const startEvent = async (eventId) => {
@@ -1975,6 +1981,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
               itemId: currentItem?.id ?? null,
               state: musicoState,
               onUpdate: updateMusicoState,
+              unido: unidoAlLider,
+              setUnido: setUnidoAlLider,
+              myName,
               onFollowItem: (itemId) => {
                 const item = songItems.find((it) => it.id === itemId);
                 if (item) setOpenSong({ id: item.songId, mode: "view", itemId: item.id });
@@ -3472,7 +3481,7 @@ function ClasificacionesModal({ clasificaciones, library, onClose, onGuardar }) 
 
 // ---------------- CANCIONES: EDITOR ----------------
 function blankSong() {
-  return { id: nextSongId(), title: "", tempo: "", key: "", artist: "", themes: "", category: clasificacionesActuales[0]?.clave || "corito", favorite: false, hasAttachment: false, defaultStructure: [], blocks: {}, letra: {} };
+  return { id: nextSongId(), title: "", tempo: "", compas: "", key: "", artist: "", themes: "", category: clasificacionesActuales[0]?.clave || "corito", favorite: false, hasAttachment: false, defaultStructure: [], blocks: {}, letra: {} };
 }
 function parseChordLine(raw) {
   let plain = "";
@@ -3546,6 +3555,17 @@ function badgeColor(badge) {
 // Catálogo de tipos de sección para "Añadir secciones" (estilo OnStage) — cada tipo puede repetirse
 // (Estrofa 1, Estrofa 2...); el prefijo arma el badge numerado (V1, C2...). El color sale de
 // badgeColor() con el prefijo, así el catálogo y las tarjetas ya agregadas siempre coinciden.
+// Compases más usados, el primero es el más común. Opcional en cada canción.
+const COMPASES = ["4/4", "3/4", "6/8", "2/4", "12/8", "2/2", "5/4", "7/8"];
+// Tiempos por compás para el auto-avance por BPM. En 6/8 y 12/8 el pulso se cuenta en negra con
+// puntillo (2 y 4 tiempos), que es como se marca el BPM en la práctica. Sin compás: 4, como siempre.
+function tiemposPorCompas(compas) {
+  const m = String(compas || "").match(/^(\d+)\/(\d+)$/);
+  if (!m) return 4;
+  const num = parseInt(m[1], 10), den = parseInt(m[2], 10);
+  return den === 8 && num % 3 === 0 ? num / 3 : num;
+}
+
 const SECTION_TYPES = [
   { id: "estrofa", label: "Estrofa", prefix: "V" },
   { id: "precoro", label: "Pre-coro", prefix: "PC" },
@@ -3720,8 +3740,12 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
   // tenga la MISMA canción abierta se sincroniza por un canal ad-hoc (song.id), sin un líder fijo,
   // "cualquiera que ajuste algo se transmite a los demás". ----
   const musicoChannelRef = useRef(null);
+  // Ensayo juntos es opcional: solo quien lo activa comparte y recibe sección/tempo/auto-avance con
+  // los demás que también lo activaron. Se recuerda en este dispositivo hasta cerrar la app.
+  const [ensayoJuntos, setEnsayoJuntosState] = useState(() => { try { return sessionStorage.getItem("wf-ensayo-juntos") === "1"; } catch { return false; } });
+  const setEnsayoJuntos = (v) => { setEnsayoJuntosState(v); try { sessionStorage.setItem("wf-ensayo-juntos", v ? "1" : "0"); } catch { /* sin storage */ } };
   useEffect(() => {
-    if (!song || liveSync?.active) return; // en vivo usa musico_en_vivo (líder/seguidor), no este canal
+    if (!song || liveSync?.active || !ensayoJuntos) return; // en vivo usa musico_en_vivo (líder/seguidor), no este canal
     const channel = supabase.channel(`musico-${song.id}`);
     channel.on("broadcast", { event: "sync" }, ({ payload }) => {
       setAutoMode(payload.autoMode);
@@ -3732,7 +3756,7 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
     musicoChannelRef.current = channel;
     return () => { supabase.removeChannel(channel); musicoChannelRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song?.id, liveSync?.active]);
+  }, [song?.id, liveSync?.active, ensayoJuntos]);
   const broadcastMusico = (patch) => {
     musicoChannelRef.current?.send({ type: "broadcast", event: "sync", payload: { autoMode, liveBpm, currentSectionIdx, ...patch } });
   };
@@ -3748,14 +3772,19 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
   const isLive = !!liveSync?.active;
   const isLeaderMe = isLive && liveSync.state?.liderId === liveSync.deviceId;
   const otherLeaderFresh = isLive && isMusicoLeaderFresh(liveSync.state) && liveSync.state.liderId !== liveSync.deviceId;
-  const isFollowingNow = otherLeaderFresh && liveSync.state.songItemId === liveSync.itemId;
+  // Unido = este músico eligió seguir a quien dirige. Si no se unió, va a su propio ritmo aunque haya
+  // alguien dirigiendo (puede usar el auto-avance por BPM y TAP como en un ensayo, solo para él).
+  const siguiendo = isLive && !!liveSync.unido && !isLeaderMe;
+  const porMiCuenta = !isLive || (!isLeaderMe && !siguiendo);
+  const nombreLider = liveSync?.state?.liderNombre || "el líder";
+  const isFollowingNow = siguiendo && otherLeaderFresh && liveSync.state.songItemId === liveSync.itemId;
   // Líder registrado pero sin heartbeat reciente (se salió de la canción sin querer, el teléfono se
   // bloqueó, cambió de app un segundo) — TODOS quedan pausados exactamente donde estaban (nadie toma
   // el mando solo), y si estaba siguiendo a ESE líder en ESTA misma canción se lo avisa con claridad
   // en vez de mostrarle de golpe el botón normal de "Modo Músico" (que invitaría a tomar el mando por
   // error). Apenas el líder vuelve a mandar un heartbeat, esto se apaga solo y sigue como si nada.
   const leaderStale = isLive && !!liveSync.state?.liderId && liveSync.state.liderId !== liveSync.deviceId && !otherLeaderFresh;
-  const wasFollowingStaleLeader = leaderStale && liveSync.state.songItemId === liveSync.itemId;
+  const wasFollowingStaleLeader = siguiendo && leaderStale;
 
   // BUG real (2026-08-30, culto en vivo): si el líder pierde la conexión, jamás vuelve a llegar un
   // heartbeat por Realtime — así que este componente no tiene ningún motivo para volver a renderizar,
@@ -3800,13 +3829,13 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
   // llegar a onFollowItem — quien seguía se quedaba pegado en la canción vieja, tenía que deslizar él
   // mismo para alcanzar al líder.
   useEffect(() => {
-    if (!otherLeaderFresh) return;
+    if (!otherLeaderFresh || !siguiendo) return;
     const state = liveSync.state;
     if (state.songItemId !== liveSync.itemId) { liveSync.onFollowItem(state.songItemId); return; }
     setCurrentSectionIdx(state.sectionIdx || 0);
     indexRefs.current[state.sectionIdx || 0]?.scrollIntoView({ behavior: "smooth", block: "start" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [otherLeaderFresh, liveSync?.state?.sectionIdx, liveSync?.state?.songItemId]);
+  }, [otherLeaderFresh, siguiendo, liveSync?.state?.sectionIdx, liveSync?.state?.songItemId]);
 
   const goToSectionIdx = (i) => {
     const clamped = Math.max(0, Math.min(order.length - 1, i));
@@ -3816,29 +3845,29 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
     else if (!isLive) broadcastMusico({ currentSectionIdx: clamped }); // seguidor: solo local, no transmite nada
   };
   const toggleAutoMode = () => {
-    if (isFollowingNow) return; // ya estoy siguiendo esta misma canción del líder: nada que alternar
-    if (isLive && otherLeaderFresh) {
-      // Hay un líder activo, pero en OTRA canción (no la que tengo abierta ahora): unirme como seguidor
-      // y saltar a la suya — si no, "isLeaderMe" seguiría en falso y este botón terminaría robándole el
-      // mando a quien ya está liderando, solo por estar viendo una canción distinta en ese momento.
-      setCurrentSectionIdx(liveSync.state.sectionIdx || 0);
-      liveSync.onFollowItem(liveSync.state.songItemId);
-      return;
-    }
-    if (isLive && !isLeaderMe) {
-      // Nadie es líder ahora mismo (o quedó viejo/caído): este dispositivo toma el mando. Sin BPM/auto:
-      // en vivo el avance es 100% manual, "espejo" de lo que el líder toque.
-      liveSync.onUpdate({ liderId: liveSync.deviceId, songItemId: liveSync.itemId, sectionIdx: currentSectionIdx, heartbeat: new Date().toISOString() });
-      return;
-    }
-    if (isLeaderMe) return; // ya soy el líder — no hay on/off que alternar, solo se avanza con ‹›/pills
-    // Fuera de vivo: comportamiento clásico (auto-avance por BPM/compases).
+    if (!porMiCuenta) return; // quien dirige o sigue no usa auto-avance: todo va a mano, en espejo
     const next = !autoMode;
     setAutoMode(next);
     broadcastMusico({ autoMode: next });
   };
+  // Unirse a quien dirige: desde ahora este dispositivo refleja su canción y su sección.
+  const unirme = () => {
+    setAutoMode(false);
+    liveSync.setUnido(true);
+    if (liveSync.state?.songItemId && liveSync.state.songItemId !== liveSync.itemId) liveSync.onFollowItem(liveSync.state.songItemId);
+    else setCurrentSectionIdx(liveSync.state?.sectionIdx || 0);
+  };
+  const irAMiRitmo = () => liveSync.setUnido(false);
+  // Empezar a dirigir: solo si nadie más está dirigiendo ahora mismo. Los demás NO lo siguen solos,
+  // les aparece "Unirme a <nombre>" y cada uno decide.
+  const dirigir = () => {
+    setAutoMode(false);
+    liveSync.setUnido(false);
+    liveSync.onUpdate({ liderId: liveSync.deviceId, liderNombre: liveSync.myName || null, songItemId: liveSync.itemId, sectionIdx: currentSectionIdx, heartbeat: new Date().toISOString() });
+  };
+  const dejarDeDirigir = () => liveSync.onUpdate({ liderId: null, liderNombre: null, heartbeat: null });
   const handleTap = () => {
-    if (isLive) return; // TAP tempo ya no aplica en vivo — ahí todo es manual/espejo, sin BPM
+    if (!porMiCuenta) return; // quien dirige o sigue va a mano, sin BPM
     const now = Date.now();
     const recent = tapTimesRef.current.filter((t) => now - t < 3000).concat(now).slice(-8);
     tapTimesRef.current = recent;
@@ -3851,11 +3880,11 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
     }
   };
   useEffect(() => {
-    if (!autoMode || !song || isLive) return; // en vivo no hay avance por tiempo — todo es manual (líder) o reflejo (seguidor)
+    if (!autoMode || !song || !porMiCuenta) return; // quien dirige o sigue va a mano; los demás pueden usar su propio auto-avance
     const key = order[currentSectionIdx];
     const block = song.blocks[key];
     if (!block) return;
-    const beatsPerBar = 4;
+    const beatsPerBar = tiemposPorCompas(song.compas);
     const durationMs = Math.max(1500, ((block.bars || 8) * beatsPerBar / liveBpm) * 60000);
     const timer = setTimeout(() => {
       if (currentSectionIdx >= order.length - 1) { setAutoMode(false); broadcastMusico({ autoMode: false }); return; } // se acabó la canción
@@ -3863,7 +3892,7 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
     }, durationMs);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoMode, currentSectionIdx, liveBpm, order, song, isLive]);
+  }, [autoMode, currentSectionIdx, liveBpm, order, song, porMiCuenta]);
   if (!song) return null;
   const scrollTo = (key) => sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
   const canSwipe = onPrev || onNext;
@@ -3969,34 +3998,44 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
 
       <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600, margin: "0 0 4px" }}>{song.title}</h2>
       <div style={{ fontSize: 13, color: "var(--wf-muted)", marginBottom: 16 }}>
-        {song.artist || "Unknown"} · {song.tempo} bpm
+        {song.artist || "Unknown"} · {song.tempo} bpm{song.compas ? ` · ${song.compas}` : ""}
         {positionLabel && <span style={{ marginLeft: 8, fontWeight: 700, color: "var(--wf-brand-accent)" }}>· {positionLabel} en el setlist</span>}
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, background: (autoMode || isLeaderMe) ? "var(--wf-active-bg)" : "var(--wf-bg)", border: `1px solid ${(autoMode || isLeaderMe) ? "var(--wf-brand-accent)" : "var(--wf-divider)"}`, borderRadius: 16, padding: "8px 10px", marginBottom: 16, flexWrap: "wrap" }}>
-        {isFollowingNow ? (
-          // Seguidor: la sección la decide el líder — acá solo se avisa que se está siguiendo, en vez de
-          // un botón que de todos modos no haría nada.
-          <span style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-brand-accent)", color: "var(--wf-text)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>
-            <Radio size={13} /> Siguiendo al líder
-          </span>
-        ) : isLeaderMe ? (
-          // Líder en vivo: no hay on/off que alternar — se avanza a mano con ‹›/pills, cada toque se
-          // refleja al instante en todos los seguidores (espejo, sin BPM/compases de por medio).
-          <span style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-brand-accent)", color: "var(--wf-text)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>
-            <Radio size={13} /> Eres el líder
-          </span>
-        ) : wasFollowingStaleLeader ? (
-          // El líder que estaba siguiendo se quedó sin heartbeat — en vez del botón normal de "Modo
-          // Músico" (que invitaría a tomar el mando por error, ej. si alguien lo toca sin saber qué es),
-          // avisa claramente que está en pausa. Nadie se mueve solo; si el líder vuelve, sigue igual.
-          <span style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", color: "var(--wf-muted)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}>
-            <Pause size={13} /> Pausado — el líder se desconectó
-          </span>
+        {/* En vivo, Modo Músico es voluntario: alguien dirige, y cada músico decide si se une o va a su
+            propio ritmo. Fuera de vivo, "Ensayar juntos" hace lo mismo sin un líder fijo. */}
+        {isLeaderMe ? (
+          <>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}><Radio size={13} /> Estás dirigiendo</span>
+            <button onClick={dejarDeDirigir} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-card)", color: "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Dejar de dirigir</button>
+          </>
+        ) : siguiendo ? (
+          <>
+            {wasFollowingStaleLeader ? (
+              <span style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", color: "var(--wf-muted)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}><Pause size={13} /> Pausado: {nombreLider} se desconectó</span>
+            ) : (
+              <span style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}><Radio size={13} /> Siguiendo a {nombreLider}</span>
+            )}
+            <button onClick={irAMiRitmo} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-card)", color: "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Ir a mi ritmo</button>
+          </>
         ) : (
-          <button onClick={toggleAutoMode} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: autoMode ? "var(--wf-brand-accent)" : "var(--wf-card)", color: autoMode ? "var(--wf-brand-primary)" : "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-            {autoMode ? <><Radio size={13} /> Modo Músico: ON</> : <><Play size={13} /> Modo Músico</>}
-          </button>
+          <>
+            {isLive && otherLeaderFresh && (
+              <button onClick={unirme} className="hoverable" style={{ ...{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-card)", color: "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", border: "none" }}><Users size={13} /> Unirme a {nombreLider}</button>
+            )}
+            {isLive && !otherLeaderFresh && (
+              <button onClick={dirigir} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-card)", color: "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}><Radio size={13} /> Dirigir a los músicos</button>
+            )}
+            <button onClick={toggleAutoMode} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: autoMode ? "var(--wf-brand-accent)" : "var(--wf-card)", color: autoMode ? "var(--wf-on-brand-accent)" : "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              {autoMode ? <><Pause size={13} /> Auto-avance: ON</> : <><Play size={13} /> Auto-avance</>}
+            </button>
+            {!isLive && (
+              <button onClick={() => setEnsayoJuntos(!ensayoJuntos)} title="Comparte sección y tempo con quienes también lo activen en esta canción" className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: ensayoJuntos ? "var(--wf-active-bg)" : "var(--wf-card)", color: "var(--wf-text)", border: `1px solid ${ensayoJuntos ? "var(--wf-brand-accent)" : "var(--wf-border)"}`, borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                <Users size={13} /> {ensayoJuntos ? "Ensayando juntos" : "Ensayar juntos"}
+              </button>
+            )}
+          </>
         )}
         <button onClick={() => goToSectionIdx(currentSectionIdx - 1)} disabled={currentSectionIdx === 0} style={{ ...iconGhost, opacity: currentSectionIdx === 0 ? 0.4 : 1 }}><ChevronLeft size={16} /></button>
         <button onClick={() => goToSectionIdx(currentSectionIdx + 1)} disabled={currentSectionIdx >= order.length - 1} style={{ ...iconGhost, opacity: currentSectionIdx >= order.length - 1 ? 0.4 : 1 }}><ChevronRight size={16} /></button>
@@ -4006,10 +4045,10 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
             seguir visible cuando el líder ya está "leaderStale" (no solo isFollowingNow, que exige
             frescura) — si no, este botón desaparecía justo cuando más hacía falta: apenas el líder se
             pone viejo/caído es cuando alguien necesita poder reiniciar, no antes. */}
-        {isLive && (isLeaderMe || isFollowingNow || leaderStale) && (
+        {isLive && (isLeaderMe || siguiendo || leaderStale) && (
           <button
             onClick={async () => {
-              if (!(await confirmDialog("¿Reiniciar Modo Músico? Nadie va a quedar de líder — el próximo que toque \"Modo Músico\" toma el mando.", { textoConfirmar: "Reiniciar" }))) return;
+              if (!(await confirmDialog("¿Reiniciar Modo Músico? Nadie va a quedar dirigiendo, y cualquiera podrá tocar \"Dirigir a los músicos\".", { textoConfirmar: "Reiniciar" }))) return;
               clearMusicoLive(iglesiaId).catch((e) => notifyError("No se pudo reiniciar Modo Músico", e));
             }}
             title="El líder se quedó pegado (perdió conexión, cerró la app) — esto reinicia Modo Músico para todos"
@@ -4020,7 +4059,7 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
         )}
         {/* TAP tempo y el bpm ya no aplican en vivo — ahí no hay compases/BPM, solo el líder avanzando a
             mano y todos reflejándolo. */}
-        {!isLive && (
+        {porMiCuenta && (
           <>
             <button onClick={handleTap} className="hoverable" style={{ background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 12px", fontSize: 12, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer" }}>TAP</button>
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-muted)" }}>{liveBpm} bpm</span>
@@ -4101,13 +4140,6 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
           </button>
         </div>
       )}
-      {/* TEMPORAL — diagnóstico del bug "el seguidor no cambia de canción con el líder": se quita apenas
-          esté resuelto. Muestra en pantalla lo que este dispositivo tiene guardado de musico_en_vivo. */}
-      {isLive && (
-        <div style={{ marginTop: 16, padding: 8, background: "var(--wf-bg)", borderRadius: 12, fontSize: 9, color: "var(--wf-faint)", fontFamily: "monospace", wordBreak: "break-all" }}>
-          DEBUG rol={isLeaderMe ? "líder" : isFollowingNow ? "seguidor" : otherLeaderFresh ? "seguidor(canción distinta)" : "sin rol"} · miItem={liveSync?.itemId} · liderId={liveSync?.state?.liderId || "ninguno"} · liderCancion={liveSync?.state?.songItemId || "—"} · heartbeat={liveSync?.state?.heartbeat || "—"}
-        </div>
-      )}
     </div>
   );
 }
@@ -4116,8 +4148,24 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
 // se muestra sin numerar hasta que se marca la primera; a partir de ahí cada tipo va "creciendo" de a
 // una repetición por vez (marcar Estrofa 1 revela Estrofa 2, marcar esa revela Estrofa 3...), en vez de
 // mostrar de entrada un número fijo de repeticiones que probablemente no coincida con la canción real.
-function AddSectionsModal({ onClose, onAdd }) {
+// Cuántas secciones de cada tipo ya tiene la canción (el número más alto: V1, V2, V3 → 3; "C" sin
+// número cuenta como 1). Así "Añadir" arranca en la que sigue (Estrofa 4) en vez de repetir Estrofa 1.
+function ultimoNumeroPorTipo(blocks) {
+  const max = {};
+  Object.values(blocks || {}).forEach((b) => {
+    const m = String(b.badge || "").match(/^([A-Z]+)(\d*)$/);
+    if (!m) return;
+    const tipo = SECTION_TYPES.find((t) => t.prefix === m[1]);
+    if (!tipo) return;
+    const n = m[2] ? parseInt(m[2], 10) : 1;
+    max[tipo.id] = Math.max(max[tipo.id] || 0, n);
+  });
+  return max;
+}
+
+function AddSectionsModal({ existingBlocks, onClose, onAdd }) {
   const [query, setQuery] = useState("");
+  const yaTiene = useMemo(() => ultimoNumeroPorTipo(existingBlocks), [existingBlocks]);
   const [checkedCounts, setCheckedCounts] = useState({}); // { [typeId]: cuántas repeticiones están marcadas }
   const toggleInstance = (typeId, n) => {
     setCheckedCounts((c) => {
@@ -4139,7 +4187,8 @@ function AddSectionsModal({ onClose, onAdd }) {
     const toAdd = [];
     SECTION_TYPES.forEach((t) => {
       const count = checkedCounts[t.id] || 0;
-      for (let n = 1; n <= count; n++) toAdd.push({ badge: `${t.prefix}${n}`, label: `${t.label} ${n}` });
+      const base = yaTiene[t.id] || 0;
+      for (let n = base + 1; n <= base + count; n++) toAdd.push({ badge: `${t.prefix}${n}`, label: `${t.label} ${n}` });
     });
     if (toAdd.length === 0) return;
     submittedRef.current = true;
@@ -4156,11 +4205,13 @@ function AddSectionsModal({ onClose, onAdd }) {
         {filteredTypes.map((t) => {
           const count = checkedCounts[t.id] || 0;
           const color = badgeColor(t.prefix);
+          const base = yaTiene[t.id] || 0;
           const revealed = Math.min(count + 1, 12); // tope generoso — ninguna canción real necesita más
           return Array.from({ length: revealed }, (_, i) => {
-            const n = i + 1;
+            const n = i + 1; // posición dentro de lo que se va a agregar
+            const numero = base + n; // número real de la sección (Estrofa 4 si ya hay 3)
             const isChecked = n <= count;
-            const showNumber = revealed > 1; // con una sola instancia a la vista, se ve "Estrofa" pelado
+            const showNumber = base > 0 || revealed > 1; // con una sola instancia a la vista y ninguna previa, se ve "Estrofa" pelado
             return (
               <button
                 key={`${t.id}-${n}`}
@@ -4169,9 +4220,9 @@ function AddSectionsModal({ onClose, onAdd }) {
                 style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: isChecked ? `${color}18` : "var(--wf-card)", border: isChecked ? `1.5px solid ${color}` : "1px solid var(--wf-divider)", borderRadius: 14, padding: "10px 12px", cursor: "pointer" }}
               >
                 <span style={{ width: 26, height: 26, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  {showNumber ? `${t.prefix}${n}` : t.prefix}
+                  {showNumber ? `${t.prefix}${numero}` : t.prefix}
                 </span>
-                <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--wf-text)" }}>{showNumber ? `${t.label} ${n}` : t.label}</span>
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--wf-text)" }}>{showNumber ? `${t.label} ${numero}` : t.label}</span>
                 {isChecked ? <Check size={16} color={color} /> : <span style={{ width: 16, height: 16, borderRadius: "50%", border: "1.5px solid var(--wf-border)" }} />}
               </button>
             );
@@ -4371,6 +4422,14 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
         <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 480 }}>
           <Field label="Título" required><input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Introduce un título" style={inputStyle} /></Field>
           <Field label="Tempo"><input value={draft.tempo} onChange={(e) => setDraft({ ...draft, tempo: e.target.value })} placeholder="Introduce el tempo" style={inputStyle} /></Field>
+          <Field label="Compás">
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {COMPASES.map((c) => (
+                <button key={c} type="button" onClick={() => setDraft({ ...draft, compas: draft.compas === c ? "" : c })} style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: "none", background: draft.compas === c ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: draft.compas === c ? "var(--wf-on-brand-accent)" : "var(--wf-text)", cursor: "pointer", fontFamily: "'JetBrains Mono', monospace" }}>{c}</button>
+              ))}
+            </div>
+            <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Opcional. Toca el elegido otra vez para quitarlo.</span>
+          </Field>
           <Field label="Tonalidad" required>
             {canEditKey ? (
               <select value={draft.key} onChange={(e) => setDraft({ ...draft, key: e.target.value })} style={inputStyle}>
@@ -4546,7 +4605,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
           </div>
         </div>
       )}
-      {showAddSections && <AddSectionsModal onClose={() => setShowAddSections(false)} onAdd={addSections} />}
+      {showAddSections && <AddSectionsModal existingBlocks={draft.blocks} onClose={() => setShowAddSections(false)} onAdd={addSections} />}
     </div>
   );
 }

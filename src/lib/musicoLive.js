@@ -44,7 +44,7 @@ export function updateMusicoLive(iglesiaId, patch) {
 }
 
 export function clearMusicoLive(iglesiaId) {
-  return updateMusicoLive(iglesiaId, { lider_id: null, song_item_id: null, section_idx: null, bpm: null, auto: null, heartbeat: null });
+  return updateMusicoLive(iglesiaId, { lider_id: null, lider_nombre: null, song_item_id: null, section_idx: null, bpm: null, auto: null, heartbeat: null });
 }
 
 export function subscribeMusicoLive(iglesiaId, onChange) {
