@@ -41,9 +41,21 @@ async function enviarPush(
   }
 }
 
-async function notificar(admin: ReturnType<typeof createClient>, usuarioId: string, tipo: string, titulo: string, cuerpo: string, eventoId: string | null) {
-  await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo, titulo, cuerpo, evento_id: eventoId });
+// iglesia_id explícito: esta función usa la service role (sin auth.uid()), así que el default de la
+// columna (mi_iglesia_id()) caería siempre en la iglesia más antigua.
+async function notificar(admin: ReturnType<typeof createClient>, iglesiaId: string, usuarioId: string, tipo: string, titulo: string, cuerpo: string, eventoId: string | null) {
+  await admin.from("notificaciones").insert({ iglesia_id: iglesiaId, usuario_id: usuarioId, tipo, titulo, cuerpo, evento_id: eventoId });
   await enviarPush(admin, usuarioId, { title: titulo, body: cuerpo });
+}
+
+// Multi-iglesia: esta función corre con la service role, que se salta la RLS — así que TODO lo que
+// toque tiene que comprobarse a mano contra la iglesia de quien la llama. Antes no se hacía: el
+// administrador de cualquier iglesia veía usuarios/canciones/eventos de todas, y podía editar o borrar
+// eventos ajenos por su id.
+async function verificarIglesia(admin: ReturnType<typeof createClient>, tabla: string, id: string | undefined, igl: string, que: string) {
+  if (!id) throw new Error(`Falta el id de ${que}.`);
+  const { data } = await admin.from(tabla).select("iglesia_id").eq("id", id).maybeSingle();
+  if (!data || data.iglesia_id !== igl) throw new Error(`${que} no existe en tu iglesia (${id}).`);
 }
 
 // Contexto de los últimos cultos ya creados — CON sus ids reales (evento/ítem/miembro_rol/rol/
@@ -51,10 +63,21 @@ async function notificar(admin: ReturnType<typeof createClient>, usuarioId: stri
 // ids para poder reconocer el patrón semanal y replicarlo al crear eventos nuevos. Antes esto solo
 // traía nombres/títulos (sin ids), así que el asistente no tenía forma de referirse a algo que ya
 // existía — solo podía crear cosas nuevas.
-async function contextoEventos(admin: ReturnType<typeof createClient>): Promise<string> {
+async function contextoPlantillas(admin: ReturnType<typeof createClient>, igl: string): Promise<string> {
+  const { data: plantillas } = await admin.from("eventos").select("id, titulo").eq("iglesia_id", igl).eq("es_plantilla", true).order("titulo");
+  if (!plantillas?.length) return "(esta iglesia no tiene plantillas)";
+  const ids = plantillas.map((p: { id: string }) => p.id);
+  const { data: items } = await admin.from("items_servicio").select("evento_id, tipo, titulo, orden").in("evento_id", ids).order("orden");
+  return plantillas.map((p: { id: string; titulo: string }) => {
+    const bloques = (items ?? []).filter((i: { evento_id: string; tipo: string }) => i.evento_id === p.id && i.tipo === "bloque").map((i: { titulo: string }) => i.titulo).join(", ");
+    return `- [plantilla evento_id: ${p.id}] "${p.titulo}" — bloques: ${bloques || "(sin bloques)"}`;
+  }).join("\n");
+}
+
+async function contextoEventos(admin: ReturnType<typeof createClient>, igl: string): Promise<string> {
   const { data: eventos } = await admin
     .from("eventos").select("id, titulo, fecha, hora")
-    .eq("es_plantilla", false).order("fecha", { ascending: false }).limit(12);
+    .eq("iglesia_id", igl).eq("es_plantilla", false).order("fecha", { ascending: false }).limit(12);
   if (!eventos?.length) return "(todavía no hay eventos anteriores creados en la app)";
 
   const eventoIds = eventos.map((e: { id: string }) => e.id);
@@ -220,6 +243,7 @@ async function llamarClaude(
   canciones: { id: string; titulo: string; artista: string | null }[],
   reglas: string,
   contexto: string,
+  plantillas: string,
   imagen: { mediaType: string; data: string } | null,
 ) {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
@@ -250,7 +274,11 @@ async function llamarClaude(
     "dile al administrador en el resumen que es la primera parte y que puede pedirte \"continúa con el " +
     "resto\" para la siguiente tanda. Una respuesta con demasiadas acciones a la vez se corta a la mitad y " +
     "el plan entero se pierde — mejor repartido en varias tandas chicas y confiables que uno grande que " +
-    "falla. Y SIEMPRE que el plan incluya borrar algo, dilo explícito y de entrada en el resumen — un " +
+    "falla. PLANTILLAS: si la iglesia tiene una plantilla para el tipo de culto que te piden (ver la lista " +
+    "de plantillas), crea el evento con duplicar_evento usando el evento_id de esa plantilla como origen — " +
+    "así copia los bloques con su ministerio vinculado, el equipo de alabanza y los recordatorios. Después " +
+    "ajusta lo que cambie con acciones de editar/asignar. Usa crear_evento solo si no hay una plantilla que " +
+    "sirva. Y SIEMPRE que el plan incluya borrar algo, dilo explícito y de entrada en el resumen — un " +
     "borrado es irreversible, el administrador tiene que verlo venir claro antes de confirmar.\n\n" +
     (reglas.trim()
       ? `Reglas y excepciones fijas que estableció el administrador — SIEMPRE aplícalas sin que te las repita, incluso si la conversación no las menciona:\n${reglas.trim()}\n\n`
@@ -259,6 +287,7 @@ async function llamarClaude(
     `Canciones reales en el cancionero (usa SIEMPRE estos cancion_id exactos):\n${listaCanciones || "(no hay canciones cargadas)"}`;
 
   const systemVolatil =
+    `\n\nPlantillas de esta iglesia (para duplicar_evento):\n${plantillas}` +
     `\n\nEventos ya existentes en la app, con sus ids reales de evento/ítem/asignación/recordatorio (úsalos para editar/borrar/duplicar con precisión, y para reconocer el patrón semanal al crear eventos nuevos):\n${contexto}` +
     (imagen
       ? "\n\nEl administrador adjuntó una imagen en su último mensaje (ej. una foto de una lista de canciones escrita a mano, una nota, una captura). Léela y úsala como contexto — si es una lista de títulos de canciones, búscalos en el cancionero real de arriba por nombre (aunque estén mal escritos o abreviados) y usa su cancion_id real; si algún título no se parece a ninguna canción real, dilo en vez de inventar un id."
@@ -327,13 +356,14 @@ async function llamarClaude(
   return respuesta;
 }
 
-async function crearItemsSetlist(admin: ReturnType<typeof createClient>, eventoId: string, itemsPlan: Accion[]): Promise<string[]> {
+async function crearItemsSetlist(admin: ReturnType<typeof createClient>, igl: string, eventoId: string, itemsPlan: Accion[]): Promise<string[]> {
   const itemIds: string[] = [];
   for (let i = 0; i < itemsPlan.length; i++) {
     const it = itemsPlan[i];
     const id = crypto.randomUUID();
-    const base = { id, evento_id: eventoId, orden: i, estructura: [], fondo_tipo: "color", es_punto_bosquejo: false };
+    const base = { id, iglesia_id: igl, evento_id: eventoId, orden: i, estructura: [], fondo_tipo: "color", es_punto_bosquejo: false };
     let fila;
+    if (it.tipo === "cancion") await verificarIglesia(admin, "canciones", it.cancion_id, igl, "La canción");
     if (it.tipo === "cancion") fila = { ...base, tipo: "cancion", cancion_id: it.cancion_id, tonalidad_override: null };
     else if (it.tipo === "biblia") fila = { ...base, tipo: "biblia", referencia: it.referencia_biblia || "", version_biblia: "RVR1960", texto_biblia: it.texto_biblia || "" };
     else if (it.tipo === "slide") fila = { ...base, tipo: "slide", titulo: it.titulo || "", subtitulo: "", fondo_color: "#1B2029", fondo_video_url: null, fondo_imagen_url: null };
@@ -350,7 +380,13 @@ async function crearItemsSetlist(admin: ReturnType<typeof createClient>, eventoI
 // se le mandó al administrador, en vez de tenerlo esperando con la conexión abierta hasta que
 // termine. Por eso lanza errores (throw) en vez de responder con json() directo — quien la llama
 // decide qué hacer con el resultado (acá: mandar una notificación de éxito o de falla).
-async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId: string, acciones: Accion[]) {
+async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId: string, igl: string, acciones: Accion[]) {
+  // Persona asignada: tiene que ser de esta misma iglesia.
+  const usuarioDeMiIglesia = async (usuarioId: string) => {
+    const { data } = await admin.from("usuarios").select("id, nombre, iglesia_id").eq("id", usuarioId).maybeSingle();
+    if (!data || data.iglesia_id !== igl) throw new Error(`usuario_id inválido o de otra iglesia: ${usuarioId}`);
+    return data;
+  };
   const notificadosTotal: string[] = [];
   const avisos: string[] = [];
   const eventosCreadosOTocados = new Set<string>();
@@ -360,25 +396,24 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
     if (a.tipo === "crear_evento") {
       if (!a.titulo || !a.fecha) throw new Error("Un evento del plan no trae título o fecha.");
       const eventoId = crypto.randomUUID();
-      const { error: eErr } = await admin.from("eventos").insert({ id: eventoId, titulo: a.titulo, fecha: a.fecha, hora: a.hora || null, ubicacion: a.ubicacion || null, creado_por: callerId, es_plantilla: false });
+      const { error: eErr } = await admin.from("eventos").insert({ iglesia_id: igl, id: eventoId, titulo: a.titulo, fecha: a.fecha, hora: a.hora || null, ubicacion: a.ubicacion || null, creado_por: callerId, es_plantilla: false });
       if (eErr) throw new Error(`No se pudo crear el evento "${a.titulo}": ${eErr.message}`);
 
       const itemsPlan = Array.isArray(a.items_setlist) ? a.items_setlist : [];
-      const itemIds = await crearItemsSetlist(admin, eventoId, itemsPlan);
+      const itemIds = await crearItemsSetlist(admin, igl, eventoId, itemsPlan);
 
       const asignacionesPlan = Array.isArray(a.asignaciones) ? a.asignaciones : [];
       const rolesCreados = new Map<string, string>();
       let ordenRol = 0;
       for (const asig of asignacionesPlan) {
-        const { data: usuarioRow } = await admin.from("usuarios").select("id, nombre").eq("id", asig.usuario_id).single();
-        if (!usuarioRow) throw new Error(`usuario_id inválido en una asignación de "${a.titulo}": ${asig.usuario_id}`);
+        const usuarioRow = await usuarioDeMiIglesia(asig.usuario_id);
         let labelAsignacion = "un encargo";
         if (asig.destino === "item_setlist") {
           const itemServicioId = itemIds[asig.item_setlist_indice];
           if (!itemServicioId) throw new Error(`Índice de ítem de setlist inválido en una asignación de "${a.titulo}".`);
           const itemPlan = itemsPlan[asig.item_setlist_indice];
           labelAsignacion = itemPlan?.titulo || (itemPlan?.tipo === "cancion" ? "una canción" : itemPlan?.tipo) || "un ítem del setlist";
-          const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), item_servicio_id: itemServicioId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
+          const { error } = await admin.from("miembros_rol").insert({ iglesia_id: igl, id: crypto.randomUUID(), item_servicio_id: itemServicioId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
           if (error) throw new Error(`No se pudo asignar a ${usuarioRow.nombre}: ${error.message}`);
         } else {
           const nombreRol = asig.rol_alabanza_nombre || "Equipo de alabanza";
@@ -386,20 +421,20 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
           let rolId = rolesCreados.get(nombreRol.toLowerCase());
           if (!rolId) {
             rolId = crypto.randomUUID();
-            const { error } = await admin.from("roles_evento").insert({ id: rolId, evento_id: eventoId, nombre: nombreRol, orden: ordenRol++ });
+            const { error } = await admin.from("roles_evento").insert({ iglesia_id: igl, id: rolId, evento_id: eventoId, nombre: nombreRol, orden: ordenRol++ });
             if (error) throw new Error(`No se pudo crear el rol ${nombreRol}: ${error.message}`);
             rolesCreados.set(nombreRol.toLowerCase(), rolId);
           }
-          const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), rol_id: rolId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
+          const { error } = await admin.from("miembros_rol").insert({ iglesia_id: igl, id: crypto.randomUUID(), rol_id: rolId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
           if (error) throw new Error(`No se pudo asignar a ${usuarioRow.nombre}: ${error.message}`);
         }
-        await notificar(admin, usuarioRow.id, "asignacion", "Se te ha asignado", `Para "${labelAsignacion}" en "${a.titulo}".`, eventoId);
+        await notificar(admin, igl, usuarioRow.id, "asignacion", "Se te ha asignado", `Para "${labelAsignacion}" en "${a.titulo}".`, eventoId);
         notificadosTotal.push(usuarioRow.nombre);
       }
 
       const recordatoriosPlan = Array.isArray(a.recordatorios) ? a.recordatorios : [];
       for (const r of recordatoriosPlan) {
-        const { error } = await admin.from("recordatorios_evento").insert({ id: crypto.randomUUID(), evento_id: eventoId, cantidad: r.cantidad, unidad: r.unidad, enviado: false });
+        const { error } = await admin.from("recordatorios_evento").insert({ iglesia_id: igl, id: crypto.randomUUID(), evento_id: eventoId, cantidad: r.cantidad, unidad: r.unidad, enviado: false });
         if (error) throw new Error(`No se pudo agregar un recordatorio a "${a.titulo}": ${error.message}`);
       }
 
@@ -410,6 +445,7 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
 
     if (a.tipo === "editar_evento") {
       if (!a.evento_id) throw new Error("Falta evento_id en una acción editar_evento.");
+      await verificarIglesia(admin, "eventos", a.evento_id, igl, "El evento");
       const patch: Record<string, unknown> = {};
       if (a.titulo) patch.titulo = a.titulo;
       if (a.fecha) patch.fecha = a.fecha;
@@ -424,6 +460,7 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
 
     if (a.tipo === "eliminar_evento") {
       if (!a.evento_id) throw new Error("Falta evento_id en una acción eliminar_evento.");
+      await verificarIglesia(admin, "eventos", a.evento_id, igl, "El evento");
       const { error } = await admin.from("eventos").delete().eq("id", a.evento_id);
       if (error) throw new Error(`No se pudo eliminar el evento: ${error.message}`);
       totalAcciones++;
@@ -432,8 +469,9 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
 
     if (a.tipo === "duplicar_evento") {
       if (!a.evento_id || !a.titulo || !a.fecha) throw new Error("Falta evento_id (origen), título o fecha en una acción duplicar_evento.");
+      await verificarIglesia(admin, "eventos", a.evento_id, igl, "El evento o plantilla de origen");
       const nuevoEventoId = crypto.randomUUID();
-      const { error: eErr } = await admin.from("eventos").insert({ id: nuevoEventoId, titulo: a.titulo, fecha: a.fecha, hora: a.hora || null, ubicacion: a.ubicacion || null, creado_por: callerId, es_plantilla: false });
+      const { error: eErr } = await admin.from("eventos").insert({ iglesia_id: igl, id: nuevoEventoId, titulo: a.titulo, fecha: a.fecha, hora: a.hora || null, ubicacion: a.ubicacion || null, creado_por: callerId, es_plantilla: false });
       if (eErr) throw new Error(`No se pudo crear el evento duplicado: ${eErr.message}`);
 
       const { data: itemsOrigen } = await admin.from("items_servicio").select("*").eq("evento_id", a.evento_id).order("orden");
@@ -442,14 +480,14 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
         const nuevoId = crypto.randomUUID();
         mapaItemIds.set(it.id, nuevoId);
         const { id: _id, evento_id: _e, created_at: _c, ...resto } = it as Record<string, unknown>;
-        const { error } = await admin.from("items_servicio").insert({ ...resto, id: nuevoId, evento_id: nuevoEventoId });
+        const { error } = await admin.from("items_servicio").insert({ ...resto, iglesia_id: igl, id: nuevoId, evento_id: nuevoEventoId });
         if (error) throw new Error(`No se pudo clonar un ítem del setlist: ${error.message}`);
       }
       if (mapaItemIds.size) {
         const { data: encargadosOrigen } = await admin.from("miembros_rol").select("*").in("item_servicio_id", [...mapaItemIds.keys()]);
         for (const m of encargadosOrigen ?? []) {
           const { id: _id, item_servicio_id, ...resto } = m as Record<string, unknown>;
-          const { error } = await admin.from("miembros_rol").insert({ ...resto, id: crypto.randomUUID(), item_servicio_id: mapaItemIds.get(item_servicio_id as string), estado: "pendiente" });
+          const { error } = await admin.from("miembros_rol").insert({ ...resto, iglesia_id: igl, id: crypto.randomUUID(), item_servicio_id: mapaItemIds.get(item_servicio_id as string), estado: "pendiente" });
           if (error) throw new Error(`No se pudo clonar un encargado: ${error.message}`);
         }
       }
@@ -459,16 +497,23 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
         const nuevoId = crypto.randomUUID();
         mapaRolIds.set(r.id, nuevoId);
         const { id: _id, evento_id: _e, ...resto } = r as Record<string, unknown>;
-        const { error } = await admin.from("roles_evento").insert({ ...resto, id: nuevoId, evento_id: nuevoEventoId });
+        const { error } = await admin.from("roles_evento").insert({ ...resto, iglesia_id: igl, id: nuevoId, evento_id: nuevoEventoId });
         if (error) throw new Error(`No se pudo clonar un rol de alabanza: ${error.message}`);
       }
       if (mapaRolIds.size) {
         const { data: miembrosOrigen } = await admin.from("miembros_rol").select("*").in("rol_id", [...mapaRolIds.keys()]);
         for (const m of miembrosOrigen ?? []) {
           const { id: _id, rol_id, ...resto } = m as Record<string, unknown>;
-          const { error } = await admin.from("miembros_rol").insert({ ...resto, id: crypto.randomUUID(), rol_id: mapaRolIds.get(rol_id as string), estado: "pendiente" });
+          const { error } = await admin.from("miembros_rol").insert({ ...resto, iglesia_id: igl, id: crypto.randomUUID(), rol_id: mapaRolIds.get(rol_id as string), estado: "pendiente" });
           if (error) throw new Error(`No se pudo clonar un miembro del equipo: ${error.message}`);
         }
+      }
+      // Recordatorios de la plantilla/evento de origen: antes no se copiaban, y el evento nuevo quedaba
+      // sin ningún aviso. Arrancan como no enviados (es un evento nuevo).
+      const { data: recOrigen } = await admin.from("recordatorios_evento").select("cantidad, unidad").eq("evento_id", a.evento_id);
+      for (const r of recOrigen ?? []) {
+        const { error } = await admin.from("recordatorios_evento").insert({ iglesia_id: igl, id: crypto.randomUUID(), evento_id: nuevoEventoId, cantidad: r.cantidad, unidad: r.unidad, enviado: false });
+        if (error) throw new Error(`No se pudo copiar un recordatorio: ${error.message}`);
       }
       eventosCreadosOTocados.add(nuevoEventoId);
       totalAcciones++;
@@ -477,9 +522,11 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
 
     if (a.tipo === "agregar_item_setlist") {
       if (!a.evento_id || !a.item_tipo) throw new Error("Falta evento_id o item_tipo en una acción agregar_item_setlist.");
+      await verificarIglesia(admin, "eventos", a.evento_id, igl, "El evento");
+      if (a.item_tipo === "cancion") await verificarIglesia(admin, "canciones", a.item_cancion_id, igl, "La canción");
       const { count } = await admin.from("items_servicio").select("id", { count: "exact", head: true }).eq("evento_id", a.evento_id);
       const id = crypto.randomUUID();
-      const base = { id, evento_id: a.evento_id, orden: count ?? 0, estructura: [], fondo_tipo: "color", es_punto_bosquejo: false };
+      const base = { id, iglesia_id: igl, evento_id: a.evento_id, orden: count ?? 0, estructura: [], fondo_tipo: "color", es_punto_bosquejo: false };
       let fila;
       if (a.item_tipo === "cancion") fila = { ...base, tipo: "cancion", cancion_id: a.item_cancion_id, tonalidad_override: null };
       else if (a.item_tipo === "biblia") fila = { ...base, tipo: "biblia", referencia: a.item_referencia_biblia || "", version_biblia: "RVR1960", texto_biblia: a.item_texto_biblia || "" };
@@ -494,6 +541,8 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
 
     if (a.tipo === "editar_item_setlist") {
       if (!a.item_id) throw new Error("Falta item_id en una acción editar_item_setlist.");
+      await verificarIglesia(admin, "items_servicio", a.item_id, igl, "El ítem del setlist");
+      if (a.item_cancion_id !== undefined) await verificarIglesia(admin, "canciones", a.item_cancion_id, igl, "La canción");
       const patch: Record<string, unknown> = {};
       if (a.item_titulo !== undefined) patch.titulo = a.item_titulo;
       if (a.item_descripcion !== undefined) patch.descripcion = a.item_descripcion;
@@ -509,6 +558,7 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
 
     if (a.tipo === "eliminar_item_setlist") {
       if (!a.item_id) throw new Error("Falta item_id en una acción eliminar_item_setlist.");
+      await verificarIglesia(admin, "items_servicio", a.item_id, igl, "El ítem del setlist");
       const { error } = await admin.from("items_servicio").delete().eq("id", a.item_id);
       if (error) throw new Error(`No se pudo eliminar el ítem del setlist: ${error.message}`);
       totalAcciones++;
@@ -517,6 +567,7 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
 
     if (a.tipo === "reordenar_setlist") {
       if (!a.evento_id || !Array.isArray(a.item_ids_en_orden)) throw new Error("Falta evento_id o item_ids_en_orden en una acción reordenar_setlist.");
+      await verificarIglesia(admin, "eventos", a.evento_id, igl, "El evento");
       for (let i = 0; i < a.item_ids_en_orden.length; i++) {
         const { error } = await admin.from("items_servicio").update({ orden: i }).eq("id", a.item_ids_en_orden[i]).eq("evento_id", a.evento_id);
         if (error) throw new Error(`No se pudo reordenar el setlist: ${error.message}`);
@@ -528,20 +579,21 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
 
     if (a.tipo === "asignar_persona") {
       if (!a.usuario_id || !a.destino) throw new Error("Falta usuario_id o destino en una acción asignar_persona.");
-      const { data: usuarioRow } = await admin.from("usuarios").select("id, nombre").eq("id", a.usuario_id).single();
-      if (!usuarioRow) throw new Error(`usuario_id inválido en asignar_persona: ${a.usuario_id}`);
+      const usuarioRow = await usuarioDeMiIglesia(a.usuario_id);
       let eventoIdDeEsto: string | null = null;
       let labelAsignacion = "un encargo";
       if (a.destino === "item_setlist") {
         if (!a.destino_item_id) throw new Error("Falta destino_item_id en asignar_persona con destino=item_setlist.");
+        await verificarIglesia(admin, "items_servicio", a.destino_item_id, igl, "El ítem del setlist");
         const { data: itemRow } = await admin.from("items_servicio").select("evento_id, tipo, titulo, canciones(titulo)").eq("id", a.destino_item_id).single();
         if (!itemRow) throw new Error(`destino_item_id inválido en asignar_persona: ${a.destino_item_id}`);
         eventoIdDeEsto = itemRow.evento_id;
         labelAsignacion = itemRow.tipo === "cancion" ? (itemRow.canciones?.titulo || "una canción") : (itemRow.titulo || itemRow.tipo || "un ítem del setlist");
-        const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), item_servicio_id: a.destino_item_id, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
+        const { error } = await admin.from("miembros_rol").insert({ iglesia_id: igl, id: crypto.randomUUID(), item_servicio_id: a.destino_item_id, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
         if (error) throw new Error(`No se pudo asignar a ${usuarioRow.nombre}: ${error.message}`);
       } else {
         if (!a.evento_id) throw new Error("Falta evento_id en asignar_persona con destino=equipo_alabanza.");
+        await verificarIglesia(admin, "eventos", a.evento_id, igl, "El evento");
         eventoIdDeEsto = a.evento_id;
         const nombreRol = a.rol_alabanza_nombre || "Equipo de alabanza";
         labelAsignacion = nombreRol;
@@ -550,14 +602,14 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
         if (!rolId) {
           const { count } = await admin.from("roles_evento").select("id", { count: "exact", head: true }).eq("evento_id", a.evento_id);
           rolId = crypto.randomUUID();
-          const { error } = await admin.from("roles_evento").insert({ id: rolId, evento_id: a.evento_id, nombre: nombreRol, orden: count ?? 0 });
+          const { error } = await admin.from("roles_evento").insert({ iglesia_id: igl, id: rolId, evento_id: a.evento_id, nombre: nombreRol, orden: count ?? 0 });
           if (error) throw new Error(`No se pudo crear el rol ${nombreRol}: ${error.message}`);
         }
-        const { error } = await admin.from("miembros_rol").insert({ id: crypto.randomUUID(), rol_id: rolId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
+        const { error } = await admin.from("miembros_rol").insert({ iglesia_id: igl, id: crypto.randomUUID(), rol_id: rolId, nombre: usuarioRow.nombre, usuario_id: usuarioRow.id, estado: "pendiente", lead: false, orden: 0 });
         if (error) throw new Error(`No se pudo asignar a ${usuarioRow.nombre}: ${error.message}`);
       }
       const { data: eventoRow } = eventoIdDeEsto ? await admin.from("eventos").select("titulo").eq("id", eventoIdDeEsto).single() : { data: null };
-      await notificar(admin, usuarioRow.id, "asignacion", "Se te ha asignado", `Para "${labelAsignacion}" en "${eventoRow?.titulo || "un evento"}".`, eventoIdDeEsto);
+      await notificar(admin, igl, usuarioRow.id, "asignacion", "Se te ha asignado", `Para "${labelAsignacion}" en "${eventoRow?.titulo || "un evento"}".`, eventoIdDeEsto);
       notificadosTotal.push(usuarioRow.nombre);
       if (eventoIdDeEsto) eventosCreadosOTocados.add(eventoIdDeEsto);
       totalAcciones++;
@@ -566,6 +618,7 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
 
     if (a.tipo === "eliminar_asignacion") {
       if (!a.miembro_rol_id) throw new Error("Falta miembro_rol_id en una acción eliminar_asignacion.");
+      await verificarIglesia(admin, "miembros_rol", a.miembro_rol_id, igl, "La asignación");
       const { data: filaVieja } = await admin.from("miembros_rol").select("usuario_id, nombre, item_servicio_id, rol_id").eq("id", a.miembro_rol_id).maybeSingle();
       const { error } = await admin.from("miembros_rol").delete().eq("id", a.miembro_rol_id);
       if (error) throw new Error(`No se pudo quitar la asignación: ${error.message}`);
@@ -579,7 +632,7 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
           const { data: rolRow } = await admin.from("roles_evento").select("evento_id").eq("id", filaVieja.rol_id).maybeSingle();
           eventoId = rolRow?.evento_id ?? null;
         }
-        await notificar(admin, filaVieja.usuario_id, "general", "Te quitaron un encargo", "Ya no tienes ese encargo asignado.", eventoId);
+        await notificar(admin, igl, filaVieja.usuario_id, "general", "Te quitaron un encargo", "Ya no tienes ese encargo asignado.", eventoId);
       }
       totalAcciones++;
       continue;
@@ -587,7 +640,8 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
 
     if (a.tipo === "agregar_recordatorio") {
       if (!a.evento_id || !a.cantidad || !a.unidad) throw new Error("Falta evento_id, cantidad o unidad en una acción agregar_recordatorio.");
-      const { error } = await admin.from("recordatorios_evento").insert({ id: crypto.randomUUID(), evento_id: a.evento_id, cantidad: a.cantidad, unidad: a.unidad, enviado: false });
+      await verificarIglesia(admin, "eventos", a.evento_id, igl, "El evento");
+      const { error } = await admin.from("recordatorios_evento").insert({ iglesia_id: igl, id: crypto.randomUUID(), evento_id: a.evento_id, cantidad: a.cantidad, unidad: a.unidad, enviado: false });
       if (error) throw new Error(`No se pudo agregar el recordatorio: ${error.message}`);
       eventosCreadosOTocados.add(a.evento_id);
       totalAcciones++;
@@ -596,6 +650,7 @@ async function ejecutarAcciones(admin: ReturnType<typeof createClient>, callerId
 
     if (a.tipo === "eliminar_recordatorio") {
       if (!a.recordatorio_id) throw new Error("Falta recordatorio_id en una acción eliminar_recordatorio.");
+      await verificarIglesia(admin, "recordatorios_evento", a.recordatorio_id, igl, "El recordatorio");
       const { error } = await admin.from("recordatorios_evento").delete().eq("id", a.recordatorio_id);
       if (error) throw new Error(`No se pudo eliminar el recordatorio: ${error.message}`);
       totalAcciones++;
@@ -643,23 +698,34 @@ Deno.serve(async (req: Request) => {
     const callerClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
     const { data: { user: caller }, error: callerError } = await callerClient.auth.getUser();
     if (callerError || !caller) return json({ error: "Sesión inválida." }, 401);
-    const { data: callerRow } = await admin.from("usuarios").select("rol").eq("id", caller.id).single();
+    const { data: callerRow } = await admin.from("usuarios").select("rol, iglesia_id").eq("id", caller.id).single();
     if (!callerRow || callerRow.rol !== "admin") {
       return json({ error: "Solo un administrador puede usar el asistente." }, 403);
     }
+    const igl = callerRow.iglesia_id as string;
 
     const body = await req.json();
     const mode = body.mode === "apply" ? "apply" : body.mode === "reglas_get" ? "reglas_get" : body.mode === "reglas_set" ? "reglas_set" : "chat";
 
     // ---- reglas: excepciones fijas que el admin escribe una vez y el asistente siempre respeta,
     // sin depender de ninguna conversación ni de que se le repitan cada vez ----
+    // Reglas por iglesia: la fila vieja "default" ya pertenece a la primera iglesia (su iglesia_id),
+    // las demás iglesias crean la suya con id = su iglesia_id.
+    const leerReglas = async () => {
+      const { data } = await admin.from("asistente_config").select("id, reglas").eq("iglesia_id", igl).order("actualizado_en", { ascending: false }).limit(1).maybeSingle();
+      return data;
+    };
     if (mode === "reglas_get") {
-      const { data } = await admin.from("asistente_config").select("reglas").eq("id", "default").maybeSingle();
+      const data = await leerReglas();
       return json({ reglas: data?.reglas || "" }, 200);
     }
     if (mode === "reglas_set") {
       const reglas = typeof body.reglas === "string" ? body.reglas : "";
-      const { error } = await admin.from("asistente_config").upsert({ id: "default", reglas, actualizado_en: new Date().toISOString(), actualizado_por: caller.id });
+      const existente = await leerReglas();
+      const fila = { reglas, actualizado_en: new Date().toISOString(), actualizado_por: caller.id };
+      const { error } = existente
+        ? await admin.from("asistente_config").update(fila).eq("id", existente.id)
+        : await admin.from("asistente_config").insert({ ...fila, id: igl, iglesia_id: igl });
       if (error) return json({ error: "No se pudieron guardar las reglas: " + error.message }, 400);
       return json({ success: true }, 200);
     }
@@ -676,15 +742,16 @@ Deno.serve(async (req: Request) => {
         return json({ error: "La imagen es muy pesada — intenta con una foto más chica." }, 400);
       }
 
-      const [{ data: usuarios }, { data: canciones }, { data: config }, contexto] = await Promise.all([
-        admin.from("usuarios").select("id, nombre").order("nombre"),
-        admin.from("canciones").select("id, titulo, artista").order("titulo"),
-        admin.from("asistente_config").select("reglas").eq("id", "default").maybeSingle(),
-        contextoEventos(admin),
+      const [{ data: usuarios }, { data: canciones }, config, contexto, plantillas] = await Promise.all([
+        admin.from("usuarios").select("id, nombre").eq("iglesia_id", igl).order("nombre"),
+        admin.from("canciones").select("id, titulo, artista").eq("iglesia_id", igl).order("titulo"),
+        leerReglas(),
+        contextoEventos(admin, igl),
+        contextoPlantillas(admin, igl),
       ]);
 
       const respuesta = await llamarClaude(
-        messages, usuarios ?? [], canciones ?? [], config?.reglas || "", contexto,
+        messages, usuarios ?? [], canciones ?? [], config?.reglas || "", contexto, plantillas,
         imagenBody ? { mediaType: imagenBody.mediaType, data: imagenBody.data } : null,
       );
       const bloques = respuesta.content ?? [];
@@ -706,16 +773,16 @@ Deno.serve(async (req: Request) => {
     if (!acciones.length) return json({ error: "Plan inválido: no trae ninguna acción." }, 400);
 
     const callerId = caller.id;
-    const tarea = ejecutarAcciones(admin, callerId, acciones)
+    const tarea = ejecutarAcciones(admin, callerId, igl, acciones)
       .then(async ({ totalAcciones, notificadosTotal, avisos }) => {
         const partes = [`Se aplicaron ${totalAcciones} acción(es) del plan del Asistente.`];
         if (notificadosTotal.length) partes.push(`Se notificó a: ${notificadosTotal.join(", ")}.`);
         if (avisos.length) partes.push(...avisos);
-        await notificar(admin, callerId, "general", "Tu plan del Asistente ya se aplicó", partes.join(" "), null);
+        await notificar(admin, igl, callerId, "general", "Tu plan del Asistente ya se aplicó", partes.join(" "), null);
       })
       .catch(async (e) => {
         const msg = e instanceof Error ? e.message : String(e);
-        await notificar(admin, callerId, "general", "El plan del Asistente falló", msg, null);
+        await notificar(admin, igl, callerId, "general", "El plan del Asistente falló", msg, null);
       });
 
     // EdgeRuntime.waitUntil (Deno Deploy / Supabase Edge Functions) mantiene la función corriendo

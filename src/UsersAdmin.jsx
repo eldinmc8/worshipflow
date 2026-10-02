@@ -224,7 +224,7 @@ function UserProfile({ user, myEmail, busy, rolesApp, onUpdateField, onChangeRol
   );
 }
 
-export default function UsersAdmin({ myEmail, onExit }) {
+export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -252,7 +252,8 @@ export default function UsersAdmin({ myEmail, onExit }) {
 
   const load = async () => {
     setError("");
-    const { data, error } = await supabase.from("usuarios").select("*").order("created_at", { ascending: true });
+    // Solo los de esta iglesia: un super administrador también puede leer los de otras (Consola general).
+    const { data, error } = await supabase.from("usuarios").select("*").eq("iglesia_id", iglesiaId).order("created_at", { ascending: true });
     if (error) setError(error.message);
     else setRows(data);
   };

@@ -223,7 +223,7 @@ export default function AuthGate() {
   // Inicio en vez de regresar a donde estaba (Ajustes, un evento abierto, etc.). La posición del
   // scroll se guarda al salir y se restaura al volver, por la misma razón.
   const pantallaAdmin = view === "usuarios" && esAdmin ? (
-    <UsersAdmin myEmail={session.user.email} onExit={() => window.history.back()} />
+    <UsersAdmin myEmail={session.user.email} iglesiaId={perfil.iglesia_id} onExit={() => window.history.back()} />
   ) : view === "roles" && esAdmin ? (
     <RolesAdmin onExit={() => window.history.back()} />
   ) : view === "plataforma" && esSuperAdmin ? (

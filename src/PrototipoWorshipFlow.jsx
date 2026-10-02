@@ -12,9 +12,9 @@ import {
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, corregirDiapositivaCancion, agregarDiapositivaCancion } from "./lib/canciones.js";
 import {
-  listEventosCompletos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
+  listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
 } from "./lib/eventos.js";
-import { listMinisteriosCompletos, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos } from "./lib/ministerios.js";
+import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos } from "./lib/ministerios.js";
 import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession } from "./lib/liveSession.js";
 import { getMusicoLive, updateMusicoLive, clearMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
@@ -647,9 +647,18 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // valor ya calculado (no del estado de React, que puede ir un paso atrás), así que siempre es fresco
   // sin importar qué tan rápido se disparen los cambios.
   const eventsRef = useRef([]);
+  // Un arreglo completo (no una función) solo llega cuando la app ADOPTA datos traídos de la base
+  // (carga inicial, refresco en tiempo real, copia sin conexión): ahí se fija la línea base que usan
+  // los guardados por diferencias (ver src/lib/lineaBase.js). Las ediciones locales pasan una función.
   const setEventsSynced = (next) => {
+    if (typeof next !== "function") registrarLineaBaseEventos(next);
     eventsRef.current = typeof next === "function" ? next(eventsRef.current) : next;
     setEvents(eventsRef.current);
+  };
+  // Mismo criterio que setEventsSynced con un arreglo: ministerios traídos de la base fijan su línea base.
+  const adoptarMinisterios = (data) => {
+    registrarLineaBaseMinisterios(data);
+    setMinistries(data);
   };
   const [datosListos, setDatosListos] = useState(false);
   // Red de seguridad si no hay internet al cargar (o se cae justo en ese momento): en vez de dejar la
@@ -666,7 +675,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const cargarTodo = () => Promise.all([
     listCancionesCompletas().then((data) => { setLibrary(data); saveCache("canciones", data); }),
     listEventosCompletos().then((data) => { setEventsSynced(data); saveCache("eventos", data); }),
-    listMinisteriosCompletos().then((data) => { setMinistries(data); saveCache("ministerios", data); }),
+    listMinisteriosCompletos().then((data) => { adoptarMinisterios(data); saveCache("ministerios", data); }),
   ]);
   useEffect(() => {
     cargarTodo()
@@ -677,7 +686,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         if (cachedLibrary || cachedEvents) {
           setLibrary(cachedLibrary || []);
           setEventsSynced(cachedEvents || []);
-          setMinistries(cachedMinistries || []);
+          adoptarMinisterios(cachedMinistries || []);
           setUsingCachedData(true);
         } else {
           notifyError("No se pudieron cargar los datos", e);
@@ -730,7 +739,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     );
     const unsubMinisterios = subscribeTableChanges(
       "rt-ministerios", ["ministerios", "planificacion_ministerio", "recursos_ministerio"],
-      () => listMinisteriosCompletos().then((data) => { if (pendingSavesRef.current === 0) { setMinistries(data); saveCache("ministerios", data); } }).catch(() => {})
+      () => listMinisteriosCompletos().then((data) => { if (pendingSavesRef.current === 0) { adoptarMinisterios(data); saveCache("ministerios", data); } }).catch(() => {}),
+      2500, () => pendingSavesRef.current > 0
     );
     return () => { unsubCanciones(); unsubEventos(); unsubMinisterios(); };
   }, []);
@@ -1203,7 +1213,10 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       nuevo = fn(e);
       return nuevo;
     }));
-    if (nuevo) sincronizarRecordatorios(eventId, nuevo.reminders).catch((e) => notifyError("No se pudo guardar el recordatorio", e));
+    if (nuevo) {
+      pendingSavesRef.current++;
+      sincronizarRecordatorios(eventId, nuevo.reminders).catch((e) => notifyError("No se pudo guardar el recordatorio", e)).finally(() => pendingSavesRef.current--);
+    }
   };
   const addReminder = (eventId, cantidad, unidad) => updateEventReminders(eventId, (e) => ({ ...e, reminders: [...(e.reminders || []), { id: nextId(), cantidad, unidad, enviado: false }] }));
   const removeReminder = (eventId, reminderId) => updateEventReminders(eventId, (e) => ({ ...e, reminders: (e.reminders || []).filter((r) => r.id !== reminderId) }));
@@ -1243,10 +1256,14 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // pantallas. AuthGate SÍ se queda montado siempre que haya sesión, sin importar la vista.
   const [roleOverride, setRoleOverride] = useState(null); // solo un admin lo puede poner (ver Ajustes)
   const [nameOverride, setNameOverride] = useState(null);
-  const [usuariosReales, setUsuariosReales] = useState([]); // lista real de miembros ya registrados (RLS: cualquier autenticado puede leerla)
+  const [usuariosReales, setUsuariosReales] = useState([]); // miembros de ESTA iglesia
+  // Filtro explícito por iglesia: la RLS ya limita a la propia iglesia a casi todos, pero un super
+  // administrador de la plataforma (Consola general) tiene además permiso de ver usuarios de TODAS
+  // las iglesias, y sin este filtro le aparecían mezclados con los suyos en toda la app.
   useEffect(() => {
-    supabase.from("usuarios").select("id, nombre, rol, rol_id, foto_url").order("nombre").then(({ data }) => setUsuariosReales(data || []));
-  }, []);
+    if (!perfil?.iglesia_id) return;
+    supabase.from("usuarios").select("id, nombre, rol, rol_id, foto_url").eq("iglesia_id", perfil.iglesia_id).order("nombre").then(({ data }) => setUsuariosReales(data || []));
+  }, [perfil?.iglesia_id]);
   // ---- Roles configurables (Ajustes → Roles): además de los 5 roles de fábrica (admin/multimedia/
   // musico/miembro/supervisor, chequeados por texto en todo el código de abajo), un administrador
   // puede crear roles nuevos con permisos a la medida — ver src/lib/roles.js. Los permisos de un rol
@@ -1439,15 +1456,24 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       return nuevo;
     }));
     if (!nuevo) return;
-    if (nuevo.plan !== anterior.plan) sincronizarPlan(id, nuevo.plan).catch((e) => notifyError("No se pudo guardar la planificación", e));
-    if (nuevo.resources !== anterior.resources) sincronizarRecursos(id, nuevo.resources).catch((e) => notifyError("No se pudo guardar el recurso", e));
+    // pendingSavesRef: mientras el guardado está en vuelo, el refresco en tiempo real no adopta datos
+    // (ni cambia la línea base que este guardado está usando).
+    if (nuevo.plan !== anterior.plan) {
+      pendingSavesRef.current++;
+      sincronizarPlan(id, nuevo.plan).catch((e) => notifyError("No se pudo guardar la planificación", e)).finally(() => pendingSavesRef.current--);
+    }
+    if (nuevo.resources !== anterior.resources) {
+      pendingSavesRef.current++;
+      sincronizarRecursos(id, nuevo.resources).catch((e) => notifyError("No se pudo guardar el recurso", e)).finally(() => pendingSavesRef.current--);
+    }
   };
   // La planificación se edita como borrador local dentro de MinistryDetail (ver planDraft ahí) y solo
   // llega hasta acá cuando se toca "Guardar planificación" — un solo guardado con todo el arreglo final,
   // no uno por cada tecla, para no chocar con el refresco de sincronizarTableChanges (ver realtime.js).
   const savePlanForMinistry = async (id, plan) => {
     setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, plan } : m)));
-    await sincronizarPlan(id, plan);
+    pendingSavesRef.current++;
+    try { await sincronizarPlan(id, plan); } finally { pendingSavesRef.current--; }
   };
   const addResource = (id, resource) => updateMinistry(id, (m) => ({ ...m, resources: [...m.resources, { id: nextMinistryChildId(), ...resource }] }));
   const removeResource = (id, resourceId) => updateMinistry(id, (m) => ({ ...m, resources: m.resources.filter((r) => r.id !== resourceId) }));
