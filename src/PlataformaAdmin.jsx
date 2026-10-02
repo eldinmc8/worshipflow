@@ -3,6 +3,7 @@ import { ArrowLeft, Shield, Copy, RefreshCw, KeyRound, Power, Radio } from "luci
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { showToast } from "./lib/toast.js";
 import { confirmDialog, promptDialog } from "./lib/confirm.js";
+import { validarPassword } from "./lib/passwordSegura.js";
 
 const cardStyle = { background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: "14px 16px", marginBottom: 10 };
 const ghostBtn = { background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 };
@@ -67,8 +68,10 @@ export default function PlataformaAdmin({ onExit }) {
   };
 
   const resetearPassword = async (usuario) => {
-    const password = await promptDialog(`Nueva contraseña para ${usuario.nombre} (mínimo 6 caracteres):`, { esPassword: true, textoConfirmar: "Guardar" });
+    const password = await promptDialog(`Nueva contraseña para ${usuario.nombre} (mínimo 8 caracteres, con letras y números):`, { esPassword: true, textoConfirmar: "Guardar" });
     if (!password) return;
+    const errPassword = validarPassword(password);
+    if (errPassword) { showToast(errPassword, "error"); return; }
     setBusyId(usuario.iglesia_id);
     try {
       await callUsersFunction("reiniciar-password", { id: usuario.id, password });

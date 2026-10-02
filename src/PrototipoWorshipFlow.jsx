@@ -28,6 +28,8 @@ import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FU
 import { saveCache, loadCache } from "./lib/offlineCache.js";
 import { showToast, notifyError } from "./lib/toast.js";
 import { confirmDialog } from "./lib/confirm.js";
+import { validarPassword } from "./lib/passwordSegura.js";
+import MedidorPassword from "./MedidorPassword.jsx";
 import {
   guardarCapituloOffline, obtenerCapituloOffline, contarCapitulosGuardados,
   borrarVersionOffline, todosLosVersiculosOffline, descargarBibliaCompleta,
@@ -92,6 +94,35 @@ function diatonicChords(keyStr) {
   });
 }
 
+// Todos los acordes útiles de una tonalidad, en grupos, para la barra del editor: una sola fila que
+// se desliza hacia la derecha, en vez de alternar entre "Triadas" y "Con séptima". Además de los
+// diatónicos trae los que más se usan en alabanza: suspendidos, con bajo (inversiones) y prestados.
+function acordesDeTonalidad(keyStr) {
+  const diat = diatonicChords(keyStr);
+  if (diat.length === 0) return [];
+  const isMinor = keyStr.endsWith("m");
+  const rootIdx = NOTES.indexOf(isMinor ? keyStr.slice(0, -1) : keyStr);
+  const n = (iv) => NOTES[(rootIdx + iv) % 12];
+  const grupos = [
+    { titulo: "Triadas", acordes: diat.map((c) => ({ chord: c.chord, grado: c.roman })) },
+    { titulo: "Séptimas", acordes: diat.map((c) => ({ chord: c.chord7, grado: `${c.roman}7` })) },
+  ];
+  if (isMinor) {
+    grupos.push(
+      { titulo: "Suspendidos", acordes: [{ chord: `${n(0)}sus2`, grado: "isus2" }, { chord: `${n(0)}sus4`, grado: "isus4" }, { chord: `${n(7)}sus4`, grado: "Vsus4" }] },
+      { titulo: "Con bajo", acordes: [{ chord: `${n(0)}m/${n(3)}`, grado: "i/3" }, { chord: `${n(8)}/${n(0)}`, grado: "VI/1" }, { chord: `${n(10)}/${n(2)}`, grado: "VII/2" }] },
+      { titulo: "Dominante", acordes: [{ chord: n(7), grado: "V" }, { chord: `${n(7)}7`, grado: "V7" }] },
+    );
+  } else {
+    grupos.push(
+      { titulo: "Suspendidos", acordes: [{ chord: `${n(0)}sus2`, grado: "Isus2" }, { chord: `${n(0)}sus4`, grado: "Isus4" }, { chord: `${n(5)}sus2`, grado: "IVsus2" }, { chord: `${n(7)}sus4`, grado: "Vsus4" }, { chord: `${n(0)}add9`, grado: "Iadd9" }] },
+      { titulo: "Con bajo", acordes: [{ chord: `${n(0)}/${n(4)}`, grado: "I/3" }, { chord: `${n(7)}/${n(11)}`, grado: "V/7" }, { chord: `${n(5)}/${n(9)}`, grado: "IV/6" }, { chord: `${n(9)}m/${n(7)}`, grado: "vi/5" }, { chord: `${n(5)}/${n(7)}`, grado: "IV/5" }] },
+      { titulo: "Prestados", acordes: [{ chord: n(10), grado: "♭VII" }, { chord: n(8), grado: "♭VI" }, { chord: `${n(5)}m`, grado: "iv" }, { chord: n(2), grado: "II" }, { chord: n(4), grado: "III" }] },
+    );
+  }
+  return grupos;
+}
+
 // ---------- Transporte de acordes (tonalidad por evento + ajuste personal del músico) ----------
 const FLAT_TO_SHARP = { Db: "C#", Eb: "D#", Gb: "F#", Ab: "G#", Bb: "A#" };
 function normalizeRoot(root) {
@@ -136,7 +167,14 @@ function songWithKeyOverride(song, overrideKey) {
   return { ...song, key: overrideKey, blocks };
 }
 
-const KEY_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "Dm", "Em", "Fm", "Gm", "Am", "Bm"];
+const KEY_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm"];
+// Tonalidades para cambiar una canción dentro del Setlist: solo las 12 notas. Si la canción original
+// es menor, las 12 salen en menor (Em pasa a Fm, nunca a F), así nunca se cambia sin querer de
+// menor a mayor ni al revés.
+function opcionesTonalidadSetlist(keyOriginal) {
+  const menor = (keyOriginal || "").endsWith("m");
+  return NOTES.map((n) => (menor ? `${n}m` : n));
+}
 
 // ---------- Librería de canciones (estado inicial) ----------
 // Clasificaciones de canción: cada iglesia define las suyas (iglesias.categorias_canciones, editable
@@ -2811,7 +2849,7 @@ function ChangePasswordModal({ onClose }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (password.length < 6) { setError("La contraseña debe tener al menos 6 caracteres."); return; }
+    { const err = validarPassword(password); if (err) { setError(err); return; } }
     if (password !== confirm) { setError("Las contraseñas no coinciden."); return; }
     setBusy(true); setError("");
     const { error } = await supabase.auth.updateUser({ password });
@@ -2826,7 +2864,8 @@ function ChangePasswordModal({ onClose }) {
         <div style={{ fontSize: 13, color: "#1F8A73", fontWeight: 700 }}>Contraseña actualizada correctamente.</div>
       ) : (
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <input type="password" required placeholder="Nueva contraseña" value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} autoFocus />
+          <input type="password" required placeholder="Nueva contraseña" value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} autoFocus autoComplete="new-password" />
+          <MedidorPassword password={password} />
           <input type="password" required placeholder="Confirmar contraseña" value={confirm} onChange={(e) => setConfirm(e.target.value)} style={inputStyle} />
           {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
           <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar contraseña"}</button>
@@ -4153,7 +4192,6 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
   const [draft, setDraft] = useState(() => JSON.parse(initialSnapshotRef.current));
   const [subTab, setSubTab] = useState("detalles"); // detalles | contenido | letra | estructura
   const [activeBlockKey, setActiveBlockKey] = useState(null);
-  const [chordMode, setChordMode] = useState("triadas"); // triadas | septimas
   const [showAddSections, setShowAddSections] = useState(false);
   const textareaRefs = useRef({});
 
@@ -4491,24 +4529,19 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
       {subTab === "contenido" && draft.key && (
         <div style={{ position: "fixed", left: 0, right: 0, bottom: keyboardInset > 0 ? keyboardInset : "var(--bottom-nav-height, 78px)", background: "var(--wf-card)", borderTop: "1px solid var(--wf-divider)", boxShadow: "0 -4px 14px rgba(22,50,79,0.1)", padding: "8px 0 10px", zIndex: 45 }}>
           <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 12px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)" }}>ACORDES DE {draft.key.toUpperCase()}</div>
-              <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 2, borderRadius: 10 }}>
-                {[["triadas", "Triadas"], ["septimas", "Con séptima"]].map(([val, label]) => (
-                  <button key={val} onClick={() => setChordMode(val)} style={{ fontSize: 10, fontWeight: 700, padding: "4px 8px", borderRadius: 9, border: "none", cursor: "pointer", background: chordMode === val ? "#1F8A73" : "transparent", color: chordMode === val ? "#0D1410" : "var(--wf-muted)" }}>{label}</button>
-                ))}
-              </div>
-            </div>
-            <div className="chordbar-scroll" style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-              {diatonicChords(draft.key).map((c) => {
-                const label = chordMode === "septimas" ? c.chord7 : c.chord;
-                return (
-                  <button key={c.roman} onClick={() => insertChord(label)} className="hoverable" style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "8px 12px", cursor: "pointer" }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{label}</span>
-                    <span style={{ fontSize: 10, color: "var(--wf-faint)" }}>{c.roman}</span>
-                  </button>
-                );
-              })}
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>ACORDES DE {draft.key.toUpperCase()} <span style={{ fontWeight: 500, color: "var(--wf-faint)" }}>· desliza para ver más</span></div>
+            <div className="chordbar-scroll" style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", alignItems: "stretch" }}>
+              {acordesDeTonalidad(draft.key).map((g, gi) => (
+                <div key={g.titulo} style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "stretch", paddingLeft: gi === 0 ? 0 : 8, borderLeft: gi === 0 ? "none" : "1px solid var(--wf-divider)" }}>
+                  <span style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", fontSize: 9, fontWeight: 700, color: "var(--wf-faint)", textTransform: "uppercase", textAlign: "center" }}>{g.titulo}</span>
+                  {g.acordes.map((c) => (
+                    <button key={c.chord + c.grado} onClick={() => insertChord(c.chord)} className="hoverable" style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "8px 12px", cursor: "pointer" }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>{c.chord}</span>
+                      <span style={{ fontSize: 10, color: "var(--wf-faint)", whiteSpace: "nowrap" }}>{c.grado}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -5561,7 +5594,11 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
                         title="Tonalidad para este evento"
                         style={{ width: 46, borderRadius: 10, border: `1px solid ${item.keyOverride ? "var(--wf-brand-accent)" : "var(--wf-border-soft)"}`, fontSize: 10, fontWeight: 700, padding: "3px 2px", color: item.keyOverride ? "var(--wf-brand-accent)" : "var(--wf-text-2)", background: "var(--wf-card)", flexShrink: 0 }}
                       >
-                        {KEY_OPTIONS.map((k) => <option key={k} value={k}>{k}</option>)}
+                        {(() => {
+                          const opciones = opcionesTonalidadSetlist(song.key);
+                          // Un cambio viejo que no encaje (ej. hecho antes de esta regla) se sigue mostrando tal cual.
+                          return (opciones.includes(effectiveKey) ? opciones : [effectiveKey, ...opciones]).map((k) => <option key={k} value={k}>{k}</option>);
+                        })()}
                       </select>
                     ) : (
                       <span style={{ width: 22, height: 22, borderRadius: "50%", border: "1px solid var(--wf-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{effectiveKey}</span>

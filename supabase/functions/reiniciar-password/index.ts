@@ -6,6 +6,17 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// Misma regla que src/lib/passwordSegura.js (validarPassword), copiada aquí para que no se pueda
+// saltar llamando a esta función directo. Si cambias una, cambia la otra.
+const PASSWORDS_COMUNES = ["12345678", "123456789", "1234567890", "password", "password1", "contraseña", "contrasena", "qwerty123", "abc12345", "11111111", "00000000", "iloveyou", "jesus123", "jesucristo", "diosesamor", "aleluya1", "iglesia1", "admin123", "bienvenido"];
+function errorPassword(p: string): string | null {
+  if (p.length < 8) return "La contraseña necesita: al menos 8 caracteres.";
+  if (!/[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(p)) return "La contraseña necesita: al menos una letra.";
+  if (!/\d/.test(p)) return "La contraseña necesita: al menos un número.";
+  if (PASSWORDS_COMUNES.includes(p.toLowerCase()) || /^(.)\1+$/.test(p)) return "La contraseña necesita: que no sea una contraseña muy común.";
+  return null;
+}
+
 function json(payload: unknown, status: number) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -49,7 +60,8 @@ Deno.serve(async (req: Request) => {
     const id = String(body.id || "").trim();
     const password = String(body.password || "");
     if (!id) return json({ error: "Falta el usuario." }, 400);
-    if (password.length < 6) return json({ error: "La contraseña debe tener al menos 6 caracteres." }, 400);
+    const errPassword = errorPassword(password);
+    if (errPassword) return json({ error: errPassword }, 400);
 
     // Fase 2+ (multi-iglesia): antes esto no revisaba de qué iglesia era el usuario objetivo — un
     // admin de CUALQUIER iglesia podía reiniciar la contraseña de alguien de OTRA iglesia con solo

@@ -3,6 +3,7 @@ import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { showToast } from "./lib/toast.js";
 import { confirmDialog, promptDialog } from "./lib/confirm.js";
 import { parseIsoDateLocal, todayLocal, buildMonthWeeks, MONTH_NAMES_FULL, DOW_LABELS, formatFullDate } from "./lib/dates.js";
+import { validarPassword } from "./lib/passwordSegura.js";
 
 const ROLES = [
   { value: "admin", label: "Administrador" },
@@ -288,8 +289,10 @@ export default function UsersAdmin({ myEmail, onExit }) {
   };
 
   const resetPassword = async (id) => {
-    const password = await promptDialog("Nueva contraseña (mínimo 6 caracteres):", { esPassword: true, textoConfirmar: "Guardar" });
+    const password = await promptDialog("Nueva contraseña (mínimo 8 caracteres, con letras y números):", { esPassword: true, textoConfirmar: "Guardar" });
     if (!password) return;
+    const errPassword = validarPassword(password);
+    if (errPassword) { setError(errPassword); return; }
     setBusy(true); setError("");
     try {
       await callUsersFunction("reiniciar-password", { id, password });

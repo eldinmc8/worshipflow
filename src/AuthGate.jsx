@@ -4,6 +4,8 @@ import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { suscribirPush } from "./lib/notificaciones.js";
 import { colorLegibleSobre } from "./lib/colores.js";
 import Login from "./Login.jsx";
+import { validarPassword } from "./lib/passwordSegura.js";
+import MedidorPassword from "./MedidorPassword.jsx";
 import UsersAdmin from "./UsersAdmin.jsx";
 import RolesAdmin from "./RolesAdmin.jsx";
 import PlataformaAdmin from "./PlataformaAdmin.jsx";
@@ -266,7 +268,7 @@ function SetPassword({ onDone }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (password.length < 6) { setError("La contraseña debe tener al menos 6 caracteres."); return; }
+    { const err = validarPassword(password); if (err) { setError(err); return; } }
     if (password !== confirm) { setError("Las contraseñas no coinciden."); return; }
     setLoading(true); setError("");
     const { error } = await supabase.auth.updateUser({ password });
@@ -311,7 +313,8 @@ function SetPassword({ onDone }) {
         </div>
 
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <input type="password" required placeholder="Nueva contraseña" value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} />
+          <input type="password" required placeholder="Nueva contraseña" value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} autoComplete="new-password" />
+          <MedidorPassword password={password} />
           <input type="password" required placeholder="Confirmar contraseña" value={confirm} onChange={(e) => setConfirm(e.target.value)} style={inputStyle} />
           {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
           <button type="submit" disabled={loading || googleLoading} style={{ ...primaryBtn, opacity: loading ? 0.6 : 1, marginTop: 4 }}>{loading ? "Guardando…" : "Guardar y entrar"}</button>

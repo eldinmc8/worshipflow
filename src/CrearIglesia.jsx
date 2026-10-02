@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import MarkCircle from "./MarkCircle.jsx";
+import { validarPassword } from "./lib/passwordSegura.js";
+import MedidorPassword from "./MedidorPassword.jsx";
 
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
 const labelStyle = { fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 4, display: "block" };
@@ -35,6 +37,8 @@ export default function CrearIglesia() {
 
   const submit = async (e) => {
     e.preventDefault();
+    const errPassword = validarPassword(adminPassword);
+    if (errPassword) { setError(errPassword); return; }
     setLoading(true); setError("");
     try {
       await callUsersFunction("crear-iglesia", {
@@ -105,7 +109,8 @@ export default function CrearIglesia() {
           </div>
           <div>
             <span style={labelStyle}>Contraseña</span>
-            <input type="password" required placeholder="Mínimo 6 caracteres" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} style={inputStyle} />
+            <input type="password" required placeholder="Mínimo 8 caracteres, con letras y números" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} style={inputStyle} autoComplete="new-password" />
+            <div style={{ marginTop: 8 }}><MedidorPassword password={adminPassword} /></div>
           </div>
           {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
           <button type="submit" disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.6 : 1, marginTop: 4 }}>{loading ? "Creando…" : "Crear mi iglesia"}</button>
