@@ -37,7 +37,7 @@ export default function Login() {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Poppins:wght@400;500;600;700&display=swap');`}</style>
       <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
         <div style={{ marginBottom: 20 }}>
-          <GenericMark size={80} />
+          <GenericMark size={64} />
         </div>
 
         <form onSubmit={submitLogin} style={{ display: "flex", flexDirection: "column", gap: 10 }}>

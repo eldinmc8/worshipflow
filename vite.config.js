@@ -35,8 +35,8 @@ export default defineConfig({
       // enlazado dinámicamente desde main.jsx) para poder instalarse como app independiente en un
       // dispositivo fijo junto al proyector que abre directo en la vista en vivo, sin pasar por el login.
       manifest: {
-        name: 'JBP App',
-        short_name: 'JBP App',
+        name: 'WorshipFlow',
+        short_name: 'WorshipFlow',
         description: 'Presentación y gestión para tu iglesia',
         lang: 'es',
         start_url: '/',
@@ -56,6 +56,7 @@ export default defineConfig({
         icons: [
           { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),

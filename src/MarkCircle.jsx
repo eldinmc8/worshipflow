@@ -1,14 +1,8 @@
-import ShepherdStaffIcon from "./components/ShepherdStaffIcon.jsx";
+import WorshipFlowIcon from "./WorshipFlowIcon.jsx";
 
-// Círculo navy con el báculo de pastor adentro — el trazo genérico de marca de WorshipFlow (ver
-// CLAUDE.md: "Ícono de marca: trazo simple de báculo de pastor"). Pieza compartida por AppLogo.jsx
-// (cuando una iglesia todavía no tiene logo propio) y GenericMark.jsx (pantallas sin iglesia
-// conocida) — ambos lo necesitan, pero con distinto contenido alrededor (AppLogo: nada más;
-// GenericMark: además el texto "WorshipFlow" debajo), así que vive aparte en vez de duplicarse.
+// Ícono genérico de WorshipFlow: lo usan AppLogo.jsx (cuando una iglesia todavía no subió su logo),
+// Crear mi iglesia y la pantalla de completar perfil. Antes era un círculo con el báculo de pastor;
+// desde 2026-10-01 es el ícono oficial de la app (nota musical), igual al de la app instalada.
 export default function MarkCircle({ size }) {
-  return (
-    <div style={{ width: size, height: size, maxWidth: "100%", aspectRatio: "1 / 1", borderRadius: "50%", background: "var(--wf-brand-primary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-      <ShepherdStaffIcon className="" color="var(--wf-brand-accent)" style={{ width: "55%", height: "55%" }} />
-    </div>
-  );
+  return <WorshipFlowIcon size={size} style={{ maxWidth: "100%", height: "auto" }} />;
 }

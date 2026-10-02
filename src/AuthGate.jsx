@@ -294,7 +294,7 @@ function SetPassword({ onDone }) {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Poppins:wght@400;500;600;700&display=swap');`}</style>
       <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
         <div style={{ marginBottom: 16 }}>
-          <GenericMark size={70} />
+          <GenericMark size={58} />
         </div>
         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-text)", marginBottom: 4 }}>¡Bienvenido/a!</div>
         <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>Elige cómo quieres entrar de ahora en adelante.</div>
