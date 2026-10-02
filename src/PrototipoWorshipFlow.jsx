@@ -30,6 +30,8 @@ import { showToast, notifyError } from "./lib/toast.js";
 import { confirmDialog } from "./lib/confirm.js";
 import { validarPassword } from "./lib/passwordSegura.js";
 import MedidorPassword from "./MedidorPassword.jsx";
+import Tour from "./components/Tour.jsx";
+import { pasosBienvenida, pasosEventos, pasosEvento, pasosCanciones, pasosEnVivo, marcarTutorialVisto, reiniciarTutoriales } from "./lib/tutoriales.js";
 import {
   guardarCapituloOffline, obtenerCapituloOffline, contarCapitulosGuardados,
   borrarVersionOffline, todosLosVersiculosOffline, descargarBibliaCompleta,
@@ -1691,6 +1693,55 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     });
   };
 
+  // ---------------- Tutorial / recorridos guiados ----------------
+  // "bienvenida" sale la primera vez que alguien nuevo entra (miembro invitado o administrador de una
+  // iglesia recién creada); los demás son mini recorridos que salen la primera vez que se abre esa
+  // pantalla. Lo ya visto vive en usuarios.tutoriales_vistos (ver migración 20261002000000) — a los
+  // usuarios que ya existían se les marcó todo como visto. Se guarda optimista: aunque falle la red,
+  // no se le repite en esta sesión.
+  const [tutorialesVistos, setTutorialesVistos] = useState(() => new Set(perfil?.tutoriales_vistos || []));
+  const [tourActivo, setTourActivo] = useState(null); // null | clave del recorrido abierto
+  const claveTourParaPantalla = (() => {
+    if (!tutorialesVistos.has("bienvenida")) return tab === "inicio" ? "bienvenida" : null;
+    if (tab === "eventos" && !selectedEventId && !openSong) return "eventos";
+    if (tab === "eventos" && selectedEvent && !openSong) return "evento";
+    if (tab === "canciones" && !openSong) return "canciones";
+    if (tab === "envivo" && liveEvent) return "envivo";
+    return null;
+  })();
+  const tourPendiente = claveTourParaPantalla && !tutorialesVistos.has(claveTourParaPantalla) ? claveTourParaPantalla : null;
+  // Espera a que la pantalla termine de entrar (animación screen-enter), y a que no esté encima el
+  // aviso obligatorio de "cargos sin confirmar", ni la simulación de identidad de Ajustes.
+  useEffect(() => {
+    if (!datosListos || !tourPendiente || tourActivo || pendingConfirmations.length > 0 || nameOverride) return;
+    const t = setTimeout(() => setTourActivo(tourPendiente), 700);
+    return () => clearTimeout(t);
+  }, [datosListos, tourPendiente, tourActivo, pendingConfirmations.length, nameOverride]);
+  const pasosTour = (() => {
+    const ctx = { esAdmin: realIsAdmin, puedeGestionarEventos, puedeGestionarCanciones };
+    switch (tourActivo) {
+      case "bienvenida": return pasosBienvenida(ctx);
+      case "eventos": return pasosEventos(ctx);
+      case "evento": return pasosEvento(ctx);
+      case "canciones": return pasosCanciones(ctx);
+      case "envivo": return pasosEnVivo(ctx);
+      default: return null;
+    }
+  })();
+  const terminarTour = () => {
+    const clave = tourActivo;
+    setTourActivo(null);
+    if (!clave) return;
+    setTutorialesVistos((prev) => new Set(prev).add(clave));
+    marcarTutorialVisto(clave).catch((err) => console.warn("No se pudo guardar el tutorial visto:", err));
+  };
+  const verTutorialDeNuevo = () => {
+    setTutorialesVistos(new Set());
+    setTourActivo(null);
+    setTab("inicio"); setSelectedEventId(null); setOpenSong(null); setSelectedMinistryId(null);
+    reiniciarTutoriales().catch((err) => notifyError("No se pudo reiniciar el tutorial", err));
+  };
+
   if (!datosListos) {
     return <div className="app-shell-height" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", color: "var(--wf-faint)", fontFamily: "'Poppins', sans-serif", fontSize: 14 }}>Cargando…</div>;
   }
@@ -1785,7 +1836,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
                 <span style={{ fontSize: 11, fontWeight: 700, color: "#FFD9C7" }}>EN VIVO</span>
               </button>
             )}
-            <button onClick={() => setShowNotifications(true)} title="Notificaciones" style={{ position: "relative", width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+            <button data-tour="campana" onClick={() => setShowNotifications(true)} title="Notificaciones" style={{ position: "relative", width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
               <Bell size={15} color="#fff" />
               {unreadCount > 0 && (
                 <span style={{ position: "absolute", top: -3, right: -3, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", fontSize: 9, fontWeight: 800, borderRadius: 12, minWidth: 14, height: 14, lineHeight: "14px", textAlign: "center", padding: "0 2px" }}>{unreadCount > 9 ? "9+" : unreadCount}</span>
@@ -1794,6 +1845,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           </div>
         </div>
       </div>
+
+      {tourActivo && pasosTour && <Tour key={tourActivo} pasos={pasosTour} onTerminar={terminarTour} />}
 
       {showNotifications && (
         <ModalShell title="Notificaciones" icon={Bell} color="var(--wf-brand-accent)" onClose={() => setShowNotifications(false)}>
@@ -1853,6 +1906,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           myIglesiaId={myIglesiaId}
           teamName={myIglesia.nombre}
           isCompact={isCompact}
+          onVerTutorial={verTutorialDeNuevo}
         />
       )}
 
@@ -2055,7 +2109,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           fondo claro de la app en vez de negro por defecto — y de paso la nav flotante queda de verdad
           fija arriba de esa barra, no flotando "a medias" sobre ella. */}
       <div ref={bottomNavRef} style={{ flexShrink: 0, display: "flex", justifyContent: "center", padding: "10px 0 calc(14px + env(safe-area-inset-bottom))", zIndex: 40 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 2, background: "var(--wf-brand-primary)", borderRadius: 24, padding: 6, boxShadow: "0 8px 24px rgba(22,50,79,0.35)", maxWidth: "94vw", overflowX: "auto" }}>
+        <div data-tour="nav" style={{ display: "flex", alignItems: "center", gap: 2, background: "var(--wf-brand-primary)", borderRadius: 24, padding: 6, boxShadow: "0 8px 24px rgba(22,50,79,0.35)", maxWidth: "94vw", overflowX: "auto" }}>
           {[["inicio", "Inicio", Home], ["canciones", "Canciones", Music], ["eventos", "Eventos", Calendar], ["ministerios", "Grupos", LayoutGrid], ["asistente", "Asistente", MessageCircle], ["envivo", "En vivo", Radio], ["proyeccion", "Pantalla", ImgIcon], ["ajustes", "Ajustes", Settings]]
             .filter(([val]) => !isCompact || (val !== "envivo" && val !== "proyeccion")) // Control en vivo/Proyección son de escritorio: en celular no aparecen
             .filter(([val]) => val !== "ministerios" || canSeeGrupos) // Grupos: solo admins o quien lidera al menos uno
@@ -2071,6 +2125,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             return (
               <button
                 key={val}
+                data-tour={`nav-${val}`}
                 onClick={() => requestLeaveSongEditor(() => {
                   // Cambiar de pestaña siempre lleva a la RAÍZ de esa pestaña — si no se limpian estos
                   // tres, quedaban "pegados" (ej. abrir una canción desde un evento y luego, sin volver
@@ -2448,7 +2503,7 @@ function BibleDownloadSection() {
   );
 }
 
-function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, onGoToRoles, onGoToPlataforma, userId, myIglesiaId, teamName, isCompact }) {
+function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, onGoToRoles, onGoToPlataforma, userId, myIglesiaId, teamName, isCompact, onVerTutorial }) {
   const [horarioAbierto, setHorarioAbierto] = useState(false);
   const [showTeamList, setShowTeamList] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -2580,6 +2635,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           ))}
         </div>
       </div>
+      {onVerTutorial && <NavRow icon={Sparkles} label="Ver tutorial de nuevo" onClick={onVerTutorial} right={<ChevronRight size={16} color="var(--wf-faint)" />} />}
       {install.installed ? (
         <NavRow icon={Check} label="La app ya está instalada" right={null} />
       ) : install.canInstall ? (
@@ -3416,13 +3472,13 @@ function CancionesList({ library, clasificaciones, puedeConfigurarClasificacione
     <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>{library.length} Canciones</h2>
-        {isAdminViewer && <button onClick={onNew} style={{ ...iconGhost, width: 30, height: 30, background: "var(--wf-hover)", border: "1px solid var(--wf-border)" }}><Plus size={16} /></button>}
+        {isAdminViewer && <button data-tour="canciones-nueva" onClick={onNew} style={{ ...iconGhost, width: 30, height: 30, background: "var(--wf-hover)", border: "1px solid var(--wf-border)" }}><Plus size={16} /></button>}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 14, padding: "10px 14px", marginBottom: 12 }}>
+      <div data-tour="canciones-buscar" style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 14, padding: "10px 14px", marginBottom: 12 }}>
         <Search size={15} color="var(--wf-faint)" />
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por título o letra" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 13, width: "100%" }} />
       </div>
-      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 12 }}>
+      <div data-tour="canciones-filtros" style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 12 }}>
         {[["todos", "Todos"], ...clasificaciones.map((c) => [c.clave, c.nombre]), ...(haySinClasificar ? [["sin", "Sin clasificar"]] : [])].map(([key, label]) => (
           <button key={key} onClick={() => setCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 20, border: "none", background: categoryFilter === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: categoryFilter === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
         ))}
@@ -4765,8 +4821,9 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12 }}>
         <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Eventos</h2>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {isAdminViewer && <button onClick={() => setViewMode("plantillas")} style={ghostToggleBtn}>Plantillas</button>}
+          {isAdminViewer && <button data-tour="eventos-plantillas" onClick={() => setViewMode("plantillas")} style={ghostToggleBtn}>Plantillas</button>}
           <select
+            data-tour="eventos-filtro"
             value={monthFilter}
             onChange={(e) => setMonthFilter(e.target.value)}
             style={{ fontSize: 12, fontWeight: 700, padding: "8px 10px", borderRadius: 12, border: "1px solid var(--wf-divider)", background: "var(--wf-hover)", color: "var(--wf-heading)", cursor: "pointer" }}
@@ -4780,7 +4837,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
       </div>
 
       {canStartLive && (
-        <button onClick={onStartFree} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: liveLibre ? "var(--wf-active-bg)" : "var(--wf-card)", border: liveLibre ? "1px solid var(--wf-brand-accent)" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 18, padding: "12px 14px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
+        <button data-tour="eventos-libre" onClick={onStartFree} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: liveLibre ? "var(--wf-active-bg)" : "var(--wf-card)", border: liveLibre ? "1px solid var(--wf-brand-accent)" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 18, padding: "12px 14px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
           <div style={{ width: 34, height: 34, borderRadius: 14, background: liveLibre ? "var(--wf-brand-accent)" : "var(--wf-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Radio size={16} color={liveLibre ? "#fff" : "#C23B32"} /></div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700 }}>{liveLibre ? "Transmisión libre en vivo" : "Transmitir sin evento"}</div>
@@ -4790,7 +4847,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
       )}
 
       {hero && (
-        <div style={{ position: "relative", marginBottom: 26 }}>
+        <div data-tour="eventos-primero" style={{ position: "relative", marginBottom: 26 }}>
           <div style={{ position: "absolute", inset: "12px -8px 0 8px", background: "var(--wf-card)", borderRadius: 22, transform: "rotate(-3deg)", boxShadow: "0 4px 10px rgba(22,50,79,0.05)" }} />
           <div style={{ position: "absolute", inset: "6px -4px 0 4px", background: "var(--wf-card)", borderRadius: 22, transform: "rotate(2deg)", boxShadow: "0 4px 10px rgba(22,50,79,0.07)" }} />
           <button onClick={() => onSelect(hero.id)} className="hoverable" style={{ position: "relative", width: "100%", textAlign: "left", border: "none", cursor: "pointer", borderRadius: 22, padding: 0, overflow: "hidden", display: "block", boxShadow: "0 12px 26px rgba(22,50,79,0.2)" }}>
@@ -4861,7 +4918,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
 
       {/* Botón flotante circular para crear evento — solo administradores */}
       {isAdminViewer && (
-        <button onClick={openCreate} style={{ position: "fixed", right: 20, bottom: 92, width: 54, height: 54, borderRadius: "50%", background: "var(--wf-brand-accent)", border: "none", boxShadow: "0 8px 18px rgba(232,130,30,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 41 }}>
+        <button data-tour="eventos-nuevo" onClick={openCreate} style={{ position: "fixed", right: 20, bottom: 92, width: 54, height: 54, borderRadius: "50%", background: "var(--wf-brand-accent)", border: "none", boxShadow: "0 8px 18px rgba(232,130,30,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 41 }}>
           <Plus size={24} color="var(--wf-brand-primary)" />
         </button>
       )}
@@ -5056,7 +5113,7 @@ function EventDetail({
           <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
           {isAdminViewer && (
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => setShowEventSettings(true)} title={event.esPlantilla ? "Ajustes de la plantilla" : "Ajustes del evento"} style={iconGhost}>
+              <button data-tour="evento-ajustes" onClick={() => setShowEventSettings(true)} title={event.esPlantilla ? "Ajustes de la plantilla" : "Ajustes del evento"} style={iconGhost}>
                 <Settings size={16} color="var(--wf-heading)" />
               </button>
               <button onClick={() => onDelete(event)} title="Eliminar evento" style={iconGhost}>
@@ -5084,6 +5141,7 @@ function EventDetail({
             clara en vez de repetir la misma instrucción. */}
         {misCargos.length > 0 && (
           <button
+            data-tour="evento-mi-cargo"
             onClick={marcarMisAsignacionesVistas}
             className="hoverable"
             style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: yaVistoPorMi ? "#EAF6F1" : "var(--wf-active-bg)", border: `1.5px solid ${yaVistoPorMi ? "#1F8A73" : "var(--wf-brand-accent)"}`, borderRadius: 14, padding: "12px 14px", marginBottom: 16, cursor: "pointer" }}
@@ -5106,7 +5164,7 @@ function EventDetail({
           </button>
         )}
 
-        <button onClick={() => window.print()} className="hoverable" style={{ ...addBtnStyle, marginBottom: 16, justifyContent: "center" }}>
+        <button data-tour="evento-pdf" onClick={() => window.print()} className="hoverable" style={{ ...addBtnStyle, marginBottom: 16, justifyContent: "center" }}>
           <Download size={14} color="var(--wf-heading)" /> Exportar Setlist a PDF
         </button>
 
@@ -5150,7 +5208,7 @@ function EventDetail({
           <div style={{ fontSize: 12, color: "var(--wf-faint)", marginBottom: 14 }}>Esta es una plantilla — no se transmite en vivo, solo sirve como base para nuevos eventos ("Selecciona plantilla" al crear uno).</div>
         ) : canStartLive ? (
           <>
-            <button onClick={isLive ? onGoLive : onStart} style={{ ...primaryBtn, width: "100%", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: isLive ? "#C23B32" : "var(--wf-brand-accent)", color: isLive ? "#fff" : "var(--wf-text)" }}>
+            <button data-tour="evento-iniciar" onClick={isLive ? onGoLive : onStart} style={{ ...primaryBtn, width: "100%", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: isLive ? "#C23B32" : "var(--wf-brand-accent)", color: isLive ? "#fff" : "var(--wf-text)" }}>
               <Play size={15} /> {isLive ? "Ya en vivo · Ir al control" : "Iniciar evento"}
             </button>
             <div style={{ marginBottom: 20 }} />
@@ -5476,11 +5534,12 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
 
       <div style={{ flex: 1, padding: 16, overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, gap: 8 }}>
-          <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 20, margin: 0 }}>Setlist</h2>
+          <h2 data-tour="evento-setlist" style={{ fontFamily: "'Fraunces', serif", fontSize: 20, margin: 0 }}>Setlist</h2>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             <span style={{ fontSize: 12, color: "var(--wf-faint)" }}>{formatFullDate(event.date) || event.dateLabel}</span>
             {isAdminViewer && (
               <button
+                data-tour="evento-editar-setlist"
                 onClick={() => setEditingSetlist((v) => !v)}
                 className="hoverable"
                 style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 18, border: "none", cursor: "pointer", background: editingSetlist ? "#1F8A73" : "var(--wf-hover)", color: editingSetlist ? "#fff" : "var(--wf-text)" }}
@@ -6432,7 +6491,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6 }}><Radio size={13} /> MULTIMEDIA</div>
           <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{eventTitle}</div>
         </div>
-        <button onClick={onEnd} disabled={!canEnd} title={canEnd ? undefined : `Solo ${liveOwner} o un administrador puede finalizar esta transmisión`} style={{ fontSize: 11, fontWeight: 700, color: canEnd ? "#C23B32" : "#B7BEC9", background: "transparent", border: `1px solid ${canEnd ? "#C23B32" : "var(--wf-border)"}`, borderRadius: 20, padding: "3px 10px", cursor: canEnd ? "pointer" : "not-allowed", flexShrink: 0 }}>Finalizar evento</button>
+        <button data-tour="envivo-finalizar" onClick={onEnd} disabled={!canEnd} title={canEnd ? undefined : `Solo ${liveOwner} o un administrador puede finalizar esta transmisión`} style={{ fontSize: 11, fontWeight: 700, color: canEnd ? "#C23B32" : "#B7BEC9", background: "transparent", border: `1px solid ${canEnd ? "#C23B32" : "var(--wf-border)"}`, borderRadius: 20, padding: "3px 10px", cursor: canEnd ? "pointer" : "not-allowed", flexShrink: 0 }}>Finalizar evento</button>
       </div>
       {/* canEnd ya incluye a los administradores (isAdminViewer) además de a quien inició la
           transmisión -- antes SOLO ese dispositivo podía finalizarla, así que si se cerraba sin tocar
@@ -6443,8 +6502,8 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
 
       {/* Barra de herramientas: pantalla 2, negro */}
       <div style={{ display: "flex", gap: 8, padding: "8px 16px 10px", flexWrap: "wrap" }}>
-        <button onClick={onOpenPublicScreen} style={{ ...ctrlBtn, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)" }}><Radio size={14} /> Reabrir proyección</button>
-        <button onClick={() => setBlanked((b) => !b)} style={{ ...ctrlBtn, background: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)" }}><MonitorOff size={14} /> {blanked ? "Reanudar" : "Pantalla en negro"}</button>
+        <button data-tour="envivo-proyeccion" onClick={onOpenPublicScreen} style={{ ...ctrlBtn, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)" }}><Radio size={14} /> Reabrir proyección</button>
+        <button data-tour="envivo-negro" onClick={() => setBlanked((b) => !b)} style={{ ...ctrlBtn, background: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)" }}><MonitorOff size={14} /> {blanked ? "Reanudar" : "Pantalla en negro"}</button>
       </div>
 
       {/* "Volver al plan" solo tiene sentido para una canción improvisada (existe un plan real de
@@ -6462,7 +6521,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
       {/* Cuerpo: riel de íconos + panel principal (izquierda) + vista previa y controles (derecha), estilo Proyektor */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 16, padding: "0 16px 16px" }}>
         {/* Riel de íconos: cambia qué panel se ve a la izquierda sin tocar la vista previa/controles de la derecha */}
-        <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, paddingTop: 2 }}>
+        <div data-tour="envivo-paneles" style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, paddingTop: 2 }}>
           {[
             { key: "biblia", icon: BookOpen, title: "Biblia" },
             { key: "transmision", icon: ListMusic, title: "Transmisión" },
