@@ -1700,6 +1700,15 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // usuarios que ya existían se les marcó todo como visto. Se guarda optimista: aunque falle la red,
   // no se le repite en esta sesión.
   const [tutorialesVistos, setTutorialesVistos] = useState(() => new Set(perfil?.tutoriales_vistos || []));
+  // AuthGate monta este componente con perfil todavía en null (la consulta a "usuarios" es asíncrona,
+  // ver AuthGate.jsx) — el useState de arriba solo lee perfil en ESE primer instante, así que sin esto
+  // el tutorial "ya visto" se perdía en cada apertura nueva de la app (useState no se vuelve a evaluar
+  // cuando perfil llega después). Se MEZCLA con lo que ya había en vez de reemplazarlo, para no pisar un
+  // "recién marcado como visto" de esta misma sesión que todavía no volvió desde el servidor.
+  useEffect(() => {
+    if (!perfil?.tutoriales_vistos?.length) return;
+    setTutorialesVistos((prev) => new Set([...prev, ...perfil.tutoriales_vistos]));
+  }, [perfil?.tutoriales_vistos]);
   const [tourActivo, setTourActivo] = useState(null); // null | clave del recorrido abierto
   const claveTourParaPantalla = (() => {
     if (!tutorialesVistos.has("bienvenida")) return tab === "inicio" ? "bienvenida" : null;
