@@ -141,18 +141,23 @@ function agruparPor(filas, campo) {
 }
 
 // Antes pedía la lista y después UNA fila completa POR CANCIÓN (4 consultas cada una) -- con pocas
-// canciones no se notaba, pero el número de viajes a Supabase crecía con la
-// biblioteca, así que entre más contenido se agregaba más tardaba en abrir la app. Ahora trae las 3
-// tablas hijas de TODAS las canciones de una sola vez (con .in()) y las agrupa acá -- son siempre 4
-// consultas en total, tenga la iglesia 10 canciones o 1000.
+// canciones no se notaba, pero el número de viajes a Supabase crecía con la biblioteca, así que entre
+// más contenido se agregaba más tardaba en abrir la app.
+//
+// OJO (lección real del 2026-10-04): la primera versión de este arreglo traía las tablas hijas con
+// .in("cancion_id", [todos los ids]) -- mejor que antes, pero esa lista de ids sigue creciendo con el
+// contenido, y con suficientes eventos la misma idea (aplicada a miembros_rol en listEventosCompletos)
+// armó una URL de 27 mil caracteres que Supabase rechazó con error 400, tumbando la carga de toda la
+// app ("Sin conexión" aunque sí había internet). Por eso acá NINGUNA consulta filtra por id -- RLS
+// (iglesia_id = mi_iglesia_id()) ya limita cada tabla a lo de esta iglesia nada más, sin mandar
+// ninguna lista por la URL. Son siempre 4 consultas en total, tenga la iglesia 10 canciones o 10 mil.
 export async function listCancionesCompletas() {
   const filas = await listCanciones();
-  const ids = filas.map((f) => f.id);
-  if (ids.length === 0) return [];
+  if (filas.length === 0) return [];
   const [seccionesRes, estructuraRes, diapositivasRes] = await Promise.all([
-    supabase.from("secciones_cancion").select("*").in("cancion_id", ids),
-    supabase.from("estructura_cancion").select("*").in("cancion_id", ids).order("orden", { ascending: true }),
-    supabase.from("diapositivas_letra").select("*").in("cancion_id", ids).order("orden", { ascending: true }),
+    supabase.from("secciones_cancion").select("*"),
+    supabase.from("estructura_cancion").select("*").order("orden", { ascending: true }),
+    supabase.from("diapositivas_letra").select("*").order("orden", { ascending: true }),
   ]);
   if (seccionesRes.error) throw seccionesRes.error;
   if (estructuraRes.error) throw estructuraRes.error;

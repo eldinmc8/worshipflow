@@ -212,58 +212,62 @@ function agruparPor(filas, campo) {
 
 // Antes pedía la lista y después UNA fila completa POR EVENTO (hasta 6 consultas cada una) -- con
 // pocos eventos cargados no se notaba, pero el número de viajes a Supabase crecía con el historial de
-// la iglesia, así que entre más eventos se acumulaban más tardaba en abrir la app. Ahora trae cada
-// tabla hija de TODOS los eventos de una sola vez (con .in()) y las agrupa acá -- son siempre 7
-// consultas en total, tenga la iglesia 10 eventos o 500.
+// la iglesia, así que entre más eventos se acumulaban más tardaba en abrir la app.
+//
+// Primer arreglo (2026-10-04, duró unas horas): traer cada tabla hija con un solo .in("evento_id", [
+// todos los ids]) en vez de uno por evento -- mejor, pero con 693 ítems de Setlist acumulados ese
+// .in() para miembros_rol armaba una URL de 27 mil caracteres que Supabase rechazaba con 400 ("Sin
+// conexión" en los dos teléfonos de Eldin, porque listEventosCompletos entero fallaba). La lista de
+// ids crecía con el contenido exactamente igual que antes crecía el número de consultas -- mismo
+// problema de fondo, solo que escondido un nivel más abajo.
+//
+// Arreglo real: ninguna de estas consultas filtra por id. RLS (iglesia_id = mi_iglesia_id()) ya
+// limita cada tabla a lo de ESTA iglesia nada más -- el mismo alcance que daba el .in() de la lista
+// completa de ids, sin tener que mandar esa lista por la URL. Son siempre 6 consultas en total
+// (ninguna con una lista de ids adentro), tenga la iglesia 10 eventos o 5000.
 export async function listEventosCompletos() {
   const filas = await listEventos();
-  const ids = filas.map((f) => f.id);
-  if (ids.length === 0) return [];
-  const [itemsRes, rolesRes, recordatoriosRes, vistasRes] = await Promise.all([
-    supabase.from("items_servicio").select("*, canciones(titulo, artista, tonalidad, tempo)").in("evento_id", ids).order("orden", { ascending: true }),
-    supabase.from("roles_evento").select("*").in("evento_id", ids).order("orden", { ascending: true }),
-    supabase.from("recordatorios_evento").select("*").in("evento_id", ids).order("created_at", { ascending: true }),
+  if (filas.length === 0) return [];
+  const [itemsRes, rolesRes, recordatoriosRes, vistasRes, miembrosRes] = await Promise.all([
+    supabase.from("items_servicio").select("*, canciones(titulo, artista, tonalidad, tempo)").order("orden", { ascending: true }),
+    supabase.from("roles_evento").select("*").order("orden", { ascending: true }),
+    supabase.from("recordatorios_evento").select("*").order("created_at", { ascending: true }),
     // Mismo respaldo que antes: si asignaciones_vistas falla por el motivo que sea, no debe tumbar la
     // carga de TODOS los eventos (ver nota histórica de getEventoCompleto, reemplazada por esta función).
-    supabase.from("asignaciones_vistas").select("*").in("evento_id", ids).then(
+    supabase.from("asignaciones_vistas").select("*").then(
       (r) => (r.error ? { data: [] } : r),
       () => ({ data: [] })
     ),
+    supabase.from("miembros_rol").select("*").order("orden", { ascending: true }),
   ]);
   if (itemsRes.error) throw itemsRes.error;
   if (rolesRes.error) throw rolesRes.error;
   if (recordatoriosRes.error) throw recordatoriosRes.error;
-
-  const itemIds = itemsRes.data.map((it) => it.id);
-  const roleIds = rolesRes.data.map((r) => r.id);
-  const [encargadosRes, roleMembersRes] = await Promise.all([
-    itemIds.length ? supabase.from("miembros_rol").select("*").in("item_servicio_id", itemIds).order("orden", { ascending: true }) : { data: [] },
-    roleIds.length ? supabase.from("miembros_rol").select("*").in("rol_id", roleIds).order("orden", { ascending: true }) : { data: [] },
-  ]);
-  if (encargadosRes.error) throw encargadosRes.error;
-  if (roleMembersRes.error) throw roleMembersRes.error;
+  if (miembrosRes.error) throw miembrosRes.error;
 
   const itemsPorEvento = agruparPor(itemsRes.data, "evento_id");
   const rolesPorEvento = agruparPor(rolesRes.data, "evento_id");
   const recordatoriosPorEvento = agruparPor(recordatoriosRes.data, "evento_id");
   const vistasPorEvento = agruparPor(vistasRes.data, "evento_id");
 
-  // encargados/roleMembers vienen de miembros_rol SIN evento_id propio -- hay que ubicarlos por el
-  // item/rol al que pertenecen (igual que antes hacía eventoCompletoAFormatoEditor con un solo evento,
-  // solo que ahora con los de TODOS los eventos mezclados en una sola tabla).
+  // miembros_rol no tiene evento_id propio -- cada fila es encargado de un ítem (item_servicio_id) O
+  // integrante de un rol de alabanza (rol_id), nunca los dos. Hay que ubicar a cuál evento pertenece
+  // por el item/rol al que apunta (igual que antes hacía eventoCompletoAFormatoEditor con un solo
+  // evento, solo que ahora con los de TODOS los eventos mezclados en una sola tabla).
   const itemIdAEvento = {};
   (itemsRes.data || []).forEach((it) => { itemIdAEvento[it.id] = it.evento_id; });
   const roleIdAEvento = {};
   (rolesRes.data || []).forEach((r) => { roleIdAEvento[r.id] = r.evento_id; });
   const encargadosPorEvento = {};
-  (encargadosRes.data || []).forEach((m) => {
-    const eventoId = itemIdAEvento[m.item_servicio_id];
-    if (eventoId) (encargadosPorEvento[eventoId] ||= []).push(m);
-  });
   const roleMembersPorEvento = {};
-  (roleMembersRes.data || []).forEach((m) => {
-    const eventoId = roleIdAEvento[m.rol_id];
-    if (eventoId) (roleMembersPorEvento[eventoId] ||= []).push(m);
+  (miembrosRes.data || []).forEach((m) => {
+    if (m.item_servicio_id) {
+      const eventoId = itemIdAEvento[m.item_servicio_id];
+      if (eventoId) (encargadosPorEvento[eventoId] ||= []).push(m);
+    } else if (m.rol_id) {
+      const eventoId = roleIdAEvento[m.rol_id];
+      if (eventoId) (roleMembersPorEvento[eventoId] ||= []).push(m);
+    }
   });
 
   return filas.map((evento) => eventoCompletoAFormatoEditor({

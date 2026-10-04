@@ -37,15 +37,15 @@ function ministerioCompletoAFormatoEditor({ ministerio, plan, recursos }) {
 }
 
 // Antes pedía la lista y después UNA fila completa POR MINISTERIO (3 consultas cada una) -- mismo
-// patrón (y mismo arreglo) que listCancionesCompletas/listEventosCompletos: ahora trae la planificación
-// y los recursos de TODOS los ministerios de una sola vez y los agrupa acá, 2 consultas en total.
+// patrón (y mismo arreglo final) que listCancionesCompletas/listEventosCompletos: ninguna consulta
+// filtra por una lista de ids (ver la nota larga en canciones.js sobre por qué esa lista también
+// terminó siendo un problema) -- RLS ya limita todo a esta iglesia. Siempre 2 consultas en total.
 export async function listMinisteriosCompletos() {
   const filas = await listMinisterios();
-  const ids = filas.map((f) => f.id);
-  if (ids.length === 0) return [];
+  if (filas.length === 0) return [];
   const [planRes, recursosRes] = await Promise.all([
-    supabase.from("planificacion_ministerio").select("*").in("ministerio_id", ids).order("orden", { ascending: true }),
-    supabase.from("recursos_ministerio").select("*").in("ministerio_id", ids).order("orden", { ascending: true }),
+    supabase.from("planificacion_ministerio").select("*").order("orden", { ascending: true }),
+    supabase.from("recursos_ministerio").select("*").order("orden", { ascending: true }),
   ]);
   if (planRes.error) throw planRes.error;
   if (recursosRes.error) throw recursosRes.error;
