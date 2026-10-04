@@ -11,7 +11,7 @@ const MIGRATIONS_DIR = path.join(__dirname, "..", "..", "..", "supabase", "migra
 // iglesias en eventos/canciones/usuarios) -- las de seguridad de hoy (push manual, cron, vault) tocan
 // justamente esas piezas y se prueban aparte, en vivo contra el proyecto real (ver resumen de la
 // tarea), no acá.
-const EXCLUIR = new Set(["20261001000100_logos_storage.sql", "20261003000000_verificar_secreto_push_manual.sql", "20261003000100_verificar_secreto_cron.sql", "20261003000200_usuarios_con_push.sql"]);
+const EXCLUIR = new Set(["20261001000100_logos_storage.sql", "20261003000000_verificar_secreto_push_manual.sql", "20261003000100_verificar_secreto_cron.sql", "20261003000200_usuarios_con_push.sql", "20261004000000_fondos_en_vivo_storage.sql", "20261004000100_fondos_en_vivo_limite_100mb.sql"]);
 
 function limpiarSql(sql) {
   return sql

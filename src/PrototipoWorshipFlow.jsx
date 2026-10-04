@@ -22,6 +22,7 @@ import { sincronizarRecordatorios } from "./lib/recordatorios.js";
 import { enviarMensajeAsistente, aplicarPlanAsistente, obtenerReglasAsistente, guardarReglasAsistente } from "./lib/asistente.js";
 import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotificaciones, suscribirPush, desuscribirPush, estaSuscritoPush, tieneAlgunaSuscripcionPush, estadoPermisoNotificacion, decidirAccionPush } from "./lib/notificaciones.js";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
+import { listarFondos, subirFondo, borrarFondo } from "./lib/multimedia.js";
 import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } from "./lib/pwaInstall.js";
 import { buscarActualizacionManual, hayActualizacionPendiente } from "./lib/swUpdate.js";
 import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FULL, MONTH_ABBR, DOW_LABELS, monthKey, monthLabelFromKey, formatFullDate, buildMonthWeeks } from "./lib/dates.js";
@@ -289,6 +290,14 @@ const LIVE_TEXT_COLORS = {
   amarillo: { label: "Amarillo suave", value: "#F5D67B" },
   celeste: { label: "Celeste", value: "#BFE3FF" },
   dorado: { label: "Dorado", value: "#E8C77E" },
+};
+// Paleta para la cita bíblica (ej. "Mateo 5:25") -- separada de LIVE_TEXT_COLORS porque antes su color
+// vivía fijo en el código (#6E9BD1, el primero de acá) y nunca fue configurable como el del versículo.
+const LIVE_REFERENCE_COLORS = {
+  celeste: { label: "Celeste (por defecto)", value: "#6E9BD1" },
+  blanco: { label: "Blanco", value: "#FFFFFF" },
+  dorado: { label: "Dorado", value: "#E8C77E" },
+  naranja: { label: "Naranja", value: "#E8821E" },
 };
 // Objeto "evento" liviano para cuando se transmite sin un evento del calendario detrás (ver
 // startFreeEvent) — referencia estable a nivel de módulo para no invalidar el useMemo de `slides` en
@@ -2039,6 +2048,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
 
       {tab === "eventos" && selectedEvent && !openSong && (
         <EventDetail
+          myIglesiaId={myIglesiaId}
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
           isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={puedeGestionarEventos}
           puedeEditarSetlist={puedeEditarSetlist}
@@ -2137,6 +2147,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       {tab === "envivo" && liveEvent && (
         <div style={{ width: "100%", flex: 1, minHeight: 0, display: "flex" }}>
           <MultimediaControl
+            myIglesiaId={myIglesiaId}
             eventTitle={liveEvent.title} isFreeSession={liveLibre} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
             goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}
             onEnd={endEvent} canEnd={isAdminViewer || userId === liveOwnerId} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
@@ -2613,6 +2624,18 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
   const [showIdentidad, setShowIdentidad] = useState(false);
   const [pushEstado, setPushEstado] = useState("cargando"); // cargando | activo | inactivo | sin-soporte
   const [pushBusy, setPushBusy] = useState(false);
+  const [screensBusy, setScreensBusy] = useState(false);
+  const activarDeteccionPantallas = async () => {
+    setScreensBusy(true);
+    try {
+      await window.getScreenDetails();
+      showToast("Listo — con el proyector/monitor conectado, \"Iniciar evento\" debería abrir la proyección sola en pantalla completa ahí.", "info");
+    } catch {
+      showToast("No se concedió el permiso. Intenta de nuevo y acepta el permiso de \"administrar ventanas en varias pantallas\" que pida el navegador.");
+    } finally {
+      setScreensBusy(false);
+    }
+  };
   // Modo oscuro del chrome — de este dispositivo nada más (ver lib/theme.js), NO afecta a Proyección.
   // Por defecto la app se queda clara; "Automático" sigue el tema del celular/computadora.
   const [tema, setTemaState] = useState(getTema());
@@ -2774,6 +2797,27 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
         onClick={checkingUpdate ? undefined : checkForAppUpdate}
         right={checkingUpdate || upToDate ? null : <ChevronRight size={16} color="var(--wf-faint)" />}
       />
+      {/* El navegador pide permiso para "administrar ventanas en varias pantallas" la primera vez que
+          se usa getScreenDetails() -- si esa primera vez coincide con el clic de "Iniciar evento" (el
+          único lugar donde antes se pedía), para cuando la persona responde al permiso el navegador ya
+          perdió el "gesto de usuario" del clic original y la pantalla completa automática en el segundo
+          monitor falla en silencio (cae al botón "Toca para pantalla completa" de PublicScreen.jsx,
+          cada vez). Pidiéndolo acá, con calma y de antemano, una sola vez, Chrome lo recuerda para
+          siempre en este dispositivo -- después de eso "Iniciar evento" ya encuentra el permiso
+          concedido y puede abrir/expandir la proyección sola, sin ese choque de tiempos. */}
+      {typeof window !== "undefined" && "getScreenDetails" in window && (
+        <>
+          <NavRow
+            icon={Radio}
+            label={screensBusy ? "Pidiendo permiso…" : "Activar detección automática de pantalla"}
+            onClick={screensBusy ? undefined : activarDeteccionPantallas}
+            right={screensBusy ? null : <ChevronRight size={16} color="var(--wf-faint)" />}
+          />
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "-4px 4px 10px" }}>
+            Hazlo una vez, en este dispositivo, con el proyector/monitor ya conectado — así "Iniciar evento" puede abrir la proyección en pantalla completa ahí solo, sin pedirte un clic extra.
+          </div>
+        </>
+      )}
 
       <SectionLabel>ROL DE ESTE DISPOSITIVO</SectionLabel>
       <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
@@ -5129,6 +5173,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
 
 // ---------------- DETALLE DE EVENTO ----------------
 function EventDetail({
+  myIglesiaId,
   event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onGoLive, onDelete,
   isDraftFromTemplate, onPublish,
   onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onDuplicate, onReorder,
@@ -5387,6 +5432,7 @@ function EventDetail({
         </div>
       )}
       <SetlistPane
+        myIglesiaId={myIglesiaId}
         event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer || puedeEditarSetlist} userId={userId} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onAddSeccion={onAddSeccion}
         onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick}
@@ -5547,7 +5593,7 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
   // el encargado de ese bloque de Lectura bíblica/Oración (ver canAddBibleReading más arriba).
@@ -5939,7 +5985,7 @@ function SetlistPane({ event, library, ministries, isCompact, isAdminViewer, use
         })}
       </div>
       {showBibleForm && <BibleModal onClose={() => setShowBibleForm(false)} onAdd={addBible} splitVersesIndividually />}
-      {showSlideForm && <SlideModal draft={slideDraft} setDraft={setSlideDraft} onClose={() => setShowSlideForm(false)} onAdd={addSlide} />}
+      {showSlideForm && <SlideModal iglesiaId={myIglesiaId} draft={slideDraft} setDraft={setSlideDraft} onClose={() => setShowSlideForm(false)} onAdd={addSlide} />}
       {showSermonForm && (
         <ModalShell title="Agregar punto del bosquejo" icon={Mic2} color="var(--wf-heading)" onClose={() => setShowSermonForm(false)}>
           <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 10 }}>Cada punto se agrega como su propia diapositiva, en el orden en que los escribas — así Multimedia los proyecta uno por uno mientras predicas.</div>
@@ -6215,23 +6261,93 @@ function BibleModal({ onClose, onAdd, title = "Agregar versículo", submitLabel 
     </ModalShell>
   );
 }
-function SlideModal({ draft, setDraft, onClose, onAdd, title = "Slide personalizada", submitLabel = "Agregar al servicio" }) {
+// Subir una imagen/video de fondo + elegir entre lo ya subido antes -- reemplaza el patrón viejo de
+// "subir = FileReader.readAsDataURL" (guardaba el archivo entero como texto base64 dentro del propio
+// registro, pesadísimo y sin forma de reutilizarlo). Ahora sube a Supabase Storage (lib/multimedia.js)
+// y la galería de abajo deja elegir cualquier archivo ya subido antes por esta iglesia, sin resubirlo.
+function MediaPicker({ iglesiaId, tipo, value, onChange, color = "#B15EA0" }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const [showGallery, setShowGallery] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const cargar = () => {
+    if (!iglesiaId) return;
+    setLoading(true);
+    listarFondos(iglesiaId, tipo).then(setItems).catch(() => {}).finally(() => setLoading(false));
+  };
+  useEffect(() => {
+    if (showGallery) cargar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showGallery, iglesiaId, tipo]);
+
+  const subir = async (file) => {
+    if (!file || !iglesiaId) return;
+    setUploading(true); setError("");
+    try {
+      const url = await subirFondo(iglesiaId, tipo, file);
+      onChange(url);
+      setShowGallery(true);
+      cargar();
+    } catch (e) {
+      setError(e.message || "No se pudo subir el archivo.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const eliminar = async (item, e) => {
+    e.stopPropagation();
+    if (!(await confirmDialog(`¿Quitar "${item.nombre}" de la biblioteca? Donde ya esté puesto como fondo no cambia, pero ya no se podrá volver a elegir.`, { danger: true, textoConfirmar: "Quitar" }))) return;
+    try {
+      await borrarFondo(item.ruta);
+      setItems((its) => its.filter((i) => i.ruta !== item.ruta));
+    } catch (err) {
+      notifyError("No se pudo quitar el archivo", err);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="hoverable" style={{ ...addBtnStyle, flex: 1, opacity: uploading ? 0.6 : 1 }}>
+          {value ? (
+            tipo === "imagen"
+              ? <span style={{ width: 16, height: 16, borderRadius: 8, backgroundImage: `url(${value})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />
+              : <Play size={13} color={color} />
+          ) : tipo === "imagen" ? <ImgIcon size={13} color="var(--wf-faint)" /> : <Play size={13} color="var(--wf-faint)" />}
+          <span>{uploading ? "Subiendo…" : value ? "Cambiar — tocar para subir otro" : `Subir ${tipo === "imagen" ? "imagen" : "video"} nuevo`}</span>
+        </button>
+        <button type="button" onClick={() => setShowGallery((s) => !s)} className="hoverable" title="Elegir de lo ya subido antes" style={{ ...addBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}>
+          <LayoutGrid size={13} color={color} /> Biblioteca
+        </button>
+      </div>
+      <input ref={fileInputRef} type="file" accept={tipo === "imagen" ? "image/*" : "video/*"} style={{ display: "none" }} onChange={(e) => { subir(e.target.files?.[0]); e.target.value = ""; }} />
+      {error && <div style={{ fontSize: 11, color: "#C23B32", marginTop: 6 }}>{error}</div>}
+      {showGallery && (
+        <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 8, maxHeight: 220, overflowY: "auto", background: "var(--wf-hover)", borderRadius: 12, padding: 8 }}>
+          {loading && <div style={{ fontSize: 11, color: "var(--wf-faint)", gridColumn: "1/-1" }}>Cargando…</div>}
+          {!loading && items.length === 0 && <div style={{ fontSize: 11, color: "var(--wf-faint)", gridColumn: "1/-1" }}>Todavía no hay {tipo === "imagen" ? "imágenes" : "videos"} guardados — sube el primero arriba.</div>}
+          {items.map((item) => (
+            <div key={item.ruta} onClick={() => onChange(item.url)} title={item.nombre} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", cursor: "pointer", background: "#000", border: value === item.url ? `2px solid ${color}` : "1px solid var(--wf-border)" }}>
+              {tipo === "imagen" ? (
+                <div style={{ width: "100%", height: "100%", backgroundImage: `url(${item.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+              ) : (
+                <video src={item.url} muted preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              )}
+              <button type="button" onClick={(e) => eliminar(item, e)} title="Quitar de la biblioteca" style={{ position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: 9, border: "none", background: "rgba(0,0,0,0.65)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}><Trash2 size={10} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+function SlideModal({ draft, setDraft, onClose, onAdd, title = "Slide personalizada", submitLabel = "Agregar al servicio", iglesiaId }) {
   const bgOptions = ["#1B2029", "#2A1F33", "#1F2A2C", "#332420"];
   const bgType = draft.bgType || "color";
-  const videoFileInputRef = useRef(null);
-  const imageFileInputRef = useRef(null);
-  const uploadVideoFile = (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setDraft((d) => ({ ...d, videoUrl: reader.result }));
-    reader.readAsDataURL(file);
-  };
-  const uploadImageFile = (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setDraft((d) => ({ ...d, imageUrl: reader.result }));
-    reader.readAsDataURL(file);
-  };
   return (
     <ModalShell title={title} icon={ImgIcon} color="#B15EA0" onClose={onClose}>
       {/* Textarea, no input: para un texto largo se puede tocar Enter y armar el salto de línea a mano
@@ -6251,26 +6367,17 @@ function SlideModal({ draft, setDraft, onClose, onAdd, title = "Slide personaliz
       )}
       {bgType === "imagen" && (
         <div>
-          <button onClick={() => imageFileInputRef.current?.click()} className="hoverable" style={addBtnStyle}>
-            {draft.imageUrl ? (
-              <span style={{ width: 16, height: 16, borderRadius: 8, backgroundImage: `url(${draft.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />
-            ) : (
-              <ImgIcon size={13} color="var(--wf-faint)" />
-            )}
-            <span>{draft.imageUrl ? "Imagen cargada — tocar para cambiar" : "Subir imagen desde este dispositivo"}</span>
-          </button>
-          <input ref={imageFileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { uploadImageFile(e.target.files?.[0]); e.target.value = ""; }} />
+          <MediaPicker iglesiaId={iglesiaId} tipo="imagen" value={draft.imageUrl} onChange={(url) => setDraft({ ...draft, imageUrl: url })} />
           <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Se estira para cubrir toda la pantalla. Si dejas el título vacío, se proyecta a pantalla completa sin texto encima.</div>
         </div>
       )}
       {bgType === "video" && (
         <div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input placeholder="https://... (mp4 de fondo)" value={draft.videoUrl || ""} onChange={(e) => setDraft({ ...draft, videoUrl: e.target.value })} style={{ ...inputStyle, flex: 1 }} />
-            <button onClick={() => videoFileInputRef.current?.click()} style={{ ...addBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}><Paperclip size={14} color="#B15EA0" /> Subir video</button>
-            <input ref={videoFileInputRef} type="file" accept="video/*" style={{ display: "none" }} onChange={(e) => { uploadVideoFile(e.target.files?.[0]); e.target.value = ""; }} />
-          </div>
-          {draft.videoUrl && draft.videoUrl.startsWith("data:") && <div style={{ fontSize: 11, color: "#1F8A73", marginTop: 6 }}>Video propio cargado ✓</div>}
+          {/* El filtro !startsWith("http") es solo para no mostrar un video base64 viejo (de antes de
+              este cambio) hecho ilegible dentro de este campo de texto -- uno nuevo (subido o elegido de
+              la biblioteca) siempre es una URL https:// real, así que nunca lo oculta. */}
+          <input placeholder="o pega un enlace https://... (mp4 de fondo)" value={draft.videoUrl && !draft.videoUrl.startsWith("http") ? "" : draft.videoUrl || ""} onChange={(e) => setDraft({ ...draft, videoUrl: e.target.value })} style={{ ...inputStyle, marginBottom: 8 }} />
+          <MediaPicker iglesiaId={iglesiaId} tipo="video" value={draft.videoUrl} onChange={(url) => setDraft({ ...draft, videoUrl: url })} />
           <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Se reproduce en bucle y sin sonido. Si dejas el título vacío, se proyecta a pantalla completa sin texto encima.</div>
         </div>
       )}
@@ -6547,7 +6654,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide }) {
+function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, myIglesiaId }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -6586,20 +6693,6 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
       onEditLiveSlide(editingSlide.slideId, editDraft);
     }
     setEditingSlide(null); setEditDraft(null);
-  };
-  const bgFileInputRef = useRef(null);
-  const bgVideoFileInputRef = useRef(null);
-  const uploadBgImage = (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", customImage: reader.result }));
-    reader.readAsDataURL(file);
-  };
-  const uploadBgVideo = (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", customVideo: reader.result }));
-    reader.readAsDataURL(file);
   };
   const customBgType = liveStyle.customBgType || "imagen";
   const fontScale = liveStyle.fontScale ?? 1;
@@ -6725,32 +6818,25 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
               <button onClick={() => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video" }))} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "video" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "video" ? "#fff" : "var(--wf-muted)" }}><Play size={12} /> Video (movimiento)</button>
             </div>
             {customBgType === "imagen" ? (
-              <button onClick={() => bgFileInputRef.current?.click()} className="hoverable" style={{ ...addBtnStyle, marginBottom: 12 }}>
-                {liveStyle.customImage ? (
-                  <span style={{ width: 16, height: 16, borderRadius: 8, backgroundImage: `url(${liveStyle.customImage})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />
-                ) : (
-                  <ImgIcon size={13} color="var(--wf-faint)" />
-                )}
-                <span>{liveStyle.customImage ? "Imagen cargada — tocar para cambiar" : "Subir imagen de fondo"}</span>
-              </button>
+              <div style={{ marginBottom: 12 }}>
+                <MediaPicker iglesiaId={myIglesiaId} tipo="imagen" value={liveStyle.customImage} onChange={(url) => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", customImage: url }))} />
+              </div>
             ) : (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <input
-                    placeholder="https://... (mp4 de fondo con movimiento)"
-                    value={liveStyle.customVideo && !liveStyle.customVideo.startsWith("data:") ? liveStyle.customVideo : ""}
-                    onChange={(e) => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", customVideo: e.target.value }))}
-                    style={{ ...inputStyle, flex: 1 }}
-                  />
-                  <button onClick={() => bgVideoFileInputRef.current?.click()} style={{ ...addBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}><Paperclip size={13} color="#B15EA0" /> Subir</button>
-                  <input ref={bgVideoFileInputRef} type="file" accept="video/*" style={{ display: "none" }} onChange={(e) => { uploadBgVideo(e.target.files?.[0]); e.target.value = ""; }} />
-                </div>
+                {/* El filtro !startsWith("http") es solo para no mostrar un video base64 viejo (de antes
+                    de este cambio) hecho ilegible acá -- uno nuevo siempre es una URL https:// real. */}
+                <input
+                  placeholder="o pega un enlace https://... (mp4 de fondo con movimiento)"
+                  value={liveStyle.customVideo && !liveStyle.customVideo.startsWith("http") ? "" : liveStyle.customVideo || ""}
+                  onChange={(e) => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", customVideo: e.target.value }))}
+                  style={{ ...inputStyle, marginBottom: 8 }}
+                />
+                <MediaPicker iglesiaId={myIglesiaId} tipo="video" value={liveStyle.customVideo} onChange={(url) => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", customVideo: url }))} />
                 {liveStyle.customVideo && (
-                  <div style={{ fontSize: 11, color: "#1F8A73", marginTop: 6 }}>{liveStyle.customVideo.startsWith("data:") ? "Video propio cargado ✓" : "Video de fondo configurado ✓"} — se reproduce en bucle detrás de toda la letra/versículos.</div>
+                  <div style={{ fontSize: 11, color: "#1F8A73", marginTop: 6 }}>Video de fondo configurado ✓ — se reproduce en bucle detrás de toda la letra/versículos.</div>
                 )}
               </div>
             )}
-            <input ref={bgFileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { uploadBgImage(e.target.files?.[0]); e.target.value = ""; }} />
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>TIPOGRAFÍA</div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
               {Object.entries(LIVE_FONTS).map(([key, f]) => (
@@ -6777,6 +6863,28 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
               />
               <span style={{ fontSize: 19, fontWeight: 700, color: "var(--wf-faint)" }}>A</span>
               <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)", width: 34, textAlign: "right" }}>{Math.round(fontScale * 100)}%</span>
+            </div>
+            {/* Versículos: antes el texto usaba el mismo COLOR DE LETRA que canciones/slides (sigue
+                siendo el valor por defecto si no se toca nada acá) y la cita ("Mateo 5:25") tenía un
+                color fijo en el código -- ahora los dos son configurables por separado. */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", margin: "16px 0 6px" }}>VERSÍCULOS</div>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 6 }}>Color del texto del versículo</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+              {Object.entries(LIVE_TEXT_COLORS).map(([key, c]) => (
+                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, bibliaTextColor: c.value }))} title={c.label} style={{ width: 24, height: 24, borderRadius: "50%", background: c.value, border: (liveStyle.bibliaTextColor || liveStyle.textColor || "#FFFFFF") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
+              ))}
+              <label title="Elegir otro color" style={{ width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--wf-border)", cursor: "pointer", padding: 0, position: "relative", overflow: "hidden", background: liveStyle.bibliaTextColor || liveStyle.textColor || "#FFFFFF", display: "flex" }}>
+                <input type="color" value={liveStyle.bibliaTextColor || liveStyle.textColor || "#FFFFFF"} onChange={(e) => setLiveStyle((s) => ({ ...s, bibliaTextColor: e.target.value }))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+              </label>
+            </div>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 6 }}>Color de la cita (ej. "Mateo 5:25")</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              {Object.entries(LIVE_REFERENCE_COLORS).map(([key, c]) => (
+                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, bibliaReferenciaColor: c.value }))} title={c.label} style={{ width: 24, height: 24, borderRadius: "50%", background: c.value, border: (liveStyle.bibliaReferenciaColor || "#6E9BD1") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
+              ))}
+              <label title="Elegir otro color" style={{ width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--wf-border)", cursor: "pointer", padding: 0, position: "relative", overflow: "hidden", background: liveStyle.bibliaReferenciaColor || "#6E9BD1", display: "flex" }}>
+                <input type="color" value={liveStyle.bibliaReferenciaColor || "#6E9BD1"} onChange={(e) => setLiveStyle((s) => ({ ...s, bibliaReferenciaColor: e.target.value }))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+              </label>
             </div>
           </div>
         )}
@@ -6909,6 +7017,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
       {showAdHocVideo && <AdHocVideoModal onClose={() => setShowAdHocVideo(false)} onPlay={(url) => { onStartAdHocVideo(url); setShowAdHocVideo(false); }} />}
       {showAddSlide && (
         <SlideModal
+          iglesiaId={myIglesiaId}
           draft={newSlideDraft} setDraft={setNewSlideDraft}
           onClose={() => setShowAddSlide(false)}
           onAdd={() => { if (!newSlideDraft.title && !(newSlideDraft.bgType === "video" && newSlideDraft.videoUrl) && !(newSlideDraft.bgType === "imagen" && newSlideDraft.imageUrl)) return; onAddLiveSlide(newSlideDraft); setShowAddSlide(false); }}
@@ -6923,7 +7032,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
         </ModalShell>
       )}
       {editingSlide && editingSlide.type === "slide" && (
-        <SlideModal title="Editar diapositiva" submitLabel="Guardar cambios" draft={editDraft} setDraft={setEditDraft} onClose={() => setEditingSlide(null)} onAdd={saveSlideEdit} />
+        <SlideModal iglesiaId={myIglesiaId} title="Editar diapositiva" submitLabel="Guardar cambios" draft={editDraft} setDraft={setEditDraft} onClose={() => setEditingSlide(null)} onAdd={saveSlideEdit} />
       )}
       {editingSlide && editingSlide.type === "cancion" && (
         <ModalShell title="Corregir letra" icon={Music} color="var(--wf-brand-accent)" onClose={() => setEditingSlide(null)}>
@@ -7078,7 +7187,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
                 <AutoFitText
                   lines={`"${slide.text}"`} targetRatio={bibliaRatio} minPx={thumbnail ? 7 : 14} maxWidth="90%"
                   onFontSize={setBibliaFontPx}
-                  style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, textAlign: "center", zIndex: 1, lineHeight: 1.4, fontStyle: font.italic || font.family.includes("Fraunces") ? "italic" : "normal", color: textColor }}
+                  style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, textAlign: "center", zIndex: 1, lineHeight: 1.4, fontStyle: font.italic || font.family.includes("Fraunces") ? "italic" : "normal", color: liveStyle?.bibliaTextColor || textColor }}
                 />
               </div>
               {/* La cita ("Génesis 6:6") tiene que leerse desde lejos SIN necesidad de escuchar — hay gente
@@ -7087,7 +7196,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
                   aparte (que no sabía cuánto se había achicado el versículo para caber), se deriva del
                   tamaño ya medido de arriba (bibliaFontPx) — así siempre queda un porcentaje fijo de él,
                   se achique lo que se achique el versículo. */}
-              <div style={{ position: "absolute", left: 0, right: 0, bottom: thumbnail ? 6 : 28, textAlign: "center", fontSize: thumbnail ? 10 : Math.round((bibliaFontPx || 20) * 0.62), color: "#6E9BD1", fontWeight: 800, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "0.3em" }}>
+              <div style={{ position: "absolute", left: 0, right: 0, bottom: thumbnail ? 6 : 28, textAlign: "center", fontSize: thumbnail ? 10 : Math.round((bibliaFontPx || 20) * 0.62), color: liveStyle?.bibliaReferenciaColor || "#6E9BD1", fontWeight: 800, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "0.3em" }}>
                 {slide.reference}
                 {!thumbnail && slide.version && <span style={{ fontSize: "0.4em", background: "rgba(110,155,209,0.2)", borderRadius: 10, padding: "0.2em 0.6em" }}>{slide.version}</span>}
               </div>
