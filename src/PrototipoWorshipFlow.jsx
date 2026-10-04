@@ -7187,10 +7187,17 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // Prioridad de fondo: video propio de esta slide > video de fondo global (Estilo > Video) > imagen
   // propia de esta slide > imagen de fondo global (Estilo > Imagen) > tema de color.
   const slideVideoBg = slide?.type === "slide" && slide.bgType === "video" && slide.videoUrl;
-  const globalVideoBg = !slideVideoBg && liveStyle?.theme === "custom" && liveStyle.customVideo;
+  // Bug real: antes esto no miraba customBgType -- con liveStyle.customVideo puesto alguna vez
+  // (queda guardado aunque ya no se esté usando, por si se vuelve a esa pestaña), el video ganaba
+  // SIEMPRE, sin importar que la pestaña activa fuera "Imagen" con una imagen ya elegida -- cambiar a
+  // imagen no se veía nunca. customBgType (la pestaña que de verdad está activa en Estilo) es lo que
+  // decide cuál de los dos usar, no solo cuál de los dos campos tiene algo guardado.
+  const customBgEsVideo = liveStyle?.theme === "custom" && (liveStyle.customBgType || "imagen") === "video";
+  const customBgEsImagen = liveStyle?.theme === "custom" && (liveStyle.customBgType || "imagen") === "imagen";
+  const globalVideoBg = !slideVideoBg && customBgEsVideo && liveStyle.customVideo;
   const videoSrc = slideVideoBg ? slide.videoUrl : globalVideoBg ? liveStyle.customVideo : null;
   const slideImageBg = !videoSrc && slide?.type === "slide" && slide.bgType === "imagen" && slide.imageUrl;
-  const globalImageBg = !videoSrc && !slideImageBg && liveStyle?.theme === "custom" && liveStyle.customImage;
+  const globalImageBg = !videoSrc && !slideImageBg && customBgEsImagen && liveStyle.customImage;
   const imageSrc = slideImageBg || globalImageBg || null;
   // Bug real (no de hoy, ya existía): al tocar la pestaña "Imagen" o "Video (movimiento)" del fondo
   // global, liveStyle.theme pasa a "custom" DE UNA -- antes incluso de subir o elegir algo -- pero
