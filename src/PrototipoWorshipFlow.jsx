@@ -1487,6 +1487,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     try { await sincronizarPlan(id, plan); } finally { pendingSavesRef.current--; }
   };
   const addResource = (id, resource) => updateMinistry(id, (m) => ({ ...m, resources: [...m.resources, { id: nextMinistryChildId(), ...resource }] }));
+  const editResource = (id, resourceId, patch) => updateMinistry(id, (m) => ({ ...m, resources: m.resources.map((r) => (r.id === resourceId ? { ...r, ...patch } : r)) }));
   const removeResource = (id, resourceId) => updateMinistry(id, (m) => ({ ...m, resources: m.resources.filter((r) => r.id !== resourceId) }));
   const createMinistry = ({ name, leaderId, color }) => {
     const leaderName = usuariosReales.find((u) => u.id === leaderId)?.nombre || "";
@@ -1991,6 +1992,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onBack={() => window.history.back()}
           onSavePlan={(plan) => savePlanForMinistry(selectedMinistryId, plan)}
           onAddResource={(resource) => addResource(selectedMinistryId, resource)}
+          onEditResource={(resourceId, patch) => editResource(selectedMinistryId, resourceId, patch)}
           onRemoveResource={(resourceId) => removeResource(selectedMinistryId, resourceId)}
           onSetLeader={(leaderId) => setMinistryLeader(selectedMinistryId, leaderId)}
           onSetName={(name) => setMinistryName(selectedMinistryId, name)}
@@ -3423,9 +3425,11 @@ function MinistriesList({ ministries, usuariosReales, isAdminViewer, onSelect, o
   );
 }
 
-function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, canEdit, onBack, onSavePlan, onAddResource, onRemoveResource, onSetLeader, onSetName, onSetColor, onDelete }) {
+function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, canEdit, onBack, onSavePlan, onAddResource, onEditResource, onRemoveResource, onSetLeader, onSetName, onSetColor, onDelete }) {
   const [showResourceForm, setShowResourceForm] = useState(false);
   const [resourceDraft, setResourceDraft] = useState({ title: "", link: "" });
+  // null = agregando uno nuevo; con valor = editando ese recurso ya existente (mismo modal para los dos).
+  const [editingResourceId, setEditingResourceId] = useState(null);
   const [subiendoArchivoRecurso, setSubiendoArchivoRecurso] = useState(false);
   const [errorArchivoRecurso, setErrorArchivoRecurso] = useState("");
   const resourceFileInputRef = useRef(null);
@@ -3484,6 +3488,10 @@ function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, 
   const [resumenDraft, setResumenDraft] = useState("");
   const [loadingResumen, setLoadingResumen] = useState(true);
   const [savingResumen, setSavingResumen] = useState(false);
+  // Mismo criterio que expandedPlanIds más abajo (y que "Editar/Guardar" en el Setlist): colapsado por
+  // defecto mostrando el texto fijo, un botón lo despliega para editar (o solo leer, si no puede
+  // editar), y "Guardar" lo vuelve a colapsar — así no queda un cuadro de texto abierto todo el tiempo.
+  const [expandedResumen, setExpandedResumen] = useState(false);
   useEffect(() => {
     if (!ministry) return;
     let cancelado = false;
@@ -3501,12 +3509,14 @@ function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, 
     try {
       await guardarResumenMensual(ministry.id, selectedMonth, resumenDraft);
       setResumenGuardado(resumenDraft);
+      setExpandedResumen(false);
     } catch (e) {
       notifyError("No se pudo guardar el resumen del mes", e);
     } finally {
       setSavingResumen(false);
     }
   };
+  const cancelEditResumen = () => { setResumenDraft(resumenGuardado); setExpandedResumen(false); };
 
   if (!ministry) return null;
 
@@ -3534,16 +3544,18 @@ function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, 
 
   const submitResource = () => {
     if (!resourceDraft.title.trim()) return;
-    onAddResource({ ...resourceDraft, month: selectedMonth });
-    setResourceDraft({ title: "", link: "" });
-    setErrorArchivoRecurso("");
-    setShowResourceForm(false);
+    if (editingResourceId) onEditResource(editingResourceId, { title: resourceDraft.title, link: resourceDraft.link });
+    else onAddResource({ ...resourceDraft, month: selectedMonth });
+    closeResourceForm();
   };
   const closeResourceForm = () => {
     setShowResourceForm(false);
+    setEditingResourceId(null);
     setResourceDraft({ title: "", link: "" });
     setErrorArchivoRecurso("");
   };
+  const startAddingResource = () => { setEditingResourceId(null); setResourceDraft({ title: "", link: "" }); setShowResourceForm(true); };
+  const startEditingResource = (r) => { setEditingResourceId(r.id); setResourceDraft({ title: r.title, link: r.link || "" }); setShowResourceForm(true); };
   const planForMonth = planDraft.filter((p) => (p.date || "").slice(0, 7) === selectedMonth);
   const resourcesForMonth = ministry.resources.filter((r) => r.month === selectedMonth);
 
@@ -3603,9 +3615,20 @@ function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, 
         </div>
         {loadingResumen ? (
           <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>Cargando…</div>
+        ) : !expandedResumen ? (
+          // Colapsado por defecto (y después de cada "Guardar") — el texto queda fijo, con solo una
+          // vista previa de una línea; tocar acá lo despliega, ya sea para editarlo o solo para leerlo
+          // completo si no se puede editar.
+          <div onClick={() => setExpandedResumen(true)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12.5, color: resumenGuardado ? "var(--wf-text-2)" : "var(--wf-faint)" }}>
+              {resumenGuardado || (canEdit ? "Sin resumen todavía — tocar para escribir uno." : "Sin resumen todavía.")}
+            </span>
+            <ChevronDown size={14} color="var(--wf-faint)" style={{ flexShrink: 0 }} />
+          </div>
         ) : canEdit ? (
           <>
             <textarea
+              autoFocus
               value={resumenDraft} onChange={(e) => setResumenDraft(e.target.value)}
               placeholder="Ej. este mes nos enfocamos en identidad en Cristo, 4 reuniones, buena asistencia..."
               rows={4} style={{ ...inputStyle, resize: "vertical" }}
@@ -3614,11 +3637,15 @@ function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, 
               <button onClick={saveResumen} disabled={!resumenDirty || savingResumen} className="hoverable" style={{ ...primaryBtn, width: "auto", padding: "7px 16px", fontSize: 12.5, opacity: resumenDirty && !savingResumen ? 1 : 0.5, cursor: resumenDirty && !savingResumen ? "pointer" : "default" }}>
                 {savingResumen ? "Guardando…" : "Guardar resumen"}
               </button>
+              {!savingResumen && <button onClick={cancelEditResumen} style={{ ...iconGhost, width: "auto", padding: "0 8px", fontSize: 12, fontWeight: 700 }}>Cancelar</button>}
               {resumenDirty && !savingResumen && <span style={{ fontSize: 11, color: "var(--wf-brand-accent)", fontWeight: 700 }}>● Cambios sin guardar</span>}
             </div>
           </>
         ) : (
-          <div style={{ fontSize: 12.5, color: "var(--wf-text-2)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{resumenGuardado || "Sin resumen todavía."}</div>
+          <div onClick={() => setExpandedResumen(false)} className="hoverable" style={{ cursor: "pointer" }}>
+            <div style={{ fontSize: 12.5, color: "var(--wf-text-2)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{resumenGuardado || "Sin resumen todavía."}</div>
+            <ChevronUp size={14} color="var(--wf-faint)" style={{ marginTop: 6 }} />
+          </div>
         )}
       </div>
 
@@ -3663,7 +3690,7 @@ function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, 
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><FolderOpen size={15} color={ministry.color} /> Recursos de {monthLabelFromKey(selectedMonth)}</div>
-        {canEdit && <button onClick={() => setShowResourceForm(true)} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar recurso</button>}
+        {canEdit && <button onClick={startAddingResource} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar recurso</button>}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {resourcesForMonth.map((r) => (
@@ -3671,14 +3698,15 @@ function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, 
             <FolderOpen size={14} color="var(--wf-faint)" />
             <span style={{ fontSize: 13, flex: 1 }}>{r.title}</span>
             {r.link && <a href={r.link} target="_blank" rel="noreferrer" style={{ color: "#2F5FA8" }}><ExternalLink size={14} /></a>}
-            {canEdit && <button onClick={() => onRemoveResource(r.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>}
+            {canEdit && <button onClick={() => startEditingResource(r)} title="Editar" style={{ ...iconGhost, color: "#2F5FA8" }}><Pencil size={14} /></button>}
+            {canEdit && <button onClick={() => onRemoveResource(r.id)} title="Eliminar" style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>}
           </div>
         ))}
         {resourcesForMonth.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>No hay recursos compartidos para {monthLabelFromKey(selectedMonth)}.</div>}
       </div>
 
       {showResourceForm && (
-        <ModalShell title="Agregar recurso" icon={FolderOpen} color={ministry.color} onClose={closeResourceForm}>
+        <ModalShell title={editingResourceId ? "Editar recurso" : "Agregar recurso"} icon={FolderOpen} color={ministry.color} onClose={closeResourceForm}>
           <Field label="Título" required><input value={resourceDraft.title} onChange={(e) => setResourceDraft({ ...resourceDraft, title: e.target.value })} placeholder="Ej. Guía de manualidades" style={inputStyle} /></Field>
           <div style={{ height: 10 }} />
           <Field label="Enlace (opcional si adjuntas un archivo)">
@@ -3701,7 +3729,7 @@ function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, 
           <input ref={resourceFileInputRef} type="file" style={{ display: "none" }} onChange={(e) => { adjuntarArchivoRecurso(e.target.files?.[0]); e.target.value = ""; }} />
           {errorArchivoRecurso && <div style={{ fontSize: 11, color: "#C23B32", marginTop: 6 }}>{errorArchivoRecurso}</div>}
           <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Hasta 20 MB — PDF, imagen, audio, lo que sea.</div>
-          <button onClick={submitResource} disabled={subiendoArchivoRecurso} style={{ ...primaryBtn, marginTop: 14, opacity: subiendoArchivoRecurso ? 0.6 : 1 }}>Agregar</button>
+          <button onClick={submitResource} disabled={subiendoArchivoRecurso} style={{ ...primaryBtn, marginTop: 14, opacity: subiendoArchivoRecurso ? 0.6 : 1 }}>{editingResourceId ? "Guardar cambios" : "Agregar"}</button>
         </ModalShell>
       )}
     </div>
