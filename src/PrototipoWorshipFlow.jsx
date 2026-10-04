@@ -7241,7 +7241,11 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   const textColor = liveStyle?.textColor || "#FFFFFF";
   return (
     <div style={{ flex: thumbnail ? "none" : compactHeight ? "none" : split ? 1.3 : 1, width: thumbnail ? "100%" : "auto", height: thumbnail ? "100%" : compactHeight || "auto", minHeight: thumbnail ? "auto" : compactHeight || "auto", background: bg, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", position: "relative", padding: thumbnail ? 10 : 32, minWidth: thumbnail ? 0 : 320, overflow: "hidden" }}>
-      {!thumbnail && <div style={{ position: "absolute", top: 18, left: 22, display: "flex", alignItems: "center", gap: 6, color: "#5B6472", fontSize: 11, fontWeight: 700, letterSpacing: 1, zIndex: 2 }}><Radio size={12} /> PANTALLA DE PROYECCIÓN</div>}
+      {/* Etiquetas chicas (este letrero, la sección de la canción, el título abajo) solo en la vista
+          previa del propio operador (thumbnail) -- útiles ahí para ubicarse entre los paneles del
+          control, pero de la pantalla real que ve la congregación se quitan: solo debe verse el
+          contenido en sí, sin nada de chrome encima (pedido de Eldin, 2026-10-04). */}
+      {thumbnail && <div style={{ position: "absolute", top: 18, left: 22, display: "flex", alignItems: "center", gap: 6, color: "#5B6472", fontSize: 11, fontWeight: 700, letterSpacing: 1, zIndex: 2 }}><Radio size={12} /> PANTALLA DE PROYECCIÓN</div>}
       {/* Solo visible en la vista previa del operador (no se pasa esta prop en la pantalla real del público) */}
       {adHocLabel && <div style={{ position: "absolute", top: thumbnail ? 6 : 18, right: thumbnail ? 8 : 22, background: "rgba(232,130,30,0.9)", color: "var(--wf-text)", fontSize: thumbnail ? 8 : 10, fontWeight: 700, letterSpacing: 0.5, borderRadius: 20, padding: thumbnail ? "2px 6px" : "4px 10px", zIndex: 2 }}>● IMPROVISADO</div>}
       {/* El fondo (video/imagen propios, o el de la slide) se renderiza SIEMPRE, incluso con "Pantalla
@@ -7263,12 +7267,12 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           {!videoSrc && <div className="spotlight-glow" style={{ position: "absolute", width: thumbnail ? 140 : 420, height: thumbnail ? 140 : 420, borderRadius: "50%", background: `radial-gradient(circle, ${TYPE_META[slide.type].color}22 0%, transparent 70%)` }} />}
           {slide.type === "cancion" && (
             <>
-              <div style={{ fontSize: thumbnail ? 9 : 12, fontWeight: 700, letterSpacing: thumbnail ? 1 : 2, color: "var(--wf-brand-accent)", marginBottom: thumbnail ? 6 : 14, zIndex: 1 }}>{slide.blockLabel.toUpperCase()}</div>
+              {thumbnail && <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "var(--wf-brand-accent)", marginBottom: 6, zIndex: 1 }}>{slide.blockLabel.toUpperCase()}</div>}
               <AutoFitText
                 lines={slide.lines} targetRatio={cancionRatio} minPx={thumbnail ? 7 : 15} maxWidth="90%"
                 style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", textAlign: "center", zIndex: 1, lineHeight: 1.35, color: textColor }}
               />
-              {!thumbnail && <div style={{ position: "absolute", bottom: 18, display: "flex", alignItems: "center", gap: 8, color: "#5B6472", fontSize: 12, zIndex: 1 }}><Music size={12} /> {slide.songTitle}</div>}
+              {thumbnail && <div style={{ position: "absolute", bottom: 18, display: "flex", alignItems: "center", gap: 8, color: "#5B6472", fontSize: 12, zIndex: 1 }}><Music size={12} /> {slide.songTitle}</div>}
             </>
           )}
           {slide.type === "biblia" && (
