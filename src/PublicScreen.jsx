@@ -94,9 +94,12 @@ export default function PublicScreen() {
         return;
       }
       if (everFullscreenRef.current) {
-        // Reintenta sola, en silencio (sin gesto no va a funcionar casi nunca, pero no cuesta nada
-        // intentarlo -- si por lo que sea sí alcanza, nadie ni se entera de que pasó algo).
-        document.documentElement.requestFullscreen?.().catch(() => {});
+        // A PROPÓSITO sin reintento automático acá (sí lo había en la primera versión de este arreglo,
+        // 2026-10-04): aunque casi siempre falla por falta de gesto real, las pocas veces que SÍ
+        // alcanzaba a funcionar la ventana de proyección saltaba al frente justo cuando el panel de
+        // control estaba abriendo el diálogo nativo de "elegir archivo" (al subir un fondo) -- tapando
+        // la pantalla de control y escondiendo ese diálogo detrás, viéndose como que "la app se puso en
+        // negro y no deja hacer nada". Mejor esperar siempre al clic real en el botón de abajo.
         setFullscreenDroppedQuietly(true);
       } else {
         setNeedsTapToFullscreen(true);
