@@ -87,3 +87,37 @@ export async function desuscribirPush() {
   await supabase.from("push_subscriptions").delete().eq("endpoint", subscription.endpoint);
   await subscription.unsubscribe();
 }
+
+// A diferencia de estaSuscritoPush() (que solo mira ESTE navegador/dispositivo), esto pregunta si la
+// persona tiene AL MENOS UNA suscripción guardada en la base, en cualquier dispositivo — para decidir
+// si mostrarle el aviso de "activa tus notificaciones": alguien que ya las activó en su celular no
+// debería ver el aviso otra vez solo porque hoy entró desde la computadora.
+export async function tieneAlgunaSuscripcionPush(usuarioId) {
+  const { count, error } = await supabase
+    .from("push_subscriptions")
+    .select("id", { count: "exact", head: true })
+    .eq("usuario_id", usuarioId);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
+// "default" (nunca se le preguntó) | "granted" | "denied" (el navegador lo bloqueó -- volver a pedir
+// permiso ya no hace nada, solo mostrar instrucciones) | "sin-soporte".
+export function estadoPermisoNotificacion() {
+  if (!("Notification" in window)) return "sin-soporte";
+  return Notification.permission;
+}
+
+// Qué hacer al abrir la app, dado el estado real de esta persona — función pura (sin DOM, sin red)
+// para poder probarla sola. Tres casos:
+// - "granted" sin suscripción en la base: se perdió (reinstaló la app, cambió de teléfono, limpió
+//   datos del sitio) pero el permiso del navegador SIGUE concedido -- se puede reinscribir sola, sin
+//   preguntarle nada (con el permiso ya dado, el navegador no vuelve a mostrar ningún diálogo).
+// - "default" o "denied" sin suscripción: ahí sí hace falta mostrarle el aviso (con instrucciones de
+//   desbloqueo si está "denied").
+// - ya tiene alguna suscripción, o este navegador no soporta push: no hay nada que hacer.
+export function decidirAccionPush({ tieneSuscripcion, permiso }) {
+  if (tieneSuscripcion || permiso === "sin-soporte") return "nada";
+  if (permiso === "granted") return "reinscribir-en-silencio";
+  return "mostrar-aviso"; // "default" | "denied"
+}

@@ -234,6 +234,15 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
   // de los 5 de fábrica de arriba.
   const [rolesApp, setRolesApp] = useState([]);
   useEffect(() => { supabase.from("roles_app").select("id, nombre").order("orden").then(({ data }) => setRolesApp(data || [])); }, []);
+  // Quién SÍ tiene notificaciones push activadas en al menos un dispositivo — push_subscriptions solo
+  // deja leer la propia fila por RLS (correcto, no se toca), así que esto pasa por una función aparte
+  // (usuarios_con_push, ver migración 20261003000200) que solo devuelve usuario_id, nunca el endpoint/
+  // llaves de la suscripción de nadie. Con eso basta para marcar en la lista a quien le falta.
+  const [usuariosConPush, setUsuariosConPush] = useState(null); // null = cargando
+  useEffect(() => {
+    supabase.rpc("usuarios_con_push", { p_iglesia_id: iglesiaId })
+      .then(({ data, error }) => setUsuariosConPush(error ? new Set() : new Set((data || []).map((r) => r.usuario_id))));
+  }, [iglesiaId]);
 
   // Abrir el perfil de alguien empuja su propia entrada del historial ("usuarios-profile") — así el
   // botón/gesto "atrás" regresa a la lista de Usuarios en vez de salir de la app de un salto.
@@ -372,6 +381,7 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
                     <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>
                       {row.nombre} {row.email === myEmail && <span style={{ fontSize: 10, color: "var(--wf-faint)" }}>(tú)</span>}
                       {!row.perfil_completo && <span title="Todavía no completó su perfil" style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-active-text)", background: "var(--wf-active-bg)", border: "1px solid var(--wf-brand-accent)", borderRadius: 14, padding: "1px 6px", marginLeft: 6 }}>PENDIENTE</span>}
+                      {usuariosConPush && !usuariosConPush.has(row.id) && <span title="No tiene notificaciones push activadas en ningún dispositivo — no le llegan avisos de asignaciones ni recordatorios" style={{ fontSize: 9, fontWeight: 700, color: "#C23B32", background: "#FBEAE8", border: "1px solid #C23B32", borderRadius: 14, padding: "1px 6px", marginLeft: 6 }}>SIN PUSH</span>}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis" }}>{row.email}</div>
                   </div>

@@ -20,7 +20,7 @@ import { getMusicoLive, updateMusicoLive, clearMusicoLive, subscribeMusicoLive }
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { sincronizarRecordatorios } from "./lib/recordatorios.js";
 import { enviarMensajeAsistente, aplicarPlanAsistente, obtenerReglasAsistente, guardarReglasAsistente } from "./lib/asistente.js";
-import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotificaciones, suscribirPush, desuscribirPush, estaSuscritoPush } from "./lib/notificaciones.js";
+import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotificaciones, suscribirPush, desuscribirPush, estaSuscritoPush, tieneAlgunaSuscripcionPush, estadoPermisoNotificacion, decidirAccionPush } from "./lib/notificaciones.js";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } from "./lib/pwaInstall.js";
 import { buscarActualizacionManual, hayActualizacionPendiente } from "./lib/swUpdate.js";
@@ -1751,6 +1751,56 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     reiniciarTutoriales().catch((err) => notifyError("No se pudo reiniciar el tutorial", err));
   };
 
+  // ---------------- Aviso para activar notificaciones push ----------------
+  // Mucha gente nunca llegó a activarlas (se les invitó antes de que existiera el paso de Ajustes, o
+  // lo saltaron ahí) y por eso no les llegan avisos de asignaciones ni recordatorios. A diferencia de
+  // PushPrompt (AuthGate.jsx, solo al crear la cuenta por primera vez), este aviso vive en Inicio y
+  // puede volver a aparecer más adelante — pero sin bloquear nada: se puede cerrar, y si se cierra no
+  // insiste de nuevo hasta dentro de unos días (fecha guardada en localStorage, por dispositivo —
+  // conveniencia del aparato, no estado que haga falta recordar entre dispositivos). Se fija si tiene
+  // alguna suscripción en CUALQUIER dispositivo (no solo este) para no insistirle a alguien que ya las
+  // activó en su celular solo porque hoy entró desde la computadora.
+  const PUSH_NAG_KEY = "wf_push_aviso_oculto_hasta";
+  const PUSH_NAG_DIAS = 4;
+  const [avisoPush, setAvisoPush] = useState(null); // null = no aplica | { permiso }
+  useEffect(() => {
+    if (!datosListos || !userId) return;
+    const permiso = estadoPermisoNotificacion();
+    if (permiso === "sin-soporte") return; // este navegador nunca va a poder — no insistir
+    tieneAlgunaSuscripcionPush(userId)
+      .then((tiene) => {
+        const accion = decidirAccionPush({ tieneSuscripcion: tiene, permiso });
+        if (accion === "nada") return;
+        if (accion === "reinscribir-en-silencio") {
+          // Si falla (sin red, etc.) se reintenta solo la próxima vez que abra la app — no hace
+          // falta mostrarle nada por un fallo en algo que de entrada no le pedía nada.
+          suscribirPush(userId).catch(() => {});
+          return;
+        }
+        // "mostrar-aviso" — respetando que lo haya cerrado hace poco.
+        let ocultoHasta = 0;
+        try { ocultoHasta = Number(localStorage.getItem(PUSH_NAG_KEY) || 0); } catch { /* localStorage no disponible (incógnito estricto) — se muestra igual */ }
+        if (Date.now() < ocultoHasta) return;
+        setAvisoPush({ permiso });
+      })
+      .catch(() => {}); // sin red, etc. — simplemente no se muestra esta vez, no hay nada más que avisar
+  }, [datosListos, userId]);
+  const ocultarAvisoPush = () => {
+    setAvisoPush(null);
+    try { localStorage.setItem(PUSH_NAG_KEY, String(Date.now() + PUSH_NAG_DIAS * 86_400_000)); } catch { /* ídem */ }
+  };
+  const activarPushDesdeAviso = async () => {
+    try {
+      await suscribirPush(userId);
+      setAvisoPush(null);
+    } catch {
+      // Lo más probable es que el navegador acabe de bloquearlo al pedir permiso — se refleja el
+      // estado real (puede haber pasado de "default" a "denied") para mostrar las instrucciones de
+      // desbloqueo en vez de dejar el mismo botón que acaba de fallar.
+      setAvisoPush({ permiso: estadoPermisoNotificacion() });
+    }
+  };
+
   if (!datosListos) {
     return <div className="app-shell-height" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", color: "var(--wf-faint)", fontFamily: "'Poppins', sans-serif", fontSize: 14 }}>Cargando…</div>;
   }
@@ -1892,7 +1942,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       {!["envivo", "proyeccion"].includes(tab) && (
       <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: tab === "inicio" ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {tab === "inicio" && (
-        <InicioView events={realEvents} library={library} myUserId={myUserId} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} canSeeCanciones={canSeeCanciones} teamName={myIglesia.nombre} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} />
+        <InicioView events={realEvents} library={library} myUserId={myUserId} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} canSeeCanciones={canSeeCanciones} teamName={myIglesia.nombre} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} avisoPush={avisoPush} onActivarPush={activarPushDesdeAviso} onOcultarPush={ocultarAvisoPush} />
       )}
 
       {tab === "ajustes" && (
@@ -2220,7 +2270,49 @@ function nextUpcomingEvent(events, liveEventId) {
     .sort(compareByDay)[0];
 }
 
-function InicioView({ events, library, myUserId, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact, canSeeCanciones, teamName }) {
+// Tarjeta NO bloqueante (a diferencia del aviso de "cargos sin confirmar") — se puede cerrar y no
+// insiste hasta dentro de unos días (ver el efecto que decide mostrar avisoPush, más arriba). Dos
+// variantes: con permiso bloqueado por el navegador se explica cómo desbloquearlo en vez de ofrecer
+// un botón que ya no serviría de nada (volver a pedir permiso mientras está "denied" no hace nada).
+function AvisoActivarPush({ estado, onActivar, onCerrar }) {
+  const [activando, setActivando] = useState(false);
+  const bloqueado = estado.permiso === "denied";
+  const activar = async () => {
+    setActivando(true);
+    try { await onActivar(); } finally { setActivando(false); }
+  };
+  return (
+    <div className="screen-enter" style={{ display: "flex", gap: 12, alignItems: "flex-start", background: "var(--wf-active-bg)", border: "1px solid var(--wf-brand-accent)", borderRadius: 18, padding: "14px 16px", marginBottom: 16, flexShrink: 0 }}>
+      <div style={{ width: 34, height: 34, borderRadius: 14, background: "var(--wf-card)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Bell size={16} color="var(--wf-brand-accent)" />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--wf-text)" }}>{bloqueado ? "Tus notificaciones están bloqueadas" : "Actívalas y no te pierdas nada"}</div>
+        {bloqueado ? (
+          <div style={{ fontSize: 12, color: "var(--wf-text-2)", marginTop: 3, lineHeight: 1.5 }}>
+            Tu navegador no deja mandarte avisos todavía.
+            <br />• <b>Android (Chrome):</b> toca el candado junto a la dirección → Permisos → Notificaciones → Permitir.
+            <br />• <b>iPhone con la app instalada:</b> Ajustes del iPhone → WorshipFlow → Notificaciones → Activar.
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: "var(--wf-text-2)", marginTop: 3, lineHeight: 1.5 }}>No tienes las notificaciones activadas en este dispositivo. Te avisamos cuando te asignen algo o se acerque un evento.</div>
+        )}
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          {!bloqueado && (
+            <button onClick={activar} disabled={activando} style={{ background: "var(--wf-brand-accent)", border: "none", borderRadius: 12, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, color: "var(--wf-brand-primary)", cursor: "pointer", opacity: activando ? 0.6 : 1 }}>
+              {activando ? "Activando…" : "Activar notificaciones"}
+            </button>
+          )}
+          <button onClick={onCerrar} style={{ background: "none", border: "none", fontSize: 12.5, fontWeight: 600, color: "var(--wf-faint)", cursor: "pointer", padding: "8px 4px" }}>
+            {bloqueado ? "Entendido" : "Ahora no"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InicioView({ events, library, myUserId, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact, canSeeCanciones, teamName, avisoPush, onActivarPush, onOcultarPush }) {
   const liveEvent = liveLibre ? EVENTO_LIBRE : events.find((e) => e.id === liveEventId);
   const [showFavorites, setShowFavorites] = useState(false);
   const favoriteSongs = library.filter((s) => s.favorite);
@@ -2263,6 +2355,8 @@ function InicioView({ events, library, myUserId, favoritesCount, memberCount, li
           </button>
         )}
       </div>
+
+      {avisoPush && <AvisoActivarPush estado={avisoPush} onActivar={onActivarPush} onCerrar={onOcultarPush} />}
 
       <div style={{ display: "flex", flexDirection: isCompact ? "column" : "row", gap: 20, flex: 1, minHeight: 0 }}>
         {/* Calendario del mes en curso */}

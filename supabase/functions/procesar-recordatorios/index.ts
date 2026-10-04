@@ -115,17 +115,25 @@ function offsetParaZona(zonaHoraria: string, fechaHoraLocal: string): string {
 }
 
 // La llama pg_cron cada 15 minutos (no un usuario) — por eso no hay sesión que verificar, sino un
-// secreto compartido simple en el header (ver el cron job "procesar-recordatorios-evento").
+// secreto compartido en el header (ver el job jobid=2 en cron.job). Hasta 2026-10-03 se comparaba
+// contra la variable de entorno CRON_SECRET, cuyo valor quedó escrito literal en el comando del
+// cron job y expuesto en un chat — ahora se valida por RPC contra Supabase Vault (igual que
+// enviar-push-manual con verificar_secreto_push), así el secreto vive en un solo lugar y nunca en
+// el comando del cron job ni en una variable de entorno que alguien podría pegar sin querer.
 Deno.serve(async (req: Request) => {
   try {
-    const CRON_SECRET = Deno.env.get("CRON_SECRET")!;
-    if (req.headers.get("x-cron-secret") !== CRON_SECRET) {
-      return json({ error: "No autorizado." }, 401);
-    }
-
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+    const secretoRecibido = req.headers.get("x-cron-secret");
+    const { data: secretoValido, error: secretoError } = secretoRecibido
+      ? await admin.rpc("verificar_secreto_cron", { p_secreto: secretoRecibido })
+      : { data: false, error: null };
+    if (secretoError) console.error("verificar_secreto_cron falló:", secretoError);
+    if (secretoError || secretoValido !== true) {
+      return json({ error: "No autorizado." }, 401);
+    }
 
     // Esta función corre con la service role (no hay un usuario detrás, la llama pg_cron) y procesa
     // TODAS las iglesias de una pasada -- por eso necesita su propio mapa de zonas horarias en vez de
