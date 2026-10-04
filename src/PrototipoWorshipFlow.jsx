@@ -7244,17 +7244,22 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
       {!thumbnail && <div style={{ position: "absolute", top: 18, left: 22, display: "flex", alignItems: "center", gap: 6, color: "#5B6472", fontSize: 11, fontWeight: 700, letterSpacing: 1, zIndex: 2 }}><Radio size={12} /> PANTALLA DE PROYECCIÓN</div>}
       {/* Solo visible en la vista previa del operador (no se pasa esta prop en la pantalla real del público) */}
       {adHocLabel && <div style={{ position: "absolute", top: thumbnail ? 6 : 18, right: thumbnail ? 8 : 22, background: "rgba(232,130,30,0.9)", color: "var(--wf-text)", fontSize: thumbnail ? 8 : 10, fontWeight: 700, letterSpacing: 0.5, borderRadius: 20, padding: thumbnail ? "2px 6px" : "4px 10px", zIndex: 2 }}>● IMPROVISADO</div>}
+      {/* El fondo (video/imagen propios, o el de la slide) se renderiza SIEMPRE, incluso con "Pantalla
+          en negro" -- antes vivía adentro del bloque de abajo (solo cuando NO estaba en negro), así que
+          "pantalla en negro" con un video de fondo se veía como negro sólido de verdad (el <video> ni
+          se montaba) en vez de seguir el video andando sin la letra encima, que es lo que de verdad se
+          quiere: ocultar SOLO la letra/texto que se está transmitiendo, no el fondo. */}
+      {videoSrc && (
+        <>
+          <video src={videoSrc} autoPlay muted loop playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }} />
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 0 }} />
+        </>
+      )}
+      {imageSrc && <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 0 }} />}
       {blanked || !slide ? (
-        <div style={{ color: "#2A3140" }}><Mic2 size={thumbnail ? 20 : 40} /></div>
+        <div style={{ color: "#2A3140", position: "relative", zIndex: 1 }}><Mic2 size={thumbnail ? 20 : 40} /></div>
       ) : (
         <>
-          {videoSrc && (
-            <>
-              <video src={videoSrc} autoPlay muted loop playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }} />
-              <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 0 }} />
-            </>
-          )}
-          {imageSrc && <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 0 }} />}
           {!videoSrc && <div className="spotlight-glow" style={{ position: "absolute", width: thumbnail ? 140 : 420, height: thumbnail ? 140 : 420, borderRadius: "50%", background: `radial-gradient(circle, ${TYPE_META[slide.type].color}22 0%, transparent 70%)` }} />}
           {slide.type === "cancion" && (
             <>
