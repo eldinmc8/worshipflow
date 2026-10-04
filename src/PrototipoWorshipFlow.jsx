@@ -7192,7 +7192,15 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   const slideImageBg = !videoSrc && slide?.type === "slide" && slide.bgType === "imagen" && slide.imageUrl;
   const globalImageBg = !videoSrc && !slideImageBg && liveStyle?.theme === "custom" && liveStyle.customImage;
   const imageSrc = slideImageBg || globalImageBg || null;
-  const theme = videoSrc || imageSrc ? null : LIVE_THEMES[liveStyle?.theme || "stage"];
+  // Bug real (no de hoy, ya existía): al tocar la pestaña "Imagen" o "Video (movimiento)" del fondo
+  // global, liveStyle.theme pasa a "custom" DE UNA -- antes incluso de subir o elegir algo -- pero
+  // "custom" nunca fue una clave de LIVE_THEMES. Mientras no hubiera ni video ni imagen todavía (justo
+  // el instante entre tocar la pestaña y terminar de subir el archivo), esto hacía LIVE_THEMES["custom"]
+  // undefined y el siguiente .bg reventaba -- se caía TODA la app (sin pantalla de error, solo en
+  // blanco/negro), tanto en la vista previa del panel de control como en la Proyección real, porque las
+  // dos usan este mismo componente. El `|| LIVE_THEMES.stage` cubre ese y cualquier otro valor de tema
+  // que no sea una clave real.
+  const theme = videoSrc || imageSrc ? null : (LIVE_THEMES[liveStyle?.theme || "stage"] || LIVE_THEMES.stage);
   const bg = videoSrc ? "#000" : imageSrc ? `center / cover no-repeat url(${imageSrc})` : theme.bg;
   // El tamaño de letra "deseado" viene del slider (liveStyle.fontScale) multiplicando una proporción del
   // alto del contenedor (ver AutoFitText) en vez de un px fijo — así se ve igual de grande en la
