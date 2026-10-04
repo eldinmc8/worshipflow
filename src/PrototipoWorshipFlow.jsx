@@ -1014,6 +1014,22 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     if (!("getScreenDetails" in window)) return;
     window.getScreenDetails().then((sd) => { screenDetailsRef.current = sd; }).catch(() => {});
   }, []);
+  // Respaldo real (reportado por Eldin: el primer "Iniciar evento" del día salía sin pantalla completa
+  // -- con la barra del navegador visible -- y recién el segundo o tercero entraba limpio): en algunos
+  // navegadores, getScreenDetails() sin NINGÚN gesto todavía en esta carga de página no se resuelve a
+  // tiempo aunque el permiso ya esté concedido de antes -- hace falta al menos un clic/toque real en
+  // esta navegación, no necesariamente el de "Iniciar evento" mismo. Este reintenta en el PRIMER
+  // toque de cualquier parte de la app (una vez, se desactiva solo), para que screenDetailsRef ya esté
+  // listo bastante antes de que el operador llegue navegando hasta el botón de verdad.
+  useEffect(() => {
+    if (!("getScreenDetails" in window) || screenDetailsRef.current) return;
+    const reintentar = () => {
+      if (screenDetailsRef.current) return;
+      window.getScreenDetails().then((sd) => { screenDetailsRef.current = sd; }).catch(() => {});
+    };
+    document.addEventListener("pointerdown", reintentar, { once: true });
+    return () => document.removeEventListener("pointerdown", reintentar);
+  }, []);
   const openOnOtherScreen = (screenDetails) => {
     // ?igl=<slug> le dice a PublicScreen (que no tiene sesión iniciada) de qué iglesia leer la sesión
     // en vivo — ver iglesia_id_por_slug en la migración 20260930000300 y PublicScreen.jsx. Si el slug
@@ -2807,8 +2823,11 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           monitor falla en silencio (cae al botón "Toca para pantalla completa" de PublicScreen.jsx,
           cada vez). Pidiéndolo acá, con calma y de antemano, una sola vez, Chrome lo recuerda para
           siempre en este dispositivo -- después de eso "Iniciar evento" ya encuentra el permiso
-          concedido y puede abrir/expandir la proyección sola, sin ese choque de tiempos. */}
-      {typeof window !== "undefined" && "getScreenDetails" in window && (
+          concedido y puede abrir/expandir la proyección sola, sin ese choque de tiempos.
+          Oculto en vista de celular (!isCompact): un teléfono no maneja "otra pantalla" como un
+          proyector/monitor por HDMI, y Multimedia (el único lugar que de verdad usa esto) ya está
+          escondido ahí mismo -- no tiene sentido ofrecer el botón donde no aplica. */}
+      {!isCompact && typeof window !== "undefined" && "getScreenDetails" in window && (
         <>
           <NavRow
             icon={Radio}
