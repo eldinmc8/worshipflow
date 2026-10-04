@@ -10,6 +10,16 @@ export default function PublicScreen() {
   const [live, setLive] = useState({ slide: null, blanked: false, liveStyle: { theme: "stage", font: "elegante" } });
   const [cursorHidden, setCursorHidden] = useState(false);
   const [needsTapToFullscreen, setNeedsTapToFullscreen] = useState(false);
+  // Distinto de needsTapToFullscreen (la primera vez, antes de que se vea nada todavía): esta pantalla
+  // YA estaba en pantalla completa, mostrando contenido con normalidad, y la perdió sola -- típicamente
+  // porque en el panel de control alguien abrió el diálogo nativo de "elegir archivo" para subir un
+  // fondo nuevo (ver MediaPicker en PrototipoWorshipFlow.jsx). Windows/Chrome a veces sacan de pantalla
+  // completa a TODAS las ventanas de ese navegador cuando aparece un diálogo así en cualquiera de ellas,
+  // sin que nadie haya tocado esta pantalla ni su contenido. Tapar todo con el aviso grande en ese caso
+  // sería justo la interrupción que se quiere evitar -- acá se deja el contenido tal cual, visible, y
+  // solo se ofrece un botón chico para recuperar la pantalla completa cuando convenga.
+  const [fullscreenDroppedQuietly, setFullscreenDroppedQuietly] = useState(false);
+  const everFullscreenRef = useRef(false);
   const idleTimerRef = useRef(null);
 
   // Fase 2b (multi-iglesia): esta pantalla no tiene sesión iniciada (es la que ve la congregación,
@@ -76,13 +86,28 @@ export default function PublicScreen() {
     const checkTimer = setTimeout(() => {
       if (!document.fullscreenElement) setNeedsTapToFullscreen(true);
     }, 500);
-    const onFsChange = () => setNeedsTapToFullscreen(!document.fullscreenElement);
+    const onFsChange = () => {
+      if (document.fullscreenElement) {
+        everFullscreenRef.current = true;
+        setNeedsTapToFullscreen(false);
+        setFullscreenDroppedQuietly(false);
+        return;
+      }
+      if (everFullscreenRef.current) {
+        // Reintenta sola, en silencio (sin gesto no va a funcionar casi nunca, pero no cuesta nada
+        // intentarlo -- si por lo que sea sí alcanza, nadie ni se entera de que pasó algo).
+        document.documentElement.requestFullscreen?.().catch(() => {});
+        setFullscreenDroppedQuietly(true);
+      } else {
+        setNeedsTapToFullscreen(true);
+      }
+    };
     document.addEventListener("fullscreenchange", onFsChange);
     return () => { clearTimeout(checkTimer); document.removeEventListener("fullscreenchange", onFsChange); };
   }, []);
 
   const tapToFullscreen = () => {
-    document.documentElement.requestFullscreen?.().then(() => setNeedsTapToFullscreen(false)).catch(() => {});
+    document.documentElement.requestFullscreen?.().then(() => { setNeedsTapToFullscreen(false); setFullscreenDroppedQuietly(false); }).catch(() => {});
   };
 
   return (
@@ -102,6 +127,20 @@ export default function PublicScreen() {
         >
           <span style={{ fontSize: 22, fontWeight: 700 }}>Toca para pantalla completa</span>
           <span style={{ fontSize: 13, fontWeight: 400, color: "#8996A6" }}>Oculta la barra de tareas y queda lista para proyectar</span>
+        </button>
+      )}
+      {/* A diferencia del aviso grande de arriba, este NO tapa el contenido -- la idea es justo que la
+          congregación no note nada, solo quien esté junto al proyector/TV vea este botón chico (se
+          esconde solo con el cursor, igual que "Salir") y lo toque si quiere recuperar la pantalla
+          completa de verdad (sin él, el contenido se sigue viendo bien igual, solo con una franja fina
+          de la ventana del navegador en vez de ocupar el monitor borde a borde). */}
+      {!cursorHidden && fullscreenDroppedQuietly && (
+        <button
+          onClick={tapToFullscreen}
+          title="Se perdió la pantalla completa sola — tocar para recuperarla"
+          style={{ position: "fixed", bottom: 10, right: 10, fontSize: 11, fontWeight: 700, padding: "6px 12px", borderRadius: 20, background: "rgba(232,130,30,0.85)", color: "#16324F", border: "none", cursor: "pointer", zIndex: 1000 }}
+        >
+          Pantalla completa
         </button>
       )}
     </div>

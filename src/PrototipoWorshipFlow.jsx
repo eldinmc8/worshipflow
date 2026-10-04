@@ -14,7 +14,7 @@ import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, corre
 import {
   listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
 } from "./lib/eventos.js";
-import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos, getResumenMensual, guardarResumenMensual } from "./lib/ministerios.js";
+import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos, getResumenMensual, guardarResumenMensual, subirArchivoRecurso } from "./lib/ministerios.js";
 import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession } from "./lib/liveSession.js";
 import { getMusicoLive, updateMusicoLive, clearMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
@@ -1983,6 +1983,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       )}
       {tab === "ministerios" && selectedMinistryId && (
         <MinistryDetail
+          myIglesiaId={myIglesiaId}
           ministry={ministries.find((m) => m.id === selectedMinistryId)}
           usuariosReales={usuariosReales}
           isAdminViewer={puedeGestionarMinisterios}
@@ -3422,9 +3423,29 @@ function MinistriesList({ ministries, usuariosReales, isAdminViewer, onSelect, o
   );
 }
 
-function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBack, onSavePlan, onAddResource, onRemoveResource, onSetLeader, onSetName, onSetColor, onDelete }) {
+function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, canEdit, onBack, onSavePlan, onAddResource, onRemoveResource, onSetLeader, onSetName, onSetColor, onDelete }) {
   const [showResourceForm, setShowResourceForm] = useState(false);
   const [resourceDraft, setResourceDraft] = useState({ title: "", link: "" });
+  const [subiendoArchivoRecurso, setSubiendoArchivoRecurso] = useState(false);
+  const [errorArchivoRecurso, setErrorArchivoRecurso] = useState("");
+  const resourceFileInputRef = useRef(null);
+  // El enlace de un recurso puede venir de pegarlo a mano O de subir un archivo (ver abajo) -- en
+  // ambos casos termina siendo una URL normal en resourceDraft.link, pero una URL de Storage es larga
+  // y fea para mostrarla tal cual en el campo de texto; esto la detecta para mostrar "Archivo
+  // adjunto ✓" en su lugar.
+  const esArchivoSubido = (link) => (link || "").includes("/storage/v1/object/public/recursos-ministerio/");
+  const adjuntarArchivoRecurso = async (file) => {
+    if (!file || !myIglesiaId) return;
+    setSubiendoArchivoRecurso(true); setErrorArchivoRecurso("");
+    try {
+      const url = await subirArchivoRecurso(myIglesiaId, file);
+      setResourceDraft((d) => ({ ...d, link: url, title: d.title || file.name.replace(/\.[^.]+$/, "") }));
+    } catch (e) {
+      setErrorArchivoRecurso(e.message || "No se pudo subir el archivo.");
+    } finally {
+      setSubiendoArchivoRecurso(false);
+    }
+  };
 
   // Planificación y recursos ahora viven por mes — cada ministerio puede tener años de historial, y
   // mezclar todos los meses en una sola lista larga (sobre todo los recursos, que antes no tenían
@@ -3515,7 +3536,13 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
     if (!resourceDraft.title.trim()) return;
     onAddResource({ ...resourceDraft, month: selectedMonth });
     setResourceDraft({ title: "", link: "" });
+    setErrorArchivoRecurso("");
     setShowResourceForm(false);
+  };
+  const closeResourceForm = () => {
+    setShowResourceForm(false);
+    setResourceDraft({ title: "", link: "" });
+    setErrorArchivoRecurso("");
   };
   const planForMonth = planDraft.filter((p) => (p.date || "").slice(0, 7) === selectedMonth);
   const resourcesForMonth = ministry.resources.filter((r) => r.month === selectedMonth);
@@ -3651,11 +3678,30 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
       </div>
 
       {showResourceForm && (
-        <ModalShell title="Agregar recurso" icon={FolderOpen} color={ministry.color} onClose={() => setShowResourceForm(false)}>
+        <ModalShell title="Agregar recurso" icon={FolderOpen} color={ministry.color} onClose={closeResourceForm}>
           <Field label="Título" required><input value={resourceDraft.title} onChange={(e) => setResourceDraft({ ...resourceDraft, title: e.target.value })} placeholder="Ej. Guía de manualidades" style={inputStyle} /></Field>
           <div style={{ height: 10 }} />
-          <Field label="Enlace (opcional)"><input value={resourceDraft.link} onChange={(e) => setResourceDraft({ ...resourceDraft, link: e.target.value })} placeholder="https://..." style={inputStyle} /></Field>
-          <button onClick={submitResource} style={{ ...primaryBtn, marginTop: 14 }}>Agregar</button>
+          <Field label="Enlace (opcional si adjuntas un archivo)">
+            <input
+              value={esArchivoSubido(resourceDraft.link) ? "" : resourceDraft.link}
+              onChange={(e) => setResourceDraft({ ...resourceDraft, link: e.target.value })}
+              placeholder="https://..."
+              style={inputStyle}
+            />
+          </Field>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+            <button type="button" onClick={() => resourceFileInputRef.current?.click()} disabled={subiendoArchivoRecurso} className="hoverable" style={{ ...addBtnStyle, flex: 1, opacity: subiendoArchivoRecurso ? 0.6 : 1 }}>
+              <Paperclip size={13} color={ministry.color} />
+              <span>{subiendoArchivoRecurso ? "Subiendo…" : esArchivoSubido(resourceDraft.link) ? "Archivo adjunto ✓ — tocar para cambiar" : "O adjuntar un archivo"}</span>
+            </button>
+            {esArchivoSubido(resourceDraft.link) && !subiendoArchivoRecurso && (
+              <button type="button" onClick={() => setResourceDraft((d) => ({ ...d, link: "" }))} title="Quitar archivo" style={{ ...iconGhost, color: "#C23B32" }}><X size={14} /></button>
+            )}
+          </div>
+          <input ref={resourceFileInputRef} type="file" style={{ display: "none" }} onChange={(e) => { adjuntarArchivoRecurso(e.target.files?.[0]); e.target.value = ""; }} />
+          {errorArchivoRecurso && <div style={{ fontSize: 11, color: "#C23B32", marginTop: 6 }}>{errorArchivoRecurso}</div>}
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Hasta 20 MB — PDF, imagen, audio, lo que sea.</div>
+          <button onClick={submitResource} disabled={subiendoArchivoRecurso} style={{ ...primaryBtn, marginTop: 14, opacity: subiendoArchivoRecurso ? 0.6 : 1 }}>Agregar</button>
         </ModalShell>
       )}
     </div>

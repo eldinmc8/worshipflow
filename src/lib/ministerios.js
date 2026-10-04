@@ -86,6 +86,20 @@ export async function guardarResumenMensual(ministerioId, mes, texto) {
   if (error) throw error;
 }
 
+// Archivo adjunto para un recurso de ministerio (ademas de poder pegar un enlace) — ver la migración
+// 20261004000200_recursos_ministerio_storage.sql. Sin restricción de tipo (puede ser cualquier cosa:
+// PDF, audio, imagen, presentación), solo de tamaño. Devuelve la URL pública, que se guarda tal cual
+// en recursos_ministerio.enlace -- funciona exactamente igual que un enlace pegado a mano.
+const RECURSO_MAX_BYTES = 20 * 1024 * 1024;
+export async function subirArchivoRecurso(iglesiaId, file) {
+  if (file.size > RECURSO_MAX_BYTES) throw new Error(`No puede pesar más de ${Math.round(RECURSO_MAX_BYTES / (1024 * 1024))} MB.`);
+  const nombreLimpio = (file.name || "archivo").replace(/[^a-zA-Z0-9.\-]/g, "_").slice(-100);
+  const ruta = `${iglesiaId}/${Date.now()}-${nombreLimpio}`;
+  const { error } = await supabase.storage.from("recursos-ministerio").upload(ruta, file, { contentType: file.type || undefined });
+  if (error) throw error;
+  return supabase.storage.from("recursos-ministerio").getPublicUrl(ruta).data.publicUrl;
+}
+
 export async function crearMinisterio({ id, name, leaderId, color }, userId) {
   const { error } = await supabase.from("ministerios").insert({ id, nombre: name, lider_id: leaderId || null, color, creado_por: userId });
   if (error) throw error;
