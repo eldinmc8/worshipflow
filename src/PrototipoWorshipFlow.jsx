@@ -8,13 +8,13 @@ import {
   Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
-  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send,
+  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, corregirDiapositivaCancion, agregarDiapositivaCancion } from "./lib/canciones.js";
 import {
   listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
 } from "./lib/eventos.js";
-import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos } from "./lib/ministerios.js";
+import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos, getResumenMensual, guardarResumenMensual } from "./lib/ministerios.js";
 import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession } from "./lib/liveSession.js";
 import { getMusicoLive, updateMusicoLive, clearMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
@@ -3411,6 +3411,38 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ministry?.id, ministry?.plan]);
 
+  // Resumen del mes: texto libre aparte de la planificación semana a semana, para que el líder deje
+  // un cierre general ("este mes nos enfocamos en...", asistencia, lo que destaca). Se carga/guarda
+  // bajo demanda por mes (no viaja con el resto del ministerio) — ver la nota junto a
+  // getResumenMensual en lib/ministerios.js sobre por qué.
+  const [resumenGuardado, setResumenGuardado] = useState("");
+  const [resumenDraft, setResumenDraft] = useState("");
+  const [loadingResumen, setLoadingResumen] = useState(true);
+  const [savingResumen, setSavingResumen] = useState(false);
+  useEffect(() => {
+    if (!ministry) return;
+    let cancelado = false;
+    setLoadingResumen(true);
+    getResumenMensual(ministry.id, selectedMonth)
+      .then((texto) => { if (!cancelado) { setResumenGuardado(texto); setResumenDraft(texto); } })
+      .catch((e) => { if (!cancelado) notifyError("No se pudo cargar el resumen del mes", e); })
+      .finally(() => { if (!cancelado) setLoadingResumen(false); });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ministry?.id, selectedMonth]);
+  const resumenDirty = resumenDraft !== resumenGuardado;
+  const saveResumen = async () => {
+    setSavingResumen(true);
+    try {
+      await guardarResumenMensual(ministry.id, selectedMonth, resumenDraft);
+      setResumenGuardado(resumenDraft);
+    } catch (e) {
+      notifyError("No se pudo guardar el resumen del mes", e);
+    } finally {
+      setSavingResumen(false);
+    }
+  };
+
   if (!ministry) return null;
 
   const addDraftPlanItem = () => {
@@ -3490,6 +3522,33 @@ function MinistryDetail({ ministry, usuariosReales, isAdminViewer, canEdit, onBa
         <button onClick={() => changeMonth(-1)} className="hoverable" style={iconGhost}><ChevronLeft size={16} /></button>
         <span style={{ fontSize: 13, fontWeight: 700, minWidth: 140, textAlign: "center" }}>{monthLabelFromKey(selectedMonth)}</span>
         <button onClick={() => changeMonth(1)} className="hoverable" style={iconGhost}><ChevronRight size={16} /></button>
+      </div>
+
+      {/* Resumen del mes: nota de cierre general, aparte de la planificación semana a semana de abajo —
+          a diferencia de esta, no se carga junto con el resto del ministerio (ver getResumenMensual). */}
+      <div style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 14, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+          <StickyNote size={15} color={ministry.color} /> Resumen de {monthLabelFromKey(selectedMonth)}
+        </div>
+        {loadingResumen ? (
+          <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>Cargando…</div>
+        ) : canEdit ? (
+          <>
+            <textarea
+              value={resumenDraft} onChange={(e) => setResumenDraft(e.target.value)}
+              placeholder="Ej. este mes nos enfocamos en identidad en Cristo, 4 reuniones, buena asistencia..."
+              rows={4} style={{ ...inputStyle, resize: "vertical" }}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+              <button onClick={saveResumen} disabled={!resumenDirty || savingResumen} className="hoverable" style={{ ...primaryBtn, width: "auto", padding: "7px 16px", fontSize: 12.5, opacity: resumenDirty && !savingResumen ? 1 : 0.5, cursor: resumenDirty && !savingResumen ? "pointer" : "default" }}>
+                {savingResumen ? "Guardando…" : "Guardar resumen"}
+              </button>
+              {resumenDirty && !savingResumen && <span style={{ fontSize: 11, color: "var(--wf-brand-accent)", fontWeight: 700 }}>● Cambios sin guardar</span>}
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: 12.5, color: "var(--wf-text-2)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{resumenGuardado || "Sin resumen todavía."}</div>
+        )}
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>

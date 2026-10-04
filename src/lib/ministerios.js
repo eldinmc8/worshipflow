@@ -12,22 +12,19 @@ function encolar(key, tarea) {
   return siguiente;
 }
 
+// Incluye el líder de una (join) directo acá -- antes vivía en getMinisterioCompleto, una consulta
+// APARTE por cada ministerio solo para traer ese dato (ver nota en listMinisteriosCompletos).
 export async function listMinisterios() {
-  const { data, error } = await supabase.from("ministerios").select("*").order("nombre", { ascending: true });
+  const { data, error } = await supabase
+    .from("ministerios").select("*, lider:usuarios!ministerios_lider_id_fkey(id, nombre)").order("nombre", { ascending: true });
   if (error) throw error;
   return data;
 }
 
-async function getMinisterioCompleto(id) {
-  const [ministerioRes, planRes, recursosRes] = await Promise.all([
-    supabase.from("ministerios").select("*, lider:usuarios!ministerios_lider_id_fkey(id, nombre)").eq("id", id).single(),
-    supabase.from("planificacion_ministerio").select("*").eq("ministerio_id", id).order("orden", { ascending: true }),
-    supabase.from("recursos_ministerio").select("*").eq("ministerio_id", id).order("orden", { ascending: true }),
-  ]);
-  if (ministerioRes.error) throw ministerioRes.error;
-  if (planRes.error) throw planRes.error;
-  if (recursosRes.error) throw recursosRes.error;
-  return { ministerio: ministerioRes.data, plan: planRes.data, recursos: recursosRes.data };
+function agruparPor(filas, campo) {
+  const out = {};
+  (filas || []).forEach((f) => { (out[f[campo]] ||= []).push(f); });
+  return out;
 }
 
 function ministerioCompletoAFormatoEditor({ ministerio, plan, recursos }) {
@@ -39,10 +36,26 @@ function ministerioCompletoAFormatoEditor({ ministerio, plan, recursos }) {
   };
 }
 
+// Antes pedía la lista y después UNA fila completa POR MINISTERIO (3 consultas cada una) -- mismo
+// patrón (y mismo arreglo) que listCancionesCompletas/listEventosCompletos: ahora trae la planificación
+// y los recursos de TODOS los ministerios de una sola vez y los agrupa acá, 2 consultas en total.
 export async function listMinisteriosCompletos() {
   const filas = await listMinisterios();
-  const completos = await Promise.all(filas.map((f) => getMinisterioCompleto(f.id)));
-  return completos.map(ministerioCompletoAFormatoEditor);
+  const ids = filas.map((f) => f.id);
+  if (ids.length === 0) return [];
+  const [planRes, recursosRes] = await Promise.all([
+    supabase.from("planificacion_ministerio").select("*").in("ministerio_id", ids).order("orden", { ascending: true }),
+    supabase.from("recursos_ministerio").select("*").in("ministerio_id", ids).order("orden", { ascending: true }),
+  ]);
+  if (planRes.error) throw planRes.error;
+  if (recursosRes.error) throw recursosRes.error;
+  const planPorMinisterio = agruparPor(planRes.data, "ministerio_id");
+  const recursosPorMinisterio = agruparPor(recursosRes.data, "ministerio_id");
+  return filas.map((ministerio) => ministerioCompletoAFormatoEditor({
+    ministerio,
+    plan: planPorMinisterio[ministerio.id] || [],
+    recursos: recursosPorMinisterio[ministerio.id] || [],
+  }));
 }
 
 // Igual que registrarLineaBaseEventos (src/lib/eventos.js): la app lo llama cada vez que adopta
@@ -52,6 +65,25 @@ export function registrarLineaBaseMinisterios(ministerios) {
     fijarLineaBase(`plan:${m.id}`, (m.plan || []).map((p) => p.id));
     fijarLineaBase(`recursos:${m.id}`, (m.resources || []).map((r) => r.id));
   });
+}
+
+// Resumen mensual (texto libre) de un ministerio — se carga/guarda por mes bajo demanda desde la
+// pantalla del ministerio, NUNCA como parte de listMinisteriosCompletos: meterlo ahí reintroduciría el
+// mismo problema de fondo (N consultas extra en el arranque, una por ministerio) que ese refactor
+// buscaba eliminar, para un dato que solo se usa de a un mes a la vez.
+export async function getResumenMensual(ministerioId, mes) {
+  const { data, error } = await supabase
+    .from("resumen_mensual_ministerio").select("texto").eq("ministerio_id", ministerioId).eq("mes", mes).maybeSingle();
+  if (error) throw error;
+  return data?.texto || "";
+}
+
+export async function guardarResumenMensual(ministerioId, mes, texto) {
+  const { error } = await supabase.from("resumen_mensual_ministerio").upsert(
+    { ministerio_id: ministerioId, mes, texto, updated_at: new Date().toISOString() },
+    { onConflict: "ministerio_id,mes" }
+  );
+  if (error) throw error;
 }
 
 export async function crearMinisterio({ id, name, leaderId, color }, userId) {

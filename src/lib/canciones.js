@@ -13,20 +13,6 @@ export async function listCanciones() {
   return data;
 }
 
-export async function getCancionCompleta(id) {
-  const [cancion, secciones, estructura, diapositivas] = await Promise.all([
-    supabase.from("canciones").select("*").eq("id", id).single(),
-    supabase.from("secciones_cancion").select("*").eq("cancion_id", id),
-    supabase.from("estructura_cancion").select("*").eq("cancion_id", id).order("orden", { ascending: true }),
-    supabase.from("diapositivas_letra").select("*").eq("cancion_id", id).order("orden", { ascending: true }),
-  ]);
-  if (cancion.error) throw cancion.error;
-  if (secciones.error) throw secciones.error;
-  if (estructura.error) throw estructura.error;
-  if (diapositivas.error) throw diapositivas.error;
-  return { cancion: cancion.data, secciones: secciones.data, estructura: estructura.data, diapositivas: diapositivas.data };
-}
-
 export async function createCancion(datos, creadoPor) {
   const { data, error } = await supabase.from("canciones").insert({ ...datos, creado_por: creadoPor }).select().single();
   if (error) throw error;
@@ -148,10 +134,38 @@ export function cancionCompletaAFormatoEditor({ cancion, secciones, estructura, 
   };
 }
 
+function agruparPor(filas, campo) {
+  const out = {};
+  (filas || []).forEach((f) => { (out[f[campo]] ||= []).push(f); });
+  return out;
+}
+
+// Antes pedía la lista y después UNA fila completa POR CANCIÓN (4 consultas cada una) -- con pocas
+// canciones no se notaba, pero el número de viajes a Supabase crecía con la
+// biblioteca, así que entre más contenido se agregaba más tardaba en abrir la app. Ahora trae las 3
+// tablas hijas de TODAS las canciones de una sola vez (con .in()) y las agrupa acá -- son siempre 4
+// consultas en total, tenga la iglesia 10 canciones o 1000.
 export async function listCancionesCompletas() {
   const filas = await listCanciones();
-  const completas = await Promise.all(filas.map((f) => getCancionCompleta(f.id)));
-  return completas.map(cancionCompletaAFormatoEditor);
+  const ids = filas.map((f) => f.id);
+  if (ids.length === 0) return [];
+  const [seccionesRes, estructuraRes, diapositivasRes] = await Promise.all([
+    supabase.from("secciones_cancion").select("*").in("cancion_id", ids),
+    supabase.from("estructura_cancion").select("*").in("cancion_id", ids).order("orden", { ascending: true }),
+    supabase.from("diapositivas_letra").select("*").in("cancion_id", ids).order("orden", { ascending: true }),
+  ]);
+  if (seccionesRes.error) throw seccionesRes.error;
+  if (estructuraRes.error) throw estructuraRes.error;
+  if (diapositivasRes.error) throw diapositivasRes.error;
+  const seccionesPorCancion = agruparPor(seccionesRes.data, "cancion_id");
+  const estructuraPorCancion = agruparPor(estructuraRes.data, "cancion_id");
+  const diapositivasPorCancion = agruparPor(diapositivasRes.data, "cancion_id");
+  return filas.map((cancion) => cancionCompletaAFormatoEditor({
+    cancion,
+    secciones: seccionesPorCancion[cancion.id] || [],
+    estructura: estructuraPorCancion[cancion.id] || [],
+    diapositivas: diapositivasPorCancion[cancion.id] || [],
+  }));
 }
 
 // Agrupa un array plano ['v1','c','v2','c'] en entradas {seccion_clave, multiplicador} consecutivas.

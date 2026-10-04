@@ -1,7 +1,7 @@
 // Cliente de Supabase simulado, en memoria, para probar src/lib/eventos.js y src/lib/recordatorios.js
 // sin tocar la base real. Implementa solo el subconjunto del query builder que esos dos archivos usan
 // de verdad (ver grep de "supabase.from(" en ellos): from/select/insert/update/upsert/delete/eq/in/
-// not/order/single, encadenables y "awaitable" (con .then) igual que el cliente real de supabase-js.
+// not/order/single/maybeSingle, encadenables y "awaitable" (con .then) igual que el cliente real de supabase-js.
 //
 // No es un reemplazo general de PostgREST -- por ejemplo no resuelve selects anidados tipo
 // "canciones(titulo)". Solo cubre lo que getEventoCompleto/sincronizarServiceOrder/etc. necesitan.
@@ -14,6 +14,7 @@ export function makeFakeSupabase(tablasIniciales = {}) {
     let op = null;
     let payload = null;
     let single = false;
+    let upsertOnConflict = null;
     const filtros = [];
 
     const aplicaFiltros = (filas) =>
@@ -34,10 +35,15 @@ export function makeFakeSupabase(tablasIniciales = {}) {
         return { data: single ? data[0] ?? null : data, error: null };
       }
       if (op === "upsert") {
+        // Igual que supabase-js real: sin onConflict, el choque se detecta por id (la llave primaria
+        // de casi todas las tablas de esta app, generada por el cliente). Con onConflict (ej. la tabla
+        // de resumen mensual, que no trae id propio -- lo genera la base), se matchea por esas columnas.
         payload.forEach((r) => {
-          const idx = filas.findIndex((f) => f.id === r.id);
+          const idx = upsertOnConflict
+            ? filas.findIndex((f) => upsertOnConflict.every((col) => f[col] === r[col]))
+            : filas.findIndex((f) => f.id === r.id);
           if (idx >= 0) filas[idx] = { ...filas[idx], ...r };
-          else filas.push({ ...r });
+          else filas.push({ id: r.id ?? `fake-id-${Math.random().toString(36).slice(2)}`, ...r });
         });
         return { data: payload.map((r) => ({ ...r })), error: null };
       }
@@ -62,13 +68,14 @@ export function makeFakeSupabase(tablasIniciales = {}) {
       select() { if (!op) op = "select"; return api; },
       insert(filasNuevas) { op = "insert"; payload = Array.isArray(filasNuevas) ? filasNuevas : [filasNuevas]; return api; },
       update(patch) { op = "update"; payload = patch; return api; },
-      upsert(filasNuevas) { op = "upsert"; payload = Array.isArray(filasNuevas) ? filasNuevas : [filasNuevas]; return api; },
+      upsert(filasNuevas, opciones) { op = "upsert"; payload = Array.isArray(filasNuevas) ? filasNuevas : [filasNuevas]; upsertOnConflict = opciones?.onConflict ? opciones.onConflict.split(",") : null; return api; },
       delete() { op = "delete"; return api; },
       eq(col, val) { filtros.push({ tipo: "eq", col, val }); return api; },
       in(col, val) { filtros.push({ tipo: "in", col, val }); return api; },
       not(col, tipoOp, val) { if (tipoOp === "is" && val === null) filtros.push({ tipo: "not-is-null", col }); return api; },
       order() { return api; },
       single() { single = true; return api; },
+      maybeSingle() { single = true; return api; }, // el fake nunca lanza por 0/N filas -- mismo simplificado que single()
       then(onResolve, onReject) {
         try { return Promise.resolve(onResolve(ejecutar())); }
         catch (e) { return onReject ? Promise.resolve(onReject(e)) : Promise.reject(e); }

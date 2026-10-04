@@ -50,39 +50,6 @@ export async function deleteEvento(id) {
   if (error) throw error;
 }
 
-export async function getEventoCompleto(id) {
-  const [eventoRes, itemsRes, rolesRes, recordatoriosRes, vistasRes] = await Promise.all([
-    supabase.from("eventos").select("*").eq("id", id).single(),
-    supabase.from("items_servicio").select("*, canciones(titulo, artista, tonalidad, tempo)").eq("evento_id", id).order("orden", { ascending: true }),
-    supabase.from("roles_evento").select("*").eq("evento_id", id).order("orden", { ascending: true }),
-    supabase.from("recordatorios_evento").select("*").eq("evento_id", id).order("created_at", { ascending: true }),
-    // "Quién ya vio sus asignaciones" es un extra, no algo de lo que dependa poder abrir el evento —
-    // si la tabla asignaciones_vistas todavía no existe (falta correr la migración) o falla por
-    // cualquier otro motivo, NO debe tumbar la carga de todo el evento (eso hacía que la app entera
-    // pareciera "sin conexión" en todos los dispositivos con solo esa tabla faltando). A diferencia de
-    // un error de red (que sí rechaza la promesa), un error de Postgres normal viene en vistasRes.error
-    // con la promesa ya resuelta, así que hace falta atajar los dos casos.
-    supabase.from("asignaciones_vistas").select("*").eq("evento_id", id).then(
-      (r) => (r.error ? { data: [] } : r),
-      () => ({ data: [] })
-    ),
-  ]);
-  if (eventoRes.error) throw eventoRes.error;
-  if (itemsRes.error) throw itemsRes.error;
-  if (rolesRes.error) throw rolesRes.error;
-  if (recordatoriosRes.error) throw recordatoriosRes.error;
-
-  const itemIds = itemsRes.data.map((it) => it.id);
-  const roleIds = rolesRes.data.map((r) => r.id);
-  const [encargadosRes, roleMembersRes] = await Promise.all([
-    itemIds.length ? supabase.from("miembros_rol").select("*").in("item_servicio_id", itemIds).order("orden", { ascending: true }) : { data: [] },
-    roleIds.length ? supabase.from("miembros_rol").select("*").in("rol_id", roleIds).order("orden", { ascending: true }) : { data: [] },
-  ]);
-  if (encargadosRes.error) throw encargadosRes.error;
-  if (roleMembersRes.error) throw roleMembersRes.error;
-  return { evento: eventoRes.data, items: itemsRes.data, encargados: encargadosRes.data, roles: rolesRes.data, roleMembers: roleMembersRes.data, recordatorios: recordatoriosRes.data, vistas: vistasRes.data };
-}
-
 // Un administrador (o líder de ministerio) necesita saber si alguien ya ABRIÓ el evento y vio qué le
 // toca — distinto del "confirmado/pendiente/rechazado" de arriba, que lo marca el propio admin a mano
 // por la persona, no dice si esa persona siquiera se enteró. Se marca a nivel de EVENTO (no por cada
@@ -237,10 +204,77 @@ export function registrarLineaBaseEventos(eventos) {
   });
 }
 
+function agruparPor(filas, campo) {
+  const out = {};
+  (filas || []).forEach((f) => { (out[f[campo]] ||= []).push(f); });
+  return out;
+}
+
+// Antes pedía la lista y después UNA fila completa POR EVENTO (hasta 6 consultas cada una) -- con
+// pocos eventos cargados no se notaba, pero el número de viajes a Supabase crecía con el historial de
+// la iglesia, así que entre más eventos se acumulaban más tardaba en abrir la app. Ahora trae cada
+// tabla hija de TODOS los eventos de una sola vez (con .in()) y las agrupa acá -- son siempre 7
+// consultas en total, tenga la iglesia 10 eventos o 500.
 export async function listEventosCompletos() {
   const filas = await listEventos();
-  const completos = await Promise.all(filas.map((f) => getEventoCompleto(f.id)));
-  return completos.map(eventoCompletoAFormatoEditor);
+  const ids = filas.map((f) => f.id);
+  if (ids.length === 0) return [];
+  const [itemsRes, rolesRes, recordatoriosRes, vistasRes] = await Promise.all([
+    supabase.from("items_servicio").select("*, canciones(titulo, artista, tonalidad, tempo)").in("evento_id", ids).order("orden", { ascending: true }),
+    supabase.from("roles_evento").select("*").in("evento_id", ids).order("orden", { ascending: true }),
+    supabase.from("recordatorios_evento").select("*").in("evento_id", ids).order("created_at", { ascending: true }),
+    // Mismo respaldo que antes: si asignaciones_vistas falla por el motivo que sea, no debe tumbar la
+    // carga de TODOS los eventos (ver nota histórica de getEventoCompleto, reemplazada por esta función).
+    supabase.from("asignaciones_vistas").select("*").in("evento_id", ids).then(
+      (r) => (r.error ? { data: [] } : r),
+      () => ({ data: [] })
+    ),
+  ]);
+  if (itemsRes.error) throw itemsRes.error;
+  if (rolesRes.error) throw rolesRes.error;
+  if (recordatoriosRes.error) throw recordatoriosRes.error;
+
+  const itemIds = itemsRes.data.map((it) => it.id);
+  const roleIds = rolesRes.data.map((r) => r.id);
+  const [encargadosRes, roleMembersRes] = await Promise.all([
+    itemIds.length ? supabase.from("miembros_rol").select("*").in("item_servicio_id", itemIds).order("orden", { ascending: true }) : { data: [] },
+    roleIds.length ? supabase.from("miembros_rol").select("*").in("rol_id", roleIds).order("orden", { ascending: true }) : { data: [] },
+  ]);
+  if (encargadosRes.error) throw encargadosRes.error;
+  if (roleMembersRes.error) throw roleMembersRes.error;
+
+  const itemsPorEvento = agruparPor(itemsRes.data, "evento_id");
+  const rolesPorEvento = agruparPor(rolesRes.data, "evento_id");
+  const recordatoriosPorEvento = agruparPor(recordatoriosRes.data, "evento_id");
+  const vistasPorEvento = agruparPor(vistasRes.data, "evento_id");
+
+  // encargados/roleMembers vienen de miembros_rol SIN evento_id propio -- hay que ubicarlos por el
+  // item/rol al que pertenecen (igual que antes hacía eventoCompletoAFormatoEditor con un solo evento,
+  // solo que ahora con los de TODOS los eventos mezclados en una sola tabla).
+  const itemIdAEvento = {};
+  (itemsRes.data || []).forEach((it) => { itemIdAEvento[it.id] = it.evento_id; });
+  const roleIdAEvento = {};
+  (rolesRes.data || []).forEach((r) => { roleIdAEvento[r.id] = r.evento_id; });
+  const encargadosPorEvento = {};
+  (encargadosRes.data || []).forEach((m) => {
+    const eventoId = itemIdAEvento[m.item_servicio_id];
+    if (eventoId) (encargadosPorEvento[eventoId] ||= []).push(m);
+  });
+  const roleMembersPorEvento = {};
+  (roleMembersRes.data || []).forEach((m) => {
+    const eventoId = roleIdAEvento[m.rol_id];
+    if (eventoId) (roleMembersPorEvento[eventoId] ||= []).push(m);
+  });
+
+  return filas.map((evento) => eventoCompletoAFormatoEditor({
+    evento,
+    items: itemsPorEvento[evento.id] || [],
+    encargados: encargadosPorEvento[evento.id] || [],
+    roles: rolesPorEvento[evento.id] || [],
+    roleMembers: roleMembersPorEvento[evento.id] || [],
+    recordatorios: recordatoriosPorEvento[evento.id] || [],
+    vistas: vistasPorEvento[evento.id] || [],
+  }));
 }
 
 // Guarda el setlist (items_servicio + sus encargados) de un evento a partir del estado en memoria.
