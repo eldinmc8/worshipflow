@@ -312,6 +312,9 @@ const LINE_STYLES = {
   descendente: { label: "Tamaño descendente" },
   revista: { label: "Alineación tipo revista" },
   cita: { label: "Cita destacada" },
+  fundido: { label: "Entrada con fundido" },
+  deslizante: { label: "Entrada deslizante" },
+  franja: { label: "Franja inferior" },
 };
 // Objeto "evento" liviano para cuando se transmite sin un evento del calendario detrás (ver
 // startFreeEvent) — referencia estable a nivel de módulo para no invalidar el useMemo de `slides` en
@@ -7284,7 +7287,12 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           // texto (ver nota en AutoFitText: los <div> hijos son block-level, heredan el ancho del
           // contenedor ya encogido a la línea más larga) así que left/right sí se nota.
           if (lineStyleMode === "revista") return i === 0 ? { textAlign: "left" } : i === 1 ? { textAlign: "right" } : undefined;
-          return undefined; // "cita": no toca el estilo de línea, ver la comilla decorativa más abajo
+          // Fundido/deslizante: las DOS líneas animan (no solo la 2a, como mayuscula/acento) con un
+          // pequeño desfase entre ellas -- "both" como fill-mode para que la línea se quede invisible
+          // ANTES de que le toque su turno, en vez de destellar visible un instante y luego animar.
+          if (lineStyleMode === "fundido") return { animation: `wfLyricFadeIn 0.6s ease ${i * 0.35}s both` };
+          if (lineStyleMode === "deslizante") return { animation: `wfLyricSlideIn 0.55s ease ${i * 0.3}s both` };
+          return undefined; // "cita" y "franja": no tocan el estilo de línea (ver más abajo)
         })
       : undefined;
   return (
@@ -7322,16 +7330,36 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
               {lineStyleMode === "cita" && (
                 <div aria-hidden style={{ position: "absolute", top: thumbnail ? 4 : 10, left: "50%", transform: "translateX(-50%)", fontFamily: "'Fraunces', serif", fontSize: thumbnail ? 50 : 160, lineHeight: 1, color: textColor, opacity: 0.18, zIndex: 1, pointerEvents: "none" }}>❝</div>
               )}
-              <AutoFitText
-                lines={slide.lines} targetRatio={cancionRatio} minPx={thumbnail ? 7 : 15} maxWidth="90%"
-                // whiteSpace:nowrap es lo que de verdad garantiza "2 líneas nada más" (pedido de
-                // Eldin, 2026-10-05): sin esto, una sola línea larga podía ENVOLVER a una fila visual
-                // extra (el ajuste automático de tamaño permitía eso, porque envolver también baja el
-                // ancho usado) -- con nowrap, la única forma de caber es achicar la letra hasta que esa
-                // línea quepa completa en una sola fila, nunca partirla en dos.
-                style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", textAlign: "center", zIndex: 1, lineHeight: 1.35, color: textColor, whiteSpace: "nowrap" }}
-                lineStyles={cancionLineStyles}
-              />
+              {(() => {
+                const cancionAutoFit = (
+                  <AutoFitText
+                    key={slide.slideId}
+                    lines={slide.lines} targetRatio={cancionRatio} minPx={thumbnail ? 7 : 15} maxWidth="90%"
+                    // whiteSpace:nowrap es lo que de verdad garantiza "2 líneas nada más" (pedido de
+                    // Eldin, 2026-10-05): sin esto, una sola línea larga podía ENVOLVER a una fila
+                    // visual extra (el ajuste automático de tamaño permitía eso, porque envolver
+                    // también baja el ancho usado) -- con nowrap, la única forma de caber es achicar
+                    // la letra hasta que esa línea quepa completa en una sola fila, nunca partirla.
+                    // key={slide.slideId}: fuerza a React a desmontar/montar de nuevo en cada
+                    // diapositiva -- sin esto, "fundido"/"deslizante" solo se verían la PRIMERA vez
+                    // (los mismos <div> de línea se reutilizan, así que la animación CSS no se repite
+                    // sola con solo cambiar el texto adentro).
+                    style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", textAlign: "center", zIndex: 1, lineHeight: 1.35, color: textColor, whiteSpace: "nowrap" }}
+                    lineStyles={cancionLineStyles}
+                  />
+                );
+                // "Franja inferior": en vez de centrada en toda la pantalla, la letra vive en una
+                // barra angosta abajo con su propio fondo semitransparente -- deja ver mucho más del
+                // fondo/video arriba, estilo noticiero. Necesita su propio contenedor flex con alto
+                // definido (a diferencia del resto, que usa el alto completo del panel) para que
+                // AutoFitText (flex:1 por dentro) tenga contra qué medirse.
+                if (lineStyleMode !== "franja") return cancionAutoFit;
+                return (
+                  <div style={{ position: "absolute", left: thumbnail ? 8 : 28, right: thumbnail ? 8 : 28, bottom: thumbnail ? 8 : 36, height: thumbnail ? "42%" : "30%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(8,10,14,0.55)", borderRadius: thumbnail ? 8 : 16, padding: thumbnail ? "4px 8px" : "10px 28px", zIndex: 1, boxSizing: "border-box" }}>
+                    {cancionAutoFit}
+                  </div>
+                );
+              })()}
               {thumbnail && <div style={{ position: "absolute", bottom: 18, display: "flex", alignItems: "center", gap: 8, color: "#5B6472", fontSize: 12, zIndex: 1 }}><Music size={12} /> {slide.songTitle}</div>}
             </>
           )}

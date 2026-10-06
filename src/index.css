@@ -193,3 +193,20 @@ img, svg {
 @supports (height: 100dvh) {
   .app-shell-height { height: 100dvh; }
 }
+
+/* Diseños de transmisión "Entrada con fundido" / "Entrada deslizante" (DISEÑO DE LAS LETRAS, panel
+   Estilo de Multimedia en vivo) — línea por línea de cada diapositiva de canción, con un pequeño
+   desfase entre la 1a y la 2a para que no aparezcan de golpe. Acá (no en el <style> inline de
+   PrototipoWorshipFlow.jsx) porque index.css es lo único compartido entre el panel de control y la
+   pantalla de proyección real (PublicScreen.jsx es una entrada HTML aparte, sin acceso a ese <style>). */
+@keyframes wfLyricFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes wfLyricSlideIn {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="wfLyricFadeIn"], [style*="wfLyricSlideIn"] { animation: none !important; opacity: 1 !important; transform: none !important; }
+}
