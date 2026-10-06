@@ -281,6 +281,18 @@ const LIVE_FONTS = {
   manuscrita: { label: "Manuscrita", family: "'Caveat', cursive", weight: 600, transform: "none", tracking: "normal" },
   script: { label: "Script", family: "'Dancing Script', cursive", weight: 700, transform: "none", tracking: "normal" },
   monoespaciada: { label: "Monoespaciada", family: "'JetBrains Mono', monospace", weight: 600, transform: "none", tracking: "0.5px" },
+  // 8 más (pedido de Eldin, 2026-10-05: "algo parecido a las de ProPresenter") -- completan las
+  // familias que todavía faltaban: una sans fina, dos "impacto" distintos entre sí, un serif cálido,
+  // un serif clásico/grabado, un marcador grueso, una condensada más suave que Oswald, y un script
+  // más juguetón que Dancing Script.
+  fina: { label: "Fina", family: "'Raleway', sans-serif", weight: 300, transform: "none", tracking: "0.4px" },
+  negrita: { label: "Extra negrita", family: "'Archivo Black', sans-serif", weight: 400, transform: "none", tracking: "normal" },
+  cartel: { label: "Cartel", family: "'Anton', sans-serif", weight: 400, transform: "uppercase", tracking: "0.5px" },
+  serifCalida: { label: "Serif cálida", family: "'Bitter', serif", weight: 600, transform: "none", tracking: "normal" },
+  grabada: { label: "Clásica grabada", family: "'Cinzel', serif", weight: 600, transform: "none", tracking: "0.5px" },
+  marcador: { label: "Marcador", family: "'Permanent Marker', cursive", weight: 400, transform: "none", tracking: "normal" },
+  condensadaSuave: { label: "Condensada suave", family: "'Barlow Condensed', sans-serif", weight: 600, transform: "none", tracking: "0.3px" },
+  scriptJuvenil: { label: "Script juvenil", family: "'Pacifico', cursive", weight: 400, transform: "none", tracking: "normal" },
 };
 // Color del texto principal en pantalla (letra de canción, cita bíblica, título de slide) — todos
 // pensados para buen contraste sobre los fondos oscuros de LIVE_THEMES/imágenes/video.
@@ -1851,7 +1863,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   return (
     <div className="app-shell-height" style={{ fontFamily: "'Poppins', sans-serif", background: "var(--wf-bg)", color: "var(--wf-text)", display: "flex", flexDirection: "column", position: "relative", overflowX: "hidden" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Caveat:wght@600;700&family=Playfair+Display:ital,wght@1,600&family=Montserrat:wght@300;700&family=Bebas+Neue&family=Oswald:wght@500;600&family=Quicksand:wght@500;700&family=Dancing+Script:wght@600;700&display=swap');
+        /* El @import de Google Fonts que vivía acá se movió a index.css -- esta pantalla nunca
+           llegaba a la pantalla real de Proyección (PublicScreen.jsx es una entrada HTML aparte),
+           así que la mitad de las fuentes de LIVE_FONTS nunca cargaban ahí. Ver la nota en index.css. */
         @keyframes pulseDot { 0%,100% { opacity:1; } 50% { opacity:.35; } }
         .live-dot { animation: pulseDot 1.6s ease-in-out infinite; }
         @keyframes glowPulse { 0%,100% { opacity:.55; transform: scale(1); } 50% { opacity:.85; transform: scale(1.04); } }
@@ -6805,6 +6819,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
     setEditingSlide(null); setEditDraft(null);
   };
   const customBgType = liveStyle.customBgType || "imagen";
+  const font = LIVE_FONTS[liveStyle.font || "elegante"];
   const fontScale = liveStyle.fontScale ?? 1;
   const navIdx = adHoc ? adHocIdx : activeIdx;
 
@@ -6948,11 +6963,18 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
               </div>
             )}
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>TIPOGRAFÍA</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+            {/* Desplegable en vez de fila de botones -- con 20 fuentes ya no cabían cómodas en una
+                fila (pedido de Eldin, 2026-10-05). El propio <select> y cada <option> llevan la
+                fuente real como estilo, así que al abrirlo cada opción ya se ve con su propia letra. */}
+            <select
+              value={liveStyle.font || "elegante"}
+              onChange={(e) => setLiveStyle((s) => ({ ...s, font: e.target.value }))}
+              style={{ ...inputStyle, marginBottom: 16, fontFamily: font.family, fontWeight: font.weight, fontStyle: font.italic ? "italic" : "normal", textTransform: font.transform }}
+            >
               {Object.entries(LIVE_FONTS).map(([key, f]) => (
-                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, font: key }))} style={{ padding: "5px 10px", borderRadius: 12, border: liveStyle.font === key ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", background: "var(--wf-card)", fontFamily: f.family, fontWeight: f.weight, fontStyle: f.italic ? "italic" : "normal", textTransform: f.transform, fontSize: 12 }}>{f.label}</button>
+                <option key={key} value={key} style={{ fontFamily: f.family, fontWeight: f.weight, fontStyle: f.italic ? "italic" : "normal", textTransform: f.transform }}>{f.label}</option>
               ))}
-            </div>
+            </select>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>COLOR DE LETRA</div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
               {Object.entries(LIVE_TEXT_COLORS).map(([key, c]) => (
