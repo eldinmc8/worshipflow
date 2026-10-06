@@ -308,6 +308,10 @@ const LINE_STYLES = {
   tradicional: { label: "Tradicional" },
   mayuscula: { label: "Énfasis en mayúscula" },
   acento: { label: "Línea de acento" },
+  editorial: { label: "Contraste editorial" },
+  descendente: { label: "Tamaño descendente" },
+  revista: { label: "Alineación tipo revista" },
+  cita: { label: "Cita destacada" },
 };
 // Objeto "evento" liviano para cuando se transmite sin un evento del calendario detrás (ver
 // startFreeEvent) — referencia estable a nivel de módulo para no invalidar el useMemo de `slides` en
@@ -7270,10 +7274,17 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   const cancionLineStyles =
     slide?.type === "cancion" && lineStyleMode !== "tradicional"
       ? slide.lines.map((_, i) => {
-          if (i !== 1) return undefined;
-          if (lineStyleMode === "mayuscula") return { textTransform: "uppercase", fontWeight: 900 };
-          if (lineStyleMode === "acento") return { color: "var(--wf-brand-accent)" };
-          return undefined;
+          if (lineStyleMode === "mayuscula") return i === 1 ? { textTransform: "uppercase", fontWeight: 900 } : undefined;
+          if (lineStyleMode === "acento") return i === 1 ? { color: "var(--wf-brand-accent)" } : undefined;
+          if (lineStyleMode === "editorial") return i === 1 ? { fontStyle: "italic", fontFamily: "'Playfair Display', serif" } : undefined;
+          // La línea principal más grande, la segunda (como un eco/aclaración) más chica -- al revés
+          // de mayuscula/acento, que destacan la 2a línea; acá se destaca la 1a.
+          if (lineStyleMode === "descendente") return i === 0 ? { fontSize: "1.15em" } : i === 1 ? { fontSize: "0.78em" } : undefined;
+          // Asimétrico a propósito (no centrado) -- cada línea ocupa el ancho completo del bloque de
+          // texto (ver nota en AutoFitText: los <div> hijos son block-level, heredan el ancho del
+          // contenedor ya encogido a la línea más larga) así que left/right sí se nota.
+          if (lineStyleMode === "revista") return i === 0 ? { textAlign: "left" } : i === 1 ? { textAlign: "right" } : undefined;
+          return undefined; // "cita": no toca el estilo de línea, ver la comilla decorativa más abajo
         })
       : undefined;
   return (
@@ -7305,9 +7316,20 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           {slide.type === "cancion" && (
             <>
               {thumbnail && <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "var(--wf-brand-accent)", marginBottom: 6, zIndex: 1 }}>{slide.blockLabel.toUpperCase()}</div>}
+              {/* "Cita destacada": una comilla grande y translúcida detrás del texto -- a diferencia de
+                  los demás diseños, este no cambia el estilo de ninguna línea (ver cancionLineStyles),
+                  solo agrega este adorno detrás. */}
+              {lineStyleMode === "cita" && (
+                <div aria-hidden style={{ position: "absolute", top: thumbnail ? 4 : 10, left: "50%", transform: "translateX(-50%)", fontFamily: "'Fraunces', serif", fontSize: thumbnail ? 50 : 160, lineHeight: 1, color: textColor, opacity: 0.18, zIndex: 1, pointerEvents: "none" }}>❝</div>
+              )}
               <AutoFitText
                 lines={slide.lines} targetRatio={cancionRatio} minPx={thumbnail ? 7 : 15} maxWidth="90%"
-                style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", textAlign: "center", zIndex: 1, lineHeight: 1.35, color: textColor }}
+                // whiteSpace:nowrap es lo que de verdad garantiza "2 líneas nada más" (pedido de
+                // Eldin, 2026-10-05): sin esto, una sola línea larga podía ENVOLVER a una fila visual
+                // extra (el ajuste automático de tamaño permitía eso, porque envolver también baja el
+                // ancho usado) -- con nowrap, la única forma de caber es achicar la letra hasta que esa
+                // línea quepa completa en una sola fila, nunca partirla en dos.
+                style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", textAlign: "center", zIndex: 1, lineHeight: 1.35, color: textColor, whiteSpace: "nowrap" }}
                 lineStyles={cancionLineStyles}
               />
               {thumbnail && <div style={{ position: "absolute", bottom: 18, display: "flex", alignItems: "center", gap: 8, color: "#5B6472", fontSize: 12, zIndex: 1 }}><Music size={12} /> {slide.songTitle}</div>}
