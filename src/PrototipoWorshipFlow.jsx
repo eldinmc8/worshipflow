@@ -299,6 +299,16 @@ const LIVE_REFERENCE_COLORS = {
   dorado: { label: "Dorado", value: "#E8C77E" },
   naranja: { label: "Naranja", value: "#E8821E" },
 };
+// Estilo de transmisión para la letra de canciones (pedido de Eldin, 2026-10-05, inspirado en un video
+// de ejemplo) -- primeros 3 de una lista más larga de diseños sugeridos. Solo aplica a slides tipo
+// "cancion" (lines[1], la segunda línea) -- las diapositivas de canción ahora son de máximo 2 líneas
+// cada una (ver la regeneración de diapositivas_letra del mismo día), así que "segunda línea" siempre
+// es la que cierra la frase de esa diapositiva.
+const LINE_STYLES = {
+  tradicional: { label: "Tradicional" },
+  mayuscula: { label: "Énfasis en mayúscula" },
+  acento: { label: "Línea de acento" },
+};
 // Objeto "evento" liviano para cuando se transmite sin un evento del calendario detrás (ver
 // startFreeEvent) — referencia estable a nivel de módulo para no invalidar el useMemo de `slides` en
 // cada render con un objeto nuevo. serviceOrder vacío: no hay plan, todo el contenido es improvisado.
@@ -6945,6 +6955,16 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
                 <input type="color" value={liveStyle.textColor || "#FFFFFF"} onChange={(e) => setLiveStyle((s) => ({ ...s, textColor: e.target.value }))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
               </label>
             </div>
+            {/* Diseño de transmisión para canciones: cambia solo cómo se destaca la 2a línea de cada
+                diapositiva (la que cierra la frase), no el contenido ni el tamaño. Primeros 3 de una
+                lista más larga -- Eldin ya vio las otras 7+ opciones sugeridas y decidió empezar por
+                estas. */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>DISEÑO DE LAS LETRAS</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+              {Object.entries(LINE_STYLES).map(([key, s]) => (
+                <button key={key} onClick={() => setLiveStyle((st) => ({ ...st, lineStyle: key }))} style={{ padding: "6px 11px", borderRadius: 12, border: (liveStyle.lineStyle || "tradicional") === key ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", background: "var(--wf-card)", color: "var(--wf-text)", fontSize: 12, fontWeight: 600 }}>{s.label}</button>
+              ))}
+            </div>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>TAMAÑO DE LETRA</div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-faint)" }}>A</span>
@@ -7153,7 +7173,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
 // Multimedia define el tamaño DESEADO, pero este componente lo mide contra el espacio real disponible y
 // lo va reduciendo hasta que quepa entero — así, sin importar cuántas líneas tenga la diapositiva ni qué
 // tan arriba se suba el slider, el texto nunca se corta ni se sale de la pantalla.
-function AutoFitText({ lines, targetRatio, minPx = 14, style, maxWidth, onFontSize }) {
+function AutoFitText({ lines, targetRatio, minPx = 14, style, maxWidth, onFontSize, lineStyles }) {
   const containerRef = useRef(null);
   const textRef = useRef(null);
   const [fontPx, setFontPx] = useState(minPx);
@@ -7189,7 +7209,10 @@ function AutoFitText({ lines, targetRatio, minPx = 14, style, maxWidth, onFontSi
   return (
     <div ref={containerRef} style={{ width: "100%", maxWidth: maxWidth || "100%", flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
       <div ref={textRef} style={{ ...style, fontSize: fontPx }}>
-        {Array.isArray(lines) ? lines.map((l, i) => <div key={i}>{l}</div>) : lines}
+        {/* lineStyles es opcional, por índice -- pensado para que la letra de una canción pueda
+            destacar su 2a línea distinto (mayúscula, color de acento...) sin tocar lines (que sigue
+            siendo solo texto plano, para que fitKey arriba no se rompa con objetos React). */}
+        {Array.isArray(lines) ? lines.map((l, i) => <div key={i} style={lineStyles?.[i]}>{l}</div>) : lines}
       </div>
     </div>
   );
@@ -7239,6 +7262,20 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   const bibliaRatio = 0.155 * scale;
   const slideRatio = 0.18 * scale;
   const textColor = liveStyle?.textColor || "#FFFFFF";
+  // Diseño de transmisión (solo canciones, ver LINE_STYLES): cambia cómo se destaca la 2a línea de la
+  // diapositiva (la que cierra la frase) -- nunca la 1a, y nunca si la diapositiva es de una sola
+  // línea (no hay "2a línea" que destacar). "tradicional" no toca nada (ambas líneas iguales, como
+  // siempre fue).
+  const lineStyleMode = liveStyle?.lineStyle || "tradicional";
+  const cancionLineStyles =
+    slide?.type === "cancion" && lineStyleMode !== "tradicional"
+      ? slide.lines.map((_, i) => {
+          if (i !== 1) return undefined;
+          if (lineStyleMode === "mayuscula") return { textTransform: "uppercase", fontWeight: 900 };
+          if (lineStyleMode === "acento") return { color: "var(--wf-brand-accent)" };
+          return undefined;
+        })
+      : undefined;
   return (
     <div style={{ flex: thumbnail ? "none" : compactHeight ? "none" : split ? 1.3 : 1, width: thumbnail ? "100%" : "auto", height: thumbnail ? "100%" : compactHeight || "auto", minHeight: thumbnail ? "auto" : compactHeight || "auto", background: bg, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", position: "relative", padding: thumbnail ? 10 : 32, minWidth: thumbnail ? 0 : 320, overflow: "hidden" }}>
       {/* Etiquetas chicas (este letrero, la sección de la canción, el título abajo) solo en la vista
@@ -7271,6 +7308,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
               <AutoFitText
                 lines={slide.lines} targetRatio={cancionRatio} minPx={thumbnail ? 7 : 15} maxWidth="90%"
                 style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", textAlign: "center", zIndex: 1, lineHeight: 1.35, color: textColor }}
+                lineStyles={cancionLineStyles}
               />
               {thumbnail && <div style={{ position: "absolute", bottom: 18, display: "flex", alignItems: "center", gap: 8, color: "#5B6472", fontSize: 12, zIndex: 1 }}><Music size={12} /> {slide.songTitle}</div>}
             </>
