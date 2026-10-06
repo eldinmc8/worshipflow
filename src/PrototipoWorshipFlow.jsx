@@ -7202,7 +7202,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
 // Multimedia define el tamaño DESEADO, pero este componente lo mide contra el espacio real disponible y
 // lo va reduciendo hasta que quepa entero — así, sin importar cuántas líneas tenga la diapositiva ni qué
 // tan arriba se suba el slider, el texto nunca se corta ni se sale de la pantalla.
-function AutoFitText({ lines, targetRatio, minPx = 14, style, maxWidth, onFontSize, lineStyles }) {
+function AutoFitText({ lines, targetRatio, minPx = 14, maxPx, style, maxWidth, onFontSize, lineStyles }) {
   const containerRef = useRef(null);
   const textRef = useRef(null);
   const [fontPx, setFontPx] = useState(minPx);
@@ -7217,7 +7217,12 @@ function AutoFitText({ lines, targetRatio, minPx = 14, style, maxWidth, onFontSi
       // igual de grande tanto en la mini-preview del panel de control como en la pantalla de verdad del
       // proyector, sin importar que una sea una cajita chica y la otra un TV de 1920px. El límite de
       // nunca desbordarse sigue siendo el achicado automático de abajo.
+      // maxPx (opcional): sin esto, un texto CORTO (ej. el título de una slide de anuncio, "Bienvenidos")
+      // nunca llega a desbordar ni el alto ni el ancho del contenedor a este tamaño "deseado" -- el
+      // achicado de abajo solo entra en acción cuando algo SÍ se desborda, así que un título de una o
+      // dos palabras se quedaba enorme, limitado solo por el alto disponible de la pantalla completa.
       let size = Math.max(minPx, container.clientHeight * targetRatio);
+      if (maxPx) size = Math.min(size, maxPx);
       const fits = () => text.scrollHeight <= container.clientHeight + 1 && text.scrollWidth <= container.clientWidth + 1;
       text.style.fontSize = `${size}px`;
       let guard = 0;
@@ -7233,7 +7238,7 @@ function AutoFitText({ lines, targetRatio, minPx = 14, style, maxWidth, onFontSi
     const ro = new ResizeObserver(fit);
     ro.observe(container);
     return () => ro.disconnect();
-  }, [targetRatio, fitKey, minPx]);
+  }, [targetRatio, fitKey, minPx, maxPx]);
 
   return (
     <div ref={containerRef} style={{ width: "100%", maxWidth: maxWidth || "100%", flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
@@ -7437,7 +7442,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           {slide.type === "slide" && (
             <div style={{ textAlign: "center", zIndex: 1, width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               <AutoFitText
-                lines={(slide.title || "").split("\n")} targetRatio={slideRatio} minPx={thumbnail ? 8 : 16} maxWidth="90%"
+                lines={(slide.title || "").split("\n")} targetRatio={slideRatio} minPx={thumbnail ? 8 : 16} maxPx={thumbnail ? 30 : 130} maxWidth="90%"
                 style={{ fontFamily: font.family, fontWeight: Math.max(font.weight, 600), textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", color: textColor }}
               />
               {slide.subtitle && !thumbnail && <div style={{ fontSize: 15, color: "#B7BEC9", marginTop: 8, flexShrink: 0, whiteSpace: "pre-line" }}>{slide.subtitle}</div>}
