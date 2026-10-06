@@ -7299,7 +7299,12 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   const cancionLineStyles =
     slide?.type === "cancion" && lineStyleMode !== "tradicional"
       ? slide.lines.map((_, i) => {
-          if (lineStyleMode === "mayuscula") return i === 1 ? { textTransform: "uppercase", fontWeight: 900 } : undefined;
+          // Más contraste (pedido de Eldin, 2026-10-05): antes la línea en minúscula no tenía ningún
+          // estilo propio, así que heredaba el peso de la fuente elegida en TIPOGRAFÍA -- con una
+          // fuente ya gruesa (ej. Audaz, Extra negrita) casi no se notaba diferencia contra la 2a
+          // línea en mayúscula. Ahora la 1a línea fuerza un peso liviano sin importar la fuente, y la
+          // 2a además de mayúscula/negrita queda más grande y con más espacio entre letras.
+          if (lineStyleMode === "mayuscula") return i === 0 ? { fontWeight: 400 } : i === 1 ? { textTransform: "uppercase", fontWeight: 900, fontSize: "1.1em", letterSpacing: "0.03em" } : undefined;
           if (lineStyleMode === "acento") return i === 1 ? { color: "var(--wf-brand-accent)" } : undefined;
           if (lineStyleMode === "editorial") return i === 1 ? { fontStyle: "italic", fontFamily: "'Playfair Display', serif" } : undefined;
           // La línea principal más grande, la segunda (como un eco/aclaración) más chica -- al revés
