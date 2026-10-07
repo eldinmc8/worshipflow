@@ -5067,7 +5067,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
   // igual que cualquier otro cambio en esta app) y navega directo a su pantalla completa: Setlist ya
   // cargado y editable ahí mismo, título/fecha/hora editables en Ajustes sin ventanas emergentes.
   // Editar el contenido propio de la plantilla (su Setlist base) sigue siendo el lápiz aparte en cada fila.
-  const useTemplate = (pl) => {
+  const aplicarPlantilla = (pl) => {
     onCreate({ templateId: pl.id, title: pl.title, dateLabel: "", date: null, hora: null, location: pl.location || "Por definir", esPlantilla: false });
   };
   const confirmCreate = () => {
@@ -5121,7 +5121,7 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
         {plantillas.length === 0 && <div style={{ textAlign: "center", color: "var(--wf-faint)", fontSize: 13, padding: "40px 0" }}>Todavía no hay plantillas — crea la primera con el botón +.</div>}
         {plantillas.map((pl) => (
           <div key={pl.id} style={{ display: "flex", alignItems: "center", gap: 4, width: "100%", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 20, padding: 10, marginBottom: 10 }}>
-            <button onClick={() => useTemplate(pl)} className="hoverable" title="Crear un evento con esta base" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, textAlign: "left", background: "transparent", border: "none", borderRadius: 14, padding: 4, cursor: "pointer" }}>
+            <button onClick={() => aplicarPlantilla(pl)} className="hoverable" title="Crear un evento con esta base" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, textAlign: "left", background: "transparent", border: "none", borderRadius: 14, padding: 4, cursor: "pointer" }}>
               <div style={{ width: 34, height: 34, borderRadius: 14, background: "var(--wf-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ListMusic size={16} color="#5661B3" /></div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pl.title}</div>
