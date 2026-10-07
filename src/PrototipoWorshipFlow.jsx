@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import AppLogo from "./AppLogo.jsx";
+import { useArrastreLista } from "./lib/arrastreLista.js";
 import {
   Music, Mic2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus,
   Radio, ListMusic, BookOpen, Image as ImgIcon, Trash2, GripVertical,
@@ -5759,18 +5760,17 @@ function SetlistPane({ myIglesiaId, event, library, ministries, isCompact, isAdm
     setSeccionDraft({ title: "", description: "" });
     setShowSeccionForm(false);
   };
-  // Reordenar presionando y arrastrando el ícono de 6 puntos. Antes esto usaba drag-and-drop nativo de
-  // HTML5 (draggable + dragstart/dragover/drop) — que los navegadores NO disparan con el dedo en un
-  // celular, solo con mouse, así que en el teléfono el arrastre simplemente no hacía nada. Ahora usa
-  // Pointer Events (mouse/touch/lápiz unificado, mismo enfoque que el swipe del lector de canciones):
-  // se captura el puntero en el ícono al presionar, así se sigue recibiendo el movimiento aunque el
-  // dedo se salga de la fila, y se calcula sobre qué fila está el dedo midiendo su posición real en
-  // pantalla en vez de depender de eventos de "arrastre" que el navegador no siempre entrega.
-  const [dragIndex, setDragIndex] = useState(null);
-  const [overIndex, setOverIndex] = useState(null);
-  const [dragTranslateY, setDragTranslateY] = useState(0);
-  const rowRefs = useRef({});
-  const dragStartYRef = useRef(0);
+  // Reordenar estilo OnStage: se agarra el elemento desde cualquier parte (con el dedo, manteniéndolo
+  // presionado un instante; con mouse, presionando y moviendo) y los demás se apartan para mostrar
+  // dónde va a caer — ver useArrastreLista. Un bloque desplegado no se mueve hasta que se cierre.
+  const arrastre = useArrastreLista({
+    habilitado: canEditNow,
+    puedeArrastrar: (idx) => {
+      const it = event.serviceOrder[idx];
+      return !(it?.type === "seccion" && expandedSections[it.id]);
+    },
+    onReorder,
+  });
   // Visibilidad del Setlist por grupo — ver decidirVisibilidadSetlist. Va DESPUÉS de todos los hooks
   // de arriba: un return anticipado antes de un useState rompe las reglas de hooks en cuanto ese mismo
   // componente vuelva a renderizar sin la restricción activa.
@@ -5782,38 +5782,6 @@ function SetlistPane({ myIglesiaId, event, library, ministries, isCompact, isAdm
   // letra, versículos, slides), solo que sin los bloques organizativos de otros grupos (ver
   // visibleServiceOrder más abajo, usado en vez de event.serviceOrder en el render principal).
   const visibleServiceOrder = visibilidadSetlist.modo === "filtrado" ? visibilidadSetlist.visibleOrder : event.serviceOrder;
-  const findRowIndexAtY = (y) => {
-    const indices = Object.keys(rowRefs.current).map(Number).sort((a, b) => a - b);
-    for (const idx of indices) {
-      const el = rowRefs.current[idx];
-      if (!el) continue;
-      const rect = el.getBoundingClientRect();
-      if (y < rect.top + rect.height / 2) return idx;
-    }
-    return indices.length ? indices[indices.length - 1] : 0;
-  };
-  const dragHandleProps = (idx) => ({
-    onPointerDown: (e) => {
-      if (!canEditNow) return;
-      e.currentTarget.setPointerCapture?.(e.pointerId);
-      dragStartYRef.current = e.clientY;
-      setDragIndex(idx);
-      setOverIndex(idx);
-      setDragTranslateY(0);
-    },
-    onPointerMove: (e) => {
-      if (dragIndex === null) return;
-      setDragTranslateY(e.clientY - dragStartYRef.current);
-      setOverIndex(findRowIndexAtY(e.clientY));
-    },
-    onPointerUp: () => {
-      if (dragIndex !== null && overIndex !== null && overIndex !== dragIndex) onReorder(dragIndex, overIndex);
-      setDragIndex(null); setOverIndex(null); setDragTranslateY(0);
-    },
-    onPointerCancel: () => { setDragIndex(null); setOverIndex(null); setDragTranslateY(0); },
-    style: { cursor: canEditNow ? "grab" : "default", flexShrink: 0, touchAction: "none" },
-  });
-  const rowRefProp = (idx) => (el) => { rowRefs.current[idx] = el; };
   const filtered = library
     .filter((s) => libraryCategoryFilter === "todos" || s.category === libraryCategoryFilter)
     .filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
@@ -5890,7 +5858,7 @@ function SetlistPane({ myIglesiaId, event, library, ministries, isCompact, isAdm
         </div>
         {visibleServiceOrder.map((item, idx) => {
           const meta = TYPE_META[item.type];
-          const handleProps = dragHandleProps(idx);
+          const filaArrastre = arrastre.filaProps(idx);
           if (item.type === "seccion") {
             const linkedMinistry = item.ministryId ? ministries.find((m) => m.id === item.ministryId) : null;
             // La planificación que aparece es la que tiene la MISMA fecha que este evento (no siempre la
@@ -5908,16 +5876,14 @@ function SetlistPane({ myIglesiaId, event, library, ministries, isCompact, isAdm
             const canEdit = canEditItem(idx);
             return (
               <div
-                key={item.id} ref={rowRefProp(idx)}
+                key={item.id} {...filaArrastre}
                 style={{
-                  background: "rgba(124,140,216,0.16)", border: overIndex === idx && dragIndex !== null && dragIndex !== idx ? "2px solid var(--wf-brand-accent)" : "1px solid #5661B3", borderRadius: 14, padding: "12px 14px", marginBottom: 8,
-                  transform: dragIndex === idx ? `translateY(${dragTranslateY}px)` : undefined,
-                  position: dragIndex === idx ? "relative" : undefined, zIndex: dragIndex === idx ? 5 : undefined,
-                  boxShadow: dragIndex === idx ? "0 10px 24px rgba(22,50,79,0.35)" : undefined,
+                  background: "rgba(124,140,216,0.16)", border: "1px solid #5661B3", borderRadius: 14, padding: "12px 14px", marginBottom: 8,
+                  ...arrastre.estiloFila(idx),
                 }}
               >
                 <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                  <GripVertical size={14} color="#5661B3" {...handleProps} style={{ ...handleProps.style, marginTop: 3 }} />
+                  {canEditNow && <GripVertical size={14} color="#5661B3" style={{ flexShrink: 0, marginTop: 3, opacity: isExpanded ? 0.35 : 1 }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <input
                       value={item.title} onChange={(e) => onUpdateSeccionText(item.id, "title", e.target.value)} readOnly={!canEdit}
@@ -6057,14 +6023,13 @@ function SetlistPane({ myIglesiaId, event, library, ministries, isCompact, isAdm
           return (
             <div key={item.id} style={{ marginBottom: 8 }}>
               <div
-                ref={rowRefProp(idx)}
+                {...filaArrastre}
                 style={{
-                  display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "var(--wf-card)", border: overIndex === idx && dragIndex !== null && dragIndex !== idx ? "2px solid var(--wf-brand-accent)" : "none", boxShadow: dragIndex === idx ? "0 10px 24px rgba(22,50,79,0.35)" : "0 3px 14px rgba(22,50,79,0.09)",
-                  transform: dragIndex === idx ? `translateY(${dragTranslateY}px)` : undefined,
-                  position: dragIndex === idx ? "relative" : undefined, zIndex: dragIndex === idx ? 5 : undefined,
+                  display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)",
+                  ...arrastre.estiloFila(idx),
                 }}
               >
-                <GripVertical size={14} color="var(--wf-border-soft)" {...handleProps} />
+                {canEditNow && <GripVertical size={14} color="var(--wf-border-soft)" style={{ flexShrink: 0 }} />}
                 {item.type === "cancion" && song ? (
                   <>
                     {canEdit ? (
