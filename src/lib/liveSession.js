@@ -31,8 +31,11 @@ export async function updateLiveSession(iglesiaId, patch) {
   if (error) throw error;
 }
 
+// estilo_en_vivo NO se borra a propósito (pedido de Eldin, 2026-10-08): la tipografía, el diseño de
+// la letra, el fondo, el tamaño... se quedan guardados en la fila de la iglesia para la siguiente
+// transmisión, desde cualquier computadora — no hay que volver a configurarlos cada culto.
 export function clearLiveSession(iglesiaId) {
-  return updateLiveSession(iglesiaId, { evento_id: null, liderado_por: null, slide_actual: null, blanked: false, estilo_en_vivo: null, ad_hoc_label: null, libre: false });
+  return updateLiveSession(iglesiaId, { evento_id: null, liderado_por: null, slide_actual: null, blanked: false, ad_hoc_label: null, libre: false });
 }
 
 // Se suscribe a los cambios de la sesión en vivo DE ESTA IGLESIA; llama a onChange(fila) cada vez que

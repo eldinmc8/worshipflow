@@ -117,35 +117,40 @@ export function reorganizarLetra(slides, formato) {
     const clave = grupoDe(s);
     const grupo = [];
     while (i < lista.length && lista[i]?.type === "cancion" && grupoDe(lista[i]) === clave) { grupo.push(lista[i]); i++; }
-    const lineas = [];
-    grupo.forEach((orig) => {
-      (orig.lines || []).filter((l) => l && l.trim()).forEach((l) => lineas.push({ orig, texto: l.replace(/\s+/g, " ").trim() }));
-    });
+    // Las líneas se juntan SOLO dentro de la misma diapositiva guardada, nunca con la de al lado
+    // (2026-10-08): una diapositiva agregada en vivo con una sola línea se pegaba a la primera línea de
+    // la siguiente y nunca aparecía como diapositiva propia. hastaLinea = cuántas líneas (no vacías) de
+    // la original van hasta este pedazo inclusive — sirve para insertar una diapositiva nueva JUSTO
+    // después de este pedazo (ver aplicarCambioLetra, cortarDespuesDeLinea).
     const piezas = [];
-    if (formato === "una_linea_dos_renglones") {
-      const corta = (x) => x && x.texto.length <= MAX_RENGLON;
-      for (let j = 0; j < lineas.length; ) {
-        const a = lineas[j];
-        const b = lineas[j + 1];
-        if (corta(a) && corta(b)) {
-          piezas.push({ orig: a.orig, renglones: [a.texto, b.texto] });
-          j += 2;
-        } else {
-          piezas.push({ orig: a.orig, renglones: partirEn(a.texto, 2) });
-          j += 1;
+    grupo.forEach((orig) => {
+      const lineas = (orig.lines || []).filter((l) => l && l.trim()).map((l) => l.replace(/\s+/g, " ").trim());
+      if (formato === "una_linea_dos_renglones") {
+        const corta = (t) => t !== undefined && t.length <= MAX_RENGLON;
+        for (let j = 0; j < lineas.length; ) {
+          if (corta(lineas[j]) && corta(lineas[j + 1])) {
+            piezas.push({ orig, renglones: [lineas[j], lineas[j + 1]], hastaLinea: j + 2 });
+            j += 2;
+          } else {
+            piezas.push({ orig, renglones: partirEn(lineas[j], 2), hastaLinea: j + 1 });
+            j += 1;
+          }
         }
+      } else {
+        lineas.forEach((texto, j) => piezas.push({ orig, renglones: [texto], hastaLinea: j + 1 }));
       }
-    } else {
-      lineas.forEach(({ orig, texto }) => piezas.push({ orig, renglones: [texto] }));
-    }
+    });
     if (piezas.length === 0) { out.push(...grupo); continue; }
     const base = grupo[0].sectionLabel || String(grupo[0].blockLabel || "").replace(/\s*\(\d+\/\d+\)$/, "");
-    piezas.forEach(({ orig, renglones }, k) => {
+    piezas.forEach(({ orig, renglones, hastaLinea }, k) => {
+      const totalOrig = (orig.lines || []).filter((l) => l && l.trim()).length;
       out.push({
         ...orig,
         slideId: `${orig.slideId}~l${k}`,
         lines: renglones,
         baseLines: orig.baseLines || orig.lines,
+        // null en el último pedazo de la original: ahí "agregar después" ya es simplemente después de ella.
+        cortarDespuesDeLinea: hastaLinea < totalOrig ? hastaLinea : null,
         blockLabel: piezas.length > 1 ? `${base} (${k + 1}/${piezas.length})` : base,
       });
     });

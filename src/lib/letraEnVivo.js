@@ -35,7 +35,12 @@ export function letraEfectiva(song) {
 // tipo "editar": reemplaza la diapositiva `indice` de la sección. tipo "agregar": inserta una nueva
 // justo DESPUÉS de la diapositiva `indice` (o al final si no se indica). El texto viene del cuadro de
 // texto: una diapositiva por cambio, líneas separadas por salto de línea.
-export function aplicarCambioLetra(song, { tipo, blockKey, indice, texto }) {
+//
+// cortarDespuesDeLinea (opcional, solo "agregar"): en pantallas chicas una diapositiva guardada se ve
+// en varios pedazos (ver reorganizarLetra). Si se pide agregar después de un pedazo que NO es el
+// último, la diapositiva guardada se parte ahí en dos — después de esa cantidad de líneas no vacías —
+// y la nueva queda en medio, justo donde se pidió (no al final de todos sus pedazos).
+export function aplicarCambioLetra(song, { tipo, blockKey, indice, texto, cortarDespuesDeLinea }) {
   const letra = letraEfectiva(song);
   const grupo = [...(letra[blockKey] || [])];
   const lineas = String(texto ?? "").replace(/\r/g, "").split("\n");
@@ -44,6 +49,22 @@ export function aplicarCambioLetra(song, { tipo, blockKey, indice, texto }) {
     grupo[indice] = lineas;
   } else if (tipo === "agregar") {
     if (!lineas.some((l) => l.trim())) throw new Error("Escribe el texto de la diapositiva nueva.");
+    const original = indice != null ? grupo[indice] : null;
+    if (original && cortarDespuesDeLinea > 0) {
+      // Posición (en las líneas crudas, con vacías incluidas) justo después de la N-ésima no vacía.
+      let vistas = 0, corte = original.length;
+      for (let i = 0; i < original.length; i++) {
+        if (original[i] && original[i].trim()) vistas++;
+        if (vistas === cortarDespuesDeLinea) { corte = i + 1; break; }
+      }
+      const antes = original.slice(0, corte);
+      const despues = original.slice(corte);
+      if (despues.some((l) => l && l.trim())) {
+        grupo.splice(indice, 1, antes, lineas, despues);
+        letra[blockKey] = grupo;
+        return letra;
+      }
+    }
     const pos = indice == null ? grupo.length : Math.min(Math.max(indice + 1, 0), grupo.length);
     grupo.splice(pos, 0, lineas);
   } else {

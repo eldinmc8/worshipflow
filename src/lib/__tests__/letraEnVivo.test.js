@@ -68,3 +68,40 @@ describe("letraADiapositivas", () => {
     ]);
   });
 });
+
+// Reportado por Eldin (2026-10-08): en pantallas chicas, "Agregar diapositiva" después de "Estrofa 1
+// (1/4)" no creaba una diapositiva nueva — su línea se pegaba a la siguiente y quedaba al final.
+import { reorganizarLetra } from "../dividirTexto.js";
+
+describe("agregar diapositiva en pantallas chicas (una_linea_dos_renglones)", () => {
+  const cancion = {
+    blocks: { v1: { label: "Estrofa 1", lines: ["x"] } },
+    letra: { v1: [["Hallé un buen amigo, mi amado Salvador", "Contaré lo que Él", "ha hecho para mí", "Hallándome perdido"]] },
+  };
+  const proyectar = (song) => reorganizarLetra(
+    (song.letra.v1).map((lines, si) => ({ slideId: `it-0-${si}`, type: "cancion", songId: "s", blockKey: "v1", sectionLabel: "Estrofa 1", slideIndexInBlock: si, lines })),
+    "una_linea_dos_renglones"
+  );
+
+  it("la nueva queda como diapositiva propia, justo después del pedazo elegido", () => {
+    const antes = proyectar(cancion);
+    const primera = antes[0];
+    expect(primera.cortarDespuesDeLinea).toBe(1);
+    const letra = aplicarCambioLetra(cancion, { tipo: "agregar", blockKey: "v1", indice: primera.slideIndexInBlock, texto: "A Dios se la gloria", cortarDespuesDeLinea: primera.cortarDespuesDeLinea });
+    const despues = proyectar({ ...cancion, letra });
+    expect(despues.map((s) => s.lines.join(" / "))).toEqual([
+      "Hallé un buen amigo, / mi amado Salvador",
+      "A Dios se / la gloria", // diapositiva propia (una línea sola va en dos renglones)
+      "Contaré lo que Él / ha hecho para mí",
+      "Hallándome / perdido",
+    ]);
+  });
+
+  it("después del último pedazo, va después de la diapositiva guardada completa", () => {
+    const antes = proyectar(cancion);
+    const ultima = antes[antes.length - 1];
+    expect(ultima.cortarDespuesDeLinea).toBeNull();
+    const letra = aplicarCambioLetra(cancion, { tipo: "agregar", blockKey: "v1", indice: ultima.slideIndexInBlock, texto: "Nueva", cortarDespuesDeLinea: ultima.cortarDespuesDeLinea });
+    expect(letra.v1).toEqual([cancion.letra.v1[0], ["Nueva"]]);
+  });
+});

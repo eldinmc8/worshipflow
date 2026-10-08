@@ -28,7 +28,7 @@ import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotific
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { listarFondos, subirFondo, borrarFondo } from "./lib/multimedia.js";
 import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } from "./lib/pwaInstall.js";
-import { buscarActualizacionManual, hayActualizacionPendiente } from "./lib/swUpdate.js";
+import { buscarActualizacionManual, hayActualizacionPendiente, aplicarActualizacion } from "./lib/swUpdate.js";
 import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FULL, MONTH_ABBR, DOW_LABELS, monthKey, monthLabelFromKey, formatFullDate, buildMonthWeeks } from "./lib/dates.js";
 import { saveCache, loadCache } from "./lib/offlineCache.js";
 import { showToast, notifyError } from "./lib/toast.js";
@@ -829,7 +829,16 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const liveEvent = liveLibre ? { ...EVENTO_LIBRE, serviceOrder: libreServiceOrder } : events.find((e) => e.id === liveEventId);
   const navFlotante = tab === "envivo" && !!liveEvent && !isCompact; // ver la nav inferior
   // ---- Estilo en vivo de la proyección (fondo/tipografía/tamaño), editable solo por Multimedia mientras transmite ----
-  const [liveStyle, setLiveStyle] = useState({ theme: "stage", font: "elegante", fontScale: 1 });
+  // Se queda guardado entre transmisiones (pedido de Eldin, 2026-10-08): copia en este dispositivo
+  // para arrancar al instante, y la de la iglesia (sesiones_en_vivo.estilo_en_vivo, que ya no se borra
+  // al finalizar — ver clearLiveSession) manda en cuanto llega, para que cualquier computadora que
+  // transmita use el mismo estilo. Es uno solo para todas las canciones.
+  const [liveStyle, setLiveStyle] = useState(() => loadCache("estilo_en_vivo") || { theme: "stage", font: "elegante", fontScale: 1 });
+  useEffect(() => { saveCache("estilo_en_vivo", liveStyle); }, [liveStyle]);
+  const adoptarEstiloGuardado = (estilo) => {
+    if (!estilo || typeof estilo !== "object") return;
+    setLiveStyle((actual) => (JSON.stringify(actual) === JSON.stringify(estilo) ? actual : estilo));
+  };
   // Versículos largos → 2 o 3 diapositivas (ver dividirTexto.js). Con la letra en vivo más grande,
   // caben menos palabras por diapositiva y divide antes.
   const palabrasPorParte = Math.max(15, Math.round(40 / (liveStyle.fontScale || 1)));
@@ -1223,8 +1232,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     cambiarLetraEnVivo(songId, { tipo: "editar", blockKey, indice: slideIndexInBlock, texto: nuevoTexto }, "No se pudo guardar la corrección en la canción");
   // La diapositiva nueva entra justo DESPUÉS de la que se estaba viendo (no al final de la sección), y
   // solo si trae texto — una vacía nunca se proyecta y antes quedaba "invisible".
-  const addSongSlideLive = (songId, blockKey, afterIndex, texto) =>
-    cambiarLetraEnVivo(songId, { tipo: "agregar", blockKey, indice: afterIndex, texto }, "No se pudo agregar la diapositiva");
+  const addSongSlideLive = (songId, blockKey, afterIndex, texto, cortarDespuesDeLinea) =>
+    cambiarLetraEnVivo(songId, { tipo: "agregar", blockKey, indice: afterIndex, texto, cortarDespuesDeLinea }, "No se pudo agregar la diapositiva");
   // Transporta la canción completa a una nueva tonalidad: recalcula todos los acordes de todos los bloques.
   const transposeSong = (songId, newKey) => {
     let transposed = null;
@@ -1496,12 +1505,16 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           return;
         }
         setLiveEventId(fila?.evento_id || null); setLiveOwnerId(fila?.liderado_por || null); setLiveLibre(!!fila?.libre);
+        adoptarEstiloGuardado(fila?.estilo_en_vivo);
       })
       .catch(() => {});
     const unsubscribe = subscribeLiveSession(myIglesiaId, (fila) => {
       setLiveEventId(fila.evento_id || null);
       setLiveOwnerId(fila.liderado_por || null);
       setLiveLibre(!!fila.libre);
+      // Solo si lo cambió OTRO dispositivo: quien transmite ya tiene su estilo, y adoptar su propio eco
+      // volvería a disparar el envío de la sesión.
+      if (fila.liderado_por !== userIdRef.current) adoptarEstiloGuardado(fila.estilo_en_vivo);
     });
     return unsubscribe;
   }, [myIglesiaId]);
@@ -2743,7 +2756,10 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
     setCheckingUpdate(true); setUpToDate(false);
     await buscarActualizacionManual();
     setCheckingUpdate(false);
-    if (!hayActualizacionPendiente()) {
+    // Si hay una esperando se aplica de una: quien toca este botón quiere la última versión, y en un
+    // celular puede no haberse mostrado el aviso (cambio solo de escritorio, ver swUpdate.js).
+    if (hayActualizacionPendiente()) aplicarActualizacion();
+    else {
       setUpToDate(true);
       setTimeout(() => setUpToDate(false), 4000);
     }
@@ -6856,7 +6872,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       if (editingSlide.nueva) {
         // Sin texto no se crea nada (una diapositiva vacía nunca se proyecta): se queda el cuadro abierto.
         if (!editDraft.text.trim()) return;
-        onAddSongSlide(editingSlide.songId, editingSlide.blockKey, editingSlide.slideIndexInBlock, editDraft.text);
+        onAddSongSlide(editingSlide.songId, editingSlide.blockKey, editingSlide.slideIndexInBlock, editDraft.text, editingSlide.cortarDespuesDeLinea);
       } else {
         onEditSongSlide(editingSlide.songId, editingSlide.blockKey, editingSlide.slideIndexInBlock, editDraft.text);
       }
