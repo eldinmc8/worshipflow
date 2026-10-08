@@ -7400,8 +7400,14 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           </>
         )}
       </div>
+      {/* "Más opciones" de Estilo: menú flotante encima de las diapositivas, como los desplegables
+          de Office — antes empujaba todo hacia abajo y se comía media pantalla (pedido de Eldin,
+          2026-10-08). Se cierra con la X, con "Menos" o con un clic afuera. */}
       {mmPanel === "estilo" && estiloMas && (
-        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", padding: "10px 16px 12px", background: "var(--wf-card)", borderTop: "1px solid var(--wf-divider)", flexShrink: 0, maxHeight: 260, overflowY: "auto" }}>
+        <div style={{ position: "relative", height: 0, zIndex: 35 }}>
+          <div onClick={() => setEstiloMas(false)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />
+          <div style={{ position: "absolute", top: 6, right: 16, zIndex: 1, width: "min(640px, calc(100vw - 32px))", maxHeight: "min(420px, 60vh)", overflowY: "auto", display: "flex", gap: 20, flexWrap: "wrap", padding: "12px 14px 14px", background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 12px 36px rgba(22,50,79,0.25)", boxSizing: "border-box" }}>
+          <button onClick={() => setEstiloMas(false)} title="Cerrar" aria-label="Cerrar" style={{ ...iconGhost, position: "absolute", top: 8, right: 8 }}><X size={15} /></button>
           <div style={{ flex: "1 1 340px", minWidth: 0 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>{customBgType === "imagen" ? "IMAGEN DE FONDO" : "VIDEO DE FONDO"}</div>
             {customBgType === "imagen" ? (
@@ -7432,6 +7438,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
                 <button key={key} onClick={() => setLiveStyle((st) => ({ ...st, bibliaReferenciaColor: c.value }))} title={c.label} aria-label={`Cita ${c.label}`} style={{ width: 22, height: 22, borderRadius: "50%", background: c.value, border: (liveStyle.bibliaReferenciaColor || "#6E9BD1") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
               ))}
             </div>
+          </div>
           </div>
         </div>
       )}
