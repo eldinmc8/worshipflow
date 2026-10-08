@@ -4862,7 +4862,12 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
     const arr = [...entries]; arr[idx] = { ...arr[idx], count: Math.max(0, arr[idx].count + delta) };
     setEntries(arr.filter((e) => e.count > 0));
   };
-  const moveEntry = (idx, dir) => { const arr = [...entries]; const j = idx + dir; if (j < 0 || j >= arr.length) return; [arr[idx], arr[j]] = [arr[j], arr[idx]]; setEntries(arr); };
+  // Reordenar la estructura igual que el Setlist (pedido de Eldin, 2026-10-08): se agarra la sección
+  // desde cualquier parte (mouse: presionar y mover; dedo: mantener presionado) — sin flechitas.
+  const arrastreEstructura = useArrastreLista({
+    habilitado: true,
+    onReorder: (desde, destino) => { const arr = [...entries]; const [movida] = arr.splice(desde, 1); arr.splice(destino, 0, movida); setEntries(arr); },
+  });
   const addEntry = (key) => setEntries([...entries, { key, count: 1 }]);
 
   const canSave = draft.title.trim() && draft.key.trim() && draft.artist.trim();
@@ -5034,15 +5039,13 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 8 }}><ListMusic size={13} /> ESTRUCTURA ACTUAL</div>
             {entries.map((e, idx) => (
-              <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "8px 10px", marginBottom: 6 }}>
+              <div key={idx} {...arrastreEstructura.filaProps(idx)} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "8px 10px", marginBottom: 6, ...arrastreEstructura.estiloFila(idx) }}>
                 <GripVertical size={14} color="var(--wf-border-soft)" />
                 <span style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--wf-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{draft.blocks[e.key]?.badge}</span>
                 <span style={{ fontSize: 13, flex: 1 }}>{draft.blocks[e.key]?.label}</span>
                 <button onClick={() => changeCount(idx, -1)} style={iconGhost}><Minus size={13} /></button>
                 <span style={{ fontSize: 12, width: 22, textAlign: "center" }}>x{e.count}</span>
                 <button onClick={() => changeCount(idx, 1)} style={iconGhost}><Plus size={13} /></button>
-                <button onClick={() => moveEntry(idx, -1)} style={iconGhost}><ChevronUp size={13} /></button>
-                <button onClick={() => moveEntry(idx, 1)} style={iconGhost}><ChevronDown size={13} /></button>
               </div>
             ))}
             {entries.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12 }}>Agrega bloques desde la derecha.</div>}
