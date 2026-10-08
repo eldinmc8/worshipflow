@@ -3,6 +3,28 @@
 // se llamaba desde ningún lado, así que ese comportamiento nunca se activaba (ver la nota en
 // vite.config.js sobre injectRegister:false).
 import { registerSW } from "virtual:pwa-register";
+import versionCelular from "../versionCelular.json";
+
+// Mismo corte que useIsCompact en PrototipoWorshipFlow.jsx: por debajo de esto es "celular".
+const ANCHO_CELULAR = 768;
+
+// Actualizaciones que solo tocan cosas de escritorio (consola En vivo, proyección...) no deberían
+// plantarle a cada celular el aviso "Hay una nueva actualización" todos los días (pedido de Eldin,
+// 2026-10-08). src/versionCelular.json solo se sube cuando un cambio SÍ afecta al celular: si la
+// versión publicada trae el mismo número que esta, en un celular no se avisa. La versión nueva igual
+// queda instalada y esperando, y entra sola la próxima vez que se cierre y se vuelva a abrir la app.
+// En computadora se avisa siempre. Ante cualquier duda (sin internet, archivo que no carga) se avisa.
+async function avisarEnEsteDispositivo() {
+  if (window.innerWidth >= ANCHO_CELULAR) return true;
+  try {
+    const r = await fetch(`/version-celular.json?t=${Date.now()}`, { cache: "no-store" });
+    if (!r.ok) return true;
+    const publicada = await r.json();
+    return publicada.version !== versionCelular.version;
+  } catch {
+    return true;
+  }
+}
 
 let registration = null;
 // Función que devuelve registerSW() -- llamarla (ver aplicarActualizacion) le avisa al service worker
@@ -46,8 +68,8 @@ export function iniciarActualizacionAutomatica(onUpdateAvailable) {
       registration = reg || null;
     },
     onNeedRefresh() {
-      refreshNeeded = true;
-      onUpdateAvailable?.();
+      refreshNeeded = true; // "Buscar actualizaciones" en Ajustes sigue pudiendo aplicarla a mano
+      avisarEnEsteDispositivo().then((avisar) => { if (avisar) onUpdateAvailable?.(); });
     },
   });
 

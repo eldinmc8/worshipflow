@@ -1,11 +1,23 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import versionCelular from './src/versionCelular.json'
+
+// Publica /version-celular.json junto a la app (no se precachea: el service worker solo guarda
+// js/css/html). La app ya instalada lo pide al servidor cuando detecta una versión nueva, para saber
+// si ese cambio le importa al celular — ver avisarEnEsteDispositivo en src/lib/swUpdate.js.
+const publicarVersionCelular = {
+  name: 'publicar-version-celular',
+  generateBundle() {
+    this.emitFile({ type: 'asset', fileName: 'version-celular.json', source: JSON.stringify({ version: versionCelular.version }) })
+  },
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
+    publicarVersionCelular,
     VitePWA({
       // 'prompt' (no 'autoUpdate'): que una versión nueva se recargue SOLA sin avisar puede pasar en
       // pleno culto a mitad de algo — y para quien nunca abre Ajustes, un cambio publicado tampoco tenía
