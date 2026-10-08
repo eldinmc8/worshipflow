@@ -14,7 +14,7 @@ import {
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra } from "./lib/letraEnVivo.js";
 import AutoFitText from "./components/AutoFitText.jsx";
-import { expandirVersiculosLargos } from "./lib/dividirTexto.js";
+import { expandirVersiculosLargos, reorganizarLetra, FORMATOS_LETRA } from "./lib/dividirTexto.js";
 import {
   listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
 } from "./lib/eventos.js";
@@ -828,11 +828,16 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // Versículos largos → 2 o 3 diapositivas (ver dividirTexto.js). Con la letra en vivo más grande,
   // caben menos palabras por diapositiva y divide antes.
   const palabrasPorParte = Math.max(15, Math.round(40 / (liveStyle.fontScale || 1)));
+  // Cómo se reparte la letra de canciones en pantalla — ajuste de cada iglesia (Identidad de la iglesia).
+  const formatoLetra = myIglesia.formatoLetra || "dos_lineas";
   const slides = useMemo(
-    () => (liveEvent ? expandirVersiculosLargos(buildSlides(liveEvent.serviceOrder, library), palabrasPorParte) : []),
-    [liveEvent, library, palabrasPorParte]
+    () => (liveEvent ? expandirVersiculosLargos(reorganizarLetra(buildSlides(liveEvent.serviceOrder, library), formatoLetra), palabrasPorParte) : []),
+    [liveEvent, library, palabrasPorParte, formatoLetra]
   );
-  const adHocSlides = useMemo(() => (adHoc ? expandirVersiculosLargos(adHoc.slides, palabrasPorParte) : []), [adHoc, palabrasPorParte]);
+  const adHocSlides = useMemo(
+    () => (adHoc ? expandirVersiculosLargos(reorganizarLetra(adHoc.slides, formatoLetra), palabrasPorParte) : []),
+    [adHoc, palabrasPorParte, formatoLetra]
+  );
   const adHocVista = useMemo(() => (adHoc ? { ...adHoc, slides: adHocSlides } : null), [adHoc, adHocSlides]);
   const current = adHoc ? adHocSlides[adHocIdx] : slides[activeIdx];
   const next = adHoc ? adHocSlides[adHocIdx + 1] : slides[activeIdx + 1];
@@ -3052,9 +3057,10 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
   const [error, setError] = useState("");
   const [subiendoLogo, setSubiendoLogo] = useState(false);
   const [mostrarEnlaceManual, setMostrarEnlaceManual] = useState(false);
+  const [formatoLetra, setFormatoLetra] = useState("dos_lineas");
 
   useEffect(() => {
-    supabase.from("iglesias").select("nombre, zona_horaria, logo_url, color_primario, color_acento").eq("id", iglesiaId).single()
+    supabase.from("iglesias").select("nombre, zona_horaria, logo_url, color_primario, color_acento, formato_letra").eq("id", iglesiaId).single()
       .then(({ data }) => {
         if (data) {
           setNombre(data.nombre || "");
@@ -3062,6 +3068,7 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
           setLogoUrl(data.logo_url || "");
           setColorPrimario(data.color_primario || "#16324F");
           setColorAcento(data.color_acento || "#E8821E");
+          setFormatoLetra(data.formato_letra || "dos_lineas");
         }
         setCargando(false);
       });
@@ -3098,6 +3105,7 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
     const { error } = await supabase.from("iglesias").update({
       nombre: nombre.trim(), zona_horaria: zonaHoraria,
       logo_url: logoUrl.trim() || null, color_primario: colorPrimario, color_acento: colorAcento,
+      formato_letra: formatoLetra,
     }).eq("id", iglesiaId);
     if (error) { setError(error.message); setBusy(false); return; }
     window.location.reload();
@@ -3147,6 +3155,30 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
             <select value={zonaHoraria} onChange={(e) => setZonaHoraria(e.target.value)} style={inputStyle}>
               {ZONAS_HORARIAS.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
             </select>
+          </Field>
+          <Field label="Letra de canciones en pantalla">
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {FORMATOS_LETRA.map((f) => {
+                const elegido = formatoLetra === f.value;
+                const ejemplo = f.value === "dos_lineas" ? ["Eres mi refugio eterno", "mi lugar seguro, Señor"]
+                  : f.value === "una_linea_dos_renglones" ? ["Eres mi refugio", "eterno, Señor"] : ["Eres mi refugio eterno, Señor"];
+                return (
+                  <button
+                    key={f.value} type="button" onClick={() => setFormatoLetra(f.value)}
+                    style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", padding: 8, borderRadius: 12, cursor: "pointer", background: "var(--wf-card)", border: elegido ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)" }}
+                  >
+                    <div style={{ width: 92, height: 52, flexShrink: 0, borderRadius: 8, background: "#0C0E13", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 4, boxSizing: "border-box", textAlign: "center", lineHeight: 1.25, fontSize: f.value === "dos_lineas" ? 7 : f.value === "una_linea" ? 7.5 : 10 }}>
+                      {ejemplo.map((l, i) => <div key={i} style={f.value === "una_linea_dos_renglones" && i === 1 ? { fontWeight: 800, textTransform: "uppercase" } : undefined}>{l}</div>)}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>{f.label}</div>
+                      <div style={{ fontSize: 11, color: "var(--wf-muted)" }}>{f.ayuda}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Se aplica al proyectar — las canciones de la biblioteca no cambian.</div>
           </Field>
           {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
           <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
@@ -6791,7 +6823,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
     setEditingSlide(s);
     setEditDraft(
       s.type === "biblia" ? { reference: s.baseReference ?? s.reference, text: s.baseText ?? s.text }
-      : s.type === "cancion" ? { text: s.lines.join("\n") }
+      : s.type === "cancion" ? { text: (s.baseLines || s.lines).join("\n") }
       : { title: s.title, subtitle: s.subtitle || "", bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "" }
     );
   };

@@ -25,7 +25,12 @@ export function partirEn(texto, n) {
       if (t[i] !== " ") continue;
       const antes = t[i - 1];
       const prioridad = PAUSA_FUERTE.test(antes) ? 3 : antes === "," ? 2 : 1;
-      const puntaje = prioridad * 1000 - Math.abs(i - ideal);
+      // Evitar dejar una palabra sola en un pedazo ("Tu voz me / llama"), si hay otra opción.
+      const izquierda = t.slice(desde, i).trim();
+      const derecha = k === n - 1 ? t.slice(i).trim() : "x x";
+      const sola = (p) => p && !p.includes(" ");
+      const castigo = (sola(izquierda) ? 1500 : 0) + (sola(derecha) ? 1500 : 0);
+      const puntaje = prioridad * 1000 - Math.abs(i - ideal) - castigo;
       if (puntaje > mejorPuntaje) { mejorPuntaje = puntaje; mejor = i; }
     }
     if (mejor === -1) {
@@ -76,5 +81,55 @@ export function expandirVersiculosLargos(slides, palabrasPorParte = 40) {
       });
     });
   });
+  return out;
+}
+
+// ---- Letra de canciones según la pantalla de cada iglesia (iglesias.formato_letra) ----
+// "dos_lineas": como siempre, cada diapositiva con sus líneas tal cual (pantallas grandes).
+// "una_linea_dos_renglones": cada línea de la letra en su propia diapositiva, partida SIEMPRE en dos
+//   renglones (salvo una sola palabra), para que se lea grande en pantallas chicas y los estilos de
+//   letra (mayúscula, acento, editorial...) tengan su primer y segundo renglón.
+// "una_linea": cada línea en su propia diapositiva, en un solo renglón.
+// Se calcula al proyectar: la canción guardada no cambia, así que cambiar el ajuste no obliga a rehacer
+// ninguna canción. Cada diapositiva nueva recuerda la original (baseLines) para que "Corregir letra"
+// en vivo siga editando la diapositiva guardada completa, nunca solo un pedazo.
+export const FORMATOS_LETRA = [
+  { value: "dos_lineas", label: "2 líneas por diapositiva", ayuda: "Para pantallas grandes o proyectores." },
+  { value: "una_linea_dos_renglones", label: "1 línea en 2 renglones", ayuda: "Para pantallas chicas o TVs: la letra sale mucho más grande." },
+  { value: "una_linea", label: "1 línea en 1 renglón", ayuda: "Lo más simple, sin contraste entre renglones." },
+];
+
+export function reorganizarLetra(slides, formato) {
+  if (!formato || formato === "dos_lineas") return slides || [];
+  const out = [];
+  const lista = slides || [];
+  let i = 0;
+  while (i < lista.length) {
+    const s = lista[i];
+    if (!s || s.type !== "cancion") { out.push(s); i++; continue; }
+    // Grupo = diapositivas seguidas de la MISMA aparición de una sección (mismo prefijo de slideId).
+    const grupoDe = (x) => `${x.songId}|${x.blockKey}|${String(x.slideId).replace(/-\d+$/, "")}`;
+    const clave = grupoDe(s);
+    const grupo = [];
+    while (i < lista.length && lista[i]?.type === "cancion" && grupoDe(lista[i]) === clave) { grupo.push(lista[i]); i++; }
+    const piezas = [];
+    grupo.forEach((orig) => {
+      (orig.lines || []).filter((l) => l && l.trim()).forEach((linea) => {
+        const renglones = formato === "una_linea_dos_renglones" ? partirEn(linea, 2) : [linea.replace(/\s+/g, " ").trim()];
+        piezas.push({ orig, renglones });
+      });
+    });
+    if (piezas.length === 0) { out.push(...grupo); continue; }
+    const base = grupo[0].sectionLabel || String(grupo[0].blockLabel || "").replace(/\s*\(\d+\/\d+\)$/, "");
+    piezas.forEach(({ orig, renglones }, k) => {
+      out.push({
+        ...orig,
+        slideId: `${orig.slideId}~l${k}`,
+        lines: renglones,
+        baseLines: orig.baseLines || orig.lines,
+        blockLabel: piezas.length > 1 ? `${base} (${k + 1}/${piezas.length})` : base,
+      });
+    });
+  }
   return out;
 }

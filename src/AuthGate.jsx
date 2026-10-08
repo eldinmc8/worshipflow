@@ -65,8 +65,8 @@ export default function AuthGate() {
   // useEffect que aplicaba los colores vivía en WorshipFlowPrototype y se desmontaba (limpiando las
   // variables de color) apenas se entraba a Usuarios/Roles/Consola general.
   const myIglesia = perfil?.iglesias
-    ? { slug: perfil.iglesias.slug || null, nombre: perfil.iglesias.nombre || "", logoUrl: perfil.iglesias.logo_url || null, colorPrimario: perfil.iglesias.color_primario || null, colorAcento: perfil.iglesias.color_acento || null, categoriasCanciones: perfil.iglesias.categorias_canciones || null }
-    : { slug: null, nombre: "", logoUrl: null, colorPrimario: null, colorAcento: null, categoriasCanciones: null };
+    ? { slug: perfil.iglesias.slug || null, nombre: perfil.iglesias.nombre || "", logoUrl: perfil.iglesias.logo_url || null, colorPrimario: perfil.iglesias.color_primario || null, colorAcento: perfil.iglesias.color_acento || null, categoriasCanciones: perfil.iglesias.categorias_canciones || null, formatoLetra: perfil.iglesias.formato_letra || "dos_lineas" }
+    : { slug: null, nombre: "", logoUrl: null, colorPrimario: null, colorAcento: null, categoriasCanciones: null, formatoLetra: "dos_lineas" };
   // Pisa los valores por defecto de --wf-brand-primary/--wf-brand-accent (ver index.css) con los de
   // ESTA iglesia, si los tiene configurados. De paso calcula --wf-on-brand-primary/--wf-on-brand-
   // accent (el color de texto/ícono legible ENCIMA de cada uno, ver colorLegibleSobre) — se
@@ -99,7 +99,7 @@ export default function AuthGate() {
 
   useEffect(() => {
     if (!session) { setPerfil(null); return; }
-    supabase.from("usuarios").select("*, iglesias(nombre, activa, slug, logo_url, color_primario, color_acento, categorias_canciones)").eq("id", session.user.id).single()
+    supabase.from("usuarios").select("*, iglesias(nombre, activa, slug, logo_url, color_primario, color_acento, categorias_canciones, formato_letra)").eq("id", session.user.id).single()
       .then(({ data }) => {
         if (!data) {
           setAccessDenied(true);
