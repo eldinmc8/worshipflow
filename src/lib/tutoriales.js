@@ -8,7 +8,20 @@ import { supabase } from "./supabaseClient.js";
 // IMPORTANTE al mover o renombrar un botón: si tiene data-tour, dejarle el mismo valor — es lo único
 // que conecta el recorrido con la pantalla.
 
-export const TUTORIALES = ["bienvenida", "eventos", "evento", "canciones", "envivo"];
+// La clave es lo que se guarda en usuarios.tutoriales_vistos. Cuando un recorrido cambia lo
+// suficiente como para que TODOS deban verlo otra vez (no solo los nuevos), se le sube la versión a
+// la clave ("_v2", "_v3"...): para quien ya vio la anterior, la nueva cuenta como no vista.
+// 2026-10-08: bienvenida y En vivo cambiaron mucho (consola tipo Office, borrar/mover diapositivas,
+// estilo guardado...) y se agregó el del editor de canciones.
+export const CLAVES_TUTORIAL = {
+  bienvenida: "bienvenida_v2",
+  eventos: "eventos",
+  evento: "evento",
+  canciones: "canciones",
+  editorCancion: "editor_cancion",
+  envivo: "envivo_v2",
+};
+export const TUTORIALES = Object.values(CLAVES_TUTORIAL);
 
 export function pasosBienvenida({ esAdmin, puedeGestionarEventos, puedeGestionarCanciones }) {
   const pasos = [
@@ -43,6 +56,16 @@ export function pasosBienvenida({ esAdmin, puedeGestionarEventos, puedeGestionar
         : "Aquí ves los cultos y lo que te toca en cada uno. Cuando te asignen algo, entra y confirma que lo viste.",
     },
     {
+      target: "nav-envivo",
+      titulo: "En vivo",
+      texto: "La consola para proyectar durante el culto: letra, versículos y diapositivas. Se usa desde la computadora y solo la maneja quien tiene el rol de Multimedia.",
+    },
+    {
+      target: "nav-proyeccion",
+      titulo: "Pantalla",
+      texto: "Lo que se está viendo en el proyector en este momento.",
+    },
+    {
       target: "nav-ministerios",
       titulo: "Grupos",
       texto: "La planificación semanal y los recursos de cada ministerio.",
@@ -64,10 +87,11 @@ export function pasosBienvenida({ esAdmin, puedeGestionarEventos, puedeGestionar
     pasos.push({
       titulo: "Tus primeros pasos",
       lista: [
-        "Ponle el logo y los colores de tu iglesia: Ajustes → Identidad de la iglesia.",
+        "Ponle el logo y los colores de tu iglesia: Ajustes → Identidad de la iglesia. Ahí también eliges cómo se reparte la letra según el tamaño de tu pantalla.",
         "Invita a tu equipo: Ajustes → Usuarios.",
         "Agrega tus canciones en Canciones con el botón +.",
-        "Crea tu primer evento en Eventos con el botón +.",
+        "Crea tu primer evento en Eventos con el botón + y arma su Setlist.",
+        "El día del culto, abre el evento y toca Iniciar evento para proyectar desde la computadora.",
       ],
       texto: "La primera vez que entres a cada sección te daremos un consejo rápido.",
       boton: "¡Empezar!",
@@ -173,31 +197,92 @@ export function pasosCanciones({ puedeGestionarCanciones }) {
   ];
 }
 
+export function pasosEditorCancion() {
+  return [
+    {
+      target: "cancion-detalles",
+      titulo: "Detalles",
+      texto: "Título, tonalidad, tempo, compás y artista de la canción.",
+    },
+    {
+      target: "cancion-contenido",
+      titulo: "Contenido",
+      texto: "La letra con acordes, escritos así: [G]Cuando el día. La barra de abajo inserta los acordes de la tonalidad donde está el cursor.",
+    },
+    {
+      target: "cancion-letra",
+      titulo: "Letra",
+      texto: "Las diapositivas que de verdad se proyectan. Divide cada sección como quieras; esto es lo que ve la congregación.",
+    },
+    {
+      target: "cancion-estructura",
+      titulo: "Estructura",
+      texto: "El orden en que se canta: Estrofa, Coro x2, Puente... Arrastra las partes para cambiar el orden.",
+    },
+    {
+      target: "cancion-guardar",
+      titulo: "Guarda",
+      texto: "Toca Guardar al terminar. Los cambios se ven al instante en todos los dispositivos.",
+    },
+  ];
+}
+
 export function pasosEnVivo() {
   return [
     {
-      titulo: "Control en vivo",
-      texto: "Desde aquí manejas lo que se ve en el proyector durante el culto. Te mostramos lo principal.",
+      titulo: "Consola en vivo",
+      texto: "Desde aquí manejas lo que se ve en el proyector durante el culto. Te mostramos lo principal en un minuto.",
     },
     {
-      target: "envivo-proyeccion",
-      titulo: "Pantalla de proyección",
-      texto: "Abre la proyección en una ventana nueva y llévala al proyector o a la segunda pantalla.",
+      target: "envivo-pestanas",
+      titulo: "Pestañas",
+      texto: "Transmisión, Biblia, Estilo e Insertar: como en Word o PowerPoint, las herramientas de arriba cambian sin dejar de ver tus diapositivas ni lo que está al aire.",
+    },
+    {
+      target: "envivo-siguiente",
+      titulo: "Avanzar",
+      texto: "Usa Siguiente y Anterior, o las flechas ← → del teclado. Al terminar una canción pasa sola a lo que sigue en el culto.",
+    },
+    {
+      target: "envivo-orden",
+      titulo: "Orden del culto",
+      texto: "El culto dividido por bloques, como en el Setlist. Un clic muestra sus diapositivas; doble clic lo proyecta desde el principio.",
+    },
+    {
+      target: "envivo-diapositivas",
+      titulo: "Diapositivas",
+      lista: [
+        "Clic en una diapositiva para proyectarla.",
+        "Lápiz: corregir la letra o agregar una diapositiva nueva.",
+        "Bote de basura: borrarla (siempre pide confirmar).",
+        "Arrástrala para cambiar su orden dentro de su sección.",
+      ],
+      texto: "Lo que cambies en la letra queda guardado en la canción para la próxima vez.",
+    },
+    {
+      target: "envivo-alaire",
+      titulo: "Al aire y siguiente",
+      texto: "Arriba ves exactamente lo que está en el proyector; abajo, lo que viene.",
     },
     {
       target: "envivo-negro",
       titulo: "Pantalla en negro",
-      texto: "Apaga la proyección al instante sin terminar la transmisión. Tócalo otra vez para volver.",
+      texto: "Esconde la letra al instante sin terminar la transmisión. Tócalo otra vez para volver.",
     },
     {
-      target: "envivo-paneles",
-      titulo: "Biblia, Transmisión y Estilo",
-      texto: "Busca y proyecta versículos, recorre las diapositivas del Setlist o cambia el fondo y la letra en vivo.",
+      target: "envivo-proyeccion",
+      titulo: "Pantalla de proyección",
+      texto: "Abre la proyección en el proyector o en la segunda pantalla.",
+    },
+    {
+      titulo: "Estilo",
+      texto: "En la pestaña Estilo eliges el fondo (tema, imagen o video), la tipografía, el diseño y el tamaño de la letra. Vale para todo el culto y se queda guardado para la próxima transmisión. Si quieres, activa \"Cada canción con su fondo\" para darle a una canción su propio fondo.",
     },
     {
       target: "envivo-finalizar",
       titulo: "Finalizar",
       texto: "Al terminar el culto, finaliza la transmisión para que otro evento pueda salir en vivo.",
+      boton: "¡Listo!",
     },
   ];
 }
