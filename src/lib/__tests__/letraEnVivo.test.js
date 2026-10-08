@@ -127,3 +127,17 @@ describe("rearmarSeccion (borrar y mover desde la consola En vivo)", () => {
     expect(() => rearmarSeccion(dos, "v1", [{ indice: 5 }])).toThrow();
   });
 });
+
+import { rearmarSecciones } from "../letraEnVivo.js";
+
+describe("rearmarSecciones (mover a otra sección de la misma canción)", () => {
+  it("la diapositiva sale de su sección y entra en la otra, en el lugar pedido", () => {
+    const song = { blocks: { v1: { label: "E", lines: ["x"] }, c: { label: "C", lines: ["y"] } }, letra: { v1: [["A1"], ["A2"]], c: [["C1"], ["C2"]] } };
+    const letra = rearmarSecciones(song, {
+      v1: [{ indice: 0 }],
+      c: [{ indice: 0 }, { blockKey: "v1", indice: 1 }, { indice: 1 }],
+    });
+    expect(letra.v1).toEqual([["A1"]]);
+    expect(letra.c).toEqual([["C1"], ["A2"], ["C2"]]);
+  });
+});

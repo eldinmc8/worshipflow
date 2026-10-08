@@ -13,7 +13,7 @@ import {
   Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
-import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
+import { aplicarCambioLetra, rearmarSecciones } from "./lib/letraEnVivo.js";
 import AutoFitText from "./components/AutoFitText.jsx";
 import { expandirVersiculosLargos, reorganizarLetra, FORMATOS_LETRA } from "./lib/dividirTexto.js";
 import {
@@ -1236,9 +1236,10 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const addSongSlideLive = (songId, blockKey, afterIndex, texto, cortarDespuesDeLinea) =>
     cambiarLetraEnVivo(songId, { tipo: "agregar", blockKey, indice: afterIndex, texto, cortarDespuesDeLinea }, "No se pudo agregar la diapositiva");
   // Borrar o mover diapositivas de una sección desde la consola: la sección se rearma con los pedazos
-  // que quedan, en el orden nuevo (ver rearmarSeccion). También queda guardado en la canción.
-  const rearmarSeccionLive = (songId, blockKey, segmentos, mensajeError) =>
-    cambiarLetraEnVivo(songId, (song) => rearmarSeccion(song, blockKey, segmentos), mensajeError);
+  // que quedan, en el orden nuevo — o dos secciones si se movió de una a otra (ver rearmarSecciones).
+  // También queda guardado en la canción.
+  const rearmarSeccionesLive = (songId, seccionesNuevas, mensajeError) =>
+    cambiarLetraEnVivo(songId, (song) => rearmarSecciones(song, seccionesNuevas), mensajeError);
   // Transporta la canción completa a una nueva tonalidad: recalcula todos los acordes de todos los bloques.
   const transposeSong = (songId, newKey) => {
     let transposed = null;
@@ -2258,7 +2259,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             onOpenPublicScreen={startPresentation}
             onNavigateBibleVerse={navigateBibleVerse}
             onAddLiveSlide={addLiveSlide} onEditLiveSlide={editLiveSlide} onRemoveLiveSlide={removeLiveSlide}
-            onEditSongSlide={editSongSlideLive} onAddSongSlide={addSongSlideLive} onRearmarSeccion={rearmarSeccionLive}
+            onEditSongSlide={editSongSlideLive} onAddSongSlide={addSongSlideLive} onRearmarSecciones={rearmarSeccionesLive}
           />
         </div>
       )}
@@ -6834,7 +6835,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, myIglesiaId }) {
+function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSecciones, myIglesiaId }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -7011,8 +7012,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   );
   // ---- Borrar y mover diapositivas desde la consola (pedido de Eldin, 2026-10-08) ----
   // Una "sección" aquí = una aparición de una sección de la canción en el plan (mismo prefijo de
-  // slideId: `${item}-${posición en la estructura}`), con todos sus pedazos. Moverlas solo se puede
-  // dentro de la misma sección; cualquier cambio queda guardado en la canción (ver rearmarSeccion).
+  // slideId: `${item}-${posición en la estructura}`), con todos sus pedazos. Se pueden mover a cualquier
+  // parte de la misma canción; cualquier cambio queda guardado en la canción (ver rearmarSecciones).
   const ocurrenciaDe = (s) => String(s.slideId).replace(/~l\d+$/, "").replace(/-\d+$/, "");
   const segmentoDe = (s) => ({ indice: s.slideIndexInBlock, desde: s.segmento?.desde ?? 0, hasta: s.segmento?.hasta ?? null });
   const seccionDe = (s) => slides.filter((x) => x.type === "cancion" && x.songId === s.songId && ocurrenciaDe(x) === ocurrenciaDe(s));
@@ -7024,7 +7025,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       );
       if (!ok) return;
       const quedan = seccionDe(s).filter((x) => x.slideId !== s.slideId).map(segmentoDe);
-      onRearmarSeccion(s.songId, s.blockKey, quedan, "No se pudo borrar la diapositiva");
+      onRearmarSecciones(s.songId, { [s.blockKey]: quedan }, "No se pudo borrar la diapositiva");
       return;
     }
     const ok = await confirmDialog(
@@ -7035,26 +7036,41 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
     );
     if (ok) onRemoveLiveSlide(s.baseSlideId || s.slideId);
   };
-  // Mismo gesto que el Setlist, en cuadrícula (ver useArrastreGrid): grupo = una sección de una canción.
+  // Mismo gesto que el Setlist, en cuadrícula (ver useArrastreGrid). Grupo = la canción completa dentro
+  // del plan (pedido de Eldin, 2026-10-08: "a cualquier parte"), así una diapositiva puede pasar de una
+  // sección a otra. Entre canciones distintas no: cambiaría la letra guardada de otra canción.
+  const cancionEnPlanDe = (s) => ocurrenciaDe(s).replace(/-\d+$/, "");
   const arrastreMini = useArrastreGrid({
     habilitado: !adHoc,
-    grupoDe: (idx) => { const s = slides[idx]; return s && s.type === "cancion" ? `${s.songId}|${ocurrenciaDe(s)}` : null; },
+    grupoDe: (idx) => { const s = slides[idx]; return s && s.type === "cancion" ? `${s.songId}|${cancionEnPlanDe(s)}` : null; },
     onReorder: (desde, hacia) => moverDiapositiva(desde, hacia),
   });
+  // Soltar sobre otra miniatura = tomar su lugar: si se lleva hacia adelante queda justo después de
+  // ella, si se lleva hacia atrás justo antes (igual que lo que muestra la animación del arrastre).
   const moverDiapositiva = (desde, hacia) => {
     const a = slides[desde], b = slides[hacia];
     if (!a || !b || desde === hacia) return;
-    if (a.type !== "cancion" || b.type !== "cancion" || a.songId !== b.songId || ocurrenciaDe(a) !== ocurrenciaDe(b)) {
-      showToast("Solo se puede mover dentro de la misma sección de la canción.", "info");
+    if (a.type !== "cancion" || b.type !== "cancion" || a.songId !== b.songId) {
+      showToast("Solo se puede mover dentro de la misma canción.", "info");
       return;
     }
-    const seccion = seccionDe(a);
-    const i = seccion.findIndex((x) => x.slideId === a.slideId);
-    const j = seccion.findIndex((x) => x.slideId === b.slideId);
-    const orden = [...seccion];
-    const [movida] = orden.splice(i, 1);
-    orden.splice(j, 0, movida);
-    onRearmarSeccion(a.songId, a.blockKey, orden.map(segmentoDe), "No se pudo mover la diapositiva");
+    const seccionB = seccionDe(b);
+    let j = seccionB.findIndex((x) => x.slideId === b.slideId);
+    if (desde < hacia) j += 1;
+    if (a.blockKey === b.blockKey) {
+      // Misma sección (aunque sea otra vez que se repite, ej. el segundo Coro): solo cambia el orden.
+      const orden = seccionB.map(segmentoDe);
+      const i = seccionB.findIndex((x) => x.slideIndexInBlock === a.slideIndexInBlock && segmentoDe(x).desde === segmentoDe(a).desde);
+      const [movida] = orden.splice(i, 1);
+      orden.splice(i < j ? j - 1 : j, 0, movida);
+      onRearmarSecciones(a.songId, { [a.blockKey]: orden }, "No se pudo mover la diapositiva");
+      return;
+    }
+    // A otra sección: sale de la suya y entra en la de destino, en un solo guardado.
+    const quedanEnA = seccionDe(a).filter((x) => x.slideId !== a.slideId).map(segmentoDe);
+    const enB = seccionB.map(segmentoDe);
+    enB.splice(j, 0, { ...segmentoDe(a), blockKey: a.blockKey });
+    onRearmarSecciones(a.songId, { [a.blockKey]: quedanEnA, [b.blockKey]: enB }, "No se pudo mover la diapositiva");
   };
   const miniatura = (s, i) => {
     const color = sectionColorFor(s);

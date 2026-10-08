@@ -82,15 +82,26 @@ export function aplicarCambioLetra(song, { tipo, blockKey, indice, texto, cortar
 // nombre se borra. Un segmento siempre guarda las líneas ORIGINALES (no los renglones partidos para la
 // pantalla), así que al proyectar de nuevo se ven igual que antes.
 export function rearmarSeccion(song, blockKey, segmentos) {
+  return rearmarSecciones(song, { [blockKey]: segmentos });
+}
+
+// Varias secciones a la vez, para mover una diapositiva de una sección a OTRA de la misma canción: un
+// segmento puede traer su propio `blockKey` (de qué sección sale); si no trae, es de la misma sección
+// que se está rearmando. Todo se lee de la letra de ANTES del cambio, así el orden en que se rearman
+// las secciones no importa.
+export function rearmarSecciones(song, seccionesNuevas) {
+  const antes = letraEfectiva(song);
   const letra = letraEfectiva(song);
-  const grupo = letra[blockKey] || [];
   const noVacias = (lineas) => (lineas || []).filter((l) => l && l.trim());
-  letra[blockKey] = segmentos
-    .map(({ indice, desde = 0, hasta = null }) => {
-      if (indice == null || indice < 0 || indice >= grupo.length) throw new Error("No se encontró esa diapositiva — recarga e intenta de nuevo.");
-      return noVacias(grupo[indice]).slice(desde, hasta == null ? undefined : hasta);
-    })
-    .filter((lineas) => lineas.length > 0);
+  Object.entries(seccionesNuevas).forEach(([destino, segmentos]) => {
+    letra[destino] = segmentos
+      .map(({ blockKey: origen = destino, indice, desde = 0, hasta = null }) => {
+        const grupo = antes[origen] || [];
+        if (indice == null || indice < 0 || indice >= grupo.length) throw new Error("No se encontró esa diapositiva — recarga e intenta de nuevo.");
+        return noVacias(grupo[indice]).slice(desde, hasta == null ? undefined : hasta);
+      })
+      .filter((lineas) => lineas.length > 0);
+  });
   return letra;
 }
 
