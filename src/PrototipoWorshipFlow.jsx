@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import AppLogo from "./AppLogo.jsx";
 import { useArrastreLista } from "./lib/arrastreLista.js";
+import { useArrastreGrid } from "./lib/arrastreGrid.js";
 import {
   Music, Mic2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus,
   Radio, ListMusic, BookOpen, Image as ImgIcon, Trash2, GripVertical,
@@ -7034,7 +7035,12 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
     );
     if (ok) onRemoveLiveSlide(s.baseSlideId || s.slideId);
   };
-  const [arrastreMini, setArrastreMini] = useState(null); // { desde, sobre } — índices en `slides`
+  // Mismo gesto que el Setlist, en cuadrícula (ver useArrastreGrid): grupo = una sección de una canción.
+  const arrastreMini = useArrastreGrid({
+    habilitado: !adHoc,
+    grupoDe: (idx) => { const s = slides[idx]; return s && s.type === "cancion" ? `${s.songId}|${ocurrenciaDe(s)}` : null; },
+    onReorder: (desde, hacia) => moverDiapositiva(desde, hacia),
+  });
   const moverDiapositiva = (desde, hacia) => {
     const a = slides[desde], b = slides[hacia];
     if (!a || !b || desde === hacia) return;
@@ -7058,16 +7064,11 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
     return (
       <div
         key={s.slideId} onClick={() => { setItemVisto(null); gotoPlanSlide(i); }} className="thumb" role="button" tabIndex={0}
-        // Arrastrar para reordenar (solo letra de canciones, dentro de su misma sección). Consola de
-        // escritorio = mouse, así que basta el arrastre nativo del navegador.
-        draggable={s.type === "cancion" && !adHoc}
-        onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; setArrastreMini({ desde: i, sobre: null }); }}
-        onDragOver={(e) => { if (!arrastreMini) return; e.preventDefault(); if (arrastreMini.sobre !== i) setArrastreMini((a) => ({ ...a, sobre: i })); }}
-        onDrop={(e) => { e.preventDefault(); if (arrastreMini) moverDiapositiva(arrastreMini.desde, i); setArrastreMini(null); }}
-        onDragEnd={() => setArrastreMini(null)}
+        // Arrastrar para reordenar (solo letra de canciones, dentro de su misma sección) — ver arrastreMini.
+        {...arrastreMini.itemProps(i)}
         style={{ textAlign: "left", padding: 0, borderRadius: 10, cursor: "pointer", outline: isActive ? "3px solid var(--wf-brand-accent)" : "none", outlineOffset: 2, background: "transparent", overflow: "hidden",
-          opacity: arrastreMini?.desde === i ? 0.4 : 1,
-          boxShadow: arrastreMini && arrastreMini.sobre === i && arrastreMini.desde !== i ? "0 0 0 3px #2F5FA8" : isActive ? "0 4px 14px rgba(232,130,30,0.3)" : "0 1px 4px rgba(22,50,79,0.14)" }}
+          boxShadow: isActive ? "0 4px 14px rgba(232,130,30,0.3)" : "0 1px 4px rgba(22,50,79,0.14)",
+          ...arrastreMini.estiloItem(i) }}
       >
         <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#0a0e14", display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 10px", boxSizing: "border-box" }}>
           <span style={{ position: "absolute", top: 3, left: 6, fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.45)" }}>{i + 1}</span>
