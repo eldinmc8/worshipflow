@@ -15,7 +15,7 @@ import {
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
 import AutoFitText from "./components/AutoFitText.jsx";
-import { expandirVersiculosLargos, reorganizarLetra, FORMATOS_LETRA } from "./lib/dividirTexto.js";
+import { expandirVersiculosLargos, reorganizarLetra, FORMATOS_LETRA, palabrasPorParteSegun, partesDeVersiculo } from "./lib/dividirTexto.js";
 import {
   listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
 } from "./lib/eventos.js";
@@ -37,7 +37,7 @@ import { confirmDialog } from "./lib/confirm.js";
 import { validarPassword } from "./lib/passwordSegura.js";
 import MedidorPassword from "./MedidorPassword.jsx";
 import Tour from "./components/Tour.jsx";
-import { pasosBienvenida, pasosEventos, pasosEvento, pasosCanciones, pasosEnVivo, marcarTutorialVisto, reiniciarTutoriales } from "./lib/tutoriales.js";
+import { CLAVES_TUTORIAL, pasosBienvenida, pasosEventos, pasosEvento, pasosCanciones, pasosEditorCancion, pasosEnVivo, marcarTutorialVisto, reiniciarTutoriales } from "./lib/tutoriales.js";
 import {
   guardarCapituloOffline, obtenerCapituloOffline, contarCapitulosGuardados,
   borrarVersionOffline, todosLosVersiculosOffline, descargarBibliaCompleta,
@@ -842,7 +842,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   };
   // Versículos largos → 2 o 3 diapositivas (ver dividirTexto.js). Con la letra en vivo más grande,
   // caben menos palabras por diapositiva y divide antes.
-  const palabrasPorParte = Math.max(15, Math.round(40 / (liveStyle.fontScale || 1)));
+  const palabrasPorParte = palabrasPorParteSegun(liveStyle.fontScale);
   // Cómo se reparte la letra de canciones en pantalla — ajuste de cada iglesia (Identidad de la iglesia).
   const formatoLetra = myIglesia.formatoLetra || "dos_lineas";
   const slides = useMemo(
@@ -1072,9 +1072,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   };
   const gotoPlanSlide = (i) => { setAdHoc(null); setAdHocIdx(0); setBlanked(false); setActiveIdx(Math.min(Math.max(i, 0), slides.length - 1)); };
   const exitAdHoc = () => { setAdHoc(null); setAdHocIdx(0); };
-  const startAdHocBible = (b) => { setAdHoc({ label: `Versículo improvisado: ${b.ref}`, slides: [{ slideId: "adhoc-biblia", type: "biblia", reference: b.ref, version: b.version, text: b.text, bookId: b.bookId, bookName: b.bookName, chapter: b.chapter, verseStart: b.verseStart, verseEnd: b.verseEnd }] }); setAdHocIdx(0); setBlanked(false); };
-  const startAdHocSong = (song) => { setAdHoc({ label: `Canción improvisada: ${song.title}`, slides: songToSlides("adhoc-cancion", song, song.defaultStructure) }); setAdHocIdx(0); setBlanked(false); };
-  const startAdHocVideo = (url) => { setAdHoc({ label: "Video improvisado", slides: [{ slideId: "adhoc-video", type: "slide", title: "", subtitle: "", bg: "#000", bgType: "video", videoUrl: url }] }); setAdHocIdx(0); setBlanked(false); };
+  const startAdHocBible = (b) => { setAdHoc({ label: `Versículo: ${b.ref}`, slides: [{ slideId: "adhoc-biblia", type: "biblia", reference: b.ref, version: b.version, text: b.text, bookId: b.bookId, bookName: b.bookName, chapter: b.chapter, verseStart: b.verseStart, verseEnd: b.verseEnd }] }); setAdHocIdx(b.parte || 0); setBlanked(false); }; // b.parte: arrancar en esa parte de un versículo largo
+  const startAdHocSong = (song) => { setAdHoc({ label: `Canción: ${song.title}`, slides: songToSlides("adhoc-cancion", song, song.defaultStructure) }); setAdHocIdx(0); setBlanked(false); };
+  const startAdHocVideo = (url) => { setAdHoc({ label: "Video", slides: [{ slideId: "adhoc-video", type: "slide", title: "", subtitle: "", bg: "#000", bgType: "video", videoUrl: url }] }); setAdHocIdx(0); setBlanked(false); };
   // Como PowerPoint: la proyección solo se abre si hay una segunda pantalla (proyector/monitor)
   // realmente conectada y detectada — si no hay una, no se abre nada (nunca sobre la misma pantalla
   // del panel de control). Requiere Chrome/Edge (Window Management API).
@@ -1818,12 +1818,16 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     setTutorialesVistos((prev) => new Set([...prev, ...perfil.tutoriales_vistos]));
   }, [perfil?.tutoriales_vistos]);
   const [tourActivo, setTourActivo] = useState(null); // null | clave del recorrido abierto
+  // Claves con versión (ver CLAVES_TUTORIAL): un recorrido que cambió mucho se le vuelve a mostrar a
+  // todos, no solo a los nuevos.
   const claveTourParaPantalla = (() => {
-    if (!tutorialesVistos.has("bienvenida")) return tab === "inicio" ? "bienvenida" : null;
-    if (tab === "eventos" && !selectedEventId && !openSong) return "eventos";
-    if (tab === "eventos" && selectedEvent && !openSong) return "evento";
-    if (tab === "canciones" && !openSong) return "canciones";
-    if (tab === "envivo" && liveEvent) return "envivo";
+    const C = CLAVES_TUTORIAL;
+    if (!tutorialesVistos.has(C.bienvenida)) return tab === "inicio" ? C.bienvenida : null;
+    if (tab === "eventos" && !selectedEventId && !openSong) return C.eventos;
+    if (tab === "eventos" && selectedEvent && !openSong) return C.evento;
+    if (tab === "canciones" && !openSong) return C.canciones;
+    if (tab === "canciones" && openSong?.mode === "edit") return C.editorCancion;
+    if (tab === "envivo" && liveEvent && !isCompact) return C.envivo;
     return null;
   })();
   const tourPendiente = claveTourParaPantalla && !tutorialesVistos.has(claveTourParaPantalla) ? claveTourParaPantalla : null;
@@ -1837,11 +1841,12 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const pasosTour = (() => {
     const ctx = { esAdmin: realIsAdmin, puedeGestionarEventos, puedeGestionarCanciones };
     switch (tourActivo) {
-      case "bienvenida": return pasosBienvenida(ctx);
-      case "eventos": return pasosEventos(ctx);
-      case "evento": return pasosEvento(ctx);
-      case "canciones": return pasosCanciones(ctx);
-      case "envivo": return pasosEnVivo(ctx);
+      case CLAVES_TUTORIAL.bienvenida: return pasosBienvenida(ctx);
+      case CLAVES_TUTORIAL.eventos: return pasosEventos(ctx);
+      case CLAVES_TUTORIAL.evento: return pasosEvento(ctx);
+      case CLAVES_TUTORIAL.canciones: return pasosCanciones(ctx);
+      case CLAVES_TUTORIAL.editorCancion: return pasosEditorCancion(ctx);
+      case CLAVES_TUTORIAL.envivo: return pasosEnVivo(ctx);
       default: return null;
     }
   })();
@@ -4914,12 +4919,12 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
             <button onClick={onCancel} style={iconGhost}><ArrowLeft size={16} /></button>
             <span style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600 }}>{song ? "Editar canción" : "Nueva canción"}</span>
           </div>
-          <button disabled={!canSave || isSaving} onClick={handleSaveClick} style={{ ...primaryBtn, width: "auto", padding: "8px 18px", opacity: canSave && !isSaving ? 1 : 0.4, cursor: canSave && !isSaving ? "pointer" : "not-allowed" }}>{isSaving ? "Guardando…" : "Guardar"}</button>
+          <button data-tour="cancion-guardar" disabled={!canSave || isSaving} onClick={handleSaveClick} style={{ ...primaryBtn, width: "auto", padding: "8px 18px", opacity: canSave && !isSaving ? 1 : 0.4, cursor: canSave && !isSaving ? "pointer" : "not-allowed" }}>{isSaving ? "Guardando…" : "Guardar"}</button>
         </div>
 
         <div style={{ display: "flex", gap: 18, borderBottom: "1px solid var(--wf-divider)", marginTop: 14 }}>
           {[["detalles", "Detalles"], ["contenido", "Contenido"], ["letra", "Letra"], ["estructura", "Estructura"]].map(([val, label]) => (
-            <button key={val} onClick={() => setSubTab(val)} style={{ background: "none", border: "none", padding: "0 0 10px", fontSize: 13, fontWeight: 700, color: subTab === val ? "var(--wf-text)" : "var(--wf-faint)", borderBottom: subTab === val ? "2px solid #2F5FA8" : "2px solid transparent", cursor: "pointer" }}>{label}</button>
+            <button key={val} data-tour={`cancion-${val}`} onClick={() => setSubTab(val)} style={{ background: "none", border: "none", padding: "0 0 10px", fontSize: 13, fontWeight: 700, color: subTab === val ? "var(--wf-text)" : "var(--wf-faint)", borderBottom: subTab === val ? "2px solid #2F5FA8" : "2px solid transparent", cursor: "pointer" }}>{label}</button>
           ))}
         </div>
       </div>
@@ -6570,7 +6575,7 @@ function AdHocSongModal({ library, onClose, onPick }) {
   const [query, setQuery] = useState("");
   const filtered = library.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
   return (
-    <ModalShell title="Proyectar canción improvisada" icon={Music} color="#5661B3" onClose={onClose}>
+    <ModalShell title="Proyectar una canción" icon={Music} color="#5661B3" onClose={onClose}>
       <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 10 }}>Busca cualquier canción de la biblioteca, aunque no esté en el setlist de hoy.</div>
       <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
         <Search size={13} color="var(--wf-faint)" />
@@ -6595,7 +6600,7 @@ function AdHocVideoModal({ onClose, onPlay }) {
     reader.readAsDataURL(file);
   };
   return (
-    <ModalShell title="Proyectar video improvisado" icon={ImgIcon} color="#C23B32" onClose={onClose}>
+    <ModalShell title="Proyectar un video" icon={ImgIcon} color="#C23B32" onClose={onClose}>
       <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 10 }}>Se proyecta a pantalla completa de inmediato, sin agregarse al setlist.</div>
       <div style={{ display: "flex", gap: 8 }}>
         <input placeholder="https://... (mp4)" value={url} onChange={(e) => setUrl(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
@@ -6633,7 +6638,7 @@ function ModalShell({ title, icon: Icon, color, onClose, children }) {
 // sesión — así el operador vuelve rápido a un pasaje que el pastor ya citó antes, sin tener que buscarlo
 // de nuevo. Columna 3: el capítulo completo; tocar un versículo lo proyecta de inmediato, sin botón de
 // confirmación (a diferencia del buscador del Setlist, aquí no se arma un rango: es lectura en vivo).
-function BibleLivePanel({ version, setVersion, history, setHistory, onProject, liveVerse }) {
+function BibleLivePanel({ version, setVersion, history, setHistory, onProject, liveVerse, palabrasPorParte = 40 }) {
   const [books, setBooks] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [bookFilter, setBookFilter] = useState("");
@@ -6679,12 +6684,14 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
   const rememberAndProject = (entry) => {
     onProject(entry);
-    setHistory((h) => [entry, ...h.filter((x) => x.ref !== entry.ref || x.version !== entry.version)].slice(0, 25));
+    const { parte, ...paraHistorial } = entry; // el historial guarda el versículo completo
+    setHistory((h) => [paraHistorial, ...h.filter((x) => x.ref !== entry.ref || x.version !== entry.version)].slice(0, 25));
   };
-  const pickVerse = (v) => {
+  // parte: en un versículo largo, en cuál de sus partes arrancar (ver la lista de abajo).
+  const pickVerse = (v, parte = 0) => {
     rememberAndProject({
       ref: `${selectedBook.name} ${selectedChapter}:${v.verse}`, version, text: stripBibleSearchMarkup(v.text),
-      bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: v.verse, verseEnd: v.verse,
+      bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: v.verse, verseEnd: v.verse, parte,
     });
   };
   const openHistoryEntry = (entry) => {
@@ -6817,6 +6824,20 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 {verses.map((v) => {
                   const isLive = liveVerse && liveVerse.bookId === selectedBook.bookid && liveVerse.chapter === selectedChapter && liveVerse.verseStart === v.verse && liveVerse.version === version;
+                  // Versículo largo (pedido de Eldin, 2026-10-08): cada parte aparece en la lista como
+                  // si fuera su propio versículo — "9 (1/2)", "9 (2/2)" — para tocar directo la que
+                  // toque; las flechas siguen avanzando parte por parte. Mismo corte que la proyección.
+                  const partes = partesDeVersiculo(stripBibleSearchMarkup(v.text), palabrasPorParte);
+                  if (partes.length > 1) {
+                    return partes.map((texto, k) => {
+                      const parteEnVivo = isLive && (liveVerse.parte ?? 0) === k;
+                      return (
+                        <button key={`${v.verse}-${k}`} onClick={() => pickVerse(v, k)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 12, border: "none", background: parteEnVivo ? "var(--wf-divider)" : "transparent", cursor: "pointer", fontSize: 13, color: "var(--wf-text)", lineHeight: 1.5 }}>
+                          <b style={{ color: "#2F5FA8" }}>{v.verse}</b> <span style={{ fontSize: 10.5, fontWeight: 700, color: "#2F5FA8" }}>({k + 1}/{partes.length})</span> {texto}
+                        </button>
+                      );
+                    });
+                  }
                   return (
                     <button key={v.verse} onClick={() => pickVerse(v)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 12, border: "none", background: isLive ? "var(--wf-divider)" : "transparent", cursor: "pointer", fontSize: 13, color: "var(--wf-text)", lineHeight: 1.5 }}>
                       <b style={{ color: "#2F5FA8" }}>{v.verse}</b> {stripBibleSearchMarkup(v.text)}
@@ -7123,17 +7144,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         <button data-tour="envivo-negro" onClick={() => setBlanked((b) => !b)} style={{ ...ctrlBtn, background: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)" }}><MonitorOff size={14} /> {blanked ? "Reanudar" : "Pantalla en negro"}</button>
       </div>
 
-      {/* "Volver al plan" solo tiene sentido para una canción improvisada (existe un plan real de
-          canciones al que volver). Biblia/Texto/Video nunca fueron parte del plan del Setlist — no hay
-          "plan" al que regresar, así que ahí se deja solo el indicador de qué está en vivo. */}
-      {adHoc && (
-        <div style={{ margin: "0 16px 10px", background: "var(--wf-active-bg)", border: "1px solid var(--wf-brand-accent)", borderRadius: 14, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-active-text)" }}>● {adHoc.label}</span>
-          {adHoc.slides[0]?.type === "cancion" && (
-            <button onClick={onExitAdHoc} style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-active-text)", background: "transparent", border: "1px solid var(--wf-brand-accent)", borderRadius: 18, padding: "3px 8px", cursor: "pointer", flexShrink: 0 }}>Volver al plan</button>
-          )}
-        </div>
-      )}
+      {/* Sin letrero de "improvisado" (pedido de Eldin, 2026-10-08): para volver al plan basta tocar
+          cualquier diapositiva o elemento del orden del culto (gotoPlanSlide). */}
 
       {/* Cuerpo: riel de íconos + panel principal (izquierda) + vista previa y controles (derecha), estilo Proyektor */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 16, padding: "0 16px 16px" }}>
@@ -7156,7 +7168,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             version={bibleVersion} setVersion={setBibleVersion}
             history={bibleHistory} setHistory={setBibleHistory}
             onProject={(b) => onStartAdHocBible(b)}
-            liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.baseReference ?? current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart } : null}
+            liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.baseReference ?? current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart, parte: current.parte ?? 0 } : null}
+            palabrasPorParte={palabrasPorParteSegun(liveStyle.fontScale)}
           />
         )}
 
@@ -7318,7 +7331,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           <div style={{ position: "sticky", top: 0, zIndex: 3, background: "var(--wf-bg)", paddingBottom: 10, flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4, marginBottom: 6 }}><Radio size={11} /> VISTA PREVIA</div>
             <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)" }}>
-              <ProjectionPanel slide={current} blanked={blanked} split={false} liveStyle={liveStyle} adHocLabel={adHoc?.label} thumbnail />
+              <ProjectionPanel slide={current} blanked={blanked} split={false} liveStyle={liveStyle} thumbnail />
             </div>
           </div>
 
@@ -7344,7 +7357,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           {current && (
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, color: TYPE_META[current.type].color, letterSpacing: 0.5, marginBottom: 4 }}>AHORA · {TYPE_META[current.type].label.toUpperCase()}</div>
-              <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>{next ? `Siguiente: ${next.type === "cancion" ? next.blockLabel : next.type === "biblia" ? next.reference : next.title}` : adHoc ? "Fin del contenido improvisado" : "Última slide del servicio"}</div>
+              <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>{next ? `Siguiente: ${next.type === "cancion" ? next.blockLabel : next.type === "biblia" ? next.reference : next.title}` : adHoc ? "No hay más diapositivas" : "Última slide del servicio"}</div>
             </div>
           )}
 
@@ -7395,7 +7408,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           (pedido de Eldin, 2026-10-07). La idea: cambiar el estilo, buscar en la Biblia o insertar algo
           SIN dejar de ver las diapositivas ni lo que está al aire. En celular se queda el riel de
           íconos de siempre (rama isCompact de arriba). */}
-      <nav aria-label="Pestañas de En vivo" style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 16px 0", borderBottom: "1px solid var(--wf-divider)" }}>
+      <nav aria-label="Pestañas de En vivo" data-tour="envivo-pestanas" style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 16px 0", borderBottom: "1px solid var(--wf-divider)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, maxWidth: 300, marginRight: 14, flexShrink: 1 }} title={eventTitle}>
           <Radio size={13} color="#C23B32" style={{ flexShrink: 0 }} />
           <span style={{ fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{eventTitle}</span>
@@ -7415,7 +7428,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             {grupoCinta("Navegación", <>
               {botonCinta({ icon: SkipBack, label: "Inicio", onClick: () => goto(0) })}
               {botonCinta({ icon: ChevronLeft, label: "Anterior", onClick: () => goto(navIdx - 1) })}
-              {botonCinta({ icon: ChevronRight, label: "Siguiente", onClick: () => goto(navIdx + 1), acento: true })}
+              {botonCinta({ icon: ChevronRight, label: "Siguiente", onClick: () => goto(navIdx + 1), acento: true, tour: "envivo-siguiente" })}
               {botonCinta({ icon: SkipForward, label: "Final", onClick: () => goto(Infinity) })}
             </>)}
             {grupoCinta("Pantalla", <>
@@ -7438,7 +7451,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
               {botonCinta({ icon: ListMusic, label: "Volver al setlist", onClick: () => setMmPanel("transmision"), ancho: 96 })}
             </>)}
             <div style={{ display: "flex", alignItems: "center", padding: "0 16px", maxWidth: 440 }}>
-              <span style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.5 }}>Busca un libro o una frase, elige el capítulo y toca el versículo para proyectarlo. Los versículos largos se dividen solos en partes.</span>
+              <span style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.5 }}>Busca un libro o una frase, elige el capítulo y toca el versículo para proyectarlo. Los versículos largos aparecen en partes (1/2, 2/2): toca la que quieras o avanza con la flecha →.</span>
             </div>
           </>
         )}
@@ -7581,18 +7594,10 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         </div>
       )}
 
-      {adHoc && (
-        <div style={{ margin: "10px 16px 0", background: "var(--wf-active-bg)", border: "1px solid var(--wf-brand-accent)", borderRadius: 14, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexShrink: 0 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-active-text)" }}>● {adHoc.label}</span>
-          {adHoc.slides[0]?.type === "cancion" && (
-            <button onClick={onExitAdHoc} style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-active-text)", background: "transparent", border: "1px solid var(--wf-brand-accent)", borderRadius: 18, padding: "3px 8px", cursor: "pointer" }}>Volver al plan</button>
-          )}
-        </div>
-      )}
 
       <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 12, padding: "10px 12px 12px" }}>
         {/* Orden del culto, dividido por bloques igual que el Setlist */}
-        <aside aria-label="Orden del culto" style={{ width: "clamp(200px, 17vw, 260px)", flexShrink: 0, overflowY: "auto", background: "var(--wf-card)", borderRadius: 12, boxShadow: "0 2px 10px rgba(22,50,79,0.08)", padding: "10px 8px", display: "flex", flexDirection: "column", gap: 6, boxSizing: "border-box" }}>
+        <aside aria-label="Orden del culto" data-tour="envivo-orden" style={{ width: "clamp(200px, 17vw, 260px)", flexShrink: 0, overflowY: "auto", background: "var(--wf-card)", borderRadius: 12, boxShadow: "0 2px 10px rgba(22,50,79,0.08)", padding: "10px 8px", display: "flex", flexDirection: "column", gap: 6, boxSizing: "border-box" }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.5, padding: "0 4px" }}>ORDEN DEL CULTO</div>
           {bloquesOrden.length === 0 && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "8px 4px" }}>Todavía no hay nada en el orden de este culto.</div>}
           {bloquesOrden.map((b) => (
@@ -7631,10 +7636,11 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             version={bibleVersion} setVersion={setBibleVersion}
             history={bibleHistory} setHistory={setBibleHistory}
             onProject={(b) => onStartAdHocBible(b)}
-            liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.baseReference ?? current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart } : null}
+            liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.baseReference ?? current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart, parte: current.parte ?? 0 } : null}
+            palabrasPorParte={palabrasPorParteSegun(liveStyle.fontScale)}
           />
         ) : (
-          <section aria-label="Diapositivas" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "0 4px calc(var(--bottom-nav-height, 80px) + 8px)" }}>
+          <section aria-label="Diapositivas" data-tour="envivo-diapositivas" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "0 4px calc(var(--bottom-nav-height, 80px) + 8px)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontFamily: "'Fraunces', serif", fontSize: 16, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{itemCentro ? tituloItem(itemCentro) : "Todas las diapositivas"}</div>
@@ -7654,19 +7660,19 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         )}
 
         {/* Lo que está al aire y lo que sigue — siempre visibles, en cualquier pestaña */}
-        <aside aria-label="Vista previa" style={{ width: "clamp(260px, 25vw, 400px)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, minHeight: 0, overflowY: "auto", paddingRight: 2 }}>
+        <aside aria-label="Vista previa" data-tour="envivo-alaire" style={{ width: "clamp(260px, 25vw, 400px)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, minHeight: 0, overflowY: "auto", paddingRight: 2 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#C23B32", letterSpacing: 0.4 }}><Radio size={11} /> AL AIRE</span>
             {current && <span style={{ fontSize: 11, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{blanked ? "Pantalla en negro" : current.type === "cancion" ? `${current.songTitle} · ${current.blockLabel}` : current.type === "biblia" ? current.reference : current.title}</span>}
           </div>
           <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)", border: "2px solid #C23B32", flexShrink: 0 }}>
-            <ProjectionPanel slide={current} blanked={blanked} split={false} liveStyle={liveStyle} adHocLabel={adHoc?.label} thumbnail />
+            <ProjectionPanel slide={current} blanked={blanked} split={false} liveStyle={liveStyle} thumbnail />
           </div>
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4, marginTop: 4 }}>SIGUIENTE</div>
           <div style={{ width: "62%", aspectRatio: "16/9", borderRadius: 12, overflow: "hidden", opacity: next ? 1 : 0.4, flexShrink: 0 }}>
             <ProjectionPanel slide={next} blanked={false} split={false} liveStyle={liveStyle} thumbnail />
           </div>
-          <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>{next ? (next.type === "cancion" ? `${next.songTitle} · ${next.blockLabel}` : next.type === "biblia" ? next.reference : next.title) : adHoc ? "Fin del contenido improvisado" : "Última diapositiva del servicio"}</div>
+          <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>{next ? (next.type === "cancion" ? `${next.songTitle} · ${next.blockLabel}` : next.type === "biblia" ? next.reference : next.title) : adHoc ? "No hay más diapositivas" : "Última diapositiva del servicio"}</div>
           {customSlides.length > 0 && (
             <div style={{ marginTop: 6 }}>
               <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, marginBottom: 6 }}>DIAPOSITIVAS AGREGADAS</div>
@@ -7736,7 +7742,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
 // lo va reduciendo hasta que quepa entero — así, sin importar cuántas líneas tenga la diapositiva ni qué
 // tan arriba se suba el slider, el texto nunca se corta ni se sale de la pantalla.
 
-export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeight, adHocLabel, thumbnail }) {
+export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeight, thumbnail }) {
   const font = LIVE_FONTS[liveStyle?.font || "elegante"];
   const scale = liveStyle?.fontScale ?? 1;
   // Tamaño real (medido, en px) al que AutoFitText terminó dejando el texto del versículo después de
@@ -7824,8 +7830,6 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           control, pero de la pantalla real que ve la congregación se quitan: solo debe verse el
           contenido en sí, sin nada de chrome encima (pedido de Eldin, 2026-10-04). */}
       {thumbnail && <div style={{ position: "absolute", top: 18, left: 22, display: "flex", alignItems: "center", gap: 6, color: "#5B6472", fontSize: 11, fontWeight: 700, letterSpacing: 1, zIndex: 2 }}><Radio size={12} /> PANTALLA DE PROYECCIÓN</div>}
-      {/* Solo visible en la vista previa del operador (no se pasa esta prop en la pantalla real del público) */}
-      {adHocLabel && <div style={{ position: "absolute", top: thumbnail ? 6 : 18, right: thumbnail ? 8 : 22, background: "rgba(232,130,30,0.9)", color: "var(--wf-text)", fontSize: thumbnail ? 8 : 10, fontWeight: 700, letterSpacing: 0.5, borderRadius: 20, padding: thumbnail ? "2px 6px" : "4px 10px", zIndex: 2 }}>● IMPROVISADO</div>}
       {/* El fondo (video/imagen propios, o el de la slide) se renderiza SIEMPRE, incluso con "Pantalla
           en negro" -- antes vivía adentro del bloque de abajo (solo cuando NO estaba en negro), así que
           "pantalla en negro" con un video de fondo se veía como negro sólido de verdad (el <video> ni

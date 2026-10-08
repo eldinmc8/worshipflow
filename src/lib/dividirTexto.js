@@ -54,6 +54,13 @@ export function partirEn(texto, n) {
 
 // Versículo → 1, 2 o 3 partes según cuántas palabras tenga. `palabrasPorParte` baja si la letra en
 // vivo está más grande (ver fontScale), así con letra grande divide antes.
+// Cuántas palabras caben por parte según el tamaño de letra en vivo: con la letra más grande caben
+// menos y se divide antes. Una sola fórmula para la proyección y para la lista de la Biblia en vivo
+// (que muestra cada parte como su propio versículo), así las dos siempre coinciden.
+export function palabrasPorParteSegun(fontScale) {
+  return Math.max(15, Math.round(40 / (fontScale || 1)));
+}
+
 export function partesDeVersiculo(texto, palabrasPorParte = 40, maxPartes = 3) {
   const t = String(texto ?? "").replace(/\s+/g, " ").trim();
   if (!t) return [];
