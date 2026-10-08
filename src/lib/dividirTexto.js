@@ -86,18 +86,23 @@ export function expandirVersiculosLargos(slides, palabrasPorParte = 40) {
 
 // ---- Letra de canciones según la pantalla de cada iglesia (iglesias.formato_letra) ----
 // "dos_lineas": como siempre, cada diapositiva con sus líneas tal cual (pantallas grandes).
-// "una_linea_dos_renglones": cada línea de la letra en su propia diapositiva, partida SIEMPRE en dos
-//   renglones (salvo una sola palabra), para que se lea grande en pantallas chicas y los estilos de
-//   letra (mayúscula, acento, editorial...) tengan su primer y segundo renglón.
+// "una_linea_dos_renglones": siempre DOS renglones por diapositiva, para que se lea grande en pantallas
+//   chicas y los estilos de letra (mayúscula, acento, editorial...) tengan su primer y segundo renglón:
+//   dos líneas cortas seguidas van juntas (una por renglón — "Hallé un buen amigo," / "mi amado
+//   Salvador"), y una línea larga va sola, partida en dos renglones. Así no quedan pedazos sueltos
+//   ("Dame de beber de tu" en una diapositiva y "manantial;" en la otra).
 // "una_linea": cada línea en su propia diapositiva, en un solo renglón.
 // Se calcula al proyectar: la canción guardada no cambia, así que cambiar el ajuste no obliga a rehacer
 // ninguna canción. Cada diapositiva nueva recuerda la original (baseLines) para que "Corregir letra"
 // en vivo siga editando la diapositiva guardada completa, nunca solo un pedazo.
 export const FORMATOS_LETRA = [
   { value: "dos_lineas", label: "2 líneas por diapositiva", ayuda: "Para pantallas grandes o proyectores." },
-  { value: "una_linea_dos_renglones", label: "1 línea en 2 renglones", ayuda: "Para pantallas chicas o TVs: la letra sale mucho más grande." },
+  { value: "una_linea_dos_renglones", label: "2 renglones cortos", ayuda: "Para pantallas chicas o TVs: líneas cortas juntas, las largas partidas en dos. Letra mucho más grande." },
   { value: "una_linea", label: "1 línea en 1 renglón", ayuda: "Lo más simple, sin contraste entre renglones." },
 ];
+
+// Hasta cuántas letras cabe cómodo un renglón grande en una pantalla chica.
+export const MAX_RENGLON = 30;
 
 export function reorganizarLetra(slides, formato) {
   if (!formato || formato === "dos_lineas") return slides || [];
@@ -112,13 +117,27 @@ export function reorganizarLetra(slides, formato) {
     const clave = grupoDe(s);
     const grupo = [];
     while (i < lista.length && lista[i]?.type === "cancion" && grupoDe(lista[i]) === clave) { grupo.push(lista[i]); i++; }
-    const piezas = [];
+    const lineas = [];
     grupo.forEach((orig) => {
-      (orig.lines || []).filter((l) => l && l.trim()).forEach((linea) => {
-        const renglones = formato === "una_linea_dos_renglones" ? partirEn(linea, 2) : [linea.replace(/\s+/g, " ").trim()];
-        piezas.push({ orig, renglones });
-      });
+      (orig.lines || []).filter((l) => l && l.trim()).forEach((l) => lineas.push({ orig, texto: l.replace(/\s+/g, " ").trim() }));
     });
+    const piezas = [];
+    if (formato === "una_linea_dos_renglones") {
+      const corta = (x) => x && x.texto.length <= MAX_RENGLON;
+      for (let j = 0; j < lineas.length; ) {
+        const a = lineas[j];
+        const b = lineas[j + 1];
+        if (corta(a) && corta(b)) {
+          piezas.push({ orig: a.orig, renglones: [a.texto, b.texto] });
+          j += 2;
+        } else {
+          piezas.push({ orig: a.orig, renglones: partirEn(a.texto, 2) });
+          j += 1;
+        }
+      }
+    } else {
+      lineas.forEach(({ orig, texto }) => piezas.push({ orig, renglones: [texto] }));
+    }
     if (piezas.length === 0) { out.push(...grupo); continue; }
     const base = grupo[0].sectionLabel || String(grupo[0].blockLabel || "").replace(/\s*\(\d+\/\d+\)$/, "");
     piezas.forEach(({ orig, renglones }, k) => {

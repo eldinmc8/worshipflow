@@ -74,24 +74,33 @@ describe("reorganizarLetra", () => {
   it("dos_lineas deja todo igual", () => {
     expect(reorganizarLetra(slides, "dos_lineas")).toBe(slides);
   });
-  it("una_linea_dos_renglones: una diapositiva por línea, partida en dos renglones", () => {
+  it("una_linea_dos_renglones: líneas cortas juntas, largas partidas en dos", () => {
     const out = reorganizarLetra(slides, "una_linea_dos_renglones");
     const canciones = out.filter((s) => s.type === "cancion");
     expect(canciones.map((s) => s.lines)).toEqual([
-      ["Cuando el día", "se hace largo"],
-      ["y no encuentro", "dónde ir"],
+      ["Cuando el día se hace largo", "y no encuentro dónde ir"],
       ["Tu voz", "me llama"],
       ["Eres mi refugio eterno,", "mi lugar seguro Señor"],
       ["Aleluya"],
     ]);
-    expect(canciones.map((s) => s.blockLabel)).toEqual(["Estrofa (1/3)", "Estrofa (2/3)", "Estrofa (3/3)", "Coro (1/2)", "Coro (2/2)"]);
+    expect(canciones.map((s) => s.blockLabel)).toEqual(["Estrofa (1/2)", "Estrofa (2/2)", "Coro (1/2)", "Coro (2/2)"]);
     expect(out[out.length - 1].type).toBe("biblia");
+  });
+  it("no deja pedazos sueltos de una frase partida en dos líneas guardadas", () => {
+    const himno = [
+      { slideId: "x-0-0", type: "cancion", songId: "h", blockKey: "c", sectionLabel: "Coro", lines: ["Dame de beber de tu", "manantial;"] },
+      { slideId: "x-0-1", type: "cancion", songId: "h", blockKey: "c", sectionLabel: "Coro", lines: ["Hallé un buen amigo,", "mi amado Salvador"] },
+    ];
+    expect(reorganizarLetra(himno, "una_linea_dos_renglones").map((s) => s.lines)).toEqual([
+      ["Dame de beber de tu", "manantial;"],
+      ["Hallé un buen amigo,", "mi amado Salvador"],
+    ]);
   });
   it("cada diapositiva recuerda la original para corregir la letra completa", () => {
     const out = reorganizarLetra(slides, "una_linea_dos_renglones");
-    expect(out[1].baseLines).toEqual(slides[0].lines);
-    expect(out[1].slideIndexInBlock).toBe(0);
-    expect(out[2].slideIndexInBlock).toBe(1);
+    expect(out[0].baseLines).toEqual(slides[0].lines);
+    expect(out[0].slideIndexInBlock).toBe(0);
+    expect(out[1].slideIndexInBlock).toBe(1);
     expect(new Set(out.map((s) => s.slideId)).size).toBe(out.length);
   });
   it("una_linea: un renglón por diapositiva", () => {
