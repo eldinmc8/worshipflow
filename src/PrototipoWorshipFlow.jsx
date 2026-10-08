@@ -6820,6 +6820,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   const [itemVisto, setItemVisto] = useState(null);
   const [verTodas, setVerTodas] = useState(false);
   const [estiloMas, setEstiloMas] = useState(false);
+  const [fondoDestino, setFondoDestino] = useState("todo"); // "todo" | "cancion" — ver "Fondo por canción"
   // Versión e historial de la Biblia en vivo: se guardan aquí (no dentro de BibleLivePanel) para que
   // sobrevivan al cambiar de pestaña e ir a Estilo/Transmisión y volver a Biblia — y también en
   // localStorage (mismo mecanismo que offlineCache) para que sobrevivan a salir de "En vivo" del todo
@@ -6940,6 +6941,32 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   useEffect(() => { setItemVisto(null); }, [idAlAire]);
   const itemCentro = verTodas ? null : (itemVisto && serviceOrder.find((it) => it.id === itemVisto)) || itemAlAire;
   const indicesCentro = slides.map((_, i) => i).filter((i) => !itemCentro || perteneceA(slides[i], itemCentro.id));
+
+  // ---- Fondo por canción (pedido de Eldin, 2026-10-08) ----
+  // Por defecto el fondo que se elige en Estilo es para TODO (canciones, Biblia, diapositivas). Solo si
+  // quien transmite activa "Fondo por canción" (liveStyle.fondoPorCancion) se le puede dar a una canción
+  // su propio fondo, guardado en liveStyle.fondosCanciones[songId]. Viaja dentro del mismo estilo en
+  // vivo, así que la pantalla de proyección lo aplica sola (ver fondoEfectivo en ProjectionPanel).
+  // "Esta canción" = la que se está viendo al centro (para dejarla lista antes de que salga al aire),
+  // o la que está al aire si es improvisada.
+  const cancionObjetivo = itemCentro?.type === "cancion" ? { id: itemCentro.songId, titulo: tituloItem(itemCentro) }
+    : current?.type === "cancion" && current.songId ? { id: current.songId, titulo: current.songTitle } : null;
+  const fondoPorCancion = !!liveStyle.fondoPorCancion;
+  const editandoCancion = fondoPorCancion && fondoDestino === "cancion" && !!cancionObjetivo;
+  const fondoCancionObjetivo = editandoCancion ? liveStyle.fondosCanciones?.[cancionObjetivo.id] : null;
+  // Lo que se está editando ahora (para marcar el botón activo): el fondo de la canción si tiene, si no el general.
+  const fondoEditado = fondoCancionObjetivo ? { ...liveStyle, ...fondoCancionObjetivo } : liveStyle;
+  const fondoEditadoTipo = fondoEditado.customBgType || "imagen";
+  const aplicarFondo = (cambios) => setLiveStyle((st) => {
+    if (!editandoCancion) return { ...st, ...cambios };
+    const previo = st.fondosCanciones?.[cancionObjetivo.id] || { theme: st.theme, customBgType: st.customBgType, customImage: st.customImage, customVideo: st.customVideo };
+    return { ...st, fondosCanciones: { ...(st.fondosCanciones || {}), [cancionObjetivo.id]: { ...previo, ...cambios } } };
+  });
+  const quitarFondoCancion = () => setLiveStyle((st) => {
+    const resto = { ...(st.fondosCanciones || {}) };
+    delete resto[cancionObjetivo.id];
+    return { ...st, fondosCanciones: resto };
+  });
   // Funciones que devuelven JSX (no componentes): así un <select> o el slider dentro de la cinta no se
   // desmontan en cada render y no pierden el foco mientras se usan.
   const grupoCinta = (titulo, contenido, ultimo = false) => (
@@ -7335,16 +7362,45 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         )}
         {mmPanel === "estilo" && (
           <>
-            {grupoCinta("Fondo", <>
+            {grupoCinta(editandoCancion ? `Fondo de "${cancionObjetivo.titulo.length > 22 ? cancionObjetivo.titulo.slice(0, 21) + "…" : cancionObjetivo.titulo}"` : "Fondo", <>
               {Object.entries(LIVE_THEMES).map(([key, t]) => (
-                <button key={key} onClick={() => setLiveStyle((st) => ({ ...st, theme: key }))} title={t.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 5px", borderRadius: 10, cursor: "pointer", background: "var(--wf-card)", border: liveStyle.theme === key ? "2px solid #B15EA0" : "1px solid var(--wf-border)" }}>
+                <button key={key} onClick={() => aplicarFondo({ theme: key })} title={t.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 5px", borderRadius: 10, cursor: "pointer", background: "var(--wf-card)", border: fondoEditado.theme === key ? "2px solid #B15EA0" : "1px solid var(--wf-border)" }}>
                   <span style={{ width: 34, height: 20, borderRadius: 5, background: t.bg }} />
                   <span style={{ fontSize: 9.5, fontWeight: 600, color: "var(--wf-text)", whiteSpace: "nowrap" }}>{t.label}</span>
                 </button>
               ))}
-              {botonCinta({ icon: ImgIcon, label: "Imagen", onClick: () => { setLiveStyle((st) => ({ ...st, theme: "custom", customBgType: "imagen" })); setEstiloMas(true); }, activo: liveStyle.theme === "custom" && customBgType === "imagen", ancho: 62 })}
-              {botonCinta({ icon: Play, label: "Video", onClick: () => { setLiveStyle((st) => ({ ...st, theme: "custom", customBgType: "video" })); setEstiloMas(true); }, activo: liveStyle.theme === "custom" && customBgType === "video", ancho: 62 })}
+              {botonCinta({ icon: ImgIcon, label: "Imagen", onClick: () => { aplicarFondo({ theme: "custom", customBgType: "imagen" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen", ancho: 62 })}
+              {botonCinta({ icon: Play, label: "Video", onClick: () => { aplicarFondo({ theme: "custom", customBgType: "video" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "video", ancho: 62 })}
             </>)}
+            {grupoCinta("Fondo por canción", (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <input
+                    type="checkbox" checked={fondoPorCancion}
+                    onChange={(e) => { const on = e.target.checked; setLiveStyle((st) => ({ ...st, fondoPorCancion: on })); setFondoDestino(on ? "cancion" : "todo"); }}
+                    style={{ accentColor: "var(--wf-brand-accent)", cursor: "pointer" }}
+                  />
+                  Cada canción con su fondo
+                </label>
+                {fondoPorCancion && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <div style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 8, padding: 2 }}>
+                      {[["todo", "Todo"], ["cancion", "Esta canción"]].map(([k, l]) => (
+                        <button
+                          key={k} onClick={() => setFondoDestino(k)} disabled={k === "cancion" && !cancionObjetivo}
+                          title={k === "cancion" ? (cancionObjetivo ? `Cambiar solo el fondo de "${cancionObjetivo.titulo}"` : "Elige una canción en el orden del culto") : "Cambiar el fondo general (Biblia, diapositivas y canciones sin fondo propio)"}
+                          style={{ fontSize: 11, fontWeight: 600, border: "none", borderRadius: 6, padding: "3px 8px", cursor: k === "cancion" && !cancionObjetivo ? "not-allowed" : "pointer", opacity: k === "cancion" && !cancionObjetivo ? 0.45 : 1, whiteSpace: "nowrap",
+                            background: (editandoCancion ? "cancion" : "todo") === k ? "var(--wf-card)" : "transparent", boxShadow: (editandoCancion ? "cancion" : "todo") === k ? "0 1px 3px rgba(22,50,79,0.15)" : "none", color: "var(--wf-text)" }}
+                        >{l}</button>
+                      ))}
+                    </div>
+                    {fondoCancionObjetivo && (
+                      <button onClick={quitarFondoCancion} title="Esta canción vuelve a usar el fondo general" style={{ ...iconGhost, color: "#C23B32" }}><X size={13} /></button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
             {grupoCinta("Texto", <>
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                 <select
@@ -7409,18 +7465,18 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           <div style={{ position: "absolute", top: 6, right: 16, zIndex: 1, width: "min(640px, calc(100vw - 32px))", maxHeight: "min(420px, 60vh)", overflowY: "auto", display: "flex", gap: 20, flexWrap: "wrap", padding: "12px 14px 14px", background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 12px 36px rgba(22,50,79,0.25)", boxSizing: "border-box" }}>
           <button onClick={() => setEstiloMas(false)} title="Cerrar" aria-label="Cerrar" style={{ ...iconGhost, position: "absolute", top: 8, right: 8 }}><X size={15} /></button>
           <div style={{ flex: "1 1 340px", minWidth: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>{customBgType === "imagen" ? "IMAGEN DE FONDO" : "VIDEO DE FONDO"}</div>
-            {customBgType === "imagen" ? (
-              <MediaPicker iglesiaId={myIglesiaId} tipo="imagen" value={liveStyle.customImage} onChange={(url) => setLiveStyle((st) => ({ ...st, theme: "custom", customBgType: "imagen", customImage: url }))} />
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>{fondoEditadoTipo === "imagen" ? "IMAGEN DE FONDO" : "VIDEO DE FONDO"}{editandoCancion ? ` · SOLO "${cancionObjetivo.titulo.toUpperCase()}"` : ""}</div>
+            {fondoEditadoTipo === "imagen" ? (
+              <MediaPicker iglesiaId={myIglesiaId} tipo="imagen" value={fondoEditado.customImage} onChange={(url) => aplicarFondo({ theme: "custom", customBgType: "imagen", customImage: url })} />
             ) : (
               <>
                 <input
                   placeholder="o pega un enlace https://... (mp4 de fondo con movimiento)"
-                  value={liveStyle.customVideo && !liveStyle.customVideo.startsWith("http") ? "" : liveStyle.customVideo || ""}
-                  onChange={(e) => setLiveStyle((st) => ({ ...st, theme: "custom", customBgType: "video", customVideo: e.target.value }))}
+                  value={fondoEditado.customVideo && !fondoEditado.customVideo.startsWith("http") ? "" : fondoEditado.customVideo || ""}
+                  onChange={(e) => aplicarFondo({ theme: "custom", customBgType: "video", customVideo: e.target.value })}
                   style={{ ...inputStyle, marginBottom: 8 }}
                 />
-                <MediaPicker iglesiaId={myIglesiaId} tipo="video" value={liveStyle.customVideo} onChange={(url) => setLiveStyle((st) => ({ ...st, theme: "custom", customBgType: "video", customVideo: url }))} />
+                <MediaPicker iglesiaId={myIglesiaId} tipo="video" value={fondoEditado.customVideo} onChange={(url) => aplicarFondo({ theme: "custom", customBgType: "video", customVideo: url })} />
               </>
             )}
           </div>
@@ -7479,7 +7535,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
                   >
                     <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: TYPE_META[it.type]?.color || "#5B6472" }} />
                     <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tituloItem(it)}</span>
-                    {alAire && <span style={{ fontSize: 9, fontWeight: 800, color: "#C23B32" }}>●</span>}
+                    {fondoPorCancion && it.type === "cancion" && liveStyle.fondosCanciones?.[it.songId] && <span title="Tiene su propio fondo" style={{ display: "flex", flexShrink: 0 }}><ImgIcon size={11} color="#B15EA0" /></span>}
+                    {alAire &&<span style={{ fontSize: 9, fontWeight: 800, color: "#C23B32" }}>●</span>}
                   </button>
                 );
               })}
@@ -7605,6 +7662,10 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // es largo. La cita se calcula a partir de ESTE valor medido (no del tamaño deseado) para que nunca
   // pueda verse más grande que el propio versículo, sin importar cuánto se haya tenido que achicar.
   const [bibliaFontPx, setBibliaFontPx] = useState(null);
+  // Fondo por canción: solo si quien transmite lo activó y ESTA canción tiene uno propio — si no, el
+  // fondo general de siempre (que también es el de la Biblia y las diapositivas).
+  const fondoCancion = liveStyle?.fondoPorCancion && slide?.type === "cancion" && slide.songId ? liveStyle.fondosCanciones?.[slide.songId] : null;
+  const fondo = fondoCancion ? { ...liveStyle, ...fondoCancion } : liveStyle;
   // Prioridad de fondo: video propio de esta slide > video de fondo global (Estilo > Video) > imagen
   // propia de esta slide > imagen de fondo global (Estilo > Imagen) > tema de color.
   const slideVideoBg = slide?.type === "slide" && slide.bgType === "video" && slide.videoUrl;
@@ -7613,12 +7674,12 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // SIEMPRE, sin importar que la pestaña activa fuera "Imagen" con una imagen ya elegida -- cambiar a
   // imagen no se veía nunca. customBgType (la pestaña que de verdad está activa en Estilo) es lo que
   // decide cuál de los dos usar, no solo cuál de los dos campos tiene algo guardado.
-  const customBgEsVideo = liveStyle?.theme === "custom" && (liveStyle.customBgType || "imagen") === "video";
-  const customBgEsImagen = liveStyle?.theme === "custom" && (liveStyle.customBgType || "imagen") === "imagen";
-  const globalVideoBg = !slideVideoBg && customBgEsVideo && liveStyle.customVideo;
-  const videoSrc = slideVideoBg ? slide.videoUrl : globalVideoBg ? liveStyle.customVideo : null;
+  const customBgEsVideo = fondo?.theme === "custom" && (fondo.customBgType || "imagen") === "video";
+  const customBgEsImagen = fondo?.theme === "custom" && (fondo.customBgType || "imagen") === "imagen";
+  const globalVideoBg = !slideVideoBg && customBgEsVideo && fondo.customVideo;
+  const videoSrc = slideVideoBg ? slide.videoUrl : globalVideoBg ? fondo.customVideo : null;
   const slideImageBg = !videoSrc && slide?.type === "slide" && slide.bgType === "imagen" && slide.imageUrl;
-  const globalImageBg = !videoSrc && !slideImageBg && customBgEsImagen && liveStyle.customImage;
+  const globalImageBg = !videoSrc && !slideImageBg && customBgEsImagen && fondo.customImage;
   const imageSrc = slideImageBg || globalImageBg || null;
   // Bug real (no de hoy, ya existía): al tocar la pestaña "Imagen" o "Video (movimiento)" del fondo
   // global, liveStyle.theme pasa a "custom" DE UNA -- antes incluso de subir o elegir algo -- pero
@@ -7628,13 +7689,15 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // blanco/negro), tanto en la vista previa del panel de control como en la Proyección real, porque las
   // dos usan este mismo componente. El `|| LIVE_THEMES.stage` cubre ese y cualquier otro valor de tema
   // que no sea una clave real.
-  const theme = videoSrc || imageSrc ? null : (LIVE_THEMES[liveStyle?.theme || "stage"] || LIVE_THEMES.stage);
+  const theme = videoSrc || imageSrc ? null : (LIVE_THEMES[fondo?.theme || "stage"] || LIVE_THEMES.stage);
   const bg = videoSrc ? "#000" : imageSrc ? `center / cover no-repeat url(${imageSrc})` : theme.bg;
   // El tamaño de letra "deseado" viene del slider (liveStyle.fontScale) multiplicando una proporción del
   // alto del contenedor (ver AutoFitText) en vez de un px fijo — así se ve igual de grande en la
   // mini-preview y en la pantalla real, y ese mismo % sigue aplicando de una diapositiva a la siguiente
   // (liveStyle.fontScale es un solo valor compartido, no por diapositiva) sin nunca desbordarse, porque
   // AutoFitText siempre lo achica más si hace falta para esa diapositiva en particular.
+  // Con piso en 94% de este tamaño (minRatio, ver AutoFitText): todas las diapositivas de canción
+  // quedan más o menos del mismo tamaño — una línea larga se parte en dos renglones en vez de achicarse.
   const cancionRatio = 0.16 * scale;
   // Antes 0.12 — bastante más chica que la letra de canción (0.16), lo que la hacía difícil de leer
   // desde lejos en la pantalla real, incluso para quienes siguen con su propia Biblia en mano.
@@ -7711,7 +7774,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
                 const cancionAutoFit = (
                   <AutoFitText
                     key={slide.slideId}
-                    lines={slide.lines} targetRatio={cancionRatio} minPx={thumbnail ? 7 : 15} maxWidth="90%"
+                    lines={slide.lines} targetRatio={cancionRatio} minRatio={cancionRatio * 0.94} minPx={thumbnail ? 7 : 15} maxWidth="90%"
                     // whiteSpace:nowrap es lo que de verdad garantiza "2 líneas nada más" (pedido de
                     // Eldin, 2026-10-05): sin esto, una sola línea larga podía ENVOLVER a una fila
                     // visual extra (el ajuste automático de tamaño permitía eso, porque envolver
@@ -7721,7 +7784,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
                     // diapositiva -- sin esto, "fundido"/"deslizante" solo se verían la PRIMERA vez
                     // (los mismos <div> de línea se reutilizan, así que la animación CSS no se repite
                     // sola con solo cambiar el texto adentro).
-                    style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", textAlign: "center", zIndex: 1, lineHeight: 1.35, color: textColor, whiteSpace: "nowrap" }}
+                    style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: font.tracking, fontStyle: font.italic ? "italic" : "normal", textAlign: "center", zIndex: 1, lineHeight: 1.35, color: textColor, whiteSpace: "nowrap", textWrap: "balance" }}
                     lineStyles={cancionLineStyles}
                   />
                 );

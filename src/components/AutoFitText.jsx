@@ -12,7 +12,13 @@ import { useLayoutEffect, useRef, useState } from "react";
 // 3. Con whiteSpace: nowrap (letra de canciones: cada línea en un solo renglón), si una línea es tan
 //    larga que ni al tamaño mínimo cabe, se quedaba cortada por el borde. Como último recurso ahora se
 //    permite partirla en dos renglones — mejor eso que perder texto en pantalla.
-export default function AutoFitText({ lines, targetRatio, minPx = 14, maxPx, style, maxWidth, onFontSize, lineStyles }) {
+//
+// minRatio (opcional, 2026-10-08 — "que todas las letras queden más o menos de este tamaño, no
+// menos"): piso proporcional al alto del contenedor. Antes, una línea larga en nowrap se achicaba
+// hasta caber en UN renglón y quedaba mucho más chica que las demás diapositivas. Con piso, al
+// llegar a él se prefiere partir la línea en dos renglones antes que seguir achicando; solo si ni
+// así cabe (texto muy largo) se baja de ahí, como último recurso para no cortar texto.
+export default function AutoFitText({ lines, targetRatio, minRatio, minPx = 14, maxPx, style, maxWidth, onFontSize, lineStyles }) {
   const containerRef = useRef(null);
   const textRef = useRef(null);
   const [fontPx, setFontPx] = useState(minPx);
@@ -25,27 +31,29 @@ export default function AutoFitText({ lines, targetRatio, minPx = 14, maxPx, sty
     const text = textRef.current;
     if (!container || !text) return;
     const fits = () => text.scrollHeight <= container.clientHeight + 1 && text.scrollWidth <= container.clientWidth + 1;
-    const achicar = () => {
+    const achicar = (piso) => {
       // maxPx (opcional): sin esto, un texto CORTO (ej. "Bienvenidos") nunca se desborda a su tamaño
       // "deseado" y se quedaba enorme, limitado solo por el alto de la pantalla.
-      let size = Math.max(minPx, container.clientHeight * targetRatio);
+      let size = Math.max(piso, container.clientHeight * targetRatio);
       if (maxPx) size = Math.min(size, maxPx);
       text.style.fontSize = `${size}px`;
       let guard = 0;
-      while (!fits() && size > minPx && guard < 120) {
-        size = Math.max(minPx, size - Math.max(1, Math.round(size * 0.05)));
+      while (!fits() && size > piso && guard < 120) {
+        size = Math.max(piso, size - Math.max(1, Math.round(size * 0.05)));
         text.style.fontSize = `${size}px`;
         guard++;
       }
       return size;
     };
     const fit = () => {
+      const piso = Math.max(minPx, minRatio ? container.clientHeight * minRatio : 0);
       text.style.whiteSpace = whiteSpaceOriginal;
-      let size = achicar();
+      let size = achicar(piso);
       if (!fits() && whiteSpaceOriginal === "nowrap") {
         text.style.whiteSpace = "normal";
-        size = achicar();
+        size = achicar(piso);
       }
+      if (!fits() && piso > minPx) size = achicar(minPx);
       setFontPx(size);
       if (onFontSize) onFontSize(size);
     };
@@ -65,7 +73,7 @@ export default function AutoFitText({ lines, targetRatio, minPx = 14, maxPx, sty
     // onFontSize se omite a propósito: es un callback que cambia en cada render del padre y no debe
     // volver a disparar la medición (antes tampoco estaba).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetRatio, fitKey, minPx, maxPx, styleKey, whiteSpaceOriginal]);
+  }, [targetRatio, minRatio, fitKey, minPx, maxPx, styleKey, whiteSpaceOriginal]);
 
   return (
     <div ref={containerRef} style={{ width: "100%", maxWidth: maxWidth || "100%", flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
