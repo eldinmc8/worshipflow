@@ -14,6 +14,7 @@ import {
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra } from "./lib/letraEnVivo.js";
 import AutoFitText from "./components/AutoFitText.jsx";
+import { expandirVersiculosLargos } from "./lib/dividirTexto.js";
 import {
   listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
 } from "./lib/eventos.js";
@@ -257,10 +258,14 @@ const TYPE_META = {
 // ---------- Color por sección para el grid de diapositivas del panel Multimedia (estilo "grid de shows" tipo FreeShow) ----------
 const sectionColorFor = (s) => {
   if (s.type !== "cancion") return TYPE_META[s.type]?.color || "#5B6472";
-  const label = (s.blockLabel || "").toLowerCase();
+  const label = (s.blockLabel || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  // Pre-coro ANTES que coro: "pre-coro" también contiene "coro".
+  if (/pre[\s-]?coro/.test(label)) return "#C2508F"; // rosado
   if (label.includes("coro")) return "#B15EA0"; // orquídea
   if (label.includes("puente")) return "#5661B3"; // índigo
   if (label.includes("estrofa") || label.includes("verso")) return "#1F8A73"; // teal
+  if (label.includes("intro") || label.includes("instrumental") || label.includes("interludio")) return "#A85A26"; // durazno oscuro
+  if (label.includes("final") || label.includes("outro") || label.includes("tag")) return "#3E5C76"; // azul pizarra
   return "#5B6472";
 };
 
@@ -818,9 +823,19 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // de proyectarse una sola vez y desaparecer, igual que cualquier diapositiva agregada a un evento real.
   const [libreServiceOrder, setLibreServiceOrder] = useState([]);
   const liveEvent = liveLibre ? { ...EVENTO_LIBRE, serviceOrder: libreServiceOrder } : events.find((e) => e.id === liveEventId);
-  const slides = useMemo(() => (liveEvent ? buildSlides(liveEvent.serviceOrder, library) : []), [liveEvent, library]);
-  const current = adHoc ? adHoc.slides[adHocIdx] : slides[activeIdx];
-  const next = adHoc ? adHoc.slides[adHocIdx + 1] : slides[activeIdx + 1];
+  // ---- Estilo en vivo de la proyección (fondo/tipografía/tamaño), editable solo por Multimedia mientras transmite ----
+  const [liveStyle, setLiveStyle] = useState({ theme: "stage", font: "elegante", fontScale: 1 });
+  // Versículos largos → 2 o 3 diapositivas (ver dividirTexto.js). Con la letra en vivo más grande,
+  // caben menos palabras por diapositiva y divide antes.
+  const palabrasPorParte = Math.max(15, Math.round(40 / (liveStyle.fontScale || 1)));
+  const slides = useMemo(
+    () => (liveEvent ? expandirVersiculosLargos(buildSlides(liveEvent.serviceOrder, library), palabrasPorParte) : []),
+    [liveEvent, library, palabrasPorParte]
+  );
+  const adHocSlides = useMemo(() => (adHoc ? expandirVersiculosLargos(adHoc.slides, palabrasPorParte) : []), [adHoc, palabrasPorParte]);
+  const adHocVista = useMemo(() => (adHoc ? { ...adHoc, slides: adHocSlides } : null), [adHoc, adHocSlides]);
+  const current = adHoc ? adHocSlides[adHocIdx] : slides[activeIdx];
+  const next = adHoc ? adHocSlides[adHocIdx + 1] : slides[activeIdx + 1];
 
   // ---- Lectura bíblica en vivo: "Siguiente/Anterior versículo" y cambio de versión sin reabrir el buscador.
   // Solo funciona para versículos elegidos con el buscador de la Biblia (traen bookId/chapter) — los que se
@@ -860,15 +875,24 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     updateLiveOrder((o) => { const filtrado = o.filter((item) => item.id !== slideId); nuevaLongitud = filtrado.length; return filtrado; });
     setActiveIdx((i) => Math.min(i, Math.max(0, nuevaLongitud - 1)));
   };
+  // Siempre sobre el versículo COMPLETO (baseSlideId), aunque en pantalla esté una de sus partes — y
+  // después se salta a la primera parte del versículo nuevo (que puede tener otra cantidad de partes).
   const applyBibleSlidePatch = (patch) => {
+    if (!current) return;
+    const baseId = current.baseSlideId || current.slideId;
+    const primeraParte = (adHoc ? adHocIdx : activeIdx) - (current.parte || 0);
     if (adHoc) {
-      setAdHoc((a) => ({ ...a, slides: a.slides.map((s, i) => (i === adHocIdx ? { ...s, ...patch } : s)) }));
-    } else if (current) {
-      updateLiveOrder((o) => o.map((item) => (item.id === current.slideId ? { ...item, ...patch } : item)));
+      setAdHoc((a) => ({ ...a, slides: a.slides.map((s) => (s.slideId === baseId ? { ...s, ...patch } : s)) }));
+      setAdHocIdx(Math.max(0, primeraParte));
+    } else {
+      updateLiveOrder((o) => o.map((item) => (item.id === baseId ? { ...item, ...patch } : item)));
+      setActiveIdx(Math.max(0, primeraParte));
     }
   };
   const navigateBibleVerse = async (direction) => {
     if (!current || current.type !== "biblia" || !current.bookId) return;
+    // Con un versículo partido en varias diapositivas, avanzar entre SUS partes es "Siguiente" normal;
+    // estas flechas (arriba/abajo) siempre saltan al versículo de al lado completo.
     const fromVerse = direction > 0 ? current.verseEnd : current.verseStart;
     try {
       const result = await fetchAdjacentBibleVerse(current.version, current.bookId, current.chapter, fromVerse, direction);
@@ -1023,7 +1047,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
 
   const goto = (i) => {
     setBlanked(false);
-    if (adHoc) { setAdHocIdx(Math.min(Math.max(i, 0), adHoc.slides.length - 1)); return; }
+    if (adHoc) { setAdHocIdx(Math.min(Math.max(i, 0), adHocSlides.length - 1)); return; }
     setActiveIdx(Math.min(Math.max(i, 0), slides.length - 1));
   };
   const gotoPlanSlide = (i) => { setAdHoc(null); setAdHocIdx(0); setBlanked(false); setActiveIdx(Math.min(Math.max(i, 0), slides.length - 1)); };
@@ -1420,8 +1444,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   );
   const canAddSermonPoints = () => puedeEditarSetlist;
 
-  // ---- Estilo en vivo de la proyección (fondo/tipografía/tamaño), editable solo por Multimedia mientras transmite ----
-  const [liveStyle, setLiveStyle] = useState({ theme: "stage", font: "elegante", fontScale: 1 });
+  // ---- Estilo en vivo de la proyección: declarado más arriba (antes de `slides`), porque el tamaño de
+  // letra decide en cuántas partes se dividen los versículos largos ----
 
   // ---- Sincroniza la pantalla pública (ventana/dispositivo aparte) vía Supabase Realtime — ya no
   // BroadcastChannel, que solo funcionaba dentro del mismo navegador: ahora el panel de control y la
@@ -2202,7 +2226,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             eventTitle={liveEvent.title} isFreeSession={liveLibre} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
             goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}
             onEnd={endEvent} canEnd={isAdminViewer || userId === liveOwnerId} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
-            adHoc={adHoc} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
+            adHoc={adHocVista} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
             onOpenPublicScreen={startPresentation}
             onNavigateBibleVerse={navigateBibleVerse}
             onAddLiveSlide={addLiveSlide} onEditLiveSlide={editLiveSlide} onRemoveLiveSlide={removeLiveSlide}
@@ -6766,7 +6790,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
   const startEditingSlide = (s) => {
     setEditingSlide(s);
     setEditDraft(
-      s.type === "biblia" ? { reference: s.reference, text: s.text }
+      s.type === "biblia" ? { reference: s.baseReference ?? s.reference, text: s.baseText ?? s.text }
       : s.type === "cancion" ? { text: s.lines.join("\n") }
       : { title: s.title, subtitle: s.subtitle || "", bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "" }
     );
@@ -6785,7 +6809,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
         onEditSongSlide(editingSlide.songId, editingSlide.blockKey, editingSlide.slideIndexInBlock, editDraft.text);
       }
     } else {
-      onEditLiveSlide(editingSlide.slideId, editDraft);
+      onEditLiveSlide(editingSlide.baseSlideId || editingSlide.slideId, editDraft);
     }
     setEditingSlide(null); setEditDraft(null);
   };
@@ -6894,7 +6918,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
             version={bibleVersion} setVersion={setBibleVersion}
             history={bibleHistory} setHistory={setBibleHistory}
             onProject={(b) => onStartAdHocBible(b)}
-            liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart } : null}
+            liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.baseReference ?? current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart } : null}
           />
         )}
 
@@ -7115,7 +7139,7 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
                         {s.title || "(sin título)"}
                       </button>
                       <button onClick={() => startEditingSlide(s)} title="Editar esta diapositiva (corregir texto)" style={{ ...iconGhost, color: "#2F5FA8", flexShrink: 0 }}><Pencil size={13} /></button>
-                      <button onClick={() => onRemoveLiveSlide(s.slideId)} title="Borrar esta diapositiva" style={{ ...iconGhost, color: "#C23B32", flexShrink: 0 }}><X size={13} /></button>
+                      <button onClick={() => onRemoveLiveSlide(s.baseSlideId || s.slideId)} title="Borrar esta diapositiva" style={{ ...iconGhost, color: "#C23B32", flexShrink: 0 }}><X size={13} /></button>
                     </div>
                   );
                 })}
