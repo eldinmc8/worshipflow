@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import AppLogo from "./AppLogo.jsx";
 import { useArrastreLista } from "./lib/arrastreLista.js";
@@ -11,7 +11,9 @@ import {
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
   Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote,
 } from "lucide-react";
-import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, corregirDiapositivaCancion, agregarDiapositivaCancion } from "./lib/canciones.js";
+import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
+import { aplicarCambioLetra } from "./lib/letraEnVivo.js";
+import AutoFitText from "./components/AutoFitText.jsx";
 import {
   listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
 } from "./lib/eventos.js";
@@ -1163,34 +1165,32 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // "nos dimos cuenta en pleno culto de que esta letra está mal" y no hay tiempo de ir a buscar a un
   // administrador. El cambio queda guardado en la canción de una — no es solo para esta transmisión — así
   // que la próxima vez que se use esta canción (en este evento o en cualquier otro) ya sale bien.
-  const editSongSlideLive = (songId, blockKey, slideIndexInBlock, hasRealSlides, nuevoTexto) => {
-    const nuevasLineas = nuevoTexto.split("\n");
-    setLibrary((lib) => lib.map((s) => {
-      if (s.id !== songId) return s;
-      const letra = { ...s.letra };
-      const grupo = hasRealSlides ? [...(letra[blockKey] || [])] : [];
-      grupo[slideIndexInBlock] = nuevasLineas;
-      letra[blockKey] = grupo;
-      return { ...s, letra };
-    }));
+  // Se aplica sobre la letra COMPLETA tal como se está proyectando y se guarda la canción entera —
+  // ver letraEnVivo.js: tocar una sola fila borraba la canción entera en las que nunca pasaron por
+  // la pestaña Letra.
+  const cambiarLetraEnVivo = (songId, cambio, mensajeError) => {
+    const song = library.find((s) => s.id === songId);
+    if (!song) return false;
+    let nuevaLetra;
+    try {
+      nuevaLetra = aplicarCambioLetra(song, cambio);
+    } catch (e) {
+      notifyError(mensajeError, e);
+      return false;
+    }
+    setLibrary((lib) => lib.map((s) => (s.id === songId ? { ...s, letra: nuevaLetra } : s)));
     pendingSavesRef.current++;
-    corregirDiapositivaCancion(songId, blockKey, slideIndexInBlock, hasRealSlides, nuevoTexto)
-      .catch((e) => notifyError("No se pudo guardar la corrección en la canción", e))
+    guardarLetraCancion(songId, nuevaLetra)
+      .catch((e) => notifyError(mensajeError, e))
       .finally(() => pendingSavesRef.current--);
+    return true;
   };
-  const addSongSlideLive = (songId, blockKey) => {
-    const nuevasLineas = [""];
-    setLibrary((lib) => lib.map((s) => {
-      if (s.id !== songId) return s;
-      const letra = { ...s.letra };
-      letra[blockKey] = [...(letra[blockKey] || []), nuevasLineas];
-      return { ...s, letra };
-    }));
-    pendingSavesRef.current++;
-    agregarDiapositivaCancion(songId, blockKey, "")
-      .catch((e) => notifyError("No se pudo agregar la diapositiva", e))
-      .finally(() => pendingSavesRef.current--);
-  };
+  const editSongSlideLive = (songId, blockKey, slideIndexInBlock, nuevoTexto) =>
+    cambiarLetraEnVivo(songId, { tipo: "editar", blockKey, indice: slideIndexInBlock, texto: nuevoTexto }, "No se pudo guardar la corrección en la canción");
+  // La diapositiva nueva entra justo DESPUÉS de la que se estaba viendo (no al final de la sección), y
+  // solo si trae texto — una vacía nunca se proyecta y antes quedaba "invisible".
+  const addSongSlideLive = (songId, blockKey, afterIndex, texto) =>
+    cambiarLetraEnVivo(songId, { tipo: "agregar", blockKey, indice: afterIndex, texto }, "No se pudo agregar la diapositiva");
   // Transporta la canción completa a una nueva tonalidad: recalcula todos los acordes de todos los bloques.
   const transposeSong = (songId, newKey) => {
     let transposed = null;
@@ -6777,7 +6777,13 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
     // plan de este evento — las demás (versículo/diapositiva suelta) siguen igual que antes, viven en
     // el propio ítem del Setlist.
     if (editingSlide.type === "cancion") {
-      onEditSongSlide(editingSlide.songId, editingSlide.blockKey, editingSlide.slideIndexInBlock, editingSlide.hasRealSlides, editDraft.text);
+      if (editingSlide.nueva) {
+        // Sin texto no se crea nada (una diapositiva vacía nunca se proyecta): se queda el cuadro abierto.
+        if (!editDraft.text.trim()) return;
+        onAddSongSlide(editingSlide.songId, editingSlide.blockKey, editingSlide.slideIndexInBlock, editDraft.text);
+      } else {
+        onEditSongSlide(editingSlide.songId, editingSlide.blockKey, editingSlide.slideIndexInBlock, editDraft.text);
+      }
     } else {
       onEditLiveSlide(editingSlide.slideId, editDraft);
     }
@@ -7142,20 +7148,20 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
         <SlideModal iglesiaId={myIglesiaId} title="Editar diapositiva" submitLabel="Guardar cambios" draft={editDraft} setDraft={setEditDraft} onClose={() => setEditingSlide(null)} onAdd={saveSlideEdit} />
       )}
       {editingSlide && editingSlide.type === "cancion" && (
-        <ModalShell title="Corregir letra" icon={Music} color="var(--wf-brand-accent)" onClose={() => setEditingSlide(null)}>
+        <ModalShell title={editingSlide.nueva ? "Nueva diapositiva" : "Corregir letra"} icon={editingSlide.nueva ? Plus : Music} color="var(--wf-brand-accent)" onClose={() => setEditingSlide(null)}>
           <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>
-            {editingSlide.songTitle} · {editingSlide.blockLabel}
+            {editingSlide.songTitle} · {editingSlide.nueva ? `después de ${editingSlide.blockLabel}` : editingSlide.blockLabel}
           </div>
-          <Field label="Texto"><textarea autoFocus value={editDraft.text} onChange={(e) => setEditDraft({ ...editDraft, text: e.target.value })} style={{ ...inputStyle, height: 120, resize: "vertical" }} /></Field>
-          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Este cambio queda guardado en la canción — no solo para esta transmisión.</div>
-          <button onClick={saveSlideEdit} style={{ ...primaryBtn, marginTop: 14 }}>Guardar cambios</button>
-          <button
-            onClick={() => { onAddSongSlide(editingSlide.songId, editingSlide.blockKey); setEditingSlide(null); }}
+          <Field label="Texto"><textarea key={editingSlide.nueva ? "nueva" : "editar"} autoFocus value={editDraft.text} onChange={(e) => setEditDraft({ ...editDraft, text: e.target.value })} placeholder={editingSlide.nueva ? "Escribe la letra de la diapositiva nueva" : undefined} style={{ ...inputStyle, height: 120, resize: "vertical" }} /></Field>
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Este cambio queda guardado en la canción de la biblioteca — no solo para esta transmisión.</div>
+          <button onClick={saveSlideEdit} disabled={editingSlide.nueva && !editDraft.text.trim()} style={{ ...primaryBtn, marginTop: 14, opacity: editingSlide.nueva && !editDraft.text.trim() ? 0.5 : 1 }}>{editingSlide.nueva ? "Agregar diapositiva" : "Guardar cambios"}</button>
+          {!editingSlide.nueva && <button
+            onClick={() => { setEditingSlide({ ...editingSlide, nueva: true }); setEditDraft({ text: "" }); }}
             className="hoverable"
             style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", background: "var(--wf-hover)", border: "none", borderRadius: 12, padding: "9px 0", fontSize: 13, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer", marginTop: 8 }}
           >
             <Plus size={14} /> Agregar otra diapositiva a "{editingSlide.sectionLabel}"
-          </button>
+          </button>}
         </ModalShell>
       )}
     </div>
@@ -7167,55 +7173,6 @@ function MultimediaControl({ eventTitle, isFreeSession, library, slides, activeI
 // Multimedia define el tamaño DESEADO, pero este componente lo mide contra el espacio real disponible y
 // lo va reduciendo hasta que quepa entero — así, sin importar cuántas líneas tenga la diapositiva ni qué
 // tan arriba se suba el slider, el texto nunca se corta ni se sale de la pantalla.
-function AutoFitText({ lines, targetRatio, minPx = 14, maxPx, style, maxWidth, onFontSize, lineStyles }) {
-  const containerRef = useRef(null);
-  const textRef = useRef(null);
-  const [fontPx, setFontPx] = useState(minPx);
-  const fitKey = Array.isArray(lines) ? lines.join("\n") : lines;
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const text = textRef.current;
-    if (!container || !text) return;
-    const fit = () => {
-      // El tamaño de arranque es proporcional al alto REAL del contenedor (no un px fijo) — así se ve
-      // igual de grande tanto en la mini-preview del panel de control como en la pantalla de verdad del
-      // proyector, sin importar que una sea una cajita chica y la otra un TV de 1920px. El límite de
-      // nunca desbordarse sigue siendo el achicado automático de abajo.
-      // maxPx (opcional): sin esto, un texto CORTO (ej. el título de una slide de anuncio, "Bienvenidos")
-      // nunca llega a desbordar ni el alto ni el ancho del contenedor a este tamaño "deseado" -- el
-      // achicado de abajo solo entra en acción cuando algo SÍ se desborda, así que un título de una o
-      // dos palabras se quedaba enorme, limitado solo por el alto disponible de la pantalla completa.
-      let size = Math.max(minPx, container.clientHeight * targetRatio);
-      if (maxPx) size = Math.min(size, maxPx);
-      const fits = () => text.scrollHeight <= container.clientHeight + 1 && text.scrollWidth <= container.clientWidth + 1;
-      text.style.fontSize = `${size}px`;
-      let guard = 0;
-      while (!fits() && size > minPx && guard < 60) {
-        size -= Math.max(1, Math.round(size * 0.05));
-        text.style.fontSize = `${size}px`;
-        guard++;
-      }
-      setFontPx(size);
-      if (onFontSize) onFontSize(size);
-    };
-    fit();
-    const ro = new ResizeObserver(fit);
-    ro.observe(container);
-    return () => ro.disconnect();
-  }, [targetRatio, fitKey, minPx, maxPx]);
-
-  return (
-    <div ref={containerRef} style={{ width: "100%", maxWidth: maxWidth || "100%", flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-      <div ref={textRef} style={{ ...style, fontSize: fontPx }}>
-        {/* lineStyles es opcional, por índice -- pensado para que la letra de una canción pueda
-            destacar su 2a línea distinto (mayúscula, color de acento...) sin tocar lines (que sigue
-            siendo solo texto plano, para que fitKey arriba no se rompa con objetos React). */}
-        {Array.isArray(lines) ? lines.map((l, i) => <div key={i} style={lineStyles?.[i]}>{l}</div>) : lines}
-      </div>
-    </div>
-  );
-}
 
 export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeight, adHocLabel, thumbnail }) {
   const font = LIVE_FONTS[liveStyle?.font || "elegante"];
