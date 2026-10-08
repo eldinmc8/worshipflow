@@ -129,20 +129,20 @@ export function reorganizarLetra(slides, formato) {
         const corta = (t) => t !== undefined && t.length <= MAX_RENGLON;
         for (let j = 0; j < lineas.length; ) {
           if (corta(lineas[j]) && corta(lineas[j + 1])) {
-            piezas.push({ orig, renglones: [lineas[j], lineas[j + 1]], hastaLinea: j + 2 });
+            piezas.push({ orig, renglones: [lineas[j], lineas[j + 1]], desdeLinea: j, hastaLinea: j + 2 });
             j += 2;
           } else {
-            piezas.push({ orig, renglones: partirEn(lineas[j], 2), hastaLinea: j + 1 });
+            piezas.push({ orig, renglones: partirEn(lineas[j], 2), desdeLinea: j, hastaLinea: j + 1 });
             j += 1;
           }
         }
       } else {
-        lineas.forEach((texto, j) => piezas.push({ orig, renglones: [texto], hastaLinea: j + 1 }));
+        lineas.forEach((texto, j) => piezas.push({ orig, renglones: [texto], desdeLinea: j, hastaLinea: j + 1 }));
       }
     });
     if (piezas.length === 0) { out.push(...grupo); continue; }
     const base = grupo[0].sectionLabel || String(grupo[0].blockLabel || "").replace(/\s*\(\d+\/\d+\)$/, "");
-    piezas.forEach(({ orig, renglones, hastaLinea }, k) => {
+    piezas.forEach(({ orig, renglones, desdeLinea, hastaLinea }, k) => {
       const totalOrig = (orig.lines || []).filter((l) => l && l.trim()).length;
       out.push({
         ...orig,
@@ -151,6 +151,8 @@ export function reorganizarLetra(slides, formato) {
         baseLines: orig.baseLines || orig.lines,
         // null en el último pedazo de la original: ahí "agregar después" ya es simplemente después de ella.
         cortarDespuesDeLinea: hastaLinea < totalOrig ? hastaLinea : null,
+        // Qué líneas de la diapositiva guardada muestra este pedazo — para borrarlo o moverlo solo a él.
+        segmento: { desde: desdeLinea, hasta: hastaLinea },
         blockLabel: piezas.length > 1 ? `${base} (${k + 1}/${piezas.length})` : base,
       });
     });

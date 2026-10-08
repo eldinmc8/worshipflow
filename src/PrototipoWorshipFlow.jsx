@@ -12,7 +12,7 @@ import {
   Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
-import { aplicarCambioLetra } from "./lib/letraEnVivo.js";
+import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
 import AutoFitText from "./components/AutoFitText.jsx";
 import { expandirVersiculosLargos, reorganizarLetra, FORMATOS_LETRA } from "./lib/dividirTexto.js";
 import {
@@ -1216,7 +1216,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     if (!song) return false;
     let nuevaLetra;
     try {
-      nuevaLetra = aplicarCambioLetra(song, cambio);
+      nuevaLetra = typeof cambio === "function" ? cambio(song) : aplicarCambioLetra(song, cambio);
     } catch (e) {
       notifyError(mensajeError, e);
       return false;
@@ -1234,6 +1234,10 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // solo si trae texto — una vacía nunca se proyecta y antes quedaba "invisible".
   const addSongSlideLive = (songId, blockKey, afterIndex, texto, cortarDespuesDeLinea) =>
     cambiarLetraEnVivo(songId, { tipo: "agregar", blockKey, indice: afterIndex, texto, cortarDespuesDeLinea }, "No se pudo agregar la diapositiva");
+  // Borrar o mover diapositivas de una sección desde la consola: la sección se rearma con los pedazos
+  // que quedan, en el orden nuevo (ver rearmarSeccion). También queda guardado en la canción.
+  const rearmarSeccionLive = (songId, blockKey, segmentos, mensajeError) =>
+    cambiarLetraEnVivo(songId, (song) => rearmarSeccion(song, blockKey, segmentos), mensajeError);
   // Transporta la canción completa a una nueva tonalidad: recalcula todos los acordes de todos los bloques.
   const transposeSong = (songId, newKey) => {
     let transposed = null;
@@ -2253,7 +2257,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             onOpenPublicScreen={startPresentation}
             onNavigateBibleVerse={navigateBibleVerse}
             onAddLiveSlide={addLiveSlide} onEditLiveSlide={editLiveSlide} onRemoveLiveSlide={removeLiveSlide}
-            onEditSongSlide={editSongSlideLive} onAddSongSlide={addSongSlideLive}
+            onEditSongSlide={editSongSlideLive} onAddSongSlide={addSongSlideLive} onRearmarSeccion={rearmarSeccionLive}
           />
         </div>
       )}
@@ -6829,7 +6833,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, myIglesiaId }) {
+function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, myIglesiaId }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -7004,6 +7008,48 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         color: activo ? "var(--wf-on-brand-primary)" : acento ? "var(--wf-brand-primary)" : "var(--wf-text)" }}
     ><Icon size={20} strokeWidth={1.75} />{label}</button>
   );
+  // ---- Borrar y mover diapositivas desde la consola (pedido de Eldin, 2026-10-08) ----
+  // Una "sección" aquí = una aparición de una sección de la canción en el plan (mismo prefijo de
+  // slideId: `${item}-${posición en la estructura}`), con todos sus pedazos. Moverlas solo se puede
+  // dentro de la misma sección; cualquier cambio queda guardado en la canción (ver rearmarSeccion).
+  const ocurrenciaDe = (s) => String(s.slideId).replace(/~l\d+$/, "").replace(/-\d+$/, "");
+  const segmentoDe = (s) => ({ indice: s.slideIndexInBlock, desde: s.segmento?.desde ?? 0, hasta: s.segmento?.hasta ?? null });
+  const seccionDe = (s) => slides.filter((x) => x.type === "cancion" && x.songId === s.songId && ocurrenciaDe(x) === ocurrenciaDe(s));
+  const borrarDiapositiva = async (s) => {
+    if (s.type === "cancion") {
+      const ok = await confirmDialog(
+        `¿Borrar esta diapositiva de "${s.songTitle}" (${s.blockLabel})? Se borrará permanentemente de la canción en la biblioteca — no solo de esta transmisión — y no se puede deshacer.`,
+        { titulo: "Borrar diapositiva", danger: true, textoConfirmar: "Borrar para siempre" }
+      );
+      if (!ok) return;
+      const quedan = seccionDe(s).filter((x) => x.slideId !== s.slideId).map(segmentoDe);
+      onRearmarSeccion(s.songId, s.blockKey, quedan, "No se pudo borrar la diapositiva");
+      return;
+    }
+    const ok = await confirmDialog(
+      s.type === "biblia"
+        ? `¿Quitar "${s.baseReference ?? s.reference}" del orden del culto? Se borrará permanentemente de este evento.`
+        : `¿Borrar la diapositiva "${s.title || "(sin título)"}"? Se borrará permanentemente de este evento.`,
+      { titulo: "Borrar diapositiva", danger: true, textoConfirmar: "Borrar para siempre" }
+    );
+    if (ok) onRemoveLiveSlide(s.baseSlideId || s.slideId);
+  };
+  const [arrastreMini, setArrastreMini] = useState(null); // { desde, sobre } — índices en `slides`
+  const moverDiapositiva = (desde, hacia) => {
+    const a = slides[desde], b = slides[hacia];
+    if (!a || !b || desde === hacia) return;
+    if (a.type !== "cancion" || b.type !== "cancion" || a.songId !== b.songId || ocurrenciaDe(a) !== ocurrenciaDe(b)) {
+      showToast("Solo se puede mover dentro de la misma sección de la canción.", "info");
+      return;
+    }
+    const seccion = seccionDe(a);
+    const i = seccion.findIndex((x) => x.slideId === a.slideId);
+    const j = seccion.findIndex((x) => x.slideId === b.slideId);
+    const orden = [...seccion];
+    const [movida] = orden.splice(i, 1);
+    orden.splice(j, 0, movida);
+    onRearmarSeccion(a.songId, a.blockKey, orden.map(segmentoDe), "No se pudo mover la diapositiva");
+  };
   const miniatura = (s, i) => {
     const color = sectionColorFor(s);
     const label = s.type === "cancion" ? s.blockLabel : s.type === "biblia" ? s.reference : s.title;
@@ -7012,7 +7058,16 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
     return (
       <div
         key={s.slideId} onClick={() => { setItemVisto(null); gotoPlanSlide(i); }} className="thumb" role="button" tabIndex={0}
-        style={{ textAlign: "left", padding: 0, borderRadius: 10, cursor: "pointer", outline: isActive ? "3px solid var(--wf-brand-accent)" : "none", outlineOffset: 2, background: "transparent", overflow: "hidden", boxShadow: isActive ? "0 4px 14px rgba(232,130,30,0.3)" : "0 1px 4px rgba(22,50,79,0.14)" }}
+        // Arrastrar para reordenar (solo letra de canciones, dentro de su misma sección). Consola de
+        // escritorio = mouse, así que basta el arrastre nativo del navegador.
+        draggable={s.type === "cancion" && !adHoc}
+        onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; setArrastreMini({ desde: i, sobre: null }); }}
+        onDragOver={(e) => { if (!arrastreMini) return; e.preventDefault(); if (arrastreMini.sobre !== i) setArrastreMini((a) => ({ ...a, sobre: i })); }}
+        onDrop={(e) => { e.preventDefault(); if (arrastreMini) moverDiapositiva(arrastreMini.desde, i); setArrastreMini(null); }}
+        onDragEnd={() => setArrastreMini(null)}
+        style={{ textAlign: "left", padding: 0, borderRadius: 10, cursor: "pointer", outline: isActive ? "3px solid var(--wf-brand-accent)" : "none", outlineOffset: 2, background: "transparent", overflow: "hidden",
+          opacity: arrastreMini?.desde === i ? 0.4 : 1,
+          boxShadow: arrastreMini && arrastreMini.sobre === i && arrastreMini.desde !== i ? "0 0 0 3px #2F5FA8" : isActive ? "0 4px 14px rgba(232,130,30,0.3)" : "0 1px 4px rgba(22,50,79,0.14)" }}
       >
         <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#0a0e14", display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 10px", boxSizing: "border-box" }}>
           <span style={{ position: "absolute", top: 3, left: 6, fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.45)" }}>{i + 1}</span>
@@ -7022,6 +7077,13 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             title="Editar esta diapositiva (corregir texto)"
             style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 7, padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
           ><Pencil size={11} color="#fff" /></button>
+          {!adHoc && (
+            <button
+              onClick={(e) => { e.stopPropagation(); borrarDiapositiva(s); }}
+              title="Borrar esta diapositiva"
+              style={{ position: "absolute", top: 4, right: 30, width: 22, height: 22, background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 7, padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            ><Trash2 size={11} color="#FF8A80" /></button>
+          )}
         </div>
         <div style={{ background: color, color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 7px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
       </div>

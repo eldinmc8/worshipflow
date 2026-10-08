@@ -74,6 +74,26 @@ export function aplicarCambioLetra(song, { tipo, blockKey, indice, texto, cortar
   return letra;
 }
 
+// Borrar y mover diapositivas desde la consola En vivo (pedido de Eldin, 2026-10-08). Lo que se ve en
+// pantalla puede ser un PEDAZO de una diapositiva guardada (pantallas chicas, ver reorganizarLetra), así
+// que la sección se rearma desde "segmentos": { indice, desde, hasta } = las líneas no vacías
+// [desde, hasta) de la diapositiva guardada `indice` (hasta null = hasta el final). La sección queda con
+// exactamente esos segmentos, en ese orden, cada uno como su propia diapositiva guardada — lo que no se
+// nombre se borra. Un segmento siempre guarda las líneas ORIGINALES (no los renglones partidos para la
+// pantalla), así que al proyectar de nuevo se ven igual que antes.
+export function rearmarSeccion(song, blockKey, segmentos) {
+  const letra = letraEfectiva(song);
+  const grupo = letra[blockKey] || [];
+  const noVacias = (lineas) => (lineas || []).filter((l) => l && l.trim());
+  letra[blockKey] = segmentos
+    .map(({ indice, desde = 0, hasta = null }) => {
+      if (indice == null || indice < 0 || indice >= grupo.length) throw new Error("No se encontró esa diapositiva — recarga e intenta de nuevo.");
+      return noVacias(grupo[indice]).slice(desde, hasta == null ? undefined : hasta);
+    })
+    .filter((lineas) => lineas.length > 0);
+  return letra;
+}
+
 // Mismo formato de filas que guarda el editor de Canciones (guardarCancionDesdeEditor).
 export function letraADiapositivas(letra) {
   const filas = [];

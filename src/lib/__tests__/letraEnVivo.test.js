@@ -105,3 +105,25 @@ describe("agregar diapositiva en pantallas chicas (una_linea_dos_renglones)", ()
     expect(letra.v1).toEqual([cancion.letra.v1[0], ["Nueva"]]);
   });
 });
+
+import { rearmarSeccion } from "../letraEnVivo.js";
+
+describe("rearmarSeccion (borrar y mover desde la consola En vivo)", () => {
+  const song = { blocks: { v1: { label: "Estrofa", lines: ["x"] } }, letra: { v1: [["A1", "A2", "", "A3"], ["B1", "B2"]] } };
+
+  it("mover: la sección queda con los pedazos en el orden nuevo, cada uno su diapositiva", () => {
+    const letra = rearmarSeccion(song, "v1", [{ indice: 1 }, { indice: 0, desde: 2, hasta: 3 }, { indice: 0, desde: 0, hasta: 2 }]);
+    expect(letra.v1).toEqual([["B1", "B2"], ["A3"], ["A1", "A2"]]);
+  });
+
+  it("borrar: lo que no se nombra desaparece, y una sección puede quedar vacía", () => {
+    expect(rearmarSeccion(song, "v1", [{ indice: 1 }]).v1).toEqual([["B1", "B2"]]);
+    expect(rearmarSeccion(song, "v1", []).v1).toEqual([]);
+  });
+
+  it("no toca las demás secciones y avisa si la diapositiva ya no existe", () => {
+    const dos = { blocks: { v1: { label: "E", lines: ["x"] }, c: { label: "C", lines: ["Coro"] } }, letra: { v1: [["A"]], c: [["C1"]] } };
+    expect(rearmarSeccion(dos, "v1", []).c).toEqual([["C1"]]);
+    expect(() => rearmarSeccion(dos, "v1", [{ indice: 5 }])).toThrow();
+  });
+});
