@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient.js";
+import { traerTodas } from "./traerTodas.js";
 import { sincronizarRecordatorios } from "./recordatorios.js";
 import { fijarLineaBase, idsABorrar, actualizarTrasGuardar } from "./lineaBase.js";
 
@@ -28,7 +29,7 @@ export async function esperarCreacionEvento(eventoId) {
 }
 
 export async function listEventos() {
-  const { data, error } = await supabase.from("eventos").select("*").order("fecha", { ascending: true, nullsFirst: false });
+  const { data, error } = await traerTodas(() => supabase.from("eventos").select("*").order("fecha", { ascending: true, nullsFirst: false }).order("id"));
   if (error) throw error;
   return data;
 }
@@ -229,16 +230,17 @@ export async function listEventosCompletos() {
   const filas = await listEventos();
   if (filas.length === 0) return [];
   const [itemsRes, rolesRes, recordatoriosRes, vistasRes, miembrosRes] = await Promise.all([
-    supabase.from("items_servicio").select("*, canciones(titulo, artista, tonalidad, tempo)").order("orden", { ascending: true }),
-    supabase.from("roles_evento").select("*").order("orden", { ascending: true }),
-    supabase.from("recordatorios_evento").select("*").order("created_at", { ascending: true }),
+    // Por páginas (ver traerTodas): con varios meses de eventos, items y encargados pasan de 1000 filas.
+    traerTodas(() => supabase.from("items_servicio").select("*, canciones(titulo, artista, tonalidad, tempo)").order("orden", { ascending: true }).order("id")),
+    traerTodas(() => supabase.from("roles_evento").select("*").order("orden", { ascending: true }).order("id")),
+    traerTodas(() => supabase.from("recordatorios_evento").select("*").order("created_at", { ascending: true }).order("id")),
     // Mismo respaldo que antes: si asignaciones_vistas falla por el motivo que sea, no debe tumbar la
     // carga de TODOS los eventos (ver nota histórica de getEventoCompleto, reemplazada por esta función).
-    supabase.from("asignaciones_vistas").select("*").then(
+    traerTodas(() => supabase.from("asignaciones_vistas").select("*").order("evento_id").order("usuario_id")).then(
       (r) => (r.error ? { data: [] } : r),
       () => ({ data: [] })
     ),
-    supabase.from("miembros_rol").select("*").order("orden", { ascending: true }),
+    traerTodas(() => supabase.from("miembros_rol").select("*").order("orden", { ascending: true }).order("id")),
   ]);
   if (itemsRes.error) throw itemsRes.error;
   if (rolesRes.error) throw rolesRes.error;

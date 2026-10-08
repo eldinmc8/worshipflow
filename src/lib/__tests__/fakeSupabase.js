@@ -15,6 +15,7 @@ export function makeFakeSupabase(tablasIniciales = {}) {
     let payload = null;
     let single = false;
     let upsertOnConflict = null;
+    let rango = null; // .range(desde, hasta), inclusivo como en supabase-js
     const filtros = [];
 
     const aplicaFiltros = (filas) =>
@@ -59,7 +60,11 @@ export function makeFakeSupabase(tablasIniciales = {}) {
         return { data: afectadas.map((f) => ({ ...f })), error: null };
       }
       // select (op === "select" o null -- .eq() sola, sin .select() antes, también cuenta como lectura)
-      const resultado = aplicaFiltros(filas).map((f) => ({ ...f }));
+      let resultado = aplicaFiltros(filas).map((f) => ({ ...f }));
+      // Igual que PostgREST: nunca más de 1000 filas por consulta, aunque se pidan más.
+      const desde = rango ? rango[0] : 0;
+      const hasta = rango ? Math.min(rango[1], desde + 999) : 999;
+      resultado = resultado.slice(desde, hasta + 1);
       if (single) return { data: resultado[0] ?? null, error: null };
       return { data: resultado, error: null };
     }
@@ -74,6 +79,7 @@ export function makeFakeSupabase(tablasIniciales = {}) {
       in(col, val) { filtros.push({ tipo: "in", col, val }); return api; },
       not(col, tipoOp, val) { if (tipoOp === "is" && val === null) filtros.push({ tipo: "not-is-null", col }); return api; },
       order() { return api; },
+      range(desde, hasta) { rango = [desde, hasta]; return api; },
       single() { single = true; return api; },
       maybeSingle() { single = true; return api; }, // el fake nunca lanza por 0/N filas -- mismo simplificado que single()
       then(onResolve, onReject) {

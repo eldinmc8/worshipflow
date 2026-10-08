@@ -1,5 +1,6 @@
 import { letraADiapositivas } from "./letraEnVivo.js";
 import { supabase } from "./supabaseClient.js";
+import { traerTodas } from "./traerTodas.js";
 
 export const CATEGORIAS = [
   { value: "himno", label: "Himno" },
@@ -9,7 +10,7 @@ export const CATEGORIAS = [
 ];
 
 export async function listCanciones() {
-  const { data, error } = await supabase.from("canciones").select("*").order("titulo", { ascending: true });
+  const { data, error } = await traerTodas(() => supabase.from("canciones").select("*").order("titulo", { ascending: true }).order("id"));
   if (error) throw error;
   return data;
 }
@@ -126,9 +127,12 @@ export async function listCancionesCompletas() {
   const filas = await listCanciones();
   if (filas.length === 0) return [];
   const [seccionesRes, estructuraRes, diapositivasRes] = await Promise.all([
-    supabase.from("secciones_cancion").select("*"),
-    supabase.from("estructura_cancion").select("*").order("orden", { ascending: true }),
-    supabase.from("diapositivas_letra").select("*").order("orden", { ascending: true }),
+    // Por páginas (ver traerTodas): diapositivas_letra pasa de 1000 filas muy rápido.
+    // Sin .order() a propósito: esta tabla no tiene columna de orden y el orden de las secciones en el
+    // editor es el de inserción — ordenar por id (uuid al azar) las revolvería.
+    traerTodas(() => supabase.from("secciones_cancion").select("*")),
+    traerTodas(() => supabase.from("estructura_cancion").select("*").order("orden", { ascending: true }).order("id")),
+    traerTodas(() => supabase.from("diapositivas_letra").select("*").order("orden", { ascending: true }).order("id")),
   ]);
   if (seccionesRes.error) throw seccionesRes.error;
   if (estructuraRes.error) throw estructuraRes.error;

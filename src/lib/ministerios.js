@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient.js";
+import { traerTodas } from "./traerTodas.js";
 import { fijarLineaBase, idsABorrar, actualizarTrasGuardar } from "./lineaBase.js";
 
 // Misma cola por-clave que en lib/eventos.js: evita que dos sincronizaciones del mismo ministerio
@@ -44,8 +45,8 @@ export async function listMinisteriosCompletos() {
   const filas = await listMinisterios();
   if (filas.length === 0) return [];
   const [planRes, recursosRes] = await Promise.all([
-    supabase.from("planificacion_ministerio").select("*").order("orden", { ascending: true }),
-    supabase.from("recursos_ministerio").select("*").order("orden", { ascending: true }),
+    traerTodas(() => supabase.from("planificacion_ministerio").select("*").order("orden", { ascending: true }).order("id")),
+    traerTodas(() => supabase.from("recursos_ministerio").select("*").order("orden", { ascending: true }).order("id")),
   ]);
   if (planRes.error) throw planRes.error;
   if (recursosRes.error) throw recursosRes.error;
