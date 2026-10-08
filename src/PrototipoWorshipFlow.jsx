@@ -259,13 +259,17 @@ const TYPE_META = {
 const sectionColorFor = (s) => {
   if (s.type !== "cancion") return TYPE_META[s.type]?.color || "#5B6472";
   const label = (s.blockLabel || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  // Pre-coro ANTES que coro: "pre-coro" también contiene "coro".
-  if (/pre[\s-]?coro/.test(label)) return "#C2508F"; // rosado
-  if (label.includes("coro")) return "#B15EA0"; // orquídea
-  if (label.includes("puente")) return "#5661B3"; // índigo
-  if (label.includes("estrofa") || label.includes("verso")) return "#1F8A73"; // teal
-  if (label.includes("intro") || label.includes("instrumental") || label.includes("interludio")) return "#A85A26"; // durazno oscuro
-  if (label.includes("final") || label.includes("outro") || label.includes("tag")) return "#3E5C76"; // azul pizarra
+  // Orden importa: pre-coro y post-coro ANTES que coro (los dos también contienen "coro"), e
+  // "instrumental" antes que "intro" (empieza igual). Acepta también los nombres en inglés.
+  if (/pre[\s-]?(coro|chorus)/.test(label)) return "#C2508F"; // rosado
+  if (/pos(t)?[\s-]?(coro|chorus)/.test(label)) return "#7B4FB8"; // morado
+  if (/coro|estribillo|refran|chorus/.test(label)) return "#B15EA0"; // orquídea
+  if (/puente|bridge/.test(label)) return "#3F6FC4"; // azul
+  if (/estrofa|verso|verse/.test(label)) return "#1F8A73"; // teal
+  if (/instrumental|interludio|solo|riff/.test(label)) return "#8A6D1E"; // ocre
+  if (/intro/.test(label)) return "#A85A26"; // durazno oscuro
+  if (/vamp|espontane|ministracion|adoracion|declaracion|clamor/.test(label)) return "#2E86AB"; // celeste
+  if (/final|outro|coda|cierre|ending|tag/.test(label)) return "#3E5C76"; // azul pizarra
   return "#5B6472";
 };
 
@@ -823,6 +827,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // de proyectarse una sola vez y desaparecer, igual que cualquier diapositiva agregada a un evento real.
   const [libreServiceOrder, setLibreServiceOrder] = useState([]);
   const liveEvent = liveLibre ? { ...EVENTO_LIBRE, serviceOrder: libreServiceOrder } : events.find((e) => e.id === liveEventId);
+  const navFlotante = tab === "envivo" && !!liveEvent && !isCompact; // ver la nav inferior
   // ---- Estilo en vivo de la proyección (fondo/tipografía/tamaño), editable solo por Multimedia mientras transmite ----
   const [liveStyle, setLiveStyle] = useState({ theme: "stage", font: "elegante", fontScale: 1 });
   // Versículos largos → 2 o 3 diapositivas (ver dividirTexto.js). Con la letra en vivo más grande,
@@ -2258,8 +2263,14 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           la reserva, así que esta franja (detrás de la barra de gestos del iPhone) queda pintada con el
           fondo claro de la app en vez de negro por defecto — y de paso la nav flotante queda de verdad
           fija arriba de esa barra, no flotando "a medias" sobre ella. */}
-      <div ref={bottomNavRef} style={{ flexShrink: 0, display: "flex", justifyContent: "center", padding: "10px 0 calc(14px + env(safe-area-inset-bottom))", zIndex: 40 }}>
-        <div data-tour="nav" style={{ display: "flex", alignItems: "center", gap: 2, background: "var(--wf-brand-primary)", borderRadius: 24, padding: 6, boxShadow: "0 8px 24px rgba(22,50,79,0.35)", maxWidth: "94vw", overflowX: "auto" }}>
+      {/* Excepción: en la consola En vivo de escritorio la nav FLOTA encima (pedido de Eldin, 2026-10-08)
+          — solo la isla tapa el fondo y a los lados siguen viéndose el orden del culto y la vista
+          previa hasta abajo, como en una app de Office. La consola deja su propio espacio abajo
+          (ver paddingBottom en MultimediaControl) para que ninguna diapositiva quede tapada. */}
+      <div ref={bottomNavRef} style={navFlotante
+        ? { position: "absolute", left: 0, right: 0, bottom: 0, display: "flex", justifyContent: "center", padding: "0 0 calc(12px + env(safe-area-inset-bottom))", zIndex: 40, pointerEvents: "none" }
+        : { flexShrink: 0, display: "flex", justifyContent: "center", padding: "10px 0 calc(14px + env(safe-area-inset-bottom))", zIndex: 40 }}>
+        <div data-tour="nav" style={{ pointerEvents: "auto", display: "flex", alignItems: "center", gap: 2, background: "var(--wf-brand-primary)", borderRadius: 24, padding: 6, boxShadow: "0 8px 24px rgba(22,50,79,0.35)", maxWidth: "94vw", overflowX: "auto" }}>
           {[["inicio", "Inicio", Home], ["canciones", "Canciones", Music], ["eventos", "Eventos", Calendar], ["ministerios", "Grupos", LayoutGrid], ["asistente", "Asistente", MessageCircle], ["envivo", "En vivo", Radio], ["proyeccion", "Pantalla", ImgIcon], ["ajustes", "Ajustes", Settings]]
             .filter(([val]) => !isCompact || (val !== "envivo" && val !== "proyeccion")) // Control en vivo/Proyección son de escritorio: en celular no aparecen
             .filter(([val]) => val !== "ministerios" || canSeeGrupos) // Grupos: solo admins o quien lidera al menos uno
@@ -6922,23 +6933,30 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
     bloquesOrden[bloquesOrden.length - 1].items.push(it);
   });
   const itemAlAire = adHoc ? null : itemDeDiapositiva(current);
+  // Las flechas recorren TODO el culto: al pasar de la última diapositiva de una canción a la
+  // siguiente, el centro se va solo a la canción nueva — antes se quedaba fijado en la que se había
+  // tocado en el orden del culto y parecía que no avanzaba (reportado por Eldin, 2026-10-08).
+  const idAlAire = itemAlAire?.id ?? null;
+  useEffect(() => { setItemVisto(null); }, [idAlAire]);
   const itemCentro = verTodas ? null : (itemVisto && serviceOrder.find((it) => it.id === itemVisto)) || itemAlAire;
   const indicesCentro = slides.map((_, i) => i).filter((i) => !itemCentro || perteneceA(slides[i], itemCentro.id));
   // Funciones que devuelven JSX (no componentes): así un <select> o el slider dentro de la cinta no se
   // desmontan en cada render y no pierden el foco mientras se usan.
   const grupoCinta = (titulo, contenido, ultimo = false) => (
-    <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 4, padding: "0 14px", borderRight: ultimo ? "none" : "1px solid var(--wf-divider)", flexShrink: 0 }}>
-      <div style={{ display: "flex", gap: 6, alignItems: "center", flex: 1 }}>{contenido}</div>
-      <span style={{ fontSize: 10.5, color: "var(--wf-muted)", textAlign: "center", whiteSpace: "nowrap" }}>{titulo}</span>
+    <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 2, padding: "0 10px", borderRight: ultimo ? "none" : "1px solid var(--wf-divider)", flexShrink: 0 }}>
+      <div style={{ display: "flex", gap: 2, alignItems: "center", flex: 1 }}>{contenido}</div>
+      <span style={{ fontSize: 10, color: "var(--wf-faint)", textAlign: "center", whiteSpace: "nowrap" }}>{titulo}</span>
     </div>
   );
-  const botonCinta = ({ icon: Icon, label, onClick, activo, acento, title, tour, ancho = 70 }) => (
+  // Botones de la cinta al estilo Office: sin relleno (solo se marcan al pasar el mouse), ícono arriba
+  // y texto chico abajo — solo "Siguiente" (acento) y lo que está encendido (activo) llevan color.
+  const botonCinta = ({ icon: Icon, label, onClick, activo, acento, title, tour, ancho = 58 }) => (
     <button
-      onClick={onClick} title={title || label} data-tour={tour}
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, width: ancho, minHeight: 50, padding: "5px 4px", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 11, fontWeight: 600, lineHeight: 1.15,
-        background: activo ? "var(--wf-brand-primary)" : acento ? "var(--wf-brand-accent)" : "var(--wf-hover)",
+      onClick={onClick} title={title || label} data-tour={tour} className={activo || acento ? undefined : "hoverable"}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, minWidth: ancho, minHeight: 50, padding: "4px 6px", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 500, lineHeight: 1.15, whiteSpace: "nowrap",
+        background: activo ? "var(--wf-brand-primary)" : acento ? "var(--wf-brand-accent)" : "transparent",
         color: activo ? "var(--wf-on-brand-primary)" : acento ? "var(--wf-brand-primary)" : "var(--wf-text)" }}
-    ><Icon size={18} />{label}</button>
+    ><Icon size={20} strokeWidth={1.75} />{label}</button>
   );
   const miniatura = (s, i) => {
     const color = sectionColorFor(s);
@@ -6948,32 +6966,39 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
     return (
       <div
         key={s.slideId} onClick={() => { setItemVisto(null); gotoPlanSlide(i); }} className="thumb" role="button" tabIndex={0}
-        style={{ textAlign: "left", padding: 0, borderRadius: 14, cursor: "pointer", border: isActive ? "3px solid var(--wf-brand-accent)" : "1px solid transparent", background: "transparent", overflow: "hidden", boxShadow: isActive ? "0 4px 14px rgba(232,130,30,0.3)" : "0 1px 5px rgba(22,50,79,0.12)" }}
+        style={{ textAlign: "left", padding: 0, borderRadius: 10, cursor: "pointer", outline: isActive ? "3px solid var(--wf-brand-accent)" : "none", outlineOffset: 2, background: "transparent", overflow: "hidden", boxShadow: isActive ? "0 4px 14px rgba(232,130,30,0.3)" : "0 1px 4px rgba(22,50,79,0.14)" }}
       >
-        <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#0a0e14", display: "flex", alignItems: "center", justifyContent: "center", padding: 10, boxSizing: "border-box" }}>
-          <span style={{ position: "absolute", top: 4, left: 7, fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.45)" }}>{i + 1}</span>
-          <span style={{ fontSize: 11, lineHeight: 1.35, textAlign: "center", color: "#fff", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{preview}</span>
+        <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#0a0e14", display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 10px", boxSizing: "border-box" }}>
+          <span style={{ position: "absolute", top: 3, left: 6, fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.45)" }}>{i + 1}</span>
+          <span style={{ fontSize: 10.5, lineHeight: 1.3, textAlign: "center", color: "#fff", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{preview}</span>
           <button
             onClick={(e) => { e.stopPropagation(); startEditingSlide(s); }}
             title="Editar esta diapositiva (corregir texto)"
-            style={{ position: "absolute", top: 4, right: 4, width: 26, height: 26, background: "rgba(0,0,0,0.65)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 10, padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-          ><Pencil size={13} color="#fff" /></button>
+            style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 7, padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          ><Pencil size={11} color="#fff" /></button>
         </div>
-        <div style={{ background: color, color: "#fff", fontSize: 11, fontWeight: 700, padding: "4px 8px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+        <div style={{ background: color, color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 7px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
       </div>
     );
   };
 
 
+  const botonFinalizar = (
+    <button data-tour="envivo-finalizar" onClick={onEnd} disabled={!canEnd} title={canEnd ? undefined : `Solo ${liveOwner} o un administrador puede finalizar esta transmisión`} style={{ fontSize: 11, fontWeight: 700, color: canEnd ? "#C23B32" : "#B7BEC9", background: "transparent", border: `1px solid ${canEnd ? "#C23B32" : "var(--wf-border)"}`, borderRadius: 20, padding: "3px 10px", cursor: canEnd ? "pointer" : "not-allowed", flexShrink: 0 }}>Finalizar evento</button>
+  );
+
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, flex: 1 }}>
+      {/* En escritorio el título y "Finalizar" van en la misma fila de las pestañas (más abajo). */}
+      {isCompact && (
       <div style={{ padding: "14px 16px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6 }}><Radio size={13} /> MULTIMEDIA</div>
           <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{eventTitle}</div>
         </div>
-        <button data-tour="envivo-finalizar" onClick={onEnd} disabled={!canEnd} title={canEnd ? undefined : `Solo ${liveOwner} o un administrador puede finalizar esta transmisión`} style={{ fontSize: 11, fontWeight: 700, color: canEnd ? "#C23B32" : "#B7BEC9", background: "transparent", border: `1px solid ${canEnd ? "#C23B32" : "var(--wf-border)"}`, borderRadius: 20, padding: "3px 10px", cursor: canEnd ? "pointer" : "not-allowed", flexShrink: 0 }}>Finalizar evento</button>
+        {botonFinalizar}
       </div>
+      )}
       {/* canEnd ya incluye a los administradores (isAdminViewer) además de a quien inició la
           transmisión -- antes SOLO ese dispositivo podía finalizarla, así que si se cerraba sin tocar
           "Finalizar evento" (compu apagada, batería muerta) la transmisión quedaba bloqueada para
@@ -7261,15 +7286,21 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           (pedido de Eldin, 2026-10-07). La idea: cambiar el estilo, buscar en la Biblia o insertar algo
           SIN dejar de ver las diapositivas ni lo que está al aire. En celular se queda el riel de
           íconos de siempre (rama isCompact de arriba). */}
-      <nav aria-label="Pestañas de En vivo" style={{ display: "flex", gap: 2, padding: "0 16px", borderBottom: "1px solid var(--wf-divider)" }}>
+      <nav aria-label="Pestañas de En vivo" style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 16px 0", borderBottom: "1px solid var(--wf-divider)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, maxWidth: 300, marginRight: 14, flexShrink: 1 }} title={eventTitle}>
+          <Radio size={13} color="#C23B32" style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{eventTitle}</span>
+        </div>
         {[["transmision", "Transmisión"], ["biblia", "Biblia"], ["estilo", "Estilo"], ["insertar", "Insertar"]].map(([key, label]) => (
           <button
             key={key} onClick={() => setMmPanel(key)}
-            style={{ padding: "10px 16px 8px", border: "none", background: "transparent", cursor: "pointer", fontSize: 13.5, fontWeight: mmPanel === key ? 700 : 500, color: mmPanel === key ? "var(--wf-text)" : "var(--wf-muted)", borderBottom: `3px solid ${mmPanel === key ? "var(--wf-brand-accent)" : "transparent"}` }}
+            style={{ padding: "7px 12px 6px", border: "none", background: "transparent", cursor: "pointer", fontSize: 12.5, fontWeight: mmPanel === key ? 700 : 500, color: mmPanel === key ? "var(--wf-text)" : "var(--wf-muted)", borderBottom: `2px solid ${mmPanel === key ? "var(--wf-brand-accent)" : "transparent"}`, flexShrink: 0 }}
           >{label}</button>
         ))}
+        <div style={{ flex: 1 }} />
+        {botonFinalizar}
       </nav>
-      <div data-tour="envivo-paneles" style={{ display: "flex", alignItems: "stretch", gap: 0, padding: "10px 16px 6px", minHeight: 84, boxSizing: "border-box", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)", overflowX: "auto", flexShrink: 0 }}>
+      <div data-tour="envivo-paneles" style={{ display: "flex", alignItems: "stretch", gap: 0, padding: "6px 8px 4px", minHeight: 76, boxSizing: "border-box", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)", overflowX: "auto", flexShrink: 0 }}>
         {mmPanel === "transmision" && (
           <>
             {grupoCinta("Navegación", <>
@@ -7283,9 +7314,9 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
               {botonCinta({ icon: Radio, label: "Proyección", onClick: onOpenPublicScreen, title: "Reabrir la pantalla de proyección", tour: "envivo-proyeccion" })}
             </>)}
             {grupoCinta("Secciones de la canción", currentSongSections.length > 0 ? (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5, maxWidth: 380, alignContent: "center" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxWidth: 560, alignContent: "center" }}>
                 {currentSongSections.map(([label, color]) => (
-                  <button key={label} onClick={() => jumpToLabel(label)} style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: color, border: "none", borderRadius: 16, padding: "4px 10px", cursor: "pointer" }}>{label}</button>
+                  <button key={label} onClick={() => jumpToLabel(label)} style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", background: color, border: "none", borderRadius: 14, padding: "3px 9px", cursor: "pointer" }}>{label}</button>
                 ))}
               </div>
             ) : <span style={{ fontSize: 11, color: "var(--wf-faint)", maxWidth: 200 }}>Aparecen cuando hay una canción al aire.</span>, true)}
@@ -7414,9 +7445,9 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         </div>
       )}
 
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: "12px 16px 16px" }}>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 12, padding: "10px 12px 12px" }}>
         {/* Orden del culto, dividido por bloques igual que el Setlist */}
-        <aside aria-label="Orden del culto" style={{ width: 240, flexShrink: 0, overflowY: "auto", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: "12px 10px", display: "flex", flexDirection: "column", gap: 6, boxSizing: "border-box" }}>
+        <aside aria-label="Orden del culto" style={{ width: "clamp(200px, 17vw, 260px)", flexShrink: 0, overflowY: "auto", background: "var(--wf-card)", borderRadius: 12, boxShadow: "0 2px 10px rgba(22,50,79,0.08)", padding: "10px 8px", display: "flex", flexDirection: "column", gap: 6, boxSizing: "border-box" }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.5, padding: "0 4px" }}>ORDEN DEL CULTO</div>
           {bloquesOrden.length === 0 && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "8px 4px" }}>Todavía no hay nada en el orden de este culto.</div>}
           {bloquesOrden.map((b) => (
@@ -7457,10 +7488,10 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.baseReference ?? current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart } : null}
           />
         ) : (
-          <section aria-label="Diapositivas" style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+          <section aria-label="Diapositivas" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "0 4px calc(var(--bottom-nav-height, 80px) + 8px)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{itemCentro ? tituloItem(itemCentro) : "Todas las diapositivas"}</div>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 16, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{itemCentro ? tituloItem(itemCentro) : "Todas las diapositivas"}</div>
                 <div style={{ fontSize: 11.5, color: "var(--wf-muted)" }}>{indicesCentro.length} diapositiva{indicesCentro.length === 1 ? "" : "s"}{itemCentro && itemAlAire?.id !== itemCentro.id ? " · no está al aire" : ""}</div>
               </div>
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
@@ -7470,14 +7501,14 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             {isFreeSession && slides.length === 0 && (
               <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 10px", textAlign: "center" }}>Transmisión sin evento — usa la pestaña Insertar para una diapositiva, canción o video, o Biblia para un versículo.</div>
             )}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10, padding: 3 }}>
               {indicesCentro.map((i) => miniatura(slides[i], i))}
             </div>
           </section>
         )}
 
         {/* Lo que está al aire y lo que sigue — siempre visibles, en cualquier pestaña */}
-        <aside aria-label="Vista previa" style={{ width: 340, flexShrink: 0, display: "flex", flexDirection: "column", gap: 10, minHeight: 0, overflowY: "auto" }}>
+        <aside aria-label="Vista previa" style={{ width: "clamp(260px, 25vw, 400px)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, minHeight: 0, overflowY: "auto", paddingRight: 2 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#C23B32", letterSpacing: 0.4 }}><Radio size={11} /> AL AIRE</span>
             {current && <span style={{ fontSize: 11, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{blanked ? "Pantalla en negro" : current.type === "cancion" ? `${current.songTitle} · ${current.blockLabel}` : current.type === "biblia" ? current.reference : current.title}</span>}
