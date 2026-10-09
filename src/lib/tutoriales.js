@@ -246,7 +246,7 @@ export function pasosEnVivo() {
     {
       target: "envivo-orden",
       titulo: "Orden del culto",
-      texto: "El culto dividido por bloques, como en el Setlist. Un clic muestra sus diapositivas; doble clic lo proyecta desde el principio.",
+      texto: "El culto dividido por bloques, como en el Setlist. Un clic muestra sus diapositivas; doble clic lo proyecta desde el principio. Arrastra para cambiar el orden, la X lo quita y \"+ Canción\" agrega una justo después de lo que estás viendo.",
     },
     {
       target: "envivo-diapositivas",

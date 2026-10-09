@@ -18,7 +18,9 @@ import { useLayoutEffect, useRef, useState } from "react";
 // hasta caber en UN renglón y quedaba mucho más chica que las demás diapositivas. Con piso, al
 // llegar a él se prefiere partir la línea en dos renglones antes que seguir achicando; solo si ni
 // así cabe (texto muy largo) se baja de ahí, como último recurso para no cortar texto.
-export default function AutoFitText({ lines, targetRatio, minRatio, minPx = 14, maxPx, style, maxWidth, onFontSize, lineStyles }) {
+// alinearH / alinearV (opcionales, valores de justify/align-items de flex): dónde queda el bloque de
+// texto dentro del espacio disponible — izquierda/centro/derecha y arriba/centro/abajo (Estilo en vivo).
+export default function AutoFitText({ lines, targetRatio, minRatio, minPx = 14, maxPx, style, maxWidth, onFontSize, lineStyles, alinearH = "center", alinearV = "center" }) {
   const containerRef = useRef(null);
   const textRef = useRef(null);
   const [fontPx, setFontPx] = useState(minPx);
@@ -76,7 +78,7 @@ export default function AutoFitText({ lines, targetRatio, minRatio, minPx = 14, 
   }, [targetRatio, minRatio, fitKey, minPx, maxPx, styleKey, whiteSpaceOriginal]);
 
   return (
-    <div ref={containerRef} style={{ width: "100%", maxWidth: maxWidth || "100%", flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+    <div ref={containerRef} style={{ width: "100%", maxWidth: maxWidth || "100%", flex: 1, minHeight: 0, display: "flex", alignItems: alinearV, justifyContent: alinearH, overflow: "hidden" }}>
       <div ref={textRef} style={{ ...style, fontSize: fontPx }}>
         {/* lineStyles es opcional, por índice -- pensado para que la letra de una canción pueda
             destacar su 2a línea distinto (mayúscula, color de acento...) sin tocar lines (que sigue
