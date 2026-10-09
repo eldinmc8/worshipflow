@@ -1,4 +1,4 @@
 {
-  "version": 2,
+  "version": 3,
   "nota": "Subir 'version' SOLO cuando un cambio afecte al celular. Si no se sube, los celulares no ven el aviso de 'Hay una nueva actualización' (la versión nueva entra sola al volver a abrir la app). Ver src/lib/swUpdate.js."
 }

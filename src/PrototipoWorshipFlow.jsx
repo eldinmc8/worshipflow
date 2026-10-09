@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import AppLogo from "./AppLogo.jsx";
 import { useArrastreLista } from "./lib/arrastreLista.js";
 import { useArrastreGrid } from "./lib/arrastreGrid.js";
+import ImportarPresentacion from "./components/ImportarPresentacion.jsx";
+import { esPaginaPresentacion } from "./lib/importarPresentacion.js";
 import {
   Music, Mic2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus,
   Radio, ListMusic, BookOpen, Image as ImgIcon, Trash2, GripVertical,
@@ -10,7 +12,7 @@ import {
   Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
-  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote,
+  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
@@ -933,6 +935,11 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     });
     return nuevo.id;
   };
+  // Varios elementos de una vez (una presentación importada, ver ImportarPresentacion), en el mismo lugar.
+  const insertarItemsEnVivo = (items, despuesDe) => cambiarOrdenEnVivo((o) => {
+    const i = despuesDe ? o.findIndex((it) => it.id === despuesDe) : -1;
+    return i === -1 ? [...o, ...items] : [...o.slice(0, i + 1), ...items, ...o.slice(i + 1)];
+  });
   const reordenarOrdenEnVivo = (desde, hacia) => cambiarOrdenEnVivo((o) => {
     if (desde === hacia) return o;
     const arr = [...o];
@@ -2229,7 +2236,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onPublish={() => { setDraftFromTemplateId(null); window.history.back(); }}
           onStart={() => startEvent(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
           onAddSong={addSong} onAddSeccion={addSeccion}
-          onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)}
+          onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)} onAddItems={(items) => updateOrder((o) => [...o, ...items])}
           onRemove={removeItem} onDuplicate={duplicateItem} onReorder={reorderItem}
           onLinkMinistry={linkMinistry} onUpdateSeccionText={updateSeccionText}
           onSetSongKey={setSongKey}
@@ -2327,7 +2334,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             onNavigateBibleVerse={navigateBibleVerse}
             onAddLiveSlide={addLiveSlide} onEditLiveSlide={editLiveSlide} onRemoveLiveSlide={removeLiveSlide}
             onEditSongSlide={editSongSlideLive} onAddSongSlide={addSongSlideLive} onRearmarSeccion={rearmarSeccionLive}
-            onAgregarCancion={agregarCancionEnVivo} onReordenarOrden={reordenarOrdenEnVivo} onQuitarDelOrden={quitarDelOrdenEnVivo}
+            onAgregarCancion={agregarCancionEnVivo} onReordenarOrden={reordenarOrdenEnVivo} onQuitarDelOrden={quitarDelOrdenEnVivo} onInsertarItems={insertarItemsEnVivo}
           />
         </div>
       )}
@@ -5461,7 +5468,7 @@ function EventDetail({
   myIglesiaId,
   event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onGoLive, onDelete,
   isDraftFromTemplate, onPublish,
-  onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onDuplicate, onReorder,
+  onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onRemove, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
@@ -5720,7 +5727,7 @@ function EventDetail({
         myIglesiaId={myIglesiaId}
         event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer || puedeEditarSetlist} userId={userId} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onAddSeccion={onAddSeccion}
-        onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick}
+        onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick} onAddItems={onAddItems}
         onRemove={onRemove} onDuplicate={onDuplicate} onReorder={onReorder}
         onLinkMinistry={onLinkMinistry} onUpdateSeccionText={onUpdateSeccionText}
         onSetSongKey={onSetSongKey}
@@ -5878,7 +5885,8 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onRemove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onRemove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+  const [showImportar, setShowImportar] = useState(false); // Importar presentación (ver ImportarPresentacion)
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
   // el encargado de ese bloque de Lectura bíblica/Oración (ver canAddBibleReading más arriba).
@@ -5989,6 +5997,15 @@ function SetlistPane({ myIglesiaId, event, library, ministries, isCompact, isAdm
             <div title="Solo administradores pueden agregar versículos" style={{ ...addBtnStyle, opacity: 0.5, cursor: "not-allowed", boxShadow: "none", border: "1px dashed var(--wf-border)" }}><BookOpen size={14} color="var(--wf-faint)" /> Agregar versículo (solo Admin)</div>
           )}
           <button onClick={onAddSlideClick} className="hoverable" style={addBtnStyle}><ImgIcon size={14} color="#B15EA0" /> Agregar slide personalizada</button>
+          {/* PDF, imágenes de Canva o un Word con el bosquejo — entran al final del Setlist. */}
+          <button onClick={() => setShowImportar(true)} className="hoverable" style={addBtnStyle}><FileUp size={14} color="var(--wf-brand-accent)" /> Importar presentación</button>
+          {showImportar && (
+            <ImportarPresentacion
+              iglesiaId={myIglesiaId} destino="Entra al final del Setlist. Luego puedes arrastrarla a su lugar."
+              onClose={() => setShowImportar(false)}
+              onImportar={(items) => { onAddItems(items); setShowImportar(false); }}
+            />
+          )}
           {canAddSermonPoints && (
             <button onClick={() => setShowSermonForm(true)} className="hoverable" style={addBtnStyle}><Mic2 size={14} color="var(--wf-heading)" /> Agregar punto del bosquejo</button>
           )}
@@ -6919,7 +6936,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, myIglesiaId }) {
+function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -6940,6 +6957,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   useEffect(() => { saveCache("bible_historial", bibleHistory); }, [bibleHistory]);
   const [showAdHocSong, setShowAdHocSong] = useState(false);
   const [showAdHocVideo, setShowAdHocVideo] = useState(false);
+  const [showImportar, setShowImportar] = useState(false);
   const [showAddSlide, setShowAddSlide] = useState(false);
   const [newSlideDraft, setNewSlideDraft] = useState({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" });
   // Editar una diapositiva ya agregada (versículo/slide/punto del bosquejo) por si algo se escribió mal.
@@ -7192,14 +7210,14 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           boxShadow: isActive ? "0 4px 14px rgba(232,130,30,0.3)" : "0 1px 4px rgba(22,50,79,0.14)",
           ...arrastreMini.estiloItem(i) }}
       >
-        <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#0a0e14", display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 10px", boxSizing: "border-box" }}>
+        <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: esPaginaPresentacion(s) ? `center / contain no-repeat url(${s.imageUrl}), #000` : "#0a0e14", display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 10px", boxSizing: "border-box" }}>
           <span style={{ position: "absolute", top: 3, left: 6, fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.45)" }}>{i + 1}</span>
-          <span style={{ fontSize: 10.5, lineHeight: 1.3, textAlign: "center", color: "#fff", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{preview}</span>
-          <button
+          {!esPaginaPresentacion(s) && <span style={{ fontSize: 10.5, lineHeight: 1.3, textAlign: "center", color: "#fff", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{preview}</span>}
+          {!esPaginaPresentacion(s) && <button
             onClick={(e) => { e.stopPropagation(); startEditingSlide(s); }}
             title="Editar esta diapositiva (corregir texto)"
             style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 7, padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-          ><Pencil size={11} color="#fff" /></button>
+          ><Pencil size={11} color="#fff" /></button>}
           {!adHoc && (
             <button
               onClick={(e) => { e.stopPropagation(); borrarDiapositiva(s); }}
@@ -7645,6 +7663,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
               {botonCinta({ icon: Music, label: "Canción", onClick: () => setShowAdHocSong(true) })}
               {botonCinta({ icon: BookOpen, label: "Versículo", onClick: () => setMmPanel("biblia") })}
             </>)}
+            {grupoCinta("Presentación", botonCinta({ icon: FileUp, label: "Importar", onClick: () => setShowImportar(true), title: "Importar un PDF, imágenes de Canva, o un Word con el bosquejo", ancho: 64 }))}
             {grupoCinta("De último momento", <>
               {botonCinta({ icon: Type, label: "Diapositiva", onClick: () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); } })}
               {botonCinta({ icon: ImgIcon, label: "Video", onClick: () => setShowAdHocVideo(true) })}
@@ -7860,6 +7879,21 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           ayuda={anclaParaAgregar() ? `Se agrega después de "${tituloItem(anclaParaAgregar())}". Luego puedes arrastrarla a otro lugar en el orden del culto.` : "Se agrega al final del orden del culto. Luego puedes arrastrarla a otro lugar."}
         />
       )}
+      {showImportar && (
+        <ImportarPresentacion
+          iglesiaId={myIglesiaId}
+          destino={anclaParaAgregar() ? `Entra después de "${tituloItem(anclaParaAgregar())}". Luego puedes arrastrarla a otro lugar.` : "Entra al final del orden del culto."}
+          onClose={() => setShowImportar(false)}
+          onImportar={(items) => {
+            onInsertarItems(items, anclaParaAgregar()?.id || null);
+            setShowImportar(false);
+            const primero = items.find((it) => it.type !== "seccion");
+            if (primero) { setItemVisto(primero.id); setVerTodas(false); }
+            if (mmPanel === "biblia") setMmPanel("transmision");
+            showToast(`Se agregaron ${items.filter((it) => it.type !== "seccion").length} diapositivas al orden del culto.`, "info");
+          }}
+        />
+      )}
       {showAdHocVideo && <AdHocVideoModal onClose={() => setShowAdHocVideo(false)} onPlay={(url) => { onStartAdHocVideo(url); setShowAdHocVideo(false); }} />}
       {showAddSlide && (
         <SlideModal
@@ -7998,8 +8032,20 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           return undefined; // "cita" y "franja": no tocan el estilo de línea (ver más abajo)
         })
       : undefined;
+  const estiloRaiz = { flex: thumbnail ? "none" : compactHeight ? "none" : split ? 1.3 : 1, width: thumbnail ? "100%" : "auto", height: thumbnail ? "100%" : compactHeight || "auto", minHeight: thumbnail ? "auto" : compactHeight || "auto", background: bg, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", position: "relative", padding: thumbnail ? 10 : 32, minWidth: thumbnail ? 0 : 320, overflow: "hidden" };
+  // Página de una presentación importada (PDF, Canva...): se proyecta TAL CUAL, completa (sin recortar),
+  // sobre negro, sin oscurecer ni letra encima — ya trae su propio diseño. "Pantalla en negro" sí la
+  // esconde: aquí la imagen ES el contenido, no un fondo.
+  if (esPaginaPresentacion(slide)) {
+    return (
+      <div style={{ ...estiloRaiz, background: "#000", padding: 0 }}>
+        {blanked ? <div style={{ color: "#2A3140" }}><Mic2 size={thumbnail ? 20 : 40} /></div>
+          : <img src={slide.imageUrl} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />}
+      </div>
+    );
+  }
   return (
-    <div style={{ flex: thumbnail ? "none" : compactHeight ? "none" : split ? 1.3 : 1, width: thumbnail ? "100%" : "auto", height: thumbnail ? "100%" : compactHeight || "auto", minHeight: thumbnail ? "auto" : compactHeight || "auto", background: bg, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", position: "relative", padding: thumbnail ? 10 : 32, minWidth: thumbnail ? 0 : 320, overflow: "hidden" }}>
+    <div style={estiloRaiz}>
       {/* Etiquetas chicas (este letrero, la sección de la canción, el título abajo) solo en la vista
           previa del propio operador (thumbnail) -- útiles ahí para ubicarse entre los paneles del
           control, pero de la pantalla real que ve la congregación se quitan: solo debe verse el

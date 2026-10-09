@@ -43,6 +43,17 @@ export async function subirFondo(iglesiaId, tipo, file) {
   return urlPublica(ruta);
 }
 
+// Páginas de una presentación importada (PDF, Canva, PowerPoint exportado...) — ver
+// importarPresentacion.js. Van en su propia carpeta "<iglesia>/presentaciones/..." para no mezclarse con
+// la biblioteca de fondos (listarFondos solo mira ".../imagen" y ".../video"); mismo bucket y mismas
+// reglas de acceso (el primer segmento de la ruta es la iglesia).
+export async function subirPaginaPresentacion(iglesiaId, blob, nombre) {
+  const ruta = `${iglesiaId}/presentaciones/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${sanitizarNombre(nombre)}`;
+  const { error } = await supabase.storage.from(BUCKET).upload(ruta, blob, { contentType: blob.type || "image/jpeg" });
+  if (error) throw error;
+  return urlPublica(ruta);
+}
+
 export async function borrarFondo(ruta) {
   const { error } = await supabase.storage.from(BUCKET).remove([ruta]);
   if (error) throw error;

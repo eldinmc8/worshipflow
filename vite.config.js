@@ -31,6 +31,12 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.js',
+      // pdf.js y mammoth (importar presentaciones, ver src/lib/importarPresentacion.js) pesan ~700 KB y
+      // solo se usan al importar desde la computadora: fuera del precache, para que cada celular no los
+      // descargue con cada actualización. Se bajan de internet la vez que alguien importa algo.
+      injectManifest: {
+        globIgnores: ['**/pdf-*.js', '**/pdf.worker*', '**/mammoth*.js'],
+      },
       // El script que este plugin inyecta solo cuando injectRegister queda en su valor por defecto
       // ('auto') es un registro "pelado" -- ni chequea updates activamente ni recarga la página cuando
       // encuentra una versión nueva, solo `navigator.serviceWorker.register(...)` y ya. Por eso, sesión
