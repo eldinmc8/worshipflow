@@ -17,10 +17,10 @@ import {
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
 import AutoFitText from "./components/AutoFitText.jsx";
-import { misProximosServicios, estadoGeneral, cuandoEs, companeros, indicaciones, cancionesParaEnsayar, necesitaAtencion, estaSemana } from "./lib/inicio.js";
+import { misProximosServicios, cuandoEs, companeros, indicaciones, cancionesParaEnsayar, necesitaAtencion, estaSemana } from "./lib/inicio.js";
 import { expandirVersiculosLargos, reorganizarLetra, FORMATOS_LETRA, palabrasPorParteSegun, partesDeVersiculo } from "./lib/dividirTexto.js";
 import {
-  listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista, responderMisCargos,
+  listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
 } from "./lib/eventos.js";
 import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos, getResumenMensual, guardarResumenMensual, subirArchivoRecurso } from "./lib/ministerios.js";
 import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession } from "./lib/liveSession.js";
@@ -1860,48 +1860,38 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // que no puede cerrar sin confirmar (ver el overlay más abajo). A propósito no depende de qué pestaña
   // esté viendo: si entra por Inicio, por una notificación, por donde sea, se le sigue plantando encima
   // hasta que confirme, en vez de depender de que ella misma entre a Eventos por su cuenta.
+  // Respaldo en este dispositivo de los eventos que ya marqué como vistos (2026-10-09): si un día la
+  // lista de "vistos" no carga del servidor (sin señal, error momentáneo), el aviso NO debe volver a
+  // salirle a quien ya lo vio. El servidor sigue siendo lo que ve el administrador.
+  const claveVistos = userId ? `worshipflow_vistos_${userId}` : null;
+  const [vistosLocales, setVistosLocales] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(claveVistos) || "[]")); } catch { return new Set(); }
+  });
+  const guardarVistoLocal = (eventId, visto) => setVistosLocales((prev) => {
+    const sig = new Set(prev);
+    if (visto) sig.add(eventId); else sig.delete(eventId);
+    try { localStorage.setItem(claveVistos, JSON.stringify([...sig].slice(-300))); } catch { /* sin almacenamiento local */ }
+    return sig;
+  });
   const pendingConfirmations = useMemo(() => {
     if (!userId) return [];
     return events
       .filter((e) => !e.esPlantilla && isUpcoming(e))
       .map((e) => ({ event: e, cargos: misAsignacionesEnEvento(e, userId, library) }))
-      .filter(({ event: e, cargos }) => cargos.length > 0 && !(e.vistas || []).some((v) => v.usuarioId === userId))
+      .filter(({ event: e, cargos }) => cargos.length > 0 && !(e.vistas || []).some((v) => v.usuarioId === userId) && !vistosLocales.has(e.id))
       .sort((a, b) => compareByDay(a.event, b.event));
-  }, [events, userId, library]);
+  }, [events, userId, library, vistosLocales]);
   const confirmarAsignacionVista = (eventId) => {
     // Optimista: se refleja de una vez en pantalla, pero si el guardado real falla (red, permisos,
     // lo que sea) se revierte y se avisa — antes el error se tragaba en silencio y la persona (y el
     // admin viéndolo desde otro dispositivo) se quedaban creyendo que sí quedó marcado como visto.
     setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, vistas: [...(e.vistas || []).filter((v) => v.usuarioId !== userId), { usuarioId: userId, vistoAt: new Date().toISOString() }] } : e)));
+    guardarVistoLocal(eventId, true);
     marcarAsignacionVista(eventId, userId).catch((err) => {
+      guardarVistoLocal(eventId, false);
       setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, vistas: (e.vistas || []).filter((v) => v.usuarioId !== userId) } : e)));
       notifyError("No se pudo confirmar que viste este evento", err);
     });
-  };
-
-  // Confirmar / "No puedo" desde la pantalla de inicio: cambia solo MIS filas (ver responderMisCargos)
-  // y de paso marca el evento como visto, para que no salga además el aviso de "cargos sin confirmar".
-  const responderCargosDesdeInicio = (eventId, miembroIds, estado) => {
-    const ids = new Set(miembroIds);
-    const aplicar = (evs, nuevo, anterior) => evs.map((e) => {
-      if (e.id !== eventId) return e;
-      const cambiar = (m) => (ids.has(m.id) ? { ...m, status: nuevo ?? anterior.get(m.id) } : m);
-      return {
-        ...e,
-        worshipRoles: (e.worshipRoles || []).map((r) => ({ ...r, members: (r.members || []).map(cambiar) })),
-        serviceOrder: (e.serviceOrder || []).map((it) => (it.encargados ? { ...it, encargados: it.encargados.map(cambiar) } : it)),
-      };
-    });
-    const anterior = new Map();
-    const ev = eventsRef.current.find((e) => e.id === eventId);
-    (ev?.worshipRoles || []).forEach((r) => (r.members || []).forEach((m) => { if (ids.has(m.id)) anterior.set(m.id, m.status); }));
-    (ev?.serviceOrder || []).forEach((it) => (it.encargados || []).forEach((m) => { if (ids.has(m.id)) anterior.set(m.id, m.status); }));
-    setEventsSynced((evs) => aplicar(evs, estado, anterior));
-    responderMisCargos(miembroIds, estado).catch((err) => {
-      setEventsSynced((evs) => aplicar(evs, null, anterior));
-      notifyError(estado === "confirmado" ? "No se pudo confirmar" : "No se pudo avisar que no puedes", err);
-    });
-    if (!(ev?.vistas || []).some((v) => v.usuarioId === userId)) confirmarAsignacionVista(eventId);
   };
 
   // ---------------- Tutorial / recorridos guiados ----------------
@@ -2162,7 +2152,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       {!["envivo", "proyeccion"].includes(tab) && (
       <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: tab === "inicio" ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {tab === "inicio" && (
-        <InicioView events={realEvents} library={library} ministries={ministries} myUserId={myUserId} myName={myName} puedeVerPendientes={puedeEditarSetlist} onResponder={responderCargosDesdeInicio} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} canSeeCanciones={canSeeCanciones} teamName={myIglesia.nombre} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} avisoPush={avisoPush} onActivarPush={activarPushDesdeAviso} onOcultarPush={ocultarAvisoPush} />
+        <InicioView events={realEvents} library={library} ministries={ministries} myUserId={myUserId} myName={myName} puedeVerPendientes={puedeEditarSetlist} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} canSeeCanciones={canSeeCanciones} teamName={myIglesia.nombre} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} avisoPush={avisoPush} onActivarPush={activarPushDesdeAviso} onOcultarPush={ocultarAvisoPush} />
       )}
 
       {tab === "ajustes" && (
@@ -2550,8 +2540,6 @@ function AvisoActivarPush({ estado, onActivar, onCerrar }) {
 // ensayar, alguien de limpieza ve sus indicaciones, un administrador ve lo que falta. Toda la lógica
 // vive en src/lib/inicio.js (con pruebas). Pensada también para adultos mayores: letra más grande,
 // textos oscuros, nada que se deslice de lado y botones con palabras, no solo íconos.
-const ESTADO_TEXTO = { confirmado: "Confirmado", pendiente: "Por confirmar", rechazado: "No puede" };
-const ESTADO_COLOR = { confirmado: "#1F8A73", pendiente: "#A15C0C", rechazado: "#C23B32" };
 
 function TituloSeccion({ children, derecha }) {
   return (
@@ -2571,11 +2559,10 @@ function Iniciales({ nombre, fondo = "var(--wf-hover)", color = "var(--wf-text)"
   return <span style={{ width: 36, height: 36, borderRadius: 18, background: fondo, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{ini}</span>;
 }
 
-function InicioView({ events, library, ministries = [], myUserId, myName, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact, canSeeCanciones, teamName, avisoPush, onActivarPush, onOcultarPush, puedeVerPendientes, onResponder }) {
+function InicioView({ events, library, ministries = [], myUserId, myName, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact, canSeeCanciones, teamName, avisoPush, onActivarPush, onOcultarPush, puedeVerPendientes }) {
   const liveEvent = liveLibre ? EVENTO_LIBRE : events.find((e) => e.id === liveEventId);
   const [showFavorites, setShowFavorites] = useState(false);
   const [verMes, setVerMes] = useState(false);
-  const [recienRespondido, setRecienRespondido] = useState(null); // { eventId, estado }
   const [verEquipo, setVerEquipo] = useState(false);
   const favoriteSongs = library.filter((s) => s.favorite);
   const [dayEventsPicker, setDayEventsPicker] = useState(null);
@@ -2596,7 +2583,6 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
   const proximo = misServicios[0] || null;
   const ev = proximo?.event || null;
   const cargos = proximo?.cargos || [];
-  const estado = estadoGeneral(cargos);
   const canciones = useMemo(() => (ev ? cancionesParaEnsayar(ev, myUserId, library) : []), [ev, myUserId, library]);
   const equipo = useMemo(() => (ev ? companeros(ev, myUserId, library) : []), [ev, myUserId, library]);
   const notas = useMemo(() => (ev ? indicaciones(ev, myUserId, ministries, library) : []), [ev, myUserId, ministries, library]);
@@ -2608,12 +2594,6 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
   const DIAS_CORTOS = ["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"];
   const fechaLarga = (d, hora) => d ? `${DIAS[d.getDay()][0].toUpperCase()}${DIAS[d.getDay()].slice(1)} ${d.getDate()} de ${MONTH_NAMES_FULL[d.getMonth()].toLowerCase()}${hora ? ` · ${hora.slice(0, 5)}` : ""}` : "Sin fecha";
   const fechaCorta = (d) => d ? `${DIAS[d.getDay()].slice(0, 3)} ${d.getDate()} ${MONTH_NAMES_FULL[d.getMonth()].slice(0, 3).toLowerCase()}` : "Sin fecha";
-  const responder = (nuevo) => {
-    if (!ev) return;
-    onResponder(ev.id, cargos.map((c) => c.miembroId), nuevo);
-    setRecienRespondido({ eventId: ev.id, estado: nuevo });
-  };
-  const respuestaVisible = recienRespondido && ev && recienRespondido.eventId === ev.id ? recienRespondido.estado : null;
   const abrirDia = (dia) => {
     if (dia.eventos.length === 1) onSelectEvent(dia.eventos[0].id);
     else if (dia.eventos.length > 1) setDayEventsPicker(dia.eventos);
@@ -2658,22 +2638,6 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
           </span>
           <ChevronRight size={16} color="var(--wf-faint)" />
         </button>
-      )}
-      {respuestaVisible ? (
-        <div role="status" style={{ marginTop: 14, borderRadius: 14, padding: "14px 12px", textAlign: "center", fontSize: 16, fontWeight: 700, background: respuestaVisible === "confirmado" ? "#E1F5EE" : "#FCEBEB", color: respuestaVisible === "confirmado" ? "#085041" : "#A32D2D" }}>
-          {respuestaVisible === "confirmado" ? "¡Listo, confirmaste! Dios te bendiga." : "Listo, avisamos que no puedes."}
-          <button onClick={() => setRecienRespondido(null)} style={{ display: "block", margin: "6px auto 0", background: "none", border: "none", fontSize: 13, color: "inherit", textDecoration: "underline", cursor: "pointer" }}>Cambiar respuesta</button>
-        </div>
-      ) : estado === "confirmado" ? (
-        <div style={{ marginTop: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: "#1F8A73", display: "flex", alignItems: "center", gap: 6 }}><Check size={18} /> Ya confirmaste</span>
-          <button onClick={() => responder("rechazado")} style={{ background: "none", border: "none", fontSize: 13.5, color: "var(--wf-muted)", textDecoration: "underline", cursor: "pointer" }}>Ya no puedo</button>
-        </div>
-      ) : (
-        <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-          <button onClick={() => responder("confirmado")} style={{ flex: 1, minHeight: 50, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", border: "none", borderRadius: 14, fontSize: 16, fontWeight: 800, cursor: "pointer" }}>Confirmar</button>
-          <button onClick={() => responder("rechazado")} style={{ flex: 1, minHeight: 50, background: "var(--wf-hover)", color: "var(--wf-text)", border: "none", borderRadius: 14, fontSize: 16, fontWeight: 600, cursor: "pointer" }}>{estado === "rechazado" ? "No puedo (enviado)" : "No puedo"}</button>
-        </div>
       )}
     </TarjetaInicio>
   ) : (
@@ -2743,13 +2707,12 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
       <TituloSeccion>Tus próximas fechas</TituloSeccion>
       <TarjetaInicio>
         {otrasFechas.map(({ event: e, cargos: cs }, i) => {
-          const st = estadoGeneral(cs);
           return (
             <button key={e.id} onClick={() => onSelectEvent(e.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "10px 12px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: "transparent", cursor: "pointer" }}>
               <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 <b>{fechaCorta(parseIsoDateLocal(e.date))}</b> · {cs.map((c) => c.nombre).join(", ")}
               </span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: ESTADO_COLOR[st] }}>{ESTADO_TEXTO[st]}</span>
+              <ChevronRight size={16} color="var(--wf-faint)" />
             </button>
           );
         })}
@@ -2926,8 +2889,7 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
                   <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--wf-text)" }}>{p.nombre}</span>
                   <span style={{ display: "block", fontSize: 13, color: "var(--wf-muted)" }}>{p.cargos.join(", ")}</span>
                 </span>
-                {p.lead ? <span style={{ fontSize: 12, fontWeight: 700, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)", padding: "3px 9px", borderRadius: 10 }}>{esAlabanza ? "Dirige" : "A cargo"}</span>
-                  : <span style={{ fontSize: 12.5, fontWeight: 600, color: ESTADO_COLOR[p.estado] || "var(--wf-muted)" }}>{ESTADO_TEXTO[p.estado] || ""}</span>}
+                {p.lead && <span style={{ fontSize: 12, fontWeight: 700, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)", padding: "3px 9px", borderRadius: 10 }}>{esAlabanza ? "Dirige" : "A cargo"}</span>}
               </div>
             ))}
           </div>
