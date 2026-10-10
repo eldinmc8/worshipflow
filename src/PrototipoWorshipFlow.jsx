@@ -2555,7 +2555,7 @@ const ESTADO_COLOR = { confirmado: "#1F8A73", pendiente: "#A15C0C", rechazado: "
 
 function TituloSeccion({ children, derecha }) {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, margin: "20px 4px 8px" }}>
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, margin: "16px 4px 6px" }}>
       <span style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-text-2)" }}>{children}</span>
       {derecha}
     </div>
@@ -2576,6 +2576,7 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
   const [showFavorites, setShowFavorites] = useState(false);
   const [verMes, setVerMes] = useState(false);
   const [recienRespondido, setRecienRespondido] = useState(null); // { eventId, estado }
+  const [verEquipo, setVerEquipo] = useState(false);
   const favoriteSongs = library.filter((s) => s.favorite);
   const [dayEventsPicker, setDayEventsPicker] = useState(null);
   const today = todayLocal();
@@ -2606,6 +2607,7 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
   const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
   const DIAS_CORTOS = ["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"];
   const fechaLarga = (d, hora) => d ? `${DIAS[d.getDay()][0].toUpperCase()}${DIAS[d.getDay()].slice(1)} ${d.getDate()} de ${MONTH_NAMES_FULL[d.getMonth()].toLowerCase()}${hora ? ` · ${hora.slice(0, 5)}` : ""}` : "Sin fecha";
+  const fechaCorta = (d) => d ? `${DIAS[d.getDay()].slice(0, 3)} ${d.getDate()} ${MONTH_NAMES_FULL[d.getMonth()].slice(0, 3).toLowerCase()}` : "Sin fecha";
   const responder = (nuevo) => {
     if (!ev) return;
     onResponder(ev.id, cargos.map((c) => c.miembroId), nuevo);
@@ -2618,7 +2620,7 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
   };
 
   const tarjetaServicio = ev ? (
-    <TarjetaInicio style={{ padding: 18 }}>
+    <TarjetaInicio style={{ padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: 0.4, color: esAlabanza ? "#C2620F" : "#1F8A73" }}>{esAlabanza ? "TU PRÓXIMO SERVICIO" : "TU PRÓXIMO TURNO"}</span>
         {cuandoEs(ev.date) && <span style={{ fontSize: 12.5, fontWeight: 700, background: "var(--wf-active-bg)", color: "var(--wf-active-text)", padding: "4px 10px", borderRadius: 12 }}>{cuandoEs(ev.date)}</span>}
@@ -2627,7 +2629,7 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
         <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.3 }}>{fechaLarga(fechaEv, ev.hora)}</div>
         <div style={{ fontSize: 14, color: "var(--wf-muted)", marginTop: 2 }}>{ev.title}</div>
       </button>
-      <div style={{ fontSize: 16, color: "var(--wf-text)", marginTop: 10 }}>Te toca: <b>{cargos.map((c) => c.nombre).join(", ")}</b></div>
+      <div style={{ fontSize: 16, color: "var(--wf-text)", marginTop: 8 }}>Te toca: <b>{cargos.map((c) => c.nombre).join(", ")}</b></div>
       {esAlabanza && textoEnsayo(ev) && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 15, color: "var(--wf-text)" }}>
           <Music size={17} color="#1F8A73" style={{ flexShrink: 0 }} />
@@ -2640,6 +2642,23 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
           {quienDirigeAlabanza(ev) && <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 6 }}>— {quienDirigeAlabanza(ev).n}, dirige la alabanza</div>}
         </div>
       )}
+      {/* Compacto (2026-10-09): el equipo cabe en una fila de iniciales dentro de la misma tarjeta;
+          tocarla abre la lista completa con cargos y quién confirmó. */}
+      {equipo.length > 0 && (
+        <button onClick={() => setVerEquipo(true)} aria-label="Ver con quién te toca" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", marginTop: 12, padding: 0, background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+          <span style={{ display: "flex" }}>
+            {equipo.slice(0, 5).map((p, i) => (
+              <span key={`${p.nombre}-${i}`} style={{ marginLeft: i ? -8 : 0, borderRadius: 18, border: "2px solid var(--wf-card)", display: "flex" }}>
+                <Iniciales nombre={p.nombre} fondo={p.lead ? "var(--wf-brand-primary)" : "var(--wf-hover)"} color={p.lead ? "var(--wf-on-brand-primary)" : "var(--wf-text)"} />
+              </span>
+            ))}
+          </span>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            Con {equipo.slice(0, 2).map((p) => p.nombre.split(" ")[0]).join(", ")}{equipo.length > 2 ? ` y ${equipo.length - 2} más` : ""}
+          </span>
+          <ChevronRight size={16} color="var(--wf-faint)" />
+        </button>
+      )}
       {respuestaVisible ? (
         <div role="status" style={{ marginTop: 14, borderRadius: 14, padding: "14px 12px", textAlign: "center", fontSize: 16, fontWeight: 700, background: respuestaVisible === "confirmado" ? "#E1F5EE" : "#FCEBEB", color: respuestaVisible === "confirmado" ? "#085041" : "#A32D2D" }}>
           {respuestaVisible === "confirmado" ? "¡Listo, confirmaste! Dios te bendiga." : "Listo, avisamos que no puedes."}
@@ -2651,7 +2670,7 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
           <button onClick={() => responder("rechazado")} style={{ background: "none", border: "none", fontSize: 13.5, color: "var(--wf-muted)", textDecoration: "underline", cursor: "pointer" }}>Ya no puedo</button>
         </div>
       ) : (
-        <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+        <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
           <button onClick={() => responder("confirmado")} style={{ flex: 1, minHeight: 50, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", border: "none", borderRadius: 14, fontSize: 16, fontWeight: 800, cursor: "pointer" }}>Confirmar</button>
           <button onClick={() => responder("rechazado")} style={{ flex: 1, minHeight: 50, background: "var(--wf-hover)", color: "var(--wf-text)", border: "none", borderRadius: 14, fontSize: 16, fontWeight: 600, cursor: "pointer" }}>{estado === "rechazado" ? "No puedo (enviado)" : "No puedo"}</button>
         </div>
@@ -2678,34 +2697,13 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
       <TituloSeccion derecha={<span style={{ fontSize: 13, color: "var(--wf-muted)" }}>{canciones.length} {canciones.length === 1 ? "canción" : "canciones"}</span>}>Canciones para ensayar</TituloSeccion>
       <TarjetaInicio>
         {canciones.map((c, i) => (
-          <button key={c.itemId} onClick={() => onOpenSong(c.songId)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "12px 14px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: c.cambiado ? "var(--wf-active-bg)" : "transparent", cursor: "pointer" }}>
+          <button key={c.itemId} onClick={() => onOpenSong(c.songId)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "9px 12px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: c.cambiado ? "var(--wf-active-bg)" : "transparent", cursor: "pointer" }}>
             <span style={{ minWidth: 34, textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 700, color: c.cambiado ? "#C2620F" : "#1F8A73" }}>{acordeEn(c.tono)}</span>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--wf-text)" }}>{c.titulo}</span>
-              {c.cambiado && <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-active-text)" }}>Tono cambiado para este servicio ({acordeEn(c.tonoOriginal)} → {acordeEn(c.tono)})</span>}
-            </span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600, color: "var(--wf-text)", lineHeight: 1.3 }}>{c.titulo}</span>
+            {c.cambiado && <span title="Tono cambiado para este servicio" style={{ fontSize: 11.5, fontWeight: 700, color: "var(--wf-active-text)", background: "var(--wf-card)", borderRadius: 8, padding: "2px 6px", flexShrink: 0 }}>antes {acordeEn(c.tonoOriginal)}</span>}
             {c.tempo ? <span style={{ fontSize: 12.5, color: "var(--wf-muted)" }}>{c.tempo} bpm</span> : null}
             <ChevronRight size={16} color="var(--wf-faint)" />
           </button>
-        ))}
-      </TarjetaInicio>
-    </>
-  );
-
-  const seccionEquipo = equipo.length > 0 && (
-    <>
-      <TituloSeccion>{esAlabanza ? "Tu equipo" : "Con quién te toca"}</TituloSeccion>
-      <TarjetaInicio>
-        {equipo.map((p, i) => (
-          <div key={`${p.nombre}-${i}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderTop: i ? "1px solid var(--wf-divider)" : "none" }}>
-            <Iniciales nombre={p.nombre} />
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--wf-text)" }}>{p.nombre}</span>
-              <span style={{ display: "block", fontSize: 13, color: "var(--wf-muted)" }}>{p.cargos.join(", ")}</span>
-            </span>
-            {p.lead ? <span style={{ fontSize: 12, fontWeight: 700, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)", padding: "3px 9px", borderRadius: 10 }}>{esAlabanza ? "Dirige" : "A cargo"}</span>
-              : <span style={{ fontSize: 12.5, fontWeight: 600, color: ESTADO_COLOR[p.estado] || "var(--wf-muted)" }}>{ESTADO_TEXTO[p.estado] || ""}</span>}
-          </div>
         ))}
       </TarjetaInicio>
     </>
@@ -2747,10 +2745,9 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
         {otrasFechas.map(({ event: e, cargos: cs }, i) => {
           const st = estadoGeneral(cs);
           return (
-            <button key={e.id} onClick={() => onSelectEvent(e.id)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "12px 14px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: "transparent", cursor: "pointer" }}>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--wf-text)" }}>{fechaLarga(parseIsoDateLocal(e.date), e.hora)}</span>
-                <span style={{ display: "block", fontSize: 13, color: "var(--wf-muted)" }}>{cs.map((c) => c.nombre).join(", ")}</span>
+            <button key={e.id} onClick={() => onSelectEvent(e.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "10px 12px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: "transparent", cursor: "pointer" }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <b>{fechaCorta(parseIsoDateLocal(e.date))}</b> · {cs.map((c) => c.nombre).join(", ")}
               </span>
               <span style={{ fontSize: 13, fontWeight: 600, color: ESTADO_COLOR[st] }}>{ESTADO_TEXTO[st]}</span>
             </button>
@@ -2826,18 +2823,18 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
             <button
               key={d.iso} onClick={() => abrirDia(d)} disabled={!conEventos}
               aria-label={`${DIAS_CORTOS[i]} ${d.fecha.getDate()}${conEventos ? `, ${d.eventos.length} servicio${d.eventos.length > 1 ? "s" : ""}` : ""}${d.meToca ? ", te toca" : ""}`}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "8px 0", borderRadius: 14, cursor: conEventos ? "pointer" : "default",
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, padding: "5px 0", borderRadius: 12, cursor: conEventos ? "pointer" : "default",
                 background: d.esHoy ? "var(--wf-brand-primary)" : "var(--wf-card)", color: d.esHoy ? "var(--wf-on-brand-primary)" : "var(--wf-text)",
                 border: d.meToca && !d.esHoy ? "2px solid var(--wf-brand-accent)" : "2px solid transparent", boxShadow: "0 2px 8px rgba(22,50,79,0.06)" }}
             >
-              <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.75 }}>{DIAS_CORTOS[i]}</span>
-              <span style={{ fontSize: 17, fontWeight: 700 }}>{d.fecha.getDate()}</span>
-              <span style={{ width: 7, height: 7, borderRadius: 4, background: d.meToca ? "var(--wf-brand-accent)" : conEventos ? "var(--wf-faint)" : "transparent" }} />
+              <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.75 }}>{DIAS_CORTOS[i]}</span>
+              <span style={{ fontSize: 15, fontWeight: 700 }}>{d.fecha.getDate()}</span>
+              <span style={{ width: 6, height: 6, borderRadius: 3, background: d.meToca ? "var(--wf-brand-accent)" : conEventos ? "var(--wf-faint)" : "transparent" }} />
             </button>
           );
         })}
       </div>
-      <div style={{ display: "flex", gap: 14, fontSize: 12.5, color: "var(--wf-muted)", margin: "8px 4px 0" }}>
+      <div style={{ display: isCompact && !verMes ? "none" : "flex", gap: 14, fontSize: 12.5, color: "var(--wf-muted)", margin: "8px 4px 0" }}>
         <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: "var(--wf-brand-accent)" }} /> Te toca</span>
         <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: "var(--wf-faint)" }} /> Hay servicio</span>
       </div>
@@ -2854,12 +2851,11 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
 
   return (
     <div className="screen-enter" style={{ height: "100%", boxSizing: "border-box", overflowY: "auto", overflowX: "hidden" }}>
-      <div style={{ maxWidth: isCompact ? "none" : 1080, margin: "0 auto", padding: isCompact ? "20px 16px 110px" : "24px 28px 40px" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+      <div style={{ maxWidth: isCompact ? "none" : 1080, margin: "0 auto", padding: isCompact ? "14px 16px 110px" : "24px 28px 40px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 14, color: "var(--wf-muted)" }}>{fechaLarga(today)}</div>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 600, lineHeight: 1.2 }}>{greetingWord()}{myName ? `, ${myName.split(" ")[0]}` : ""}</div>
-            <div style={{ fontSize: 13.5, color: "var(--wf-muted)", marginTop: 2 }}>{teamName}</div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: isCompact ? 23 : 26, fontWeight: 600, lineHeight: 1.2 }}>{greetingWord()}{myName ? `, ${myName.split(" ")[0]}` : ""}</div>
+            <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 2 }}>{fechaLarga(today)}{isCompact ? "" : ` · ${teamName}`}</div>
           </div>
           {liveEvent && (
             <button onClick={() => (liveLibre ? onGoLive() : onSelectEvent(liveEvent.id))} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, maxWidth: "62%", background: "var(--wf-brand-primary)", borderRadius: 20, padding: "10px 16px", border: "none", cursor: "pointer" }}>
@@ -2874,21 +2870,20 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
 
         {isCompact ? (
           <>
+            {/* Compacto (pedido de Eldin, 2026-10-09: "hay que hacer mucho scrolling"): el equipo va
+                dentro de la tarjeta del servicio, y los atajos de favoritos/miembros ya tienen su pestaña. */}
             {tarjetaServicio}
             {seccionCanciones}
-            {seccionEquipo}
             {seccionIndicaciones}
             {seccionAtencion}
             {seccionFechas}
             {seccionSemana}
-            {atajos}
           </>
         ) : (
           <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
             <div style={{ flex: 1.2, minWidth: 0 }}>
               {tarjetaServicio}
               {seccionCanciones}
-              {seccionEquipo}
               {seccionIndicaciones}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -2918,6 +2913,24 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
               ))}
             </div>
           )}
+        </ModalShell>
+      )}
+
+      {verEquipo && (
+        <ModalShell title={esAlabanza ? "Tu equipo" : "Con quién te toca"} icon={Users} color="#6E63C7" onClose={() => setVerEquipo(false)}>
+          <div style={{ display: "flex", flexDirection: "column", maxHeight: "60vh", overflowY: "auto" }}>
+            {equipo.map((p, i) => (
+              <div key={`${p.nombre}-${i}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 2px", borderTop: i ? "1px solid var(--wf-divider)" : "none" }}>
+                <Iniciales nombre={p.nombre} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--wf-text)" }}>{p.nombre}</span>
+                  <span style={{ display: "block", fontSize: 13, color: "var(--wf-muted)" }}>{p.cargos.join(", ")}</span>
+                </span>
+                {p.lead ? <span style={{ fontSize: 12, fontWeight: 700, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)", padding: "3px 9px", borderRadius: 10 }}>{esAlabanza ? "Dirige" : "A cargo"}</span>
+                  : <span style={{ fontSize: 12.5, fontWeight: 600, color: ESTADO_COLOR[p.estado] || "var(--wf-muted)" }}>{ESTADO_TEXTO[p.estado] || ""}</span>}
+              </div>
+            ))}
+          </div>
         </ModalShell>
       )}
 
@@ -5797,7 +5810,12 @@ function quienDirigeAlabanza(event) {
 function textoEnsayo(event) {
   if (!event?.ensayoFecha && !event?.ensayoHora) return "";
   const partes = [];
-  if (event.ensayoFecha) partes.push(event.ensayoFecha === event.date ? "El mismo día" : formatFullDate(event.ensayoFecha));
+  if (event.ensayoFecha) {
+    const d = parseIsoDateLocal(event.ensayoFecha);
+    const dias = d ? Math.round((d - todayLocal()) / 86400000) : null;
+    const corta = d ? `${["dom", "lun", "mar", "mié", "jue", "vie", "sáb"][d.getDay()]} ${d.getDate()} ${MONTH_NAMES_FULL[d.getMonth()].slice(0, 3).toLowerCase()}` : event.ensayoFecha;
+    partes.push(event.ensayoFecha === event.date ? "El mismo día" : dias === 0 ? "Hoy" : dias === 1 ? "Mañana" : corta);
+  }
   if (event.ensayoHora) partes.push(formatHora12(event.ensayoHora));
   return partes.join(" · ");
 }
