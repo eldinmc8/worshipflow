@@ -4362,9 +4362,33 @@ function CancionesList({ library, clasificaciones, puedeConfigurarClasificacione
   const [showClasificaciones, setShowClasificaciones] = useState(false);
   const claves = new Set(clasificaciones.map((c) => c.clave));
   const haySinClasificar = library.some((s) => !claves.has(s.category));
+  const enFiltro = (s, key) => key === "todos" || (key === "favoritas" ? s.favorite : key === "sin" ? !claves.has(s.category) : s.category === key);
   const filtered = library
-    .filter((s) => categoryFilter === "todos" || (categoryFilter === "sin" ? !claves.has(s.category) : s.category === categoryFilter))
+    .filter((s) => enFiltro(s, categoryFilter))
     .filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
+  // Barra de clasificaciones (2026-10-10): cada chip dice cuántas canciones tiene, "Favoritas" va
+  // fija al inicio, el borde se difumina cuando hay más a la derecha, y la elegida se trae a la vista.
+  const filtros = [
+    ["todos", "Todos"],
+    ...(library.some((s) => s.favorite) || categoryFilter === "favoritas" ? [["favoritas", "Favoritas"]] : []),
+    ...clasificaciones.map((c) => [c.clave, c.nombre]),
+    ...(haySinClasificar ? [["sin", "Sin clasificar"]] : []),
+  ].map(([key, label]) => ({ key, label, total: library.filter((s) => enFiltro(s, key)).length }));
+  const barraRef = useRef(null);
+  const [bordes, setBordes] = useState({ izq: false, der: false });
+  const medirBordes = () => {
+    const el = barraRef.current;
+    if (!el) return;
+    setBordes({ izq: el.scrollLeft > 4, der: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+  };
+  useEffect(() => {
+    medirBordes();
+    window.addEventListener("resize", medirBordes);
+    return () => window.removeEventListener("resize", medirBordes);
+  }, [clasificaciones.length]);
+  useEffect(() => {
+    barraRef.current?.querySelector(`[data-filtro="${categoryFilter}"]`)?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [categoryFilter]);
   return (
     <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -4375,15 +4399,32 @@ function CancionesList({ library, clasificaciones, puedeConfigurarClasificacione
         <Search size={15} color="var(--wf-faint)" />
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por título o letra" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 13, width: "100%" }} />
       </div>
-      <div data-tour="canciones-filtros" style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 12 }}>
-        {[["todos", "Todos"], ...clasificaciones.map((c) => [c.clave, c.nombre]), ...(haySinClasificar ? [["sin", "Sin clasificar"]] : [])].map(([key, label]) => (
-          <button key={key} onClick={() => setCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 20, border: "none", background: categoryFilter === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: categoryFilter === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
-        ))}
-        {puedeConfigurarClasificaciones && (
-          <button onClick={() => setShowClasificaciones(true)} title="Editar clasificaciones" style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: "1px dashed var(--wf-border)", background: "transparent", color: "var(--wf-muted)", cursor: "pointer" }}>
-            <Pencil size={12} /> Editar
-          </button>
-        )}
+      <div style={{ position: "relative", marginBottom: 12 }}>
+        <div ref={barraRef} onScroll={medirBordes} data-tour="canciones-filtros" className="chordbar-scroll" style={{ display: "flex", gap: 6, overflowX: "auto", padding: "2px 0 4px", scrollbarWidth: "none" }}>
+          {filtros.map(({ key, label, total }) => {
+            const activo = categoryFilter === key;
+            return (
+              <button
+                key={key} data-filtro={key} onClick={() => setCategoryFilter(key)} aria-pressed={activo}
+                style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, padding: "7px 12px", borderRadius: 20, cursor: "pointer",
+                  border: activo ? "1px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)",
+                  background: activo ? "var(--wf-brand-accent)" : "var(--wf-card)", color: activo ? "var(--wf-brand-primary)" : "var(--wf-text)" }}
+              >
+                {key === "favoritas" && <Heart size={12} fill={activo ? "currentColor" : "none"} />}
+                {label}
+                <span style={{ fontSize: 11, fontWeight: 600, opacity: activo ? 0.85 : 0.55 }}>{total}</span>
+              </button>
+            );
+          })}
+          {puedeConfigurarClasificaciones && (
+            <button onClick={() => setShowClasificaciones(true)} title="Editar clasificaciones" aria-label="Editar clasificaciones" style={{ flexShrink: 0, width: 34, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 20, border: "1px dashed var(--wf-border)", background: "transparent", color: "var(--wf-muted)", cursor: "pointer" }}>
+              <Pencil size={13} />
+            </button>
+          )}
+        </div>
+        {/* Difuminado en los bordes: avisa que hay más chips para deslizar. */}
+        {bordes.izq && <div aria-hidden style={{ position: "absolute", left: 0, top: 0, bottom: 4, width: 28, pointerEvents: "none", background: "linear-gradient(to left, transparent, var(--wf-bg))" }} />}
+        {bordes.der && <div aria-hidden style={{ position: "absolute", right: 0, top: 0, bottom: 4, width: 40, pointerEvents: "none", background: "linear-gradient(to right, transparent, var(--wf-bg))" }} />}
       </div>
       {showClasificaciones && (
         <ClasificacionesModal
