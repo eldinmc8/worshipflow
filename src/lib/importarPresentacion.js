@@ -16,19 +16,24 @@
 // tiene una restricción en la base de datos que solo acepta "color" o "video", y así esto funciona sin
 // tener que cambiar la base. El título guarda "Nombre (3/12)" solo para reconocerla en el orden del
 // culto: en pantalla no se escribe nada encima de la página (ver ProjectionPanel).
+import { itemConDiapositivas } from "./diapositivas.js";
+
 export const MARCA_PRESENTACION = "presentacion";
 export const esPaginaPresentacion = (s) => !!s && s.type === "slide" && s.bg === MARCA_PRESENTACION && !!s.imageUrl;
 
-// Lo que entra al orden del culto. paginas: [{ url }] o textos: [string]. Con agrupar, todo va debajo
-// de un bloque con el nombre de la presentación, para que se vea junto y se pueda mover como unidad.
+// Lo que entra al orden del culto. paginas: [{ url }] o textos: [string]. Las páginas entran como UN
+// solo elemento con todas sus diapositivas adentro (2026-10-10), igual que una canción: se mueve, se
+// edita y se proyecta junto. Con agrupar, además va debajo de un bloque con el nombre.
 export function itemsDeImportacion({ nombre, paginas = [], textos = [], agrupar = true, nuevoId }) {
   const titulo = (nombre || "Presentación").replace(/\.[a-z0-9]+$/i, "");
   const items = [];
   if (agrupar) items.push({ id: nuevoId(), type: "seccion", title: titulo, description: "", ministryId: null });
-  paginas.forEach(({ url }, k) => items.push({
-    id: nuevoId(), type: "slide", title: `${titulo} (${k + 1}/${paginas.length})`, subtitle: "",
-    bg: MARCA_PRESENTACION, bgType: "color", imageUrl: url, videoUrl: "",
-  }));
+  if (paginas.length) {
+    items.push(itemConDiapositivas(
+      { id: nuevoId(), type: "slide", title: titulo, subtitle: "" },
+      paginas.map(({ url }) => ({ id: nuevoId(), fondo: { tipo: "imagen", url, color: "#000000", ajuste: "contain" }, capas: [] })),
+    ));
+  }
   // Texto de un bosquejo: puntos del predicador (isSermonPoint), con el estilo en vivo de la iglesia.
   textos.forEach((texto) => items.push({ id: nuevoId(), type: "slide", title: texto, subtitle: "", bg: "#1B2029", bgType: "color", isSermonPoint: true }));
   return items;

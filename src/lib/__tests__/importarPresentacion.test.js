@@ -35,13 +35,13 @@ describe("itemsDeImportacion", () => {
   let n = 0;
   const nuevoId = () => `id${++n}`;
 
-  it("páginas: un bloque con el nombre y una diapositiva por página, marcadas como presentación", () => {
+  it("páginas: un bloque con el nombre y UN elemento con todas las páginas como diapositivas", () => {
     const items = itemsDeImportacion({ nombre: "Prédica Juan 3.pdf", paginas: [{ url: "u1" }, { url: "u2" }], agrupar: true, nuevoId });
     expect(items[0]).toMatchObject({ type: "seccion", title: "Prédica Juan 3" });
-    expect(items.slice(1).map((it) => it.title)).toEqual(["Prédica Juan 3 (1/2)", "Prédica Juan 3 (2/2)"]);
-    expect(items.slice(1).every(esPaginaPresentacion)).toBe(true);
-    // Guardable sin tocar la base: fondo_tipo solo acepta "color" o "video".
-    expect(items.slice(1).every((it) => it.bgType === "color" && it.bg === MARCA_PRESENTACION)).toBe(true);
+    expect(items).toHaveLength(2);
+    expect(items[1]).toMatchObject({ type: "slide", title: "Prédica Juan 3", bg: MARCA_PRESENTACION, imageUrl: "u1", bgType: "color" });
+    expect(items[1].diapositivas.map((d) => d.fondo.url)).toEqual(["u1", "u2"]);
+    expect(esPaginaPresentacion(items[1])).toBe(true); // una versión vieja de la app muestra al menos la primera página
   });
 
   it("texto: puntos del bosquejo editables, sin bloque si no se pide", () => {

@@ -30,6 +30,7 @@ export default function ConfirmDialogHost() {
 
   return (
     <div
+      data-dialogo-confirmacion
       style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.65)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20000, padding: 20 }}
       onClick={cancelar}
     >
