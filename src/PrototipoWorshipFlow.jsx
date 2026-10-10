@@ -2550,6 +2550,14 @@ function TituloSeccion({ children, derecha }) {
   );
 }
 
+function BotonVerMas({ abierto, restantes, onClick }) {
+  return (
+    <button onClick={onClick} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, width: "100%", padding: "8px 12px", border: "none", borderTop: "1px solid var(--wf-divider)", background: "transparent", fontSize: 13, fontWeight: 700, color: "#2F5FA8", cursor: "pointer" }}>
+      {abierto ? <>Ver menos <ChevronUp size={15} /></> : <>Ver {restantes} más <ChevronDown size={15} /></>}
+    </button>
+  );
+}
+
 function TarjetaInicio({ children, style }) {
   return <div style={{ background: "var(--wf-card)", borderRadius: 18, boxShadow: "0 3px 14px rgba(22,50,79,0.08)", overflow: "hidden", ...style }}>{children}</div>;
 }
@@ -2564,6 +2572,9 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
   const [showFavorites, setShowFavorites] = useState(false);
   const [verMes, setVerMes] = useState(false);
   const [verEquipo, setVerEquipo] = useState(false);
+  // Listas largas de Inicio: solo 3 a la vista y "Ver más" para desplegar el resto (pedido de Eldin).
+  const [verTodaAtencion, setVerTodaAtencion] = useState(false);
+  const [verTodasFechas, setVerTodasFechas] = useState(false);
   const favoriteSongs = library.filter((s) => s.favorite);
   const [dayEventsPicker, setDayEventsPicker] = useState(null);
   const today = todayLocal();
@@ -2661,7 +2672,7 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
       <TituloSeccion derecha={<span style={{ fontSize: 13, color: "var(--wf-muted)" }}>{canciones.length} {canciones.length === 1 ? "canción" : "canciones"}</span>}>Canciones para ensayar</TituloSeccion>
       <TarjetaInicio>
         {canciones.map((c, i) => (
-          <button key={c.itemId} onClick={() => onOpenSong(c.songId)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "9px 12px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: c.cambiado ? "var(--wf-active-bg)" : "transparent", cursor: "pointer" }}>
+          <button key={c.itemId} onClick={() => onOpenSong(c.songId)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "8px 12px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: c.cambiado ? "var(--wf-active-bg)" : "transparent", cursor: "pointer" }}>
             <span style={{ minWidth: 34, textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 700, color: c.cambiado ? "#C2620F" : "#1F8A73" }}>{acordeEn(c.tono)}</span>
             <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600, color: "var(--wf-text)", lineHeight: 1.3 }}>{c.titulo}</span>
             {c.cambiado && <span title="Tono cambiado para este servicio" style={{ fontSize: 11.5, fontWeight: 700, color: "var(--wf-active-text)", background: "var(--wf-card)", borderRadius: 8, padding: "2px 6px", flexShrink: 0 }}>antes {acordeEn(c.tonoOriginal)}</span>}
@@ -2690,32 +2701,34 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
     <>
       <TituloSeccion derecha={<span style={{ fontSize: 13, color: "var(--wf-muted)" }}>próximos 14 días</span>}>Necesita tu atención</TituloSeccion>
       <TarjetaInicio>
-        {atencion.slice(0, 6).map((a, i) => (
-          <button key={i} onClick={() => onSelectEvent(a.eventId)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "12px 14px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: "transparent", cursor: "pointer" }}>
+        {(verTodaAtencion ? atencion : atencion.slice(0, 3)).map((a, i) => (
+          <button key={i} onClick={() => onSelectEvent(a.eventId)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "8px 12px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: "transparent", cursor: "pointer" }}>
             {a.tipo === "setlist" ? <Music size={18} color="#B15EA0" /> : a.tipo === "rechazo" ? <X size={18} color="#C23B32" /> : <Users size={18} color="#5661B3" />}
-            <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, color: "var(--wf-text)" }}>{a.texto}</span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--wf-text)", lineHeight: 1.35 }}>{a.texto}</span>
             <ChevronRight size={16} color="var(--wf-faint)" />
           </button>
         ))}
+        {atencion.length > 3 && <BotonVerMas abierto={verTodaAtencion} restantes={atencion.length - 3} onClick={() => setVerTodaAtencion((v) => !v)} />}
       </TarjetaInicio>
     </>
   );
 
-  const otrasFechas = misServicios.slice(1, 5);
+  const otrasFechas = misServicios.slice(1, 13);
   const seccionFechas = otrasFechas.length > 0 && (
     <>
       <TituloSeccion>Tus próximas fechas</TituloSeccion>
       <TarjetaInicio>
-        {otrasFechas.map(({ event: e, cargos: cs }, i) => {
+        {(verTodasFechas ? otrasFechas : otrasFechas.slice(0, 3)).map(({ event: e, cargos: cs }, i) => {
           return (
-            <button key={e.id} onClick={() => onSelectEvent(e.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "10px 12px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: "transparent", cursor: "pointer" }}>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <button key={e.id} onClick={() => onSelectEvent(e.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "8px 12px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: "transparent", cursor: "pointer" }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 <b>{fechaCorta(parseIsoDateLocal(e.date))}</b> · {cs.map((c) => c.nombre).join(", ")}
               </span>
               <ChevronRight size={16} color="var(--wf-faint)" />
             </button>
           );
         })}
+        {otrasFechas.length > 3 && <BotonVerMas abierto={verTodasFechas} restantes={otrasFechas.length - 3} onClick={() => setVerTodasFechas((v) => !v)} />}
       </TarjetaInicio>
     </>
   );
