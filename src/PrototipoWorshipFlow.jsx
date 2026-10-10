@@ -17,9 +17,10 @@ import {
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
 import AutoFitText from "./components/AutoFitText.jsx";
+import { misProximosServicios, estadoGeneral, cuandoEs, companeros, indicaciones, cancionesParaEnsayar, necesitaAtencion, estaSemana } from "./lib/inicio.js";
 import { expandirVersiculosLargos, reorganizarLetra, FORMATOS_LETRA, palabrasPorParteSegun, partesDeVersiculo } from "./lib/dividirTexto.js";
 import {
-  listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
+  listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista, responderMisCargos,
 } from "./lib/eventos.js";
 import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos, getResumenMensual, guardarResumenMensual, subirArchivoRecurso } from "./lib/ministerios.js";
 import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession } from "./lib/liveSession.js";
@@ -1870,6 +1871,31 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     });
   };
 
+  // Confirmar / "No puedo" desde la pantalla de inicio: cambia solo MIS filas (ver responderMisCargos)
+  // y de paso marca el evento como visto, para que no salga además el aviso de "cargos sin confirmar".
+  const responderCargosDesdeInicio = (eventId, miembroIds, estado) => {
+    const ids = new Set(miembroIds);
+    const aplicar = (evs, nuevo, anterior) => evs.map((e) => {
+      if (e.id !== eventId) return e;
+      const cambiar = (m) => (ids.has(m.id) ? { ...m, status: nuevo ?? anterior.get(m.id) } : m);
+      return {
+        ...e,
+        worshipRoles: (e.worshipRoles || []).map((r) => ({ ...r, members: (r.members || []).map(cambiar) })),
+        serviceOrder: (e.serviceOrder || []).map((it) => (it.encargados ? { ...it, encargados: it.encargados.map(cambiar) } : it)),
+      };
+    });
+    const anterior = new Map();
+    const ev = eventsRef.current.find((e) => e.id === eventId);
+    (ev?.worshipRoles || []).forEach((r) => (r.members || []).forEach((m) => { if (ids.has(m.id)) anterior.set(m.id, m.status); }));
+    (ev?.serviceOrder || []).forEach((it) => (it.encargados || []).forEach((m) => { if (ids.has(m.id)) anterior.set(m.id, m.status); }));
+    setEventsSynced((evs) => aplicar(evs, estado, anterior));
+    responderMisCargos(miembroIds, estado).catch((err) => {
+      setEventsSynced((evs) => aplicar(evs, null, anterior));
+      notifyError(estado === "confirmado" ? "No se pudo confirmar" : "No se pudo avisar que no puedes", err);
+    });
+    if (!(ev?.vistas || []).some((v) => v.usuarioId === userId)) confirmarAsignacionVista(eventId);
+  };
+
   // ---------------- Tutorial / recorridos guiados ----------------
   // "bienvenida" sale la primera vez que alguien nuevo entra (miembro invitado o administrador de una
   // iglesia recién creada); los demás son mini recorridos que salen la primera vez que se abre esa
@@ -2128,7 +2154,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       {!["envivo", "proyeccion"].includes(tab) && (
       <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: tab === "inicio" ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {tab === "inicio" && (
-        <InicioView events={realEvents} library={library} myUserId={myUserId} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} canSeeCanciones={canSeeCanciones} teamName={myIglesia.nombre} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} avisoPush={avisoPush} onActivarPush={activarPushDesdeAviso} onOcultarPush={ocultarAvisoPush} />
+        <InicioView events={realEvents} library={library} ministries={ministries} myUserId={myUserId} myName={myName} puedeVerPendientes={puedeEditarSetlist} onResponder={responderCargosDesdeInicio} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} canSeeCanciones={canSeeCanciones} teamName={myIglesia.nombre} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} avisoPush={avisoPush} onActivarPush={activarPushDesdeAviso} onOcultarPush={ocultarAvisoPush} />
       )}
 
       {tab === "ajustes" && (
@@ -2509,16 +2535,41 @@ function AvisoActivarPush({ estado, onActivar, onCerrar }) {
   );
 }
 
-function InicioView({ events, library, myUserId, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact, canSeeCanciones, teamName, avisoPush, onActivarPush, onOcultarPush }) {
+// ---------------- INICIO ----------------
+// Pantalla de inicio personal (pedido de Eldin, 2026-10-09): "lo que me toca a mí" en vez de un
+// calendario de la iglesia. Cada sección aparece solo si aplica a esta persona — un músico ve qué
+// ensayar, alguien de limpieza ve sus indicaciones, un administrador ve lo que falta. Toda la lógica
+// vive en src/lib/inicio.js (con pruebas). Pensada también para adultos mayores: letra más grande,
+// textos oscuros, nada que se deslice de lado y botones con palabras, no solo íconos.
+const ESTADO_TEXTO = { confirmado: "Confirmado", pendiente: "Por confirmar", rechazado: "No puede" };
+const ESTADO_COLOR = { confirmado: "#1F8A73", pendiente: "#A15C0C", rechazado: "#C23B32" };
+
+function TituloSeccion({ children, derecha }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, margin: "20px 4px 8px" }}>
+      <span style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-text-2)" }}>{children}</span>
+      {derecha}
+    </div>
+  );
+}
+
+function TarjetaInicio({ children, style }) {
+  return <div style={{ background: "var(--wf-card)", borderRadius: 18, boxShadow: "0 3px 14px rgba(22,50,79,0.08)", overflow: "hidden", ...style }}>{children}</div>;
+}
+
+function Iniciales({ nombre, fondo = "var(--wf-hover)", color = "var(--wf-text)" }) {
+  const ini = (nombre || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
+  return <span style={{ width: 36, height: 36, borderRadius: 18, background: fondo, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{ini}</span>;
+}
+
+function InicioView({ events, library, ministries = [], myUserId, myName, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact, canSeeCanciones, teamName, avisoPush, onActivarPush, onOcultarPush, puedeVerPendientes, onResponder }) {
   const liveEvent = liveLibre ? EVENTO_LIBRE : events.find((e) => e.id === liveEventId);
   const [showFavorites, setShowFavorites] = useState(false);
+  const [verMes, setVerMes] = useState(false);
+  const [recienRespondido, setRecienRespondido] = useState(null); // { eventId, estado }
   const favoriteSongs = library.filter((s) => s.favorite);
-  // Tocar un día del calendario con un solo evento entra directo a él (atajo rápido, el caso normal).
-  // Con 2+ (ej. domingo con culto AM y PM) ya no hay forma de adivinar cuál quiso abrir, así que se
-  // muestra esta lista chiquita para que elija — antes entraba siempre al primero programado.
   const [dayEventsPicker, setDayEventsPicker] = useState(null);
   const today = todayLocal();
-  // Mes que se está viendo en el calendario — arranca en el mes real de hoy, navegable con ‹ ›.
   const [viewedMonth, setViewedMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
   const isViewingCurrentMonth = viewedMonth.year === today.getFullYear() && viewedMonth.month === today.getMonth();
   const changeMonth = (delta) => setViewedMonth(({ year, month }) => {
@@ -2530,32 +2581,166 @@ function InicioView({ events, library, myUserId, favoritesCount, memberCount, li
   const eventsThisMonth = Object.values(byDay).reduce((acc, list) => acc + list.length, 0);
   const nextEvent = useMemo(() => nextUpcomingEvent(events, liveEventId), [events, liveEventId]);
   const nextDate = nextEvent ? parseIsoDateLocal(nextEvent.date) : null;
-  const nextIsLive = nextEvent && nextEvent.id === liveEventId;
 
-  return (
-    <div className="screen-enter" style={{ height: "100%", display: "flex", flexDirection: "column", padding: "22px 24px", boxSizing: "border-box", overflowY: isCompact ? "auto" : "hidden", overflowX: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 16, flexShrink: 0 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600 }}>{greetingWord()}</div>
-          <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 2 }}>{teamName}</div>
-        </div>
-        {liveEvent && (
-          // El título del evento en vivo puede ser largo ("Domingo AM - Septiembre 6 - Servicio
-          // General") — sin minWidth:0 + ellipsis, este botón se negaba a encogerse (flexShrink:0) y
-          // terminaba más ancho que la pantalla, corriendo toda la fila (y arrastrando la página
-          // entera, ya que el contenedor de arriba permitía overflow horizontal). Ahora el botón se
-          // achica hasta un máximo razonable y el título se corta con "..." en vez de desbordar.
-          <button onClick={() => (liveLibre ? onGoLive() : onSelectEvent(liveEvent.id))} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, maxWidth: "62%", background: "var(--wf-brand-primary)", borderRadius: 20, padding: "9px 16px", border: "none", cursor: "pointer" }}>
-            <span className="live-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--wf-brand-accent)", flexShrink: 0 }} />
-            <span style={{ color: "var(--wf-on-brand-primary)", fontWeight: 700, fontSize: 12, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>En vivo: {liveEvent.title}</span>
-            <ChevronRight size={14} color="color-mix(in srgb, var(--wf-on-brand-primary) 70%, transparent)" style={{ flexShrink: 0 }} />
-          </button>
-        )}
+  const misServicios = useMemo(() => misProximosServicios(events, myUserId, library), [events, myUserId, library]);
+  const proximo = misServicios[0] || null;
+  const ev = proximo?.event || null;
+  const cargos = proximo?.cargos || [];
+  const estado = estadoGeneral(cargos);
+  const canciones = useMemo(() => (ev ? cancionesParaEnsayar(ev, myUserId, library) : []), [ev, myUserId, library]);
+  const equipo = useMemo(() => (ev ? companeros(ev, myUserId, library) : []), [ev, myUserId, library]);
+  const notas = useMemo(() => (ev ? indicaciones(ev, myUserId, ministries, library) : []), [ev, myUserId, ministries, library]);
+  const atencion = useMemo(() => (puedeVerPendientes ? necesitaAtencion(events, library) : []), [puedeVerPendientes, events, library]);
+  const semana = useMemo(() => estaSemana(events, myUserId, library), [events, myUserId, library]);
+  const esAlabanza = cargos.some((c) => c.tipo === "rol");
+  const fechaEv = ev ? parseIsoDateLocal(ev.date) : null;
+  const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+  const DIAS_CORTOS = ["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"];
+  const fechaLarga = (d, hora) => d ? `${DIAS[d.getDay()][0].toUpperCase()}${DIAS[d.getDay()].slice(1)} ${d.getDate()} de ${MONTH_NAMES_FULL[d.getMonth()].toLowerCase()}${hora ? ` · ${hora.slice(0, 5)}` : ""}` : "Sin fecha";
+  const responder = (nuevo) => {
+    if (!ev) return;
+    onResponder(ev.id, cargos.map((c) => c.miembroId), nuevo);
+    setRecienRespondido({ eventId: ev.id, estado: nuevo });
+  };
+  const respuestaVisible = recienRespondido && ev && recienRespondido.eventId === ev.id ? recienRespondido.estado : null;
+  const abrirDia = (dia) => {
+    if (dia.eventos.length === 1) onSelectEvent(dia.eventos[0].id);
+    else if (dia.eventos.length > 1) setDayEventsPicker(dia.eventos);
+  };
+
+  const tarjetaServicio = ev ? (
+    <TarjetaInicio style={{ padding: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: 0.4, color: esAlabanza ? "#C2620F" : "#1F8A73" }}>{esAlabanza ? "TU PRÓXIMO SERVICIO" : "TU PRÓXIMO TURNO"}</span>
+        {cuandoEs(ev.date) && <span style={{ fontSize: 12.5, fontWeight: 700, background: "var(--wf-active-bg)", color: "var(--wf-active-text)", padding: "4px 10px", borderRadius: 12 }}>{cuandoEs(ev.date)}</span>}
       </div>
+      <button onClick={() => onSelectEvent(ev.id)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: 0, marginTop: 8, cursor: "pointer", color: "var(--wf-text)" }}>
+        <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.3 }}>{fechaLarga(fechaEv, ev.hora)}</div>
+        <div style={{ fontSize: 14, color: "var(--wf-muted)", marginTop: 2 }}>{ev.title}</div>
+      </button>
+      <div style={{ fontSize: 16, color: "var(--wf-text)", marginTop: 10 }}>Te toca: <b>{cargos.map((c) => c.nombre).join(", ")}</b></div>
+      {respuestaVisible ? (
+        <div role="status" style={{ marginTop: 14, borderRadius: 14, padding: "14px 12px", textAlign: "center", fontSize: 16, fontWeight: 700, background: respuestaVisible === "confirmado" ? "#E1F5EE" : "#FCEBEB", color: respuestaVisible === "confirmado" ? "#085041" : "#A32D2D" }}>
+          {respuestaVisible === "confirmado" ? "¡Listo, confirmaste! Dios te bendiga." : "Listo, avisamos que no puedes."}
+          <button onClick={() => setRecienRespondido(null)} style={{ display: "block", margin: "6px auto 0", background: "none", border: "none", fontSize: 13, color: "inherit", textDecoration: "underline", cursor: "pointer" }}>Cambiar respuesta</button>
+        </div>
+      ) : estado === "confirmado" ? (
+        <div style={{ marginTop: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: "#1F8A73", display: "flex", alignItems: "center", gap: 6 }}><Check size={18} /> Ya confirmaste</span>
+          <button onClick={() => responder("rechazado")} style={{ background: "none", border: "none", fontSize: 13.5, color: "var(--wf-muted)", textDecoration: "underline", cursor: "pointer" }}>Ya no puedo</button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+          <button onClick={() => responder("confirmado")} style={{ flex: 1, minHeight: 50, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", border: "none", borderRadius: 14, fontSize: 16, fontWeight: 800, cursor: "pointer" }}>Confirmar</button>
+          <button onClick={() => responder("rechazado")} style={{ flex: 1, minHeight: 50, background: "var(--wf-hover)", color: "var(--wf-text)", border: "none", borderRadius: 14, fontSize: 16, fontWeight: 600, cursor: "pointer" }}>{estado === "rechazado" ? "No puedo (enviado)" : "No puedo"}</button>
+        </div>
+      )}
+    </TarjetaInicio>
+  ) : (
+    <TarjetaInicio style={{ padding: 18 }}>
+      <div style={{ fontSize: 17, fontWeight: 700, color: "var(--wf-text)" }}>Esta semana no tienes servicio asignado</div>
+      {nextEvent ? (
+        <button onClick={() => onSelectEvent(nextEvent.id)} style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "var(--wf-hover)", border: "none", borderRadius: 14, padding: "12px 14px", cursor: "pointer" }}>
+          <Calendar size={18} color="var(--wf-brand-accent)" />
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 13, color: "var(--wf-muted)" }}>Próximo servicio de la iglesia</span>
+            <span style={{ display: "block", fontSize: 15, fontWeight: 700, color: "var(--wf-text)" }}>{fechaLarga(nextDate, nextEvent.hora)}</span>
+          </span>
+          <ChevronRight size={18} color="var(--wf-faint)" />
+        </button>
+      ) : <div style={{ fontSize: 14, color: "var(--wf-muted)", marginTop: 6 }}>No hay servicios próximos en el calendario.</div>}
+    </TarjetaInicio>
+  );
 
-      {avisoPush && <AvisoActivarPush estado={avisoPush} onActivar={onActivarPush} onCerrar={onOcultarPush} />}
+  const seccionCanciones = canciones.length > 0 && (
+    <>
+      <TituloSeccion derecha={<span style={{ fontSize: 13, color: "var(--wf-muted)" }}>{canciones.length} {canciones.length === 1 ? "canción" : "canciones"}</span>}>Canciones para ensayar</TituloSeccion>
+      <TarjetaInicio>
+        {canciones.map((c, i) => (
+          <button key={c.itemId} onClick={() => onOpenSong(c.songId)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "12px 14px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: c.cambiado ? "var(--wf-active-bg)" : "transparent", cursor: "pointer" }}>
+            <span style={{ minWidth: 34, textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 700, color: c.cambiado ? "#C2620F" : "#1F8A73" }}>{c.tono}</span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--wf-text)" }}>{c.titulo}</span>
+              {c.cambiado && <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-active-text)" }}>Tono cambiado para este servicio ({c.tonoOriginal} → {c.tono})</span>}
+            </span>
+            {c.tempo ? <span style={{ fontSize: 12.5, color: "var(--wf-muted)" }}>{c.tempo} bpm</span> : null}
+            <ChevronRight size={16} color="var(--wf-faint)" />
+          </button>
+        ))}
+      </TarjetaInicio>
+    </>
+  );
 
-      <div style={{ display: "flex", flexDirection: isCompact ? "column" : "row", gap: 20, flex: 1, minHeight: 0 }}>
+  const seccionEquipo = equipo.length > 0 && (
+    <>
+      <TituloSeccion>{esAlabanza ? "Tu equipo" : "Con quién te toca"}</TituloSeccion>
+      <TarjetaInicio>
+        {equipo.map((p, i) => (
+          <div key={`${p.nombre}-${i}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderTop: i ? "1px solid var(--wf-divider)" : "none" }}>
+            <Iniciales nombre={p.nombre} />
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--wf-text)" }}>{p.nombre}</span>
+              <span style={{ display: "block", fontSize: 13, color: "var(--wf-muted)" }}>{p.cargos.join(", ")}</span>
+            </span>
+            {p.lead ? <span style={{ fontSize: 12, fontWeight: 700, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)", padding: "3px 9px", borderRadius: 10 }}>{esAlabanza ? "Dirige" : "A cargo"}</span>
+              : <span style={{ fontSize: 12.5, fontWeight: 600, color: ESTADO_COLOR[p.estado] || "var(--wf-muted)" }}>{ESTADO_TEXTO[p.estado] || ""}</span>}
+          </div>
+        ))}
+      </TarjetaInicio>
+    </>
+  );
+
+  const seccionIndicaciones = notas.length > 0 && (
+    <>
+      <TituloSeccion>Indicaciones</TituloSeccion>
+      {notas.map((n, i) => (
+        <TarjetaInicio key={i} style={{ padding: 14, marginBottom: 8 }}>
+          {notas.length > 1 && <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 4 }}>{n.bloque}</div>}
+          <div style={{ fontSize: 15, color: "var(--wf-text)", lineHeight: 1.55, whiteSpace: "pre-line" }}>{n.texto}</div>
+          {n.autor && <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 6 }}>— {n.autor}</div>}
+        </TarjetaInicio>
+      ))}
+    </>
+  );
+
+  const seccionAtencion = atencion.length > 0 && (
+    <>
+      <TituloSeccion derecha={<span style={{ fontSize: 13, color: "var(--wf-muted)" }}>próximos 14 días</span>}>Necesita tu atención</TituloSeccion>
+      <TarjetaInicio>
+        {atencion.slice(0, 6).map((a, i) => (
+          <button key={i} onClick={() => onSelectEvent(a.eventId)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "12px 14px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: "transparent", cursor: "pointer" }}>
+            {a.tipo === "setlist" ? <Music size={18} color="#B15EA0" /> : a.tipo === "rechazo" ? <X size={18} color="#C23B32" /> : <Users size={18} color="#5661B3" />}
+            <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, color: "var(--wf-text)" }}>{a.texto}</span>
+            <ChevronRight size={16} color="var(--wf-faint)" />
+          </button>
+        ))}
+      </TarjetaInicio>
+    </>
+  );
+
+  const otrasFechas = misServicios.slice(1, 5);
+  const seccionFechas = otrasFechas.length > 0 && (
+    <>
+      <TituloSeccion>Tus próximas fechas</TituloSeccion>
+      <TarjetaInicio>
+        {otrasFechas.map(({ event: e, cargos: cs }, i) => {
+          const st = estadoGeneral(cs);
+          return (
+            <button key={e.id} onClick={() => onSelectEvent(e.id)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "12px 14px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: "transparent", cursor: "pointer" }}>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--wf-text)" }}>{fechaLarga(parseIsoDateLocal(e.date), e.hora)}</span>
+                <span style={{ display: "block", fontSize: 13, color: "var(--wf-muted)" }}>{cs.map((c) => c.nombre).join(", ")}</span>
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: ESTADO_COLOR[st] }}>{ESTADO_TEXTO[st]}</span>
+            </button>
+          );
+        })}
+      </TarjetaInicio>
+    </>
+  );
+
+  const calendarioMes = (
+    <>
         {/* Calendario del mes en curso */}
         <div style={{ flex: isCompact ? "none" : 1.3, minHeight: 0, background: "var(--wf-card)", borderRadius: 20, boxShadow: "0 6px 20px rgba(22,50,79,0.08)", padding: 18, display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexShrink: 0, gap: 8 }}>
@@ -2607,40 +2792,92 @@ function InicioView({ events, library, myUserId, favoritesCount, memberCount, li
           </div>
         </div>
 
-        {/* Próximo evento + resumen rápido */}
-        <div style={{ flex: isCompact ? "none" : 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 14 }}>
-          {nextEvent ? (() => {
-            const misCargos = misAsignacionesEnEvento(nextEvent, myUserId, library);
-            return (
-            <button onClick={() => onSelectEvent(nextEvent.id)} className="hoverable" style={{ flex: isCompact ? "none" : 1, minHeight: isCompact ? 150 : 0, textAlign: "left", border: "none", cursor: "pointer", borderRadius: 20, padding: 0, overflow: "hidden", background: nextEvent.cover || DEFAULT_COVERS[0], color: "#fff", display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: nextIsLive ? "0 10px 24px rgba(232,130,30,0.45)" : "0 10px 22px rgba(22,50,79,0.2)" }}>
-              <div style={{ padding: 18 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, opacity: 0.85 }}>{nextIsLive ? "● EN VIVO AHORA" : "PRÓXIMO EVENTO"}</div>
-                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, margin: "6px 0 4px", lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{nextEvent.title}</div>
-                <div style={{ fontSize: 12, opacity: 0.85, display: "flex", alignItems: "center", gap: 5 }}><MapPin size={12} /> <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nextEvent.location}</span></div>
-                {misCargos.length > 0 && (
-                  <div style={{ fontSize: 11, fontWeight: 700, marginTop: 6, background: "rgba(255,255,255,0.18)", borderRadius: 12, padding: "4px 8px", display: "inline-block" }}>
-                    Te toca: {misCargos.join(", ")}
-                  </div>
-                )}
-              </div>
-              <div style={{ padding: 18, display: "flex", alignItems: "flex-end", justifyContent: "space-between", background: "rgba(0,0,0,0.12)" }}>
-                <div>
-                  <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1 }}>{nextDate ? nextDate.getDate() : "–"}</div>
-                  <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.85, marginTop: 2 }}>{nextDate ? MONTH_ABBR[nextDate.getMonth()] : ""}{nextEvent.dateLabel ? ` · ${nextEvent.dateLabel}` : ""}</div>
-                </div>
-                <AvatarStack initials={eventAvatars(nextEvent)} max={3} />
-              </div>
-            </button>
-            );
-          })() : (
-            <div style={{ flex: isCompact ? "none" : 1, minHeight: isCompact ? 100 : 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--wf-faint)", fontSize: 13, background: "var(--wf-card)", borderRadius: 20 }}>No hay eventos próximos.</div>
-          )}
+    </>
+  );
 
-          <div style={{ display: "flex", gap: 12, flexShrink: 0 }}>
-            {canSeeCanciones && <StatCard icon={Heart} label="Canciones favoritas" value={favoritesCount} onClick={() => setShowFavorites(true)} />}
-            <StatCard icon={Users} label="Miembros del equipo" value={memberCount} onClick={onGoToTeam} />
+  const seccionSemana = (
+    <>
+      <TituloSeccion derecha={<button onClick={() => setVerMes((v) => !v)} style={{ background: "none", border: "none", fontSize: 13.5, fontWeight: 700, color: "#2F5FA8", cursor: "pointer" }}>{verMes ? "Ocultar mes" : "Ver mes completo"}</button>}>Esta semana</TituloSeccion>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
+        {semana.map((d, i) => {
+          const conEventos = d.eventos.length > 0;
+          return (
+            <button
+              key={d.iso} onClick={() => abrirDia(d)} disabled={!conEventos}
+              aria-label={`${DIAS_CORTOS[i]} ${d.fecha.getDate()}${conEventos ? `, ${d.eventos.length} servicio${d.eventos.length > 1 ? "s" : ""}` : ""}${d.meToca ? ", te toca" : ""}`}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "8px 0", borderRadius: 14, cursor: conEventos ? "pointer" : "default",
+                background: d.esHoy ? "var(--wf-brand-primary)" : "var(--wf-card)", color: d.esHoy ? "var(--wf-on-brand-primary)" : "var(--wf-text)",
+                border: d.meToca && !d.esHoy ? "2px solid var(--wf-brand-accent)" : "2px solid transparent", boxShadow: "0 2px 8px rgba(22,50,79,0.06)" }}
+            >
+              <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.75 }}>{DIAS_CORTOS[i]}</span>
+              <span style={{ fontSize: 17, fontWeight: 700 }}>{d.fecha.getDate()}</span>
+              <span style={{ width: 7, height: 7, borderRadius: 4, background: d.meToca ? "var(--wf-brand-accent)" : conEventos ? "var(--wf-faint)" : "transparent" }} />
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", gap: 14, fontSize: 12.5, color: "var(--wf-muted)", margin: "8px 4px 0" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: "var(--wf-brand-accent)" }} /> Te toca</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: "var(--wf-faint)" }} /> Hay servicio</span>
+      </div>
+      {verMes && <div style={{ marginTop: 12, display: "flex", flexDirection: "column", minHeight: 320 }}>{calendarioMes}</div>}
+    </>
+  );
+
+  const atajos = (
+    <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+      {canSeeCanciones && <StatCard icon={Heart} label="Canciones favoritas" value={favoritesCount} onClick={() => setShowFavorites(true)} />}
+      <StatCard icon={Users} label="Miembros del equipo" value={memberCount} onClick={onGoToTeam} />
+    </div>
+  );
+
+  return (
+    <div className="screen-enter" style={{ height: "100%", boxSizing: "border-box", overflowY: "auto", overflowX: "hidden" }}>
+      <div style={{ maxWidth: isCompact ? "none" : 1080, margin: "0 auto", padding: isCompact ? "20px 16px 110px" : "24px 28px 40px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14, color: "var(--wf-muted)" }}>{fechaLarga(today)}</div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, fontWeight: 600, lineHeight: 1.2 }}>{greetingWord()}{myName ? `, ${myName.split(" ")[0]}` : ""}</div>
+            <div style={{ fontSize: 13.5, color: "var(--wf-muted)", marginTop: 2 }}>{teamName}</div>
           </div>
+          {liveEvent && (
+            <button onClick={() => (liveLibre ? onGoLive() : onSelectEvent(liveEvent.id))} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, maxWidth: "62%", background: "var(--wf-brand-primary)", borderRadius: 20, padding: "10px 16px", border: "none", cursor: "pointer" }}>
+              <span className="live-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--wf-brand-accent)", flexShrink: 0 }} />
+              <span style={{ color: "var(--wf-on-brand-primary)", fontWeight: 700, fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>En vivo: {liveEvent.title}</span>
+              <ChevronRight size={14} color="color-mix(in srgb, var(--wf-on-brand-primary) 70%, transparent)" style={{ flexShrink: 0 }} />
+            </button>
+          )}
         </div>
+
+        {avisoPush && <AvisoActivarPush estado={avisoPush} onActivar={onActivarPush} onCerrar={onOcultarPush} />}
+
+        {isCompact ? (
+          <>
+            {tarjetaServicio}
+            {seccionCanciones}
+            {seccionEquipo}
+            {seccionIndicaciones}
+            {seccionAtencion}
+            {seccionFechas}
+            {seccionSemana}
+            {atajos}
+          </>
+        ) : (
+          <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+            <div style={{ flex: 1.2, minWidth: 0 }}>
+              {tarjetaServicio}
+              {seccionCanciones}
+              {seccionEquipo}
+              {seccionIndicaciones}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ marginTop: -20 }}>{seccionSemana}</div>
+              {seccionAtencion}
+              {seccionFechas}
+              {atajos}
+            </div>
+          </div>
+        )}
       </div>
 
       {showFavorites && (
@@ -2664,13 +2901,13 @@ function InicioView({ events, library, myUserId, favoritesCount, memberCount, li
       )}
 
       {dayEventsPicker && (
-        <ModalShell title="Eventos de ese día" icon={Calendar} color="#2F5FA8" onClose={() => setDayEventsPicker(null)}>
+        <ModalShell title="Servicios de ese día" icon={Calendar} color="#2F5FA8" onClose={() => setDayEventsPicker(null)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {dayEventsPicker.map((ev) => (
-              <button key={ev.id} onClick={() => { setDayEventsPicker(null); onSelectEvent(ev.id); }} className="hoverable" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", background: "var(--wf-hover)", border: "none", borderRadius: 12, padding: "10px 12px", cursor: "pointer" }}>
+            {dayEventsPicker.map((e) => (
+              <button key={e.id} onClick={() => { setDayEventsPicker(null); onSelectEvent(e.id); }} className="hoverable" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", background: "var(--wf-hover)", border: "none", borderRadius: 12, padding: "12px 14px", cursor: "pointer" }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{ev.title}</div>
-                  <div style={{ fontSize: 11, color: "var(--wf-muted)" }}>{ev.hora ? `${ev.hora} · ` : ""}{ev.location}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{e.title}</div>
+                  <div style={{ fontSize: 12.5, color: "var(--wf-muted)" }}>{e.hora ? `${e.hora.slice(0, 5)} · ` : ""}{e.location}</div>
                 </div>
                 <ChevronRight size={14} color="var(--wf-faint)" />
               </button>

@@ -409,3 +409,12 @@ export async function crearEventoCompleto(evento, userId) {
     sincronizarRecordatorios(evento.id, evento.reminders || []),
   ]);
 }
+
+// Confirmar o avisar "no puedo" desde la pantalla de inicio: solo cambia el estado de MIS filas de
+// miembros_rol (roles de alabanza o encargados de bloque), sin re-guardar el evento entero — así no
+// pisa nada que un administrador esté editando al mismo tiempo en ese evento.
+export async function responderMisCargos(miembroIds, estado) {
+  if (!miembroIds?.length) return;
+  const { error } = await supabase.from("miembros_rol").update({ estado }).in("id", miembroIds);
+  if (error) throw error;
+}
