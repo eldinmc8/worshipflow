@@ -5,7 +5,7 @@ import { useArrastreLista } from "./lib/arrastreLista.js";
 import { useArrastreGrid } from "./lib/arrastreGrid.js";
 import ImportarPresentacion from "./components/ImportarPresentacion.jsx";
 import { esPaginaPresentacion } from "./lib/importarPresentacion.js";
-import { esGrupoDiapositivas, slidesDeGrupo, diapositivasDeItem, itemConDiapositivas, moverDiapositiva, quitarDiapositiva as quitarDiapositivaDeGrupo, reordenarEnGrupo, tituloBase } from "./lib/diapositivas.js";
+import { esGrupoDiapositivas, slidesDeGrupo, diapositivasDeItem, itemConDiapositivas, moverDiapositiva, quitarDiapositiva as quitarDiapositivaDeGrupo, reordenarEnGrupo, tituloBase, nuevaDiapositiva } from "./lib/diapositivas.js";
 import DiapositivaDisenada from "./components/DiapositivaDisenada.jsx";
 import {
   Music, Mic2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus,
@@ -1036,6 +1036,19 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     const { itemId, eventoId } = editorDiap;
     // Si la transmisión terminó mientras se editaba, se guarda igual en el evento.
     const origen = editorDiap.origen === "vivo" && !(liveEvent && (liveLibre ? eventoId === null : liveEventId === eventoId)) ? eventoId : editorDiap.origen;
+    // Diapositiva nueva diseñada desde cero ("Diseñar diapositiva"): entra como elemento nuevo.
+    if (editorDiap.nuevo) {
+      if (!origen || !diapositivas.length) { setEditorDiap(null); return; }
+      const nuevo = itemConDiapositivas({ id: nextId(), type: "slide", title: titulo, subtitle: "" }, diapositivas);
+      const despuesDe = editorDiap.despuesDe;
+      cambiarOrdenDeOrigen(origen, (o) => {
+        const i = despuesDe ? o.findIndex((it) => it.id === despuesDe) : -1;
+        return i === -1 ? [...o, nuevo] : [...o.slice(0, i + 1), nuevo, ...o.slice(i + 1)];
+      });
+      setEditorDiap(null);
+      showToast(`"${titulo}" se agregó al orden del culto.`, "info");
+      return;
+    }
     if (!origen || !ordenDeOrigen(origen).some((it) => it.id === itemId)) {
       showToast("No se pudo guardar: ese elemento ya no está en el orden del culto.");
       setEditorDiap(null);
@@ -1052,6 +1065,11 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     const it = ordenDeOrigen(origen).find((x) => x.id === itemId);
     if (!it) return;
     setEditorDiap({ origen, eventoId: origen === "vivo" ? (liveLibre ? null : liveEventId) : origen, itemId, indice, titulo: tituloBase(it.title) || "Diapositivas", diapositivas: diapositivasDeItem(it) });
+  };
+  // Diseñar una diapositiva desde cero: el editor abre en blanco con las plantillas a la vista y, al
+  // tocar Listo, entra al orden del culto (después de despuesDe, o al final).
+  const abrirEditorNuevo = (origen, despuesDe = null) => {
+    setEditorDiap({ origen, nuevo: true, despuesDe, eventoId: origen === "vivo" ? (liveLibre ? null : liveEventId) : origen, itemId: null, indice: 0, titulo: "Diapositiva", diapositivas: [nuevaDiapositiva()] });
   };
   const editorAlAire = !!(editorDiap && editorDiap.origen === "vivo" && !adHoc && current && (current.grupoId === editorDiap.itemId || current.slideId === editorDiap.itemId));
   // Mover / copiar / sacar diapositivas entre grupos (menú de clic derecho en la consola En vivo).
@@ -2090,6 +2108,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             indiceInicial={editorDiap.indice || 0}
             alAire={editorAlAire}
             iglesiaId={myIglesiaId}
+            nueva={!!editorDiap.nuevo}
             onGuardar={guardarEditorDiap}
             onCerrar={() => setEditorDiap(null)}
           />
@@ -2326,6 +2345,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       {tab === "eventos" && selectedEvent && !openSong && (
         <EventDetail
           onAbrirEditor={(itemId) => abrirEditorDiap(selectedEvent.id, itemId, 0)}
+          onDisenarNueva={() => abrirEditorNuevo(selectedEvent.id)}
           myIglesiaId={myIglesiaId}
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
           isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={puedeGestionarEventos}
@@ -2437,6 +2457,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             onEditSongSlide={editSongSlideLive} onAddSongSlide={addSongSlideLive} onRearmarSeccion={rearmarSeccionLive}
             onAgregarCancion={agregarCancionEnVivo} onReordenarOrden={reordenarOrdenEnVivo} onQuitarDelOrden={quitarDelOrdenEnVivo} onInsertarItems={insertarItemsEnVivo}
             onAbrirEditor={(itemId, indice) => abrirEditorDiap("vivo", itemId, indice)}
+            onDisenarNueva={(despuesDe) => abrirEditorNuevo("vivo", despuesDe)}
             onMoverDiapositiva={moverDiapositivaEnVivo} onQuitarDiapositivaGrupo={quitarDiapositivaEnVivo}
             onReordenarEnGrupo={(itemId, desde, hacia) => cambiarOrdenEnVivo((o) => reordenarEnGrupo(o, itemId, desde, hacia))}
           />
@@ -5942,7 +5963,7 @@ function EnsayoAlabanzaCard({ event, userId, isAdminViewer, onGuardar }) {
 
 // ---------------- DETALLE DE EVENTO ----------------
 function EventDetail({
-  myIglesiaId, onAbrirEditor,
+  myIglesiaId, onAbrirEditor, onDisenarNueva,
   event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onGoLive, onDelete,
   isDraftFromTemplate, onPublish,
   onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onRemove, onDuplicate, onReorder,
@@ -6206,6 +6227,7 @@ function EventDetail({
       )}
       <SetlistPane
         onAbrirEditor={isCompact ? undefined : onAbrirEditor}
+        onDisenarNueva={isCompact ? undefined : onDisenarNueva}
         myIglesiaId={myIglesiaId}
         event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer || puedeEditarSetlist} userId={userId} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onAddSeccion={onAddSeccion}
@@ -6367,7 +6389,7 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ onAbrirEditor, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onRemove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onRemove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   const [showImportar, setShowImportar] = useState(false); // Importar presentación (ver ImportarPresentacion)
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
@@ -6479,6 +6501,8 @@ function SetlistPane({ onAbrirEditor, myIglesiaId, event, library, ministries, i
             <div title="Solo administradores pueden agregar versículos" style={{ ...addBtnStyle, opacity: 0.5, cursor: "not-allowed", boxShadow: "none", border: "1px dashed var(--wf-border)" }}><BookOpen size={14} color="var(--wf-faint)" /> Agregar versículo (solo Admin)</div>
           )}
           <button onClick={onAddSlideClick} className="hoverable" style={addBtnStyle}><ImgIcon size={14} color="#B15EA0" /> Agregar slide personalizada</button>
+          {/* Solo en computadora: abre el editor de diapositivas en blanco, con plantillas. */}
+          {onDisenarNueva && <button onClick={onDisenarNueva} className="hoverable" style={addBtnStyle}><PenTool size={14} color="#2F5FA8" /> Diseñar diapositiva</button>}
           {/* PDF, imágenes de Canva o un Word con el bosquejo — entran al final del Setlist. */}
           <button onClick={() => setShowImportar(true)} className="hoverable" style={addBtnStyle}><FileUp size={14} color="var(--wf-brand-accent)" /> Importar presentación</button>
           {showImportar && (
@@ -6726,7 +6750,7 @@ function SetlistPane({ onAbrirEditor, myIglesiaId, event, library, ministries, i
                     )}
                     <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{item.type === "biblia" ? item.reference : item.title}</span>
                     {diapsItem?.length > 1 && <span style={{ fontSize: 11, color: "var(--wf-muted)", background: "var(--wf-hover)", borderRadius: 14, padding: "2px 8px", flexShrink: 0 }}>{diapsItem.length} diapositivas</span>}
-                    {item.type === "slide" && canEditNow && onAbrirEditor && (
+                    {item.type === "slide" && isAdminViewer && onAbrirEditor && (
                       <button onClick={() => onAbrirEditor(item.id)} title="Editar el diseño" style={{ ...iconGhost, color: "#2F5FA8" }}><Pencil size={14} /></button>
                     )}
                     {item.isSermonPoint && <span style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-heading)", background: "var(--wf-hover)", borderRadius: 14, padding: "2px 8px", flexShrink: 0 }}>BOSQUEJO</span>}
@@ -7432,7 +7456,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo}) {
+function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo}) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -8201,6 +8225,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             </>)}
             {grupoCinta("Presentación", botonCinta({ icon: FileUp, label: "Importar", onClick: () => setShowImportar(true), title: "Importar un PDF, imágenes de Canva, o un Word con el bosquejo", ancho: 64 }))}
             {grupoCinta("De último momento", <>
+              {onDisenarNueva && botonCinta({ icon: PenTool, label: "Diseñar", title: "Diseñar una diapositiva desde cero (con plantillas)", onClick: () => onDisenarNueva(anclaParaAgregar()?.id || null) })}
               {botonCinta({ icon: Type, label: "Diapositiva", onClick: () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); } })}
               {botonCinta({ icon: ImgIcon, label: "Video", onClick: () => setShowAdHocVideo(true) })}
             </>, true)}

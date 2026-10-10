@@ -94,7 +94,7 @@ const medirImagen = (url) => new Promise((resolve) => {
   img.src = url;
 });
 
-export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas: inicial, indiceInicial = 0, alAire = false, iglesiaId, onGuardar, onCerrar }) {
+export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas: inicial, indiceInicial = 0, alAire = false, nueva = false, iglesiaId, onGuardar, onCerrar }) {
   const [titulo, setTitulo] = useState(tituloInicial || "");
   const [hist, setHist] = useState(() => ({ pasado: [], presente: inicial?.length ? inicial : [nuevaDiapositiva()], futuro: [] }));
   const diaps = hist.presente;
@@ -103,7 +103,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
   const [editandoTexto, setEditandoTexto] = useState(null);
   const [guias, setGuias] = useState({ x: null, y: null });
   const [menu, setMenu] = useState(null); // { x, y, indice } — clic derecho en una miniatura
-  const [plantillasAbiertas, setPlantillasAbiertas] = useState(false);
+  const [plantillasAbiertas, setPlantillasAbiertas] = useState(nueva); // una diapositiva nueva abre con las plantillas a la vista
   const [subiendo, setSubiendo] = useState(false);
   const [zona, setZona] = useState("lienzo"); // dónde fue el último clic: "lienzo" | "lista" (para Supr)
   const [lienzoPx, setLienzoPx] = useState({ w: 960, h: 540 });
@@ -252,6 +252,15 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
     cambiar((ds) => [...ds.slice(0, despuesDe + 1), d, ...ds.slice(despuesDe + 1)]);
     setSel(despuesDe + 1); setCapaSel(null);
   };
+  // Una plantilla sobre una diapositiva vacía (sin textos ni imágenes y con fondo de color) la
+  // reemplaza; si no, entra como diapositiva nueva después de la actual.
+  const usarPlantilla = (p) => {
+    const d = p.crear();
+    const vacia = diap && !diap.capas.length && (diap.fondo?.tipo || "color") === "color";
+    if (vacia) { cambiar((ds) => ds.map((x, i) => (i === sel ? d : x))); setCapaSel(null); }
+    else insertarDiapositiva(d);
+    if (nueva && (!titulo.trim() || titulo === "Diapositiva") && p.clave !== "blanco") setTitulo(p.nombre);
+  };
   const duplicarDiapositiva = (i = sel) => insertarDiapositiva(clonarDiapositiva(diaps[i]), i);
   const borrarDiapositiva = async (i = sel) => {
     if (diaps.length <= 1) {
@@ -385,12 +394,12 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
             <BotonCinta icon={LayoutTemplate} label="Plantillas" onClick={() => setPlantillasAbiertas((v) => !v)} activo={plantillasAbiertas} />
             {plantillasAbiertas && (
               <div style={{ position: "absolute", top: 58, right: 0, zIndex: 5, background: C.panel, border: `1px solid ${C.bordeCampo}`, borderRadius: 12, padding: 10, width: 380, boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>
-                <div style={{ ...etiqueta, marginBottom: 8 }}>Agregar diapositiva con plantilla</div>
+                <div style={{ ...etiqueta, marginBottom: 8 }}>Plantillas</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   {PLANTILLAS.map((p) => {
                     const ejemplo = p.crear();
                     return (
-                      <button key={p.clave} onClick={() => { insertarDiapositiva(p.crear()); setPlantillasAbiertas(false); }} style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left", color: C.texto }}>
+                      <button key={p.clave} onClick={() => { usarPlantilla(p); setPlantillasAbiertas(false); }} style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left", color: C.texto }}>
                         <div style={{ position: "relative", aspectRatio: "16/9", borderRadius: 8, overflow: "hidden", border: `1px solid ${C.bordeCampo}` }}><DiapositivaDisenada diapositiva={ejemplo} /></div>
                         <div style={{ fontSize: 11.5, marginTop: 4 }}>{p.nombre}</div>
                       </button>
