@@ -6,9 +6,11 @@ import { precacheAndRoute } from "workbox-precaching";
 // permite personalizar).
 precacheAndRoute(self.__WB_MANIFEST);
 
-// No self.skipWaiting() automático en "install": con registerType "prompt", el SW nuevo debe
-// quedarse en estado "waiting" hasta que la persona toque "Actualizar" (ver swUpdate.js). Si
-// esto llamara skipWaiting() solo, nunca habría un SW esperando y el aviso nunca se mostraría.
+// Actualización automática (pedido de Eldin, 2026-10-09): el SW nuevo se activa solo apenas se
+// instala, sin esperar a que alguien toque "Actualizar". Al tomar control, la página se recarga sola
+// (listener "controllerchange" de swUpdate.js — que ya estaba en las versiones anteriores, así que
+// también los equipos que todavía tienen la versión vieja abierta se actualizan solos).
+self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });

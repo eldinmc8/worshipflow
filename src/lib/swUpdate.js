@@ -68,8 +68,10 @@ export function iniciarActualizacionAutomatica(onUpdateAvailable) {
       registration = reg || null;
     },
     onNeedRefresh() {
-      refreshNeeded = true; // "Buscar actualizaciones" en Ajustes sigue pudiendo aplicarla a mano
-      avisarEnEsteDispositivo().then((avisar) => { if (avisar) onUpdateAvailable?.(); });
+      // Ya no se espera a que alguien toque "Actualizar": si por algo quedó una versión esperando, se
+      // aplica sola (la página se recarga sola por el listener de "controllerchange" de arriba).
+      refreshNeeded = true;
+      updateServiceWorker?.(true);
     },
   });
 
