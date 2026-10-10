@@ -2031,6 +2031,15 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         input, textarea, select { font-family: inherit; }
       `}</style>
 
+      {/* Mientras un administrador ve la app como otra persona/rol (Ajustes → Mi iglesia), una franja
+          arriba se lo recuerda y le deja volver a sí mismo con un toque. */}
+      {realIsAdmin && (nameOverride || roleOverride) && (
+        <div style={{ background: "#5661B3", color: "#fff", fontSize: 12.5, fontWeight: 600, padding: "6px 12px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+          <Eye size={14} />
+          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Viendo como {nameOverride || roleOverride}{nameOverride && roleOverride ? ` · ${roleOverride}` : ""}</span>
+          <button onClick={() => { setNameOverride(null); setRoleOverride(null); }} style={{ background: "#fff", color: "#5661B3", border: "none", borderRadius: 10, padding: "3px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>Volver a mí</button>
+        </div>
+      )}
       {(usingCachedData || isOffline) && (
         <div style={{ background: "var(--wf-brand-accent)", color: "var(--wf-text)", fontSize: 12, fontWeight: 700, textAlign: "center", padding: "6px 10px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
           <WifiOff size={13} />
@@ -3319,6 +3328,24 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           {showPantalla && <PantallaProyeccionModal iglesiaId={myIglesiaId} onClose={() => setShowPantalla(false)} />}
           {/* Visible solo si soy_super_admin() dio true para esta cuenta (ver AuthGate.jsx). */}
           {onGoToPlataforma && <NavRow icon={Shield} label="Consola general" onClick={onGoToPlataforma} right={chevron} />}
+          <NavRow icon={Eye} label="Ver la app como otra persona" onClick={() => setAvanzadoAbierto((v) => !v)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{nameOverride || roleOverride || ""} {avanzadoAbierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>} />
+          {avanzadoAbierto && (
+        <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)", marginBottom: 6 }}>Elige a quién</div>
+          <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 8 }}>Para revisar que cada quien vea solo lo que le corresponde.</div>
+          <select value={nameOverride || ""} onChange={(e) => setNameOverride(e.target.value || null)} style={{ ...inputStyle, marginBottom: 14 }}>
+            <option value="">Yo mismo</option>
+            {usuariosReales.map((u) => <option key={u.nombre} value={u.nombre}>{u.nombre}{u.rol === "admin" ? " (administrador)" : ""}</option>)}
+          </select>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)", marginBottom: 6 }}>Probar la app con otro rol</div>
+          <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 8 }}>Solo en este dispositivo. Solo Administrador y Multimedia pueden controlar la transmisión en vivo.</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {ROLE_OPTIONS.map((r) => (
+              <button key={r} onClick={() => setRoleOverride(r === myRole && roleOverride ? null : r)} style={{ fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: "none", cursor: "pointer", background: myRole === r ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: myRole === r ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{r}</button>
+            ))}
+          </div>
+        </div>
+          )}
         </>
       )}
       {showTeamList && (
@@ -3348,31 +3375,6 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
       <div style={{ marginTop: 18 }}>
         <NavRow icon={LogOut} label="Cerrar sesión" danger onClick={signOut} />
       </div>
-
-      {realIsAdmin && (
-        <div style={{ marginTop: 18 }}>
-          <button onClick={() => setAvanzadoAbierto((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: "4px 2px", fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", cursor: "pointer" }}>
-            Opciones avanzadas {avanzadoAbierto ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
-          {avanzadoAbierto && (
-            <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginTop: 6 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)", marginBottom: 6 }}>Probar la app con otro rol</div>
-              <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 8 }}>Solo en este dispositivo. Solo Administrador y Multimedia pueden controlar la transmisión en vivo.</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-                {ROLE_OPTIONS.map((r) => (
-                  <button key={r} onClick={() => setRoleOverride(r === myRole && roleOverride ? null : r)} style={{ fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: "none", cursor: "pointer", background: myRole === r ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: myRole === r ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{r}</button>
-                ))}
-              </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)", marginBottom: 6 }}>Ver la app como otra persona</div>
-              <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 8 }}>Para revisar que cada quien vea solo lo que le corresponde.</div>
-              <select value={nameOverride || ""} onChange={(e) => setNameOverride(e.target.value || null)} style={inputStyle}>
-                <option value="">Yo mismo</option>
-                {usuariosReales.map((u) => <option key={u.nombre} value={u.nombre}>{u.nombre}{u.rol === "admin" ? " (administrador)" : ""}</option>)}
-              </select>
-            </div>
-          )}
-        </div>
-      )}
 
       {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
 
