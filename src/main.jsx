@@ -4,6 +4,7 @@ import './index.css'
 import './lib/pwaInstall.js'
 import { iniciarActualizacionAutomatica, aplicarActualizacion } from './lib/swUpdate.js'
 import { iniciarTema } from './lib/theme.js'
+import { iniciarPreferencias } from './lib/preferencias.js'
 import AuthGate from './AuthGate.jsx'
 import PublicScreen from './PublicScreen.jsx'
 import CrearIglesia from './CrearIglesia.jsx'
@@ -26,6 +27,8 @@ if (isPublicScreen) {
   // Antes de que React monte nada — así no hay parpadeo de claro-y-luego-oscuro si ya se había
   // elegido oscuro antes. La pantalla de Proyección real nunca aplica esto: siempre se ve oscura.
   iniciarTema()
+  // Tamaño de letra de este dispositivo (Ajustes → Apariencia). Nunca en la Proyección.
+  iniciarPreferencias()
 }
 
 // Aviso de actualización VISIBLE apenas se detecta una versión nueva — antes esto solo vivía como un

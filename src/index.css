@@ -196,9 +196,9 @@ img, svg {
    "todo se mueve"). 100dvh sigue el alto REAL visible en cada instante; se declara aparte (no como
    fallback en la misma línea, porque en un estilo inline de React solo se puede fijar un valor) y solo
    pisa el 100vh de base en navegadores que ya soportan dvh — los viejos se quedan con 100vh de siempre. */
-.app-shell-height { height: 100vh; }
+.app-shell-height { height: calc(100vh / var(--wf-vh-div, 1)); }
 @supports (height: 100dvh) {
-  .app-shell-height { height: 100dvh; }
+  .app-shell-height { height: calc(100dvh / var(--wf-vh-div, 1)); }
 }
 
 /* Diseños de transmisión "Entrada con fundido" / "Entrada deslizante" (DISEÑO DE LAS LETRAS, panel

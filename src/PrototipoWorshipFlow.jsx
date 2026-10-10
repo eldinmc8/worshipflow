@@ -32,7 +32,6 @@ import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotific
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { listarFondos, subirFondo, borrarFondo } from "./lib/multimedia.js";
 import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } from "./lib/pwaInstall.js";
-import { buscarActualizacionManual, hayActualizacionPendiente, aplicarActualizacion } from "./lib/swUpdate.js";
 import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FULL, MONTH_ABBR, DOW_LABELS, monthKey, monthLabelFromKey, formatFullDate, buildMonthWeeks } from "./lib/dates.js";
 import { saveCache, loadCache } from "./lib/offlineCache.js";
 import { showToast, notifyError } from "./lib/toast.js";
@@ -46,6 +45,7 @@ import {
   borrarVersionOffline, todosLosVersiculosOffline, descargarBibliaCompleta,
 } from "./lib/bibleOfflineStore.js";
 import { getTema, setTema } from "./lib/theme.js";
+import { usePreferencias, acordeEn, lineaEn, getNotacion, setNotacion, setTamanoLetra, TAMANOS_LETRA, NOTACIONES } from "./lib/preferencias.js";
 
 // ---------- Vista de celular: se activa sola según el ancho real de la pantalla, no un dispositivo fijo ----------
 const MOBILE_BREAKPOINT = 768;
@@ -645,6 +645,8 @@ function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event }) {
 }
 
 export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIglesiaActualizada, onGoToUsuarios, onGoToRoles, onGoToPlataforma }) {
+  // Al cambiar "Cómo ver los tonos" en Ajustes, toda la app se vuelve a pintar con la nueva notación.
+  usePreferencias();
   // Clasificaciones de canción de ESTA iglesia (ver CLASIFICACIONES_DEFAULT).
   const clasificaciones = myIglesia.categoriasCanciones?.length ? myIglesia.categoriasCanciones : CLASIFICACIONES_DEFAULT;
   clasificacionesActuales = clasificaciones;
@@ -1398,6 +1400,12 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const setEventHora = (eventId, hora) => {
     setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, hora: hora || null } : e)));
     updateEvento(eventId, { hora: hora || null }).catch((e) => notifyError("No se pudo guardar la hora", e));
+  };
+  // Ensayo y nota de quien dirige (ver InicioView y EnsayoAlabanzaCard). Se guarda al terminar de editar.
+  const setEventEnsayo = (eventId, { ensayoFecha, ensayoHora, notaAlabanza }) => {
+    setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, ensayoFecha: ensayoFecha || null, ensayoHora: ensayoHora || null, notaAlabanza: notaAlabanza || "" } : e)));
+    return updateEvento(eventId, { ensayo_fecha: ensayoFecha || null, ensayo_hora: ensayoHora || null, nota_alabanza: (notaAlabanza || "").trim() || null })
+      .catch((e) => { notifyError("No se pudo guardar el ensayo", e); throw e; });
   };
   // Edita los datos propios del evento/plantilla (título, fecha, hora, ubicación) DESPUÉS de creado —
   // antes solo se podían fijar una vez, al crearlo, y no había forma de corregirlos ni de renombrar
@@ -2276,6 +2284,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onAddReminder={(cantidad, unidad) => addReminder(selectedEvent.id, cantidad, unidad)}
           onRemoveReminder={(reminderId) => removeReminder(selectedEvent.id, reminderId)}
           onSetHora={(hora) => setEventHora(selectedEvent.id, hora)}
+          onSetEnsayo={(datos) => setEventEnsayo(selectedEvent.id, datos)}
           onUpdateEventDetails={(details) => updateEventDetails(selectedEvent.id, details)}
           onMarkVisto={confirmarAsignacionVista}
           showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
@@ -2619,6 +2628,18 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
         <div style={{ fontSize: 14, color: "var(--wf-muted)", marginTop: 2 }}>{ev.title}</div>
       </button>
       <div style={{ fontSize: 16, color: "var(--wf-text)", marginTop: 10 }}>Te toca: <b>{cargos.map((c) => c.nombre).join(", ")}</b></div>
+      {esAlabanza && textoEnsayo(ev) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 15, color: "var(--wf-text)" }}>
+          <Music size={17} color="#1F8A73" style={{ flexShrink: 0 }} />
+          <span>Ensayo: <b>{textoEnsayo(ev)}</b></span>
+        </div>
+      )}
+      {esAlabanza && (ev.notaAlabanza || "").trim() && (
+        <div style={{ marginTop: 12, background: "var(--wf-hover)", borderRadius: 14, padding: "12px 14px", borderLeft: "4px solid #1F8A73" }}>
+          <div style={{ fontSize: 15, color: "var(--wf-text)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{ev.notaAlabanza}</div>
+          {quienDirigeAlabanza(ev) && <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 6 }}>— {quienDirigeAlabanza(ev).n}, dirige la alabanza</div>}
+        </div>
+      )}
       {respuestaVisible ? (
         <div role="status" style={{ marginTop: 14, borderRadius: 14, padding: "14px 12px", textAlign: "center", fontSize: 16, fontWeight: 700, background: respuestaVisible === "confirmado" ? "#E1F5EE" : "#FCEBEB", color: respuestaVisible === "confirmado" ? "#085041" : "#A32D2D" }}>
           {respuestaVisible === "confirmado" ? "¡Listo, confirmaste! Dios te bendiga." : "Listo, avisamos que no puedes."}
@@ -2658,10 +2679,10 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
       <TarjetaInicio>
         {canciones.map((c, i) => (
           <button key={c.itemId} onClick={() => onOpenSong(c.songId)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "12px 14px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: c.cambiado ? "var(--wf-active-bg)" : "transparent", cursor: "pointer" }}>
-            <span style={{ minWidth: 34, textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 700, color: c.cambiado ? "#C2620F" : "#1F8A73" }}>{c.tono}</span>
+            <span style={{ minWidth: 34, textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 700, color: c.cambiado ? "#C2620F" : "#1F8A73" }}>{acordeEn(c.tono)}</span>
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--wf-text)" }}>{c.titulo}</span>
-              {c.cambiado && <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-active-text)" }}>Tono cambiado para este servicio ({c.tonoOriginal} → {c.tono})</span>}
+              {c.cambiado && <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-active-text)" }}>Tono cambiado para este servicio ({acordeEn(c.tonoOriginal)} → {acordeEn(c.tono)})</span>}
             </span>
             {c.tempo ? <span style={{ fontSize: 12.5, color: "var(--wf-muted)" }}>{c.tempo} bpm</span> : null}
             <ChevronRight size={16} color="var(--wf-faint)" />
@@ -2890,7 +2911,7 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
                 <button key={s.id} onClick={() => { setShowFavorites(false); onOpenSong(s.id); }} className="hoverable" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", background: "var(--wf-hover)", border: "none", borderRadius: 12, padding: "10px 12px", cursor: "pointer" }}>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>{s.title}</div>
-                    <div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{s.key} · {s.tempo} bpm</div>
+                    <div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)} · {s.tempo} bpm</div>
                   </div>
                   <ChevronRight size={14} color="var(--wf-faint)" />
                 </button>
@@ -3065,25 +3086,6 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
   const [tema, setTemaState] = useState(getTema());
   const cambiarTema = (t) => { setTema(t); setTemaState(t); };
   const install = useInstallState();
-  // Botón manual "Buscar actualizaciones": complementa la revisión automática (ver
-  // iniciarActualizacionAutomatica en swUpdate.js) para quien no quiera esperar a que pase algo de eso,
-  // o simplemente quiera confirmar que ya tiene la última versión después de que se le avisó de un
-  // cambio publicado. Si SÍ encuentra una, eso ya dispara el aviso VISIBLE de arriba (banner en
-  // main.jsx) por su cuenta — este botón solo necesita avisar cuando NO había ninguna pendiente.
-  const [checkingUpdate, setCheckingUpdate] = useState(false);
-  const [upToDate, setUpToDate] = useState(false);
-  const checkForAppUpdate = async () => {
-    setCheckingUpdate(true); setUpToDate(false);
-    await buscarActualizacionManual();
-    setCheckingUpdate(false);
-    // Si hay una esperando se aplica de una: quien toca este botón quiere la última versión, y en un
-    // celular puede no haberse mostrado el aviso (cambio solo de escritorio, ver swUpdate.js).
-    if (hayActualizacionPendiente()) aplicarActualizacion();
-    else {
-      setUpToDate(true);
-      setTimeout(() => setUpToDate(false), 4000);
-    }
-  };
   // "Continuar con Google" en Ajustes: vincula/desvincula Google como método alterno de inicio de
   // sesión para ESTA cuenta ya invitada — no reemplaza la invitación, solo evita tener que escribir la
   // contraseña la próxima vez. Ver AuthGate.jsx para el resguardo de que nadie sin invitación entre así.
@@ -3145,8 +3147,26 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
   const ROLE_OPTIONS = ["Administrador", "Multimedia", "Músico", "Miembro", "Supervisor"];
   const initials = (myName || "?").split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
   const misEventos = useMemo(
-    () => events.filter((e) => e.serviceOrder.some((item) => (item.encargados || []).some((m) => m.n === myName))),
+    () => events.filter((e) => !e.esPlantilla && isUpcoming(e) && (
+      e.serviceOrder.some((item) => (item.encargados || []).some((m) => m.n === myName)) ||
+      (e.worshipRoles || []).some((r) => (r.members || []).some((m) => m.n === myName))
+    )),
     [events, myName]
+  );
+  // Reorganizado (pedido de Eldin, 2026-10-09): agrupado por lo que la persona busca — su cuenta
+  // arriba, lo suyo, cómo se ve, este aparato, la iglesia (admins), ayuda. Lo de pruebas de
+  // administrador queda guardado en "Opciones avanzadas" para que nadie lo toque sin querer.
+  const { tamanoLetra, notacion } = usePreferencias();
+  const [cuentaAbierta, setCuentaAbierta] = useState(false);
+  const [avanzadoAbierto, setAvanzadoAbierto] = useState(!!(roleOverride || nameOverride));
+  const chevron = <ChevronRight size={16} color="var(--wf-faint)" />;
+  const tarjeta = { background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "12px 16px", marginBottom: 8 };
+  const opcion = (activa) => ({ flex: 1, fontSize: 12.5, fontWeight: 700, padding: "9px 6px", borderRadius: 12, border: "none", cursor: "pointer", background: activa ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: activa ? "var(--wf-brand-primary)" : "var(--wf-text)" });
+  const subtitulo = (icono, texto) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+      {icono}
+      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--wf-text)" }}>{texto}</span>
+    </div>
   );
 
   const signOut = async () => {
@@ -3158,57 +3178,64 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
     <div className="screen-enter" style={{ padding: 20, maxWidth: 640, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, marginBottom: 18 }}>Ajustes</h2>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 18 }}>
+      {/* Mi cuenta: tocar la tarjeta abre contraseña y Google. */}
+      <button onClick={() => setCuentaAbierta((v) => !v)} className="hoverable" aria-expanded={cuentaAbierta} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 18, padding: 14, cursor: "pointer", marginBottom: 8, color: "var(--wf-text)" }}>
         {perfil?.foto_url ? (
-          <img src={perfil.foto_url} alt="" style={{ width: 66, height: 66, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+          <img src={perfil.foto_url} alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
         ) : (
-          <div style={{ width: 66, height: 66, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700, flexShrink: 0, color: "#fff" }}>{initials}</div>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700, flexShrink: 0, color: "#fff" }}>{initials}</div>
         )}
-        <div>
-          <div style={{ fontSize: 17, fontWeight: 700 }}>{myName || "Sin nombre"}</div>
-          {perfil?.email && <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{perfil.email}</div>}
-          <span style={{ display: "inline-block", marginTop: 4, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 16, padding: "2px 10px", fontSize: 11, color: "var(--wf-text-2)" }}>{myRole}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{myName || "Sin nombre"}</div>
+          {perfil?.email && <div style={{ fontSize: 12, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis" }}>{perfil.email}</div>}
+          <span style={{ display: "inline-block", marginTop: 4, background: "var(--wf-hover)", borderRadius: 16, padding: "2px 10px", fontSize: 11, color: "var(--wf-text-2)" }}>{myRole}</span>
         </div>
-      </div>
+        <span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 2 }}>Mi cuenta {cuentaAbierta ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
+      </button>
+      {cuentaAbierta && (
+        <div style={{ marginBottom: 6 }}>
+          <NavRow icon={KeyRound} label="Cambiar contraseña" onClick={() => setShowChangePassword(true)} right={chevron} />
+          {googleLinked === true ? (
+            <NavRow
+              icon={Check} label="Puedes entrar con Google"
+              right={googleBusy ? null : <span onClick={(e) => { e.stopPropagation(); desvincularGoogle(); }} style={{ fontSize: 11, color: "var(--wf-faint)", fontWeight: 600, cursor: "pointer" }}>Desvincular</span>}
+            />
+          ) : googleLinked === false ? (
+            <NavRow icon={KeyRound} label="Entrar con Google" onClick={googleBusy ? undefined : vincularGoogle} right={googleBusy ? null : chevron} />
+          ) : null}
+        </div>
+      )}
 
-      <SectionLabel>APLICACIÓN</SectionLabel>
-      <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "12px 16px", marginBottom: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          <Moon size={18} color="var(--wf-text-2)" />
-          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--wf-text)" }}>Apariencia</span>
-        </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {[["claro", "Claro"], ["oscuro", "Oscuro"], ["auto", "Automático"]].map(([val, label]) => (
-            <button
-              key={val} onClick={() => cambiarTema(val)}
-              style={{ flex: 1, fontSize: 12, fontWeight: 700, padding: "8px 6px", borderRadius: 12, border: "none", cursor: "pointer", background: tema === val ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: tema === val ? "var(--wf-brand-primary)" : "var(--wf-text)" }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-      {onVerTutorial && <NavRow icon={Sparkles} label="Ver tutorial de nuevo" onClick={onVerTutorial} right={<ChevronRight size={16} color="var(--wf-faint)" />} />}
-      {install.installed ? (
-        <NavRow icon={Check} label="La app ya está instalada" right={null} />
-      ) : install.canInstall ? (
-        <NavRow icon={Download} label="Instalar la app" onClick={() => promptInstall()} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
-      ) : isIosSafari() ? (
-        <NavRow icon={Download} label="Compartir → Agregar a inicio para instalar" right={null} />
-      ) : (
-        <NavRow icon={Download} label="Instalar la app" right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>Disponible desde el menú del navegador</span>} />
+      <SectionLabel>MI SERVICIO</SectionLabel>
+      <NavRow icon={Calendar} label="Mis próximas fechas" onClick={() => setHorarioAbierto((v) => !v)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{misEventos.length} {horarioAbierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>} />
+      {horarioAbierto && (
+        misEventos.length ? (
+          <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+            {misEventos.map((e) => (
+              <button key={e.id} onClick={() => onSelectEvent(e.id)} className="hoverable" style={{ textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 2px 10px rgba(22,50,79,0.07)", borderRadius: 14, padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{e.title}</div>
+                  <div style={{ fontSize: 11, color: "var(--wf-faint)" }}>{formatFullDate(e.date) || e.dateLabel}</div>
+                </div>
+                <ChevronRight size={14} color="var(--wf-faint)" />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: "var(--wf-faint)", marginBottom: 8, padding: "0 4px" }}>No tienes nada asignado en los próximos eventos.</div>
+        )
       )}
       {pushEstado === "sin-soporte" ? (
-        <NavRow icon={Bell} label="Notificaciones push no disponibles en este navegador" right={null} />
+        <NavRow icon={Bell} label="Avisos no disponibles en este navegador" right={null} />
       ) : pushEstado === "activo" ? (
         // A propósito sin un botón de un solo toque para desactivar — solo un enlace chico que primero
         // confirma con una advertencia, para que nadie las apague sin querer o sin pensarlo.
         <NavRow
           icon={Bell}
-          label="Notificaciones push activadas"
+          label="Avisos al celular activados"
           right={pushBusy ? null : (
             <span
-              onClick={async (e) => { e.stopPropagation(); if (await confirmDialog("¿Seguro que quieres desactivar las notificaciones push? Podrías perderte avisos de tus asignaciones y recordatorios de eventos.", { danger: true, textoConfirmar: "Desactivar" })) desactivarPush(); }}
+              onClick={async (e) => { e.stopPropagation(); if (await confirmDialog("¿Seguro que quieres desactivar los avisos? Podrías perderte avisos de tus asignaciones y recordatorios de eventos.", { danger: true, textoConfirmar: "Desactivar" })) desactivarPush(); }}
               style={{ fontSize: 11, color: "var(--wf-faint)", fontWeight: 600, cursor: "pointer" }}
             >
               Desactivar
@@ -3216,100 +3243,96 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           )}
         />
       ) : pushEstado === "inactivo" ? (
-        <NavRow icon={Bell} label="Activar notificaciones push" onClick={activarPush} right={pushBusy ? null : <ChevronRight size={16} color="var(--wf-faint)" />} />
+        <NavRow icon={Bell} label="Activar avisos al celular" onClick={activarPush} right={pushBusy ? null : chevron} />
       ) : null}
-      <NavRow
-        icon={RefreshCw}
-        label={checkingUpdate ? "Buscando actualizaciones…" : upToDate ? "Ya tienes la última versión" : "Buscar actualizaciones"}
-        onClick={checkingUpdate ? undefined : checkForAppUpdate}
-        right={checkingUpdate || upToDate ? null : <ChevronRight size={16} color="var(--wf-faint)" />}
-      />
+
+      <SectionLabel>APARIENCIA</SectionLabel>
+      <div style={tarjeta}>
+        {subtitulo(<Moon size={18} color="var(--wf-text-2)" />, "Modo de color")}
+        <div style={{ display: "flex", gap: 6 }}>
+          {[["claro", "Claro"], ["oscuro", "Oscuro"], ["auto", "Automático"]].map(([val, label]) => (
+            <button key={val} onClick={() => cambiarTema(val)} style={opcion(tema === val)}>{label}</button>
+          ))}
+        </div>
+      </div>
+      <div style={tarjeta}>
+        {subtitulo(<Type size={18} color="var(--wf-text-2)" />, "Tamaño de letra")}
+        <div style={{ display: "flex", gap: 6 }}>
+          {TAMANOS_LETRA.map((t, i) => (
+            <button key={t.value} onClick={() => setTamanoLetra(t.value)} aria-pressed={tamanoLetra === t.value} style={{ ...opcion(tamanoLetra === t.value), display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <span style={{ fontSize: 14 + i * 4, lineHeight: 1.1 }}>Aa</span>
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: "var(--wf-muted)", marginTop: 8 }}>Solo en este dispositivo. No cambia la pantalla de proyección.</div>
+      </div>
+      <div style={tarjeta}>
+        {subtitulo(<Music size={18} color="var(--wf-text-2)" />, "Cómo ver los tonos y acordes")}
+        <div style={{ display: "flex", gap: 6 }}>
+          {NOTACIONES.map((n) => (
+            <button key={n.value} onClick={() => setNotacion(n.value)} aria-pressed={notacion === n.value} style={{ ...opcion(notacion === n.value), fontFamily: "'JetBrains Mono', monospace" }}>{n.label}</button>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: "var(--wf-muted)", marginTop: 8 }}>
+          Ejemplo: <b style={{ fontFamily: "'JetBrains Mono', monospace", color: "#1F8A73" }}>{acordeEn("G", notacion)} · {acordeEn("Em", notacion)} · {acordeEn("D/F#", notacion)}</b> — solo cambia lo que tú ves.
+        </div>
+      </div>
+
+      <SectionLabel>ESTE DISPOSITIVO</SectionLabel>
+      {install.installed ? (
+        <NavRow icon={Check} label="La app ya está instalada" right={null} />
+      ) : install.canInstall ? (
+        <NavRow icon={Download} label="Instalar la app" onClick={() => promptInstall()} right={chevron} />
+      ) : isIosSafari() ? (
+        <NavRow icon={Download} label="Compartir → Agregar a inicio para instalar" right={null} />
+      ) : (
+        <NavRow icon={Download} label="Instalar la app" right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>Desde el menú del navegador</span>} />
+      )}
       {/* El navegador pide permiso para "administrar ventanas en varias pantallas" la primera vez que
-          se usa getScreenDetails() -- si esa primera vez coincide con el clic de "Iniciar evento" (el
-          único lugar donde antes se pedía), para cuando la persona responde al permiso el navegador ya
-          perdió el "gesto de usuario" del clic original y la pantalla completa automática en el segundo
-          monitor falla en silencio (cae al botón "Toca para pantalla completa" de PublicScreen.jsx,
-          cada vez). Pidiéndolo acá, con calma y de antemano, una sola vez, Chrome lo recuerda para
-          siempre en este dispositivo -- después de eso "Iniciar evento" ya encuentra el permiso
-          concedido y puede abrir/expandir la proyección sola, sin ese choque de tiempos.
-          Oculto en vista de celular (!isCompact): un teléfono no maneja "otra pantalla" como un
-          proyector/monitor por HDMI, y Multimedia (el único lugar que de verdad usa esto) ya está
-          escondido ahí mismo -- no tiene sentido ofrecer el botón donde no aplica. */}
+          se usa getScreenDetails() -- si esa primera vez coincide con el clic de "Iniciar evento", para
+          cuando la persona responde ya se perdió el "gesto de usuario" y la pantalla completa automática
+          en el segundo monitor falla en silencio. Pidiéndolo acá, una sola vez, Chrome lo recuerda.
+          Solo en computadora: un teléfono no maneja "otra pantalla" por HDMI. */}
       {!isCompact && typeof window !== "undefined" && "getScreenDetails" in window && (
         <>
           <NavRow
             icon={Radio}
             label={screensBusy ? "Pidiendo permiso…" : "Activar detección automática de pantalla"}
             onClick={screensBusy ? undefined : activarDeteccionPantallas}
-            right={screensBusy ? null : <ChevronRight size={16} color="var(--wf-faint)" />}
+            right={screensBusy ? null : chevron}
           />
           <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "-4px 4px 10px" }}>
-            Hazlo una vez, en este dispositivo, con el proyector/monitor ya conectado — así "Iniciar evento" puede abrir la proyección en pantalla completa ahí solo, sin pedirte un clic extra.
+            Hazlo una vez, con el proyector/monitor ya conectado — así "Iniciar evento" abre la proyección en pantalla completa ahí solo.
           </div>
         </>
       )}
+      {/* Solo tiene sentido en la computadora que proyecta. */}
+      {!isCompact && <BibleDownloadSection />}
 
-      <SectionLabel>ROL DE ESTE DISPOSITIVO</SectionLabel>
-      <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
-        <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10 }}>Solo los roles <b>Administrador</b> y <b>Multimedia</b> pueden controlar la transmisión y finalizar un evento en vivo — así ningún músico o miembro puede detenerla por accidente desde su teléfono. Tu rol lo asigna un administrador desde Usuarios.</div>
-        {realIsAdmin ? (
-          <>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-brand-accent)", marginBottom: 8 }}>Como administrador puedes probar cómo se ve la app con otro rol:</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {ROLE_OPTIONS.map((r) => (
-                <button key={r} onClick={() => setRoleOverride(r === myRole && roleOverride ? null : r)} style={{ fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: "none", cursor: "pointer", background: myRole === r ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: myRole === r ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{r}</button>
-              ))}
-            </div>
-          </>
-        ) : (
-          <span style={{ display: "inline-block", background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 16, padding: "3px 12px", fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)" }}>{myRole}</span>
-        )}
-      </div>
-
-      {/* Solo tiene sentido en la computadora que transmite/proyecta — en un celular no se usa para
-          eso, así que no tiene caso ofrecerle descargar varios MB de Biblia. */}
-      {!isCompact && (
-        <>
-          <SectionLabel>MODO SIN CONEXIÓN</SectionLabel>
-          <BibleDownloadSection />
-        </>
-      )}
-
-      {realIsAdmin && (
-        <>
-          <SectionLabel>ADMINISTRACIÓN</SectionLabel>
-          <NavRow icon={Settings} label="Usuarios" onClick={onGoToUsuarios} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
-          <NavRow icon={Settings} label="Roles" onClick={onGoToRoles} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
-          <NavRow icon={Palette} label="Identidad de la iglesia" onClick={() => setShowIdentidad(true)} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
-          {showIdentidad && <IdentidadIglesiaModal iglesiaId={myIglesiaId} onClose={() => setShowIdentidad(false)} />}
-          <NavRow icon={Radio} label="Pantalla de proyección" onClick={() => setShowPantalla(true)} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
-          {showPantalla && <PantallaProyeccionModal iglesiaId={myIglesiaId} onClose={() => setShowPantalla(false)} />}
-          {/* Visible solo si soy_super_admin() dio true para esta cuenta (ver AuthGate.jsx) — nadie
-              más la ve nunca, ni siquiera otro administrador de esta misma iglesia. */}
-          {onGoToPlataforma && <NavRow icon={Shield} label="Consola general" onClick={onGoToPlataforma} right={<ChevronRight size={16} color="var(--wf-faint)" />} />}
-
-          <SectionLabel>SIMULAR IDENTIDAD (SOLO ADMINISTRADORES)</SectionLabel>
-          <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
-            <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10 }}>Simula qué ve la app si "inicias sesión" como otra persona ya registrada — así puedes probar que cada quien vea solo lo que le corresponde (limpieza solo ve limpieza, nadie salvo administradores ve Predicación, etc.).</div>
-            <select value={nameOverride || ""} onChange={(e) => setNameOverride(e.target.value || null)} style={inputStyle}>
-              <option value="">Yo mismo</option>
-              {usuariosReales.map((u) => <option key={u.nombre} value={u.nombre}>{u.nombre}{u.rol === "admin" ? " (administrador)" : ""}</option>)}
-            </select>
-          </div>
-        </>
-      )}
-
-      <SectionLabel>EQUIPO</SectionLabel>
-      <button onClick={() => setShowTeamList(true)} className="hoverable" style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 16, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", cursor: "pointer", textAlign: "left" }}>
+      <SectionLabel>MI IGLESIA</SectionLabel>
+      <button onClick={() => setShowTeamList(true)} className="hoverable" style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 16, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", cursor: "pointer", textAlign: "left", color: "var(--wf-text)" }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{teamName}</div>
           <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{usuariosReales.length} {usuariosReales.length === 1 ? "miembro" : "miembros"}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <AvatarStack initials={usuariosReales.map((u) => u.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase())} max={2} />
-          <ChevronRight size={16} color="var(--wf-faint)" />
+          {chevron}
         </div>
       </button>
+      {realIsAdmin && (
+        <>
+          <NavRow icon={Users} label="Personas y permisos" onClick={onGoToUsuarios} right={chevron} />
+          <NavRow icon={Settings} label="Roles del equipo" onClick={onGoToRoles} right={chevron} />
+          <NavRow icon={Palette} label="Identidad de la iglesia" onClick={() => setShowIdentidad(true)} right={chevron} />
+          {showIdentidad && <IdentidadIglesiaModal iglesiaId={myIglesiaId} onClose={() => setShowIdentidad(false)} />}
+          <NavRow icon={Radio} label="Pantalla de proyección" onClick={() => setShowPantalla(true)} right={chevron} />
+          {showPantalla && <PantallaProyeccionModal iglesiaId={myIglesiaId} onClose={() => setShowPantalla(false)} />}
+          {/* Visible solo si soy_super_admin() dio true para esta cuenta (ver AuthGate.jsx). */}
+          {onGoToPlataforma && <NavRow icon={Shield} label="Consola general" onClick={onGoToPlataforma} right={chevron} />}
+        </>
+      )}
       {showTeamList && (
         <ModalShell title={teamName} icon={Users} color="#6E63C7" onClose={() => setShowTeamList(false)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: "60vh", overflowY: "auto" }}>
@@ -3330,37 +3353,38 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
         </ModalShell>
       )}
 
-      <SectionLabel>PERSONAL</SectionLabel>
-      <NavRow icon={Calendar} label="Mi Horario" onClick={() => setHorarioAbierto((v) => !v)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{misEventos.length} {horarioAbierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>} />
-      {horarioAbierto && (
-        misEventos.length ? (
-          <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-            {misEventos.map((e) => (
-              <button key={e.id} onClick={() => onSelectEvent(e.id)} className="hoverable" style={{ textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 2px 10px rgba(22,50,79,0.07)", borderRadius: 14, padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{e.title}</div>
-                  <div style={{ fontSize: 11, color: "var(--wf-faint)" }}>{formatFullDate(e.date) || e.dateLabel}</div>
-                </div>
-                <ChevronRight size={14} color="var(--wf-faint)" />
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div style={{ fontSize: 12, color: "var(--wf-faint)", marginBottom: 8, padding: "0 4px" }}>No estás asignado a ningún rol en próximos eventos.</div>
-        )
-      )}
+      <SectionLabel>AYUDA</SectionLabel>
+      {onVerTutorial && <NavRow icon={Sparkles} label="Ver el tutorial de nuevo" onClick={onVerTutorial} right={chevron} />}
+      <NavRow icon={MessageCircle} label="Escríbenos" onClick={() => { window.location.href = `mailto:${CORREO_SOPORTE}?subject=${encodeURIComponent("WorshipFlow — " + (teamName || "mi iglesia"))}`; }} right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>Dudas o ideas</span>} />
 
-      <SectionLabel>CUENTA</SectionLabel>
-      <NavRow icon={KeyRound} label="Cambiar contraseña" onClick={() => setShowChangePassword(true)} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
-      {googleLinked === true ? (
-        <NavRow
-          icon={Check} label="Puedes entrar con Google"
-          right={googleBusy ? null : <span onClick={(e) => { e.stopPropagation(); desvincularGoogle(); }} style={{ fontSize: 11, color: "var(--wf-faint)", fontWeight: 600, cursor: "pointer" }}>Desvincular</span>}
-        />
-      ) : googleLinked === false ? (
-        <NavRow icon={KeyRound} label="Entrar con Google" onClick={googleBusy ? undefined : vincularGoogle} right={googleBusy ? null : <ChevronRight size={16} color="var(--wf-faint)" />} />
-      ) : null}
-      <NavRow icon={LogOut} label="Cerrar sesión" danger onClick={signOut} />
+      <div style={{ marginTop: 18 }}>
+        <NavRow icon={LogOut} label="Cerrar sesión" danger onClick={signOut} />
+      </div>
+
+      {realIsAdmin && (
+        <div style={{ marginTop: 18 }}>
+          <button onClick={() => setAvanzadoAbierto((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: "4px 2px", fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", cursor: "pointer" }}>
+            Opciones avanzadas {avanzadoAbierto ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+          {avanzadoAbierto && (
+            <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginTop: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)", marginBottom: 6 }}>Probar la app con otro rol</div>
+              <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 8 }}>Solo en este dispositivo. Solo Administrador y Multimedia pueden controlar la transmisión en vivo.</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+                {ROLE_OPTIONS.map((r) => (
+                  <button key={r} onClick={() => setRoleOverride(r === myRole && roleOverride ? null : r)} style={{ fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: "none", cursor: "pointer", background: myRole === r ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: myRole === r ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{r}</button>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)", marginBottom: 6 }}>Ver la app como otra persona</div>
+              <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 8 }}>Para revisar que cada quien vea solo lo que le corresponde.</div>
+              <select value={nameOverride || ""} onChange={(e) => setNameOverride(e.target.value || null)} style={inputStyle}>
+                <option value="">Yo mismo</option>
+                {usuariosReales.map((u) => <option key={u.nombre} value={u.nombre}>{u.nombre}{u.rol === "admin" ? " (administrador)" : ""}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
 
       {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
 
@@ -3368,6 +3392,9 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
     </div>
   );
 }
+
+// Adónde llega "Escríbenos" en Ajustes → Ayuda.
+const CORREO_SOPORTE = "eldinmc8@gmail.com";
 
 // Cambiar la propia contraseña sin depender de un administrador — a diferencia de "Reiniciar
 // contraseña" en Usuarios (que un admin usa para OTRA persona), esto es autoservicio: updateUser()
@@ -4293,7 +4320,7 @@ function CancionesList({ library, clasificaciones, puedeConfigurarClasificacione
             <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{s.artist || "Unknown"}</div>
           </div>
           {s.hasAttachment && <Paperclip size={15} color="var(--wf-faint)" />}
-          <span style={{ fontSize: 11, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 20, padding: "3px 10px", color: "var(--wf-text-2)" }}>{s.key}</span>
+          <span style={{ fontSize: 11, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 20, padding: "3px 10px", color: "var(--wf-text-2)" }}>{acordeEn(s.key)}</span>
           <span style={{ fontSize: 11, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 20, padding: "3px 10px", color: "var(--wf-text-2)" }}>{s.tempo} bpm</span>
           <button onClick={(e) => { e.stopPropagation(); onToggleFavorite(s.id); }} style={iconGhost}><Heart size={16} color={s.favorite ? "#C23B32" : "var(--wf-faint)"} fill={s.favorite ? "#C23B32" : "none"} /></button>
           {isAdminViewer && <button onClick={(e) => { e.stopPropagation(); onDelete(s); }} style={iconGhost}><Trash2 size={16} color="var(--wf-faint)" /></button>}
@@ -4385,7 +4412,9 @@ function buildChordRow(positions) {
 // varios renglones (flexWrap) seg\u00FAn el ancho real de la pantalla \u2014 el acorde nunca se separa de su
 // palabra aunque el conjunto salte de l\u00EDnea, y no hace falta deslizar nada.
 function ChordsAboveLyrics({ raw, semitones = 0 }) {
-  const transposed = transposeLine(raw, semitones);
+  // Do-Re-Mi o C-D-E según lo que eligió cada quien en Ajustes → Apariencia (solo cambia lo que se ve).
+  const { notacion } = usePreferencias();
+  const transposed = lineaEn(transposeLine(raw, semitones), notacion);
   const tokens = transposed.split(/(\s+)/).filter((t) => t !== "" && !/^\s+$/.test(t));
   if (tokens.length === 0) {
     return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, marginBottom: 10, minHeight: "2.6em" }}>&nbsp;</div>;
@@ -4475,14 +4504,14 @@ function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResult
   const inactiveStyle = { background: "var(--wf-hover)", color: "var(--wf-text)" };
   return (
     <ModalShell title="Cambiar tonalidad" icon={Music} color="var(--wf-brand-accent)" onClose={onClose}>
-      <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>Original {song.key}</div>
+      <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>Original {acordeEn(song.key)}</div>
 
       {puedeCambiarRoot ? (
         <>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
             {LETRAS.map((l) => (
               <button key={l} onClick={() => setLetra(l)} className="hoverable" style={{ flex: "1 1 36px", padding: "10px 0", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 700, ...(letra === l ? activeStyle : inactiveStyle) }}>
-                {l}
+                {acordeEn(l)}
               </button>
             ))}
           </div>
@@ -4493,7 +4522,7 @@ function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResult
         </>
       ) : (
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16 }}>
-          {displayedKey} <span style={{ fontWeight: 400, color: "var(--wf-faint)", fontSize: 11 }}>— solo un administrador puede cambiar la tonalidad desde la biblioteca (sería permanente)</span>
+          {acordeEn(displayedKey)} <span style={{ fontWeight: 400, color: "var(--wf-faint)", fontSize: 11 }}>— solo un administrador puede cambiar la tonalidad desde la biblioteca (sería permanente)</span>
         </div>
       )}
 
@@ -4501,7 +4530,7 @@ function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResult
       <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 8 }}>En qué traste pones el capo — 0 es sin capo. Solo cambia lo que TÚ ves, solo en esta canción, y se recuerda hasta que cierres la app.</div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 8px", marginBottom: 16 }}>
         <button onClick={() => setCejilla((c) => Math.max(0, c - 1))} className="hoverable" style={{ ...iconGhost, width: 28, height: 28 }}><Minus size={14} /></button>
-        <span style={{ flex: 1, textAlign: "center", fontSize: 14, fontWeight: 700 }}>{cejilla}{cejillaResultKey ? ` (${cejillaResultKey})` : ""}</span>
+        <span style={{ flex: 1, textAlign: "center", fontSize: 14, fontWeight: 700 }}>{cejilla}{cejillaResultKey ? ` (${acordeEn(cejillaResultKey)})` : ""}</span>
         <button onClick={() => setCejilla((c) => Math.min(11, c + 1))} className="hoverable" style={{ ...iconGhost, width: 28, height: 28 }}><Plus size={14} /></button>
       </div>
 
@@ -4837,7 +4866,7 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
             className="hoverable"
             style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 10, padding: "5px 8px", color: "var(--wf-text-2)", cursor: "pointer" }}
           >
-            {displayedKey}{cejilla > 0 ? ` · cejilla ${cejilla}` : ""}
+            {acordeEn(displayedKey)}{cejilla > 0 ? ` · cejilla ${cejilla}` : ""}
             <ChevronDown size={12} />
           </button>
           {showTonalidadModal && (
@@ -5758,6 +5787,95 @@ function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, 
   );
 }
 
+// Ensayo y nota de quien dirige la alabanza (pedido de Eldin, 2026-10-09). Lo ve todo el equipo de
+// alabanza del evento (y los administradores); lo editan los administradores y quien dirige. Lo mismo
+// aparece en el Inicio de cada músico/cantante (ver InicioView).
+function quienDirigeAlabanza(event) {
+  for (const r of event?.worshipRoles || []) for (const m of r.members || []) if (m.lead) return m;
+  return null;
+}
+function textoEnsayo(event) {
+  if (!event?.ensayoFecha && !event?.ensayoHora) return "";
+  const partes = [];
+  if (event.ensayoFecha) partes.push(event.ensayoFecha === event.date ? "El mismo día" : formatFullDate(event.ensayoFecha));
+  if (event.ensayoHora) partes.push(formatHora12(event.ensayoHora));
+  return partes.join(" · ");
+}
+function formatHora12(hora) {
+  const m = String(hora || "").match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return hora || "";
+  const h = Number(m[1]);
+  return `${((h + 11) % 12) + 1}:${m[2]} ${h < 12 ? "a. m." : "p. m."}`;
+}
+function EnsayoAlabanzaCard({ event, userId, isAdminViewer, onGuardar }) {
+  const enEquipo = (event.worshipRoles || []).some((r) => (r.members || []).some((m) => m.usuarioId === userId));
+  const lider = quienDirigeAlabanza(event);
+  const puedeEditar = isAdminViewer || (lider && lider.usuarioId === userId);
+  const [editando, setEditando] = useState(false);
+  const [borrador, setBorrador] = useState({ ensayoFecha: "", ensayoHora: "", notaAlabanza: "" });
+  const [guardando, setGuardando] = useState(false);
+  if (!enEquipo && !puedeEditar) return null;
+  if (!(event.worshipRoles || []).length && !isAdminViewer) return null;
+  const tieneAlgo = !!(event.ensayoFecha || event.ensayoHora || (event.notaAlabanza || "").trim());
+  if (!tieneAlgo && !puedeEditar) return null;
+  const abrir = () => {
+    setBorrador({ ensayoFecha: event.ensayoFecha || "", ensayoHora: (event.ensayoHora || "").slice(0, 5), notaAlabanza: event.notaAlabanza || "" });
+    setEditando(true);
+  };
+  const guardar = async () => {
+    setGuardando(true);
+    try { await onGuardar(borrador); setEditando(false); } catch { /* el aviso de error ya se mostró */ } finally { setGuardando(false); }
+  };
+  return (
+    <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: editando || tieneAlgo ? 10 : 0 }}>
+        <Music size={16} color="#1F8A73" />
+        <span style={{ flex: 1, fontSize: 13.5, fontWeight: 700 }}>Ensayo de alabanza</span>
+        {puedeEditar && !editando && (
+          <button onClick={abrir} className="hoverable" style={miniBtnStyle}>{tieneAlgo ? <><Pencil size={12} /> Editar</> : <><Plus size={12} /> Agregar</>}</button>
+        )}
+      </div>
+      {editando ? (
+        <>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <Field label="Día del ensayo">
+                <input type="date" value={borrador.ensayoFecha} onChange={(e) => setBorrador({ ...borrador, ensayoFecha: e.target.value })} style={inputStyle} />
+              </Field>
+            </div>
+            <div style={{ flex: 1 }}>
+              <Field label="Hora">
+                <input type="time" value={borrador.ensayoHora} onChange={(e) => setBorrador({ ...borrador, ensayoHora: e.target.value })} style={inputStyle} />
+              </Field>
+            </div>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <Field label="Nota para el equipo (opcional)">
+              <textarea value={borrador.notaAlabanza} onChange={(e) => setBorrador({ ...borrador, notaAlabanza: e.target.value })} rows={3} placeholder="Ej. Lleguen 15 minutos antes. Repasen el coro de Alabaré en Re." style={{ ...inputStyle, resize: "vertical", minHeight: 70 }} />
+            </Field>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button onClick={() => setEditando(false)} className="hoverable" style={{ ...addBtnStyle, flex: 1, justifyContent: "center", marginBottom: 0 }}>Cancelar</button>
+            <button onClick={guardar} disabled={guardando} style={{ ...primaryBtn, flex: 1, marginTop: 0 }}>{guardando ? "Guardando…" : "Guardar"}</button>
+          </div>
+        </>
+      ) : tieneAlgo ? (
+        <>
+          {textoEnsayo(event) && <div style={{ fontSize: 14, fontWeight: 600, color: "var(--wf-text)" }}>{textoEnsayo(event)}</div>}
+          {(event.notaAlabanza || "").trim() && (
+            <div style={{ marginTop: 8, background: "var(--wf-hover)", borderRadius: 12, padding: "10px 12px" }}>
+              <div style={{ fontSize: 13, color: "var(--wf-text-2)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{event.notaAlabanza}</div>
+              {lider && <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginTop: 6 }}>— {lider.n}</div>}
+            </div>
+          )}
+        </>
+      ) : (
+        <div style={{ fontSize: 12, color: "var(--wf-faint)", marginTop: 6 }}>Pon la hora del ensayo y una nota; el equipo la verá en su pantalla de Inicio.</div>
+      )}
+    </div>
+  );
+}
+
 // ---------------- DETALLE DE EVENTO ----------------
 function EventDetail({
   myIglesiaId,
@@ -5767,7 +5885,7 @@ function EventDetail({
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
-  onViewMinistry, onOpenSong, onAddReminder, onRemoveReminder, onSetHora, onUpdateEventDetails, onMarkVisto,
+  onViewMinistry, onOpenSong, onAddReminder, onRemoveReminder, onSetHora, onUpdateEventDetails, onMarkVisto, onSetEnsayo,
   showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide,
   showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint,
 }) {
@@ -5958,6 +6076,10 @@ function EventDetail({
           </button>
         )}
 
+        {!event.esPlantilla && onSetEnsayo && (
+          <EnsayoAlabanzaCard event={event} userId={userId} isAdminViewer={isAdminViewer} onGuardar={onSetEnsayo} />
+        )}
+
         <button data-tour="evento-pdf" onClick={() => window.print()} className="hoverable" style={{ ...addBtnStyle, marginBottom: 16, justifyContent: "center" }}>
           <Download size={14} color="var(--wf-heading)" /> Exportar Setlist a PDF
         </button>
@@ -5986,7 +6108,7 @@ function EventDetail({
                 const song = library.find((s) => s.id === item.songId);
                 return (
                   <li key={item.id} style={{ marginBottom: 6, fontSize: 14 }}>
-                    {song ? `${song.title} — ${item.keyOverride || song.key}, ${song.tempo} bpm` : "Canción"}
+                    {song ? `${song.title} — ${acordeEn(item.keyOverride || song.key)}, ${song.tempo} bpm` : "Canción"}
                   </li>
                 );
               }
@@ -6274,7 +6396,7 @@ function SetlistPane({ myIglesiaId, event, library, ministries, isCompact, isAdm
           </div>
           {filtered.map((s) => (
             <button key={s.id} onClick={() => handleAddSong(s.id)} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 6, borderRadius: 12, background: "transparent", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{s.key} · {s.tempo} bpm</div></div>
+              <div><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)} · {s.tempo} bpm</div></div>
               <Plus size={15} color="var(--wf-brand-accent)" />
             </button>
           ))}
@@ -6509,16 +6631,16 @@ function SetlistPane({ myIglesiaId, event, library, ministries, isCompact, isAdm
                         value={effectiveKey}
                         onChange={(e) => onSetSongKey(item.id, e.target.value, song.key)}
                         title="Tonalidad para este evento"
-                        style={{ width: 46, borderRadius: 10, border: `1px solid ${item.keyOverride ? "var(--wf-brand-accent)" : "var(--wf-border-soft)"}`, fontSize: 10, fontWeight: 700, padding: "3px 2px", color: item.keyOverride ? "var(--wf-brand-accent)" : "var(--wf-text-2)", background: "var(--wf-card)", flexShrink: 0 }}
+                        style={{ width: getNotacion() === "solfeo" ? 62 : 46, borderRadius: 10, border: `1px solid ${item.keyOverride ? "var(--wf-brand-accent)" : "var(--wf-border-soft)"}`, fontSize: 10, fontWeight: 700, padding: "3px 2px", color: item.keyOverride ? "var(--wf-brand-accent)" : "var(--wf-text-2)", background: "var(--wf-card)", flexShrink: 0 }}
                       >
                         {(() => {
                           const opciones = opcionesTonalidadSetlist(song.key);
                           // Un cambio viejo que no encaje (ej. hecho antes de esta regla) se sigue mostrando tal cual.
-                          return (opciones.includes(effectiveKey) ? opciones : [effectiveKey, ...opciones]).map((k) => <option key={k} value={k}>{k}</option>);
+                          return (opciones.includes(effectiveKey) ? opciones : [effectiveKey, ...opciones]).map((k) => <option key={k} value={k}>{acordeEn(k)}</option>);
                         })()}
                       </select>
                     ) : (
-                      <span style={{ width: 22, height: 22, borderRadius: "50%", border: "1px solid var(--wf-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{effectiveKey}</span>
+                      <span style={{ minWidth: 22, height: 22, padding: "0 4px", boxSizing: "border-box", borderRadius: 11, border: "1px solid var(--wf-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{acordeEn(effectiveKey)}</span>
                     )}
                     <span style={{ fontSize: 11, color: "var(--wf-muted)", background: "var(--wf-hover)", borderRadius: 16, padding: "3px 8px", flexShrink: 0 }}>{song.tempo} bpm</span>
                     <span onClick={() => onOpenSong(song.id, item.id)} title="Abrir para tocar en vivo" style={{ fontSize: 13, fontWeight: 600, flex: 1, cursor: "pointer" }}>{song.title}</span>
@@ -6959,7 +7081,7 @@ function AdHocSongModal({ library, onClose, onPick, titulo = "Proyectar una canc
       </div>
       {filtered.map((s) => (
         <button key={s.id} onClick={() => onPick(s)} className="hoverable" style={{ ...addBtnStyle, textAlign: "left", marginBottom: 6 }}>
-          <div><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{s.key} · {s.tempo} bpm</div></div>
+          <div><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)} · {s.tempo} bpm</div></div>
         </button>
       ))}
       {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>No hay canciones que coincidan.</div>}

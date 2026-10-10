@@ -168,6 +168,8 @@ export function eventoCompletoAFormatoEditor({ evento, items, encargados, roles,
   return {
     id: evento.id, title: evento.titulo, dateLabel: evento.fecha_label || "", date: evento.fecha || null,
     hora: evento.hora || null,
+    // Ensayo y nota de quien dirige la alabanza (Inicio del equipo de alabanza).
+    ensayoFecha: evento.ensayo_fecha || null, ensayoHora: evento.ensayo_hora || null, notaAlabanza: evento.nota_alabanza || "",
     location: evento.ubicacion || "", openPositions: 0, cover: null, esPlantilla: !!evento.es_plantilla,
     serviceOrder: items.map((row) => filaAItemServicio(row, encargadosPorItem)),
     worshipRoles: roles.map((row) => filaARolAlabanza(row, miembrosPorRol)),
