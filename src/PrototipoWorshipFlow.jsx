@@ -858,7 +858,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   };
   // Versículos largos → 2 o 3 diapositivas (ver dividirTexto.js). Con la letra en vivo más grande,
   // caben menos palabras por diapositiva y divide antes.
-  const palabrasPorParte = palabrasPorParteSegun(liveStyle.fontScale);
+  // Dividir versículos largos: ajuste de cada iglesia (Ajustes → Pantalla de proyección).
+  const palabrasPorParte = palabrasPorParteSegun(liveStyle.fontScale, !!myIglesia.dividirVersiculos);
   // Cómo se reparte la letra de canciones en pantalla — ajuste de cada iglesia (Identidad de la iglesia).
   const formatoLetra = myIglesia.formatoLetra || "dos_lineas";
   const slides = useMemo(
@@ -2325,7 +2326,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       {tab === "envivo" && liveEvent && (
         <div style={{ width: "100%", flex: 1, minHeight: 0, display: "flex" }}>
           <MultimediaControl
-            myIglesiaId={myIglesiaId}
+            myIglesiaId={myIglesiaId} palabrasPorParte={palabrasPorParte}
             eventTitle={liveEvent.title} serviceOrder={liveEvent.serviceOrder || []} isFreeSession={liveLibre} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
             goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}
             onEnd={endEvent} canEnd={isAdminViewer || userId === liveOwnerId} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
@@ -2807,6 +2808,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
   const [showTeamList, setShowTeamList] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showIdentidad, setShowIdentidad] = useState(false);
+  const [showPantalla, setShowPantalla] = useState(false);
   const [pushEstado, setPushEstado] = useState("cargando"); // cargando | activo | inactivo | sin-soporte
   const [pushBusy, setPushBusy] = useState(false);
   const [screensBusy, setScreensBusy] = useState(false);
@@ -3043,6 +3045,8 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           <NavRow icon={Settings} label="Roles" onClick={onGoToRoles} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
           <NavRow icon={Palette} label="Identidad de la iglesia" onClick={() => setShowIdentidad(true)} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
           {showIdentidad && <IdentidadIglesiaModal iglesiaId={myIglesiaId} onClose={() => setShowIdentidad(false)} />}
+          <NavRow icon={Radio} label="Pantalla de proyección" onClick={() => setShowPantalla(true)} right={<ChevronRight size={16} color="var(--wf-faint)" />} />
+          {showPantalla && <PantallaProyeccionModal iglesiaId={myIglesiaId} onClose={() => setShowPantalla(false)} />}
           {/* Visible solo si soy_super_admin() dio true para esta cuenta (ver AuthGate.jsx) — nadie
               más la ve nunca, ni siquiera otro administrador de esta misma iglesia. */}
           {onGoToPlataforma && <NavRow icon={Shield} label="Consola general" onClick={onGoToPlataforma} right={<ChevronRight size={16} color="var(--wf-faint)" />} />}
@@ -3154,6 +3158,87 @@ const ZONAS_HORARIAS = [
 const LOGO_MAX_BYTES = 2 * 1024 * 1024;
 const LOGO_TIPOS_VALIDOS = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
 
+// Ajustes → Pantalla de proyección (pedido de Eldin, 2026-10-09): todo lo que depende del tamaño de la
+// pantalla de cada iglesia, en un solo lugar. Antes "letra de canciones" vivía en Identidad.
+function PantallaProyeccionModal({ iglesiaId, onClose }) {
+  const [cargando, setCargando] = useState(true);
+  const [formatoLetra, setFormatoLetra] = useState("dos_lineas");
+  const [dividirVersiculos, setDividirVersiculos] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    supabase.from("iglesias").select("formato_letra, dividir_versiculos").eq("id", iglesiaId).single()
+      .then(({ data }) => {
+        if (data) {
+          setFormatoLetra(data.formato_letra || "dos_lineas");
+          setDividirVersiculos(!!data.dividir_versiculos);
+        }
+        setCargando(false);
+      });
+  }, [iglesiaId]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true); setError("");
+    const { error } = await supabase.from("iglesias").update({ formato_letra: formatoLetra, dividir_versiculos: dividirVersiculos }).eq("id", iglesiaId);
+    if (error) { setError(error.message); setBusy(false); return; }
+    window.location.reload();
+  };
+
+  return (
+    <ModalShell title="Pantalla de proyección" icon={Radio} color="var(--wf-brand-accent)" onClose={onClose}>
+      {cargando ? (
+        <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Cargando…</div>
+      ) : (
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>Ajusta cómo se reparte el texto según el tamaño de la pantalla de tu iglesia. Se aplica al proyectar: las canciones y versículos guardados no cambian.</div>
+          <Field label="Letra de canciones en pantalla">
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {FORMATOS_LETRA.map((f) => {
+                const elegido = formatoLetra === f.value;
+                const ejemplo = f.value === "dos_lineas" ? ["Eres mi refugio eterno", "mi lugar seguro, Señor"]
+                  : f.value === "una_linea_dos_renglones" ? ["Eres mi refugio", "eterno, Señor"] : ["Eres mi refugio eterno, Señor"];
+                return (
+                  <button
+                    key={f.value} type="button" onClick={() => setFormatoLetra(f.value)}
+                    style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", padding: 8, borderRadius: 12, cursor: "pointer", background: "var(--wf-card)", border: elegido ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)" }}
+                  >
+                    <div style={{ width: 92, height: 52, flexShrink: 0, borderRadius: 8, background: "#0C0E13", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 4, boxSizing: "border-box", textAlign: "center", lineHeight: 1.25, fontSize: f.value === "dos_lineas" ? 7 : f.value === "una_linea" ? 7.5 : 10 }}>
+                      {ejemplo.map((l, i) => <div key={i} style={f.value === "una_linea_dos_renglones" && i === 1 ? { fontWeight: 800, textTransform: "uppercase" } : undefined}>{l}</div>)}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>{f.label}</div>
+                      <div style={{ fontSize: 11, color: "var(--wf-muted)" }}>{f.ayuda}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Se aplica al proyectar — las canciones de la biblioteca no cambian.</div>
+          </Field>
+          <Field label="Versículos largos">
+            <button
+              type="button" onClick={() => setDividirVersiculos((v) => !v)} aria-pressed={dividirVersiculos}
+              style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: 10, borderRadius: 12, cursor: "pointer", background: "var(--wf-card)", border: dividirVersiculos ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)" }}
+            >
+              <span style={{ width: 40, height: 24, borderRadius: 12, flexShrink: 0, position: "relative", background: dividirVersiculos ? "var(--wf-brand-accent)" : "var(--wf-border)", transition: "background 0.15s" }}>
+                <span style={{ position: "absolute", top: 3, left: dividirVersiculos ? 19 : 3, width: 18, height: 18, borderRadius: 9, background: "#fff", transition: "left 0.15s" }} />
+              </span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>Dividir versículos largos en 2 o 3 partes</span>
+                <span style={{ display: "block", fontSize: 11, color: "var(--wf-muted)" }}>Para pantallas chicas: cada parte lleva su "(1/2)" en la cita. Apagado, el versículo se proyecta completo.</span>
+              </span>
+            </button>
+          </Field>
+          {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
+          <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
+        </form>
+      )}
+    </ModalShell>
+  );
+}
+
 function IdentidadIglesiaModal({ iglesiaId, onClose }) {
   const [cargando, setCargando] = useState(true);
   const [nombre, setNombre] = useState("");
@@ -3165,10 +3250,9 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
   const [error, setError] = useState("");
   const [subiendoLogo, setSubiendoLogo] = useState(false);
   const [mostrarEnlaceManual, setMostrarEnlaceManual] = useState(false);
-  const [formatoLetra, setFormatoLetra] = useState("dos_lineas");
 
   useEffect(() => {
-    supabase.from("iglesias").select("nombre, zona_horaria, logo_url, color_primario, color_acento, formato_letra").eq("id", iglesiaId).single()
+    supabase.from("iglesias").select("nombre, zona_horaria, logo_url, color_primario, color_acento").eq("id", iglesiaId).single()
       .then(({ data }) => {
         if (data) {
           setNombre(data.nombre || "");
@@ -3176,7 +3260,6 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
           setLogoUrl(data.logo_url || "");
           setColorPrimario(data.color_primario || "#16324F");
           setColorAcento(data.color_acento || "#E8821E");
-          setFormatoLetra(data.formato_letra || "dos_lineas");
         }
         setCargando(false);
       });
@@ -3213,7 +3296,6 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
     const { error } = await supabase.from("iglesias").update({
       nombre: nombre.trim(), zona_horaria: zonaHoraria,
       logo_url: logoUrl.trim() || null, color_primario: colorPrimario, color_acento: colorAcento,
-      formato_letra: formatoLetra,
     }).eq("id", iglesiaId);
     if (error) { setError(error.message); setBusy(false); return; }
     window.location.reload();
@@ -3263,30 +3345,6 @@ function IdentidadIglesiaModal({ iglesiaId, onClose }) {
             <select value={zonaHoraria} onChange={(e) => setZonaHoraria(e.target.value)} style={inputStyle}>
               {ZONAS_HORARIAS.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
             </select>
-          </Field>
-          <Field label="Letra de canciones en pantalla">
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {FORMATOS_LETRA.map((f) => {
-                const elegido = formatoLetra === f.value;
-                const ejemplo = f.value === "dos_lineas" ? ["Eres mi refugio eterno", "mi lugar seguro, Señor"]
-                  : f.value === "una_linea_dos_renglones" ? ["Eres mi refugio", "eterno, Señor"] : ["Eres mi refugio eterno, Señor"];
-                return (
-                  <button
-                    key={f.value} type="button" onClick={() => setFormatoLetra(f.value)}
-                    style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", padding: 8, borderRadius: 12, cursor: "pointer", background: "var(--wf-card)", border: elegido ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)" }}
-                  >
-                    <div style={{ width: 92, height: 52, flexShrink: 0, borderRadius: 8, background: "#0C0E13", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 4, boxSizing: "border-box", textAlign: "center", lineHeight: 1.25, fontSize: f.value === "dos_lineas" ? 7 : f.value === "una_linea" ? 7.5 : 10 }}>
-                      {ejemplo.map((l, i) => <div key={i} style={f.value === "una_linea_dos_renglones" && i === 1 ? { fontWeight: 800, textTransform: "uppercase" } : undefined}>{l}</div>)}
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>{f.label}</div>
-                      <div style={{ fontSize: 11, color: "var(--wf-muted)" }}>{f.ayuda}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Se aplica al proyectar — las canciones de la biblioteca no cambian.</div>
           </Field>
           {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
           <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
@@ -6936,7 +6994,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId }) {
+function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40}) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -7288,7 +7346,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             history={bibleHistory} setHistory={setBibleHistory}
             onProject={(b) => onStartAdHocBible(b)}
             liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.baseReference ?? current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart, parte: current.parte ?? 0 } : null}
-            palabrasPorParte={palabrasPorParteSegun(liveStyle.fontScale)}
+            palabrasPorParte={palabrasPorParte}
           />
         )}
 
@@ -7813,7 +7871,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             history={bibleHistory} setHistory={setBibleHistory}
             onProject={(b) => onStartAdHocBible(b)}
             liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.baseReference ?? current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart, parte: current.parte ?? 0 } : null}
-            palabrasPorParte={palabrasPorParteSegun(liveStyle.fontScale)}
+            palabrasPorParte={palabrasPorParte}
           />
         ) : (
           <section aria-label="Diapositivas" data-tour="envivo-diapositivas" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "0 4px calc(var(--bottom-nav-height, 80px) + 8px)" }}>

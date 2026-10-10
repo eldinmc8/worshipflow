@@ -27,7 +27,7 @@ describe("partirEn", () => {
   });
 });
 
-describe.skip("partesDeVersiculo (apagado: DIVIDIR_VERSICULOS_LARGOS = false)", () => {
+describe("partesDeVersiculo", () => {
   it("corto → 1, largo → 2, exageradamente largo → 3 (máximo)", () => {
     expect(partesDeVersiculo("El que confía no será avergonzado.")).toHaveLength(1);
     expect(partesDeVersiculo(LARGO)).toHaveLength(2);
@@ -39,7 +39,7 @@ describe.skip("partesDeVersiculo (apagado: DIVIDIR_VERSICULOS_LARGOS = false)", 
   });
 });
 
-describe.skip("expandirVersiculosLargos (apagado: DIVIDIR_VERSICULOS_LARGOS = false)", () => {
+describe("expandirVersiculosLargos", () => {
   const slides = [
     { slideId: "s1", type: "cancion", lines: ["x"] },
     { slideId: "b1", type: "biblia", reference: "Isaías 41:10", text: LARGO, bookId: 23 },
@@ -110,11 +110,15 @@ describe("reorganizarLetra", () => {
   });
 });
 
-import { partesDeVersiculo as partesV, expandirVersiculosLargos as expandirV } from "../dividirTexto.js";
-describe("versículos largos apagados (2026-10-09)", () => {
-  it("un versículo largo se proyecta completo, en una sola diapositiva", () => {
-    expect(partesV(LARGO + " " + LARGO)).toEqual([LARGO + " " + LARGO]);
-    const slides = [{ slideId: "b1", type: "biblia", reference: "Isaías 41:10", text: LARGO + " " + LARGO }];
-    expect(expandirV(slides)).toBe(slides);
+import { palabrasPorParteSegun } from "../dividirTexto.js";
+describe("ajuste de la iglesia: dividir versículos largos", () => {
+  it("apagado: el versículo largo queda completo en una sola diapositiva", () => {
+    const tope = palabrasPorParteSegun(1, false);
+    expect(partesDeVersiculo(MUY_LARGO, tope)).toEqual([MUY_LARGO]);
+    const slides = [{ slideId: "b1", type: "biblia", reference: "Isaías 41:10", text: MUY_LARGO }];
+    expect(expandirVersiculosLargos(slides, tope)).toEqual(slides);
+  });
+  it("encendido: divide como siempre", () => {
+    expect(partesDeVersiculo(LARGO, palabrasPorParteSegun(1, true))).toHaveLength(2);
   });
 });

@@ -57,18 +57,16 @@ export function partirEn(texto, n) {
 // Cuántas palabras caben por parte según el tamaño de letra en vivo: con la letra más grande caben
 // menos y se divide antes. Una sola fórmula para la proyección y para la lista de la Biblia en vivo
 // (que muestra cada parte como su propio versículo), así las dos siempre coinciden.
-export function palabrasPorParteSegun(fontScale) {
+// activo = ajuste de cada iglesia (Ajustes → Pantalla de proyección). Apagado: tope infinito de
+// palabras, así cada versículo queda en una sola diapositiva sin tocar el resto de la lógica.
+export function palabrasPorParteSegun(fontScale, activo = true) {
+  if (!activo) return Infinity;
   return Math.max(15, Math.round(40 / (fontScale || 1)));
 }
-
-// Apagado a pedido de Eldin (2026-10-09): los versículos vuelven a proyectarse completos, en una sola
-// diapositiva. La lógica se deja intacta — cambiar a true la vuelve a encender.
-export const DIVIDIR_VERSICULOS_LARGOS = false;
 
 export function partesDeVersiculo(texto, palabrasPorParte = 40, maxPartes = 3) {
   const t = String(texto ?? "").replace(/\s+/g, " ").trim();
   if (!t) return [];
-  if (!DIVIDIR_VERSICULOS_LARGOS) return [t];
   const palabras = t.split(" ").length;
   const n = Math.min(maxPartes, Math.max(1, Math.ceil(palabras / Math.max(1, palabrasPorParte))));
   return partirEn(t, n);
@@ -78,7 +76,6 @@ export function partesDeVersiculo(texto, palabrasPorParte = 40, maxPartes = 3) {
 // guarda de dónde salió (baseSlideId, baseReference, baseText) para que editar o avanzar al siguiente
 // versículo siga trabajando sobre el versículo completo, nunca sobre un pedazo.
 export function expandirVersiculosLargos(slides, palabrasPorParte = 40) {
-  if (!DIVIDIR_VERSICULOS_LARGOS) return slides || [];
   const out = [];
   (slides || []).forEach((s) => {
     if (!s || s.type !== "biblia" || !s.text) { out.push(s); return; }
