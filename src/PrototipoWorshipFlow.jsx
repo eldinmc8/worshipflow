@@ -2713,14 +2713,21 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
   };
 
   const tarjetaServicio = ev ? (
+    <>
+    {/* Toda la tarjeta lleva al culto (pedido de Eldin, 2026-10-11); el equipo va en su propia
+        tarjeta aparte, abajo, con su botón "Ver equipo". */}
+    <div role="button" tabIndex={0} onClick={() => onSelectEvent(ev.id)} onKeyDown={(e) => { if (e.key === "Enter") onSelectEvent(ev.id); }} aria-label={`Ver el culto: ${ev.title}`} style={{ cursor: "pointer" }}>
     <TarjetaInicio style={{ padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: 0.4, color: esAlabanza ? "#C2620F" : "#1F8A73" }}>{esAlabanza ? "TU PRÓXIMO SERVICIO" : "TU PRÓXIMO TURNO"}</span>
         {cuandoEs(ev.date) && <span style={{ fontSize: 12.5, fontWeight: 700, background: "var(--wf-active-bg)", color: "var(--wf-active-text)", padding: "4px 10px", borderRadius: 12 }}>{cuandoEs(ev.date)}</span>}
       </div>
-      <div style={{ marginTop: 8, color: "var(--wf-text)" }}>
-        <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.3 }}>{fechaLarga(fechaEv, ev.hora)}</div>
-        <div style={{ fontSize: 14, color: "var(--wf-muted)", marginTop: 2 }}>{ev.title}</div>
+      <div style={{ marginTop: 8, color: "var(--wf-text)", display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.3 }}>{fechaLarga(fechaEv, ev.hora)}</div>
+          <div style={{ fontSize: 14, color: "var(--wf-muted)", marginTop: 2 }}>{ev.title}</div>
+        </div>
+        <ChevronRight size={22} color="var(--wf-faint)" style={{ flexShrink: 0 }} />
       </div>
       <div style={{ fontSize: 16, color: "var(--wf-text)", marginTop: 8 }}>Te toca: <b>{cargos.map((c) => c.nombre).join(", ")}</b></div>
       {esAlabanza && textoEnsayo(ev) && (
@@ -2735,11 +2742,10 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
           {quienDirigeAlabanza(ev) && <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 6 }}>— {quienDirigeAlabanza(ev).n}, dirige la alabanza</div>}
         </div>
       )}
-      {/* Claro para todos (2026-10-11): el equipo tiene su propia etiqueta y su propio botón "Ver
-          equipo", y abajo un botón grande y separado para abrir el culto — antes la fecha y la fila
-          del equipo eran botones parecidos y se confundían. */}
+    </TarjetaInicio>
+    </div>
       {equipo.length > 0 && (
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--wf-divider)" }}>
+        <TarjetaInicio style={{ padding: 16, marginTop: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.4, color: "var(--wf-muted)", marginBottom: 8 }}>{esAlabanza ? "TU EQUIPO" : "CON QUIÉN TE TOCA"}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ display: "flex", flexShrink: 0 }}>
@@ -2756,12 +2762,9 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
               <Users size={15} /> Ver equipo
             </button>
           </div>
-        </div>
+        </TarjetaInicio>
       )}
-      <button onClick={() => onSelectEvent(ev.id)} style={{ marginTop: 14, width: "100%", minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)", border: "none", borderRadius: 14, fontSize: 15.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
-        <ListMusic size={18} /> Ver el orden del culto <ChevronRight size={18} />
-      </button>
-    </TarjetaInicio>
+    </>
   ) : (
     <TarjetaInicio style={{ padding: 18 }}>
       <div style={{ fontSize: 17, fontWeight: 700, color: "var(--wf-text)" }}>Esta semana no tienes servicio asignado</div>
