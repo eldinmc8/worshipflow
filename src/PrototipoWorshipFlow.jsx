@@ -2676,6 +2676,7 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
   // Listas largas de Inicio: solo 3 a la vista y "Ver más" para desplegar el resto (pedido de Eldin).
   const [verTodaAtencion, setVerTodaAtencion] = useState(false);
   const [verTodasFechas, setVerTodasFechas] = useState(false);
+  const [verTodasCanciones, setVerTodasCanciones] = useState(false);
   const favoriteSongs = library.filter((s) => s.favorite);
   const [dayEventsPicker, setDayEventsPicker] = useState(null);
   const today = todayLocal();
@@ -2717,10 +2718,10 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
         <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: 0.4, color: esAlabanza ? "#C2620F" : "#1F8A73" }}>{esAlabanza ? "TU PRÓXIMO SERVICIO" : "TU PRÓXIMO TURNO"}</span>
         {cuandoEs(ev.date) && <span style={{ fontSize: 12.5, fontWeight: 700, background: "var(--wf-active-bg)", color: "var(--wf-active-text)", padding: "4px 10px", borderRadius: 12 }}>{cuandoEs(ev.date)}</span>}
       </div>
-      <button onClick={() => onSelectEvent(ev.id)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: 0, marginTop: 8, cursor: "pointer", color: "var(--wf-text)" }}>
+      <div style={{ marginTop: 8, color: "var(--wf-text)" }}>
         <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.3 }}>{fechaLarga(fechaEv, ev.hora)}</div>
         <div style={{ fontSize: 14, color: "var(--wf-muted)", marginTop: 2 }}>{ev.title}</div>
-      </button>
+      </div>
       <div style={{ fontSize: 16, color: "var(--wf-text)", marginTop: 8 }}>Te toca: <b>{cargos.map((c) => c.nombre).join(", ")}</b></div>
       {esAlabanza && textoEnsayo(ev) && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 15, color: "var(--wf-text)" }}>
@@ -2734,23 +2735,32 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
           {quienDirigeAlabanza(ev) && <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 6 }}>— {quienDirigeAlabanza(ev).n}, dirige la alabanza</div>}
         </div>
       )}
-      {/* Compacto (2026-10-09): el equipo cabe en una fila de iniciales dentro de la misma tarjeta;
-          tocarla abre la lista completa con cargos y quién confirmó. */}
+      {/* Claro para todos (2026-10-11): el equipo tiene su propia etiqueta y su propio botón "Ver
+          equipo", y abajo un botón grande y separado para abrir el culto — antes la fecha y la fila
+          del equipo eran botones parecidos y se confundían. */}
       {equipo.length > 0 && (
-        <button onClick={() => setVerEquipo(true)} aria-label="Ver con quién te toca" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", marginTop: 12, padding: 0, background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
-          <span style={{ display: "flex" }}>
-            {equipo.slice(0, 5).map((p, i) => (
-              <span key={`${p.nombre}-${i}`} style={{ marginLeft: i ? -8 : 0, borderRadius: 18, border: "2px solid var(--wf-card)", display: "flex" }}>
-                <Iniciales nombre={p.nombre} fondo={p.lead ? "var(--wf-brand-primary)" : "var(--wf-hover)"} color={p.lead ? "var(--wf-on-brand-primary)" : "var(--wf-text)"} />
-              </span>
-            ))}
-          </span>
-          <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            Con {equipo.slice(0, 2).map((p) => p.nombre.split(" ")[0]).join(", ")}{equipo.length > 2 ? ` y ${equipo.length - 2} más` : ""}
-          </span>
-          <ChevronRight size={16} color="var(--wf-faint)" />
-        </button>
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--wf-divider)" }}>
+          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.4, color: "var(--wf-muted)", marginBottom: 8 }}>{esAlabanza ? "TU EQUIPO" : "CON QUIÉN TE TOCA"}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ display: "flex", flexShrink: 0 }}>
+              {equipo.slice(0, 3).map((p, i) => (
+                <span key={`${p.nombre}-${i}`} style={{ marginLeft: i ? -8 : 0, borderRadius: 18, border: "2px solid var(--wf-card)", display: "flex" }}>
+                  <Iniciales nombre={p.nombre} fondo={p.lead ? "var(--wf-brand-primary)" : "var(--wf-hover)"} color={p.lead ? "var(--wf-on-brand-primary)" : "var(--wf-text)"} />
+                </span>
+              ))}
+            </span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {equipo[0].nombre.split(" ")[0]}{equipo.length > 1 ? ` y ${equipo.length - 1} más` : ""}
+            </span>
+            <button onClick={() => setVerEquipo(true)} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", color: "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "8px 12px", fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              <Users size={15} /> Ver equipo
+            </button>
+          </div>
+        </div>
       )}
+      <button onClick={() => onSelectEvent(ev.id)} style={{ marginTop: 14, width: "100%", minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)", border: "none", borderRadius: 14, fontSize: 15.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+        <ListMusic size={18} /> Ver el orden del culto <ChevronRight size={18} />
+      </button>
     </TarjetaInicio>
   ) : (
     <TarjetaInicio style={{ padding: 18 }}>
@@ -2768,11 +2778,18 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
     </TarjetaInicio>
   );
 
+  // "Canciones de hoy / de mañana / del domingo": el título dice para cuándo son.
+  const tituloCanciones = (() => {
+    const cuando = ev ? cuandoEs(ev.date) : null;
+    if (cuando === "hoy") return "Canciones de hoy";
+    if (cuando === "mañana") return "Canciones de mañana";
+    return fechaEv ? `Canciones del ${DIAS[fechaEv.getDay()]}` : "Canciones para ensayar";
+  })();
   const seccionCanciones = canciones.length > 0 && (
     <>
-      <TituloSeccion derecha={<span style={{ fontSize: 13, color: "var(--wf-muted)" }}>{canciones.length} {canciones.length === 1 ? "canción" : "canciones"}</span>}>Canciones para ensayar</TituloSeccion>
+      <TituloSeccion derecha={<span style={{ fontSize: 13, color: "var(--wf-muted)" }}>{canciones.length} {canciones.length === 1 ? "canción" : "canciones"}</span>}>{tituloCanciones}</TituloSeccion>
       <TarjetaInicio>
-        {canciones.map((c, i) => (
+        {(verTodasCanciones ? canciones : canciones.slice(0, 3)).map((c, i) => (
           <button key={c.itemId} onClick={() => onOpenSong(c.songId)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "8px 12px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: c.cambiado ? "var(--wf-active-bg)" : "transparent", cursor: "pointer" }}>
             <span style={{ minWidth: 34, textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 700, color: c.cambiado ? "#C2620F" : "#1F8A73" }}>{acordeEn(c.tono)}</span>
             <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600, color: "var(--wf-text)", lineHeight: 1.3 }}>{c.titulo}</span>
@@ -2781,6 +2798,7 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
             <ChevronRight size={16} color="var(--wf-faint)" />
           </button>
         ))}
+        {canciones.length > 3 && <BotonVerMas abierto={verTodasCanciones} restantes={canciones.length - 3} onClick={() => setVerTodasCanciones((v) => !v)} />}
       </TarjetaInicio>
     </>
   );
