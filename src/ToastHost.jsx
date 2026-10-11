@@ -18,7 +18,7 @@ export default function ToastHost() {
 
   useEffect(() => subscribeToast((toast) => {
     setToasts((ts) => [...ts, toast]);
-    const duracion = toast.type === "offline" ? 7000 : 5000;
+    const duracion = toast.accion ? 7000 : toast.type === "offline" ? 7000 : 5000;
     setTimeout(() => setToasts((ts) => ts.filter((t) => t.id !== toast.id)), duracion);
   }), []);
 
@@ -47,6 +47,14 @@ export default function ToastHost() {
           >
             <Icon size={18} color={accent} style={{ flexShrink: 0 }} />
             <span style={{ fontSize: 13, color: "var(--wf-text)", flex: 1, lineHeight: 1.4 }}>{toast.message}</span>
+            {toast.accion && (
+              <button
+                onClick={() => { toast.accion.onClick(); setToasts((ts) => ts.filter((t) => t.id !== toast.id)); }}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 8px", flexShrink: 0, fontSize: 13, fontWeight: 800, color: "#2F5FA8", fontFamily: "inherit" }}
+              >
+                {toast.accion.label}
+              </button>
+            )}
             <button
               onClick={() => setToasts((ts) => ts.filter((t) => t.id !== toast.id))}
               style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}

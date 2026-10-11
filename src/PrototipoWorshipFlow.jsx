@@ -14,7 +14,7 @@ import {
   Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
-  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool,
+  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
@@ -1118,6 +1118,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const updateSeccionText = (itemId, field, value) => updateOrder((o) => o.map((i) => (i.id === itemId ? { ...i, [field]: value } : i)));
   const setSongKey = (itemId, key, defaultKey) => updateOrder((o) => o.map((i) => (i.id === itemId ? { ...i, keyOverride: key === defaultKey ? null : key } : i)));
   const removeItem = (id) => updateOrder((o) => o.filter((i) => i.id !== id));
+  // "Deshacer" tras quitar algo del Setlist: vuelve a ponerlo en el mismo lugar (mismo id y encargados).
+  const restaurarItem = (item, indice) => updateOrder((o) => (o.some((i) => i.id === item.id) ? o : [...o.slice(0, indice), item, ...o.slice(indice)]));
   // Arrastrar y soltar desde el ícono de 6 puntos: saca el elemento de su posición y lo inserta donde se soltó.
   const reorderItem = (fromIdx, toIdx) => updateOrder((o) => {
     if (fromIdx === toIdx) return o;
@@ -2357,7 +2359,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onStart={() => startEvent(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
           onAddSong={addSong} onAddSeccion={addSeccion}
           onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)} onAddItems={(items) => updateOrder((o) => [...o, ...items])}
-          onRemove={removeItem} onDuplicate={duplicateItem} onReorder={reorderItem}
+          onRemove={removeItem} onRestaurar={restaurarItem} onDuplicate={duplicateItem} onReorder={reorderItem}
           onLinkMinistry={linkMinistry} onUpdateSeccionText={updateSeccionText}
           onSetSongKey={setSongKey}
           canAddBibleReading={canAddBibleReading()}
@@ -6007,7 +6009,7 @@ function EventDetail({
   myIglesiaId, onAbrirEditor, onDisenarNueva,
   event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onGoLive, onDelete,
   isDraftFromTemplate, onPublish,
-  onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onRemove, onDuplicate, onReorder,
+  onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onRemove, onRestaurar, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
@@ -6273,7 +6275,7 @@ function EventDetail({
         event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer || puedeEditarSetlist} userId={userId} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onAddSeccion={onAddSeccion}
         onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick} onAddItems={onAddItems}
-        onRemove={onRemove} onDuplicate={onDuplicate} onReorder={onReorder}
+        onRemove={onRemove} onRestaurar={onRestaurar} onDuplicate={onDuplicate} onReorder={onReorder}
         onLinkMinistry={onLinkMinistry} onUpdateSeccionText={onUpdateSeccionText}
         onSetSongKey={onSetSongKey}
         canAddBibleReading={canAddBibleReading} canAddSermonPoints={canAddSermonPoints}
@@ -6430,7 +6432,7 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onRemove, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   const [showImportar, setShowImportar] = useState(false); // Importar presentación (ver ImportarPresentacion)
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
@@ -6441,9 +6443,24 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   // aparte, o creer que ya había quedado asignado sin haber tocado "Añadir" — de ahí que pareciera que
   // las asignaciones "se perdían"). Los cambios se siguen guardando solos apenas se hacen; "Guardar"
   // solo regresa a la vista de solo lectura.
-  const [editingSetlist, setEditingSetlist] = useState(false);
-  const canEditNow = isAdminViewer && editingSetlist;
+  // Sin candado "Editar" (2026-10-10, para que sea fácil de usar): quien puede editar edita directo,
+  // y si se equivoca al quitar algo aparece "Deshacer" (ver quitarConDeshacer).
+  const canEditNow = isAdminViewer;
   const canEditItem = () => canEditNow;
+  const [showAgregar, setShowAgregar] = useState(false); // hoja "+ Agregar" con todas las opciones
+  const [pickerCancion, setPickerCancion] = useState(false);
+  const [menuItem, setMenuItem] = useState(null); // { id, x, y } — menú "⋯" de un elemento
+  // "Empieza aquí" se puede ocultar por evento (por si esta iglesia no usa el equipo de alabanza, etc.).
+  const claveOcultarPasos = `worshipflow_pasos_ocultos_${event.id}`;
+  const [pasosOcultos, setPasosOcultos] = useState(() => { try { return localStorage.getItem(claveOcultarPasos) === "1"; } catch { return false; } });
+  const ocultarPasos = () => { setPasosOcultos(true); try { localStorage.setItem(claveOcultarPasos, "1"); } catch { /* sin almacenamiento */ } };
+  useEffect(() => {
+    if (!menuItem) return;
+    const cerrar = () => setMenuItem(null);
+    window.addEventListener("pointerdown", cerrar);
+    window.addEventListener("scroll", cerrar, true);
+    return () => { window.removeEventListener("pointerdown", cerrar); window.removeEventListener("scroll", cerrar, true); };
+  }, [menuItem]);
   // usuarioId -> cuándo vio sus asignaciones de ESTE evento (ver marcarAsignacionVista) — se le pasa a
   // cada EncargadosList (bloques, equipo de alabanza) para el ícono de ojo junto a cada persona.
   const vistasPorUsuario = useMemo(() => new Map((event.vistas || []).map((v) => [v.usuarioId, v.vistoAt])), [event.vistas]);
@@ -6464,7 +6481,6 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   // los himnos disponibles, etc., en vez de buscar a ojo en toda la biblioteca mezclada.
   const [libraryCategoryFilter, setLibraryCategoryFilter] = useState("todos");
   const [expandedSections, setExpandedSections] = useState({});
-  const [showLibrary, setShowLibrary] = useState(!isCompact);
   const [showSeccionForm, setShowSeccionForm] = useState(false);
   const [seccionDraft, setSeccionDraft] = useState({ title: "", description: "" });
   const confirmAddSeccion = () => {
@@ -6498,21 +6514,64 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   const filtered = library
     .filter((s) => libraryCategoryFilter === "todos" || s.category === libraryCategoryFilter)
     .filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
+  // ---- Fácil de usar (2026-10-10): "+ Agregar", menú "⋯" y "Empieza aquí" ----
+  const puedeAgregarAlgo = isAdminViewer || canAddBibleReading || canAddSermonPoints;
+  const nombreDeItem = (it) => (it.type === "cancion" ? library.find((x) => x.id === it.songId)?.title || "Canción"
+    : it.type === "biblia" ? it.reference || "Versículo" : it.title || (it.type === "seccion" ? "Bloque" : "Diapositiva"));
+  const quitarConDeshacer = (it) => {
+    const indice = event.serviceOrder.findIndex((x) => x.id === it.id);
+    onRemove(it.id);
+    showToast(`Se quitó "${nombreDeItem(it)}".`, "info", onRestaurar ? { label: "Deshacer", onClick: () => onRestaurar(it, indice) } : null);
+  };
+  const moverItem = (it, paso) => {
+    const desde = event.serviceOrder.findIndex((x) => x.id === it.id);
+    const hacia = desde + paso;
+    if (desde === -1 || hacia < 0 || hacia >= event.serviceOrder.length) return;
+    onReorder(desde, hacia);
+  };
+  const abrirMenuItem = (e, it) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    setMenuItem({ id: it.id, x: Math.min(r.right - 210, window.innerWidth - 220), y: Math.min(r.bottom + 4, window.innerHeight - 260) });
+  };
+  const botonMenu = (it) => (
+    <button onClick={(e) => abrirMenuItem(e, it)} onPointerDown={(e) => e.stopPropagation()} title="Más opciones" aria-label={`Opciones de ${nombreDeItem(it)}`} style={{ ...iconGhost, width: 32, height: 32, borderRadius: 10, border: "1px solid var(--wf-border)", flexShrink: 0 }}><MoreHorizontal size={16} /></button>
+  );
+  const cancionesEvento = event.serviceOrder.filter((i) => i.type === "cancion").length;
+  const bloqueAlabanza = event.serviceOrder.find((i) => isWorshipBlock(i));
+  const personasAlabanza = (event.worshipRoles || []).reduce((acc, r) => acc + (r.members || []).length, 0);
+  const tieneOtros = event.serviceOrder.some((i) => i.type === "slide" || i.type === "biblia");
+  const pasosInicio = isAdminViewer && !event.esPlantilla && !pasosOcultos && (cancionesEvento === 0 || (bloqueAlabanza && personasAlabanza === 0)) ? [
+    { clave: "canciones", titulo: "Agrega las canciones", detalle: cancionesEvento ? `${cancionesEvento} ${cancionesEvento === 1 ? "canción" : "canciones"}` : "Búscalas en la biblioteca", hecho: cancionesEvento > 0, accion: () => setPickerCancion(true) },
+    ...(bloqueAlabanza ? [{
+      clave: "equipo", titulo: "Asigna quién toca y canta", detalle: personasAlabanza ? `${personasAlabanza} personas` : "Piano, voz, batería…", hecho: personasAlabanza > 0,
+      accion: () => {
+        setExpandedSections((e) => ({ ...e, [bloqueAlabanza.id]: true }));
+        setTimeout(() => document.querySelector(`[data-item-id="${bloqueAlabanza.id}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+      },
+    }] : []),
+    { clave: "avisos", titulo: "Agrega avisos o el bosquejo", detalle: "Opcional", hecho: tieneOtros, accion: () => setShowAgregar(true) },
+  ] : null;
+  // Opciones de "+ Agregar", según lo que cada quien puede hacer.
+  const opcionesAgregar = [
+    isAdminViewer && { clave: "cancion", Icon: Music, color: "#1F8A73", titulo: "Canción", detalle: "De la biblioteca, con su letra lista", accion: () => setPickerCancion(true) },
+    canAddBibleReading && { clave: "biblia", Icon: BookOpen, color: "#2F5FA8", titulo: "Versículo", detalle: "Búscalo en la Biblia", accion: onAddBibleClick },
+    isAdminViewer && { clave: "texto", Icon: Type, color: "#B15EA0", titulo: "Texto rápido", detalle: "Un aviso o un título en segundos", accion: onAddSlideClick },
+    isAdminViewer && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: onDisenarNueva },
+    isAdminViewer && { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
+    canAddSermonPoints && { clave: "bosquejo", Icon: Mic2, color: "var(--wf-heading)", titulo: "Punto del bosquejo", detalle: "Lo que el predicador va a ir mostrando", accion: () => setShowSermonForm(true) },
+    isAdminViewer && { clave: "bloque", Icon: ListMusic, color: "#5661B3", titulo: "Bloque del culto", detalle: "Una parte del culto: Bienvenida, Ofrenda…", accion: () => setShowSeccionForm(true) },
+  ].filter(Boolean);
+  const itemDelMenu = menuItem ? event.serviceOrder.find((x) => x.id === menuItem.id) : null;
   return (
     <div style={{ display: "flex", flexDirection: isCompact ? "column" : "row", flex: 1, minHeight: 0 }}>
-      {/* La única excepción que puede seguir agregando sin tocar "Editar" (que ni ve, es de admin): quien
-          esté asignado como encargado de un bloque de Lectura bíblica/Oración, agregando su propio
-          versículo — igual que ya funcionaba antes de este candado. */}
-      {isCompact && (editingSetlist || (!isAdminViewer && canAddBibleReading)) && (
-        <button onClick={() => setShowLibrary((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "var(--wf-hover)", border: "none", borderBottom: "1px solid var(--wf-divider)", padding: "12px 16px", fontSize: 12, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><ListMusic size={14} /> Biblioteca y agregar elementos</span>
-          {showLibrary ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-        </button>
-      )}
-      {(showLibrary || !isCompact) && (editingSetlist || (!isAdminViewer && canAddBibleReading)) && (
-      <div style={{ width: isCompact ? "100%" : 270, margin: isCompact ? 0 : "14px 0 14px 14px", background: isCompact ? "transparent" : "var(--wf-card)", boxShadow: isCompact ? "none" : "0 3px 14px rgba(22,50,79,0.09)", borderRadius: isCompact ? 0 : 16, borderBottom: isCompact ? "1px solid var(--wf-divider)" : "none", padding: 14, boxSizing: "border-box", flexShrink: 0, display: "flex", flexDirection: "column" }}>
-        <div style={{ overflowY: "auto", maxHeight: isCompact ? 260 : "55vh" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><ListMusic size={13} /> BIBLIOTECA DE CANCIONES</div>
+      {/* Computadora: la biblioteca a la izquierda para agregar canciones con un toque. Todo lo demás
+          (versículo, diapositivas, importar, bloques...) está en "+ Agregar". En el celular, la
+          biblioteca se abre desde "+ Agregar → Canción". */}
+      {!isCompact && isAdminViewer && (
+      <div style={{ width: 270, margin: "14px 0 14px 14px", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, display: "flex", flexDirection: "column", minHeight: 0, boxSizing: "border-box", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 4 }}><ListMusic size={13} /> AGREGAR CANCIONES</div>
+        <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginBottom: 10 }}>Toca una canción para agregarla al final.</div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
             <Search size={13} color="var(--wf-faint)" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 12, width: "100%" }} />
@@ -6522,6 +6581,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
               <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 20, border: "none", background: libraryCategoryFilter === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: libraryCategoryFilter === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
             ))}
           </div>
+        <div style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
           {filtered.map((s) => (
             <button key={s.id} onClick={() => handleAddSong(s.id)} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 6, borderRadius: 12, background: "transparent", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)} · {s.tempo} bpm</div></div>
@@ -6529,33 +6589,6 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
             </button>
           ))}
           {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, padding: "6px 0" }}>Ninguna canción coincide.</div>}
-        </div>
-        <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
-          {isAdminViewer ? (
-            <button onClick={() => setShowSeccionForm(true)} className="hoverable" style={addBtnStyle}><ListMusic size={14} color="#5661B3" /> Agregar bloque del culto</button>
-          ) : (
-            <div title="Solo administradores generales pueden agregar bloques" style={{ ...addBtnStyle, opacity: 0.5, cursor: "not-allowed", boxShadow: "none", border: "1px dashed var(--wf-border)" }}><ListMusic size={14} color="var(--wf-faint)" /> Agregar bloque (solo Admin)</div>
-          )}
-          {canAddBibleReading ? (
-            <button onClick={onAddBibleClick} className="hoverable" style={addBtnStyle}><BookOpen size={14} color="#2F5FA8" /> Agregar versículo</button>
-          ) : (
-            <div title="Solo administradores pueden agregar versículos" style={{ ...addBtnStyle, opacity: 0.5, cursor: "not-allowed", boxShadow: "none", border: "1px dashed var(--wf-border)" }}><BookOpen size={14} color="var(--wf-faint)" /> Agregar versículo (solo Admin)</div>
-          )}
-          <button onClick={onAddSlideClick} className="hoverable" style={addBtnStyle}><ImgIcon size={14} color="#B15EA0" /> Agregar slide personalizada</button>
-          {/* Solo en computadora: abre el editor de diapositivas en blanco, con plantillas. */}
-          {onDisenarNueva && <button onClick={onDisenarNueva} className="hoverable" style={addBtnStyle}><PenTool size={14} color="#2F5FA8" /> Diseñar diapositiva</button>}
-          {/* PDF, imágenes de Canva o un Word con el bosquejo — entran al final del Setlist. */}
-          <button onClick={() => setShowImportar(true)} className="hoverable" style={addBtnStyle}><FileUp size={14} color="var(--wf-brand-accent)" /> Importar presentación</button>
-          {showImportar && (
-            <ImportarPresentacion
-              iglesiaId={myIglesiaId} destino="Entra al final del Setlist. Luego puedes arrastrarla a su lugar."
-              onClose={() => setShowImportar(false)}
-              onImportar={(items) => { onAddItems(items); setShowImportar(false); }}
-            />
-          )}
-          {canAddSermonPoints && (
-            <button onClick={() => setShowSermonForm(true)} className="hoverable" style={addBtnStyle}><Mic2 size={14} color="var(--wf-heading)" /> Agregar punto del bosquejo</button>
-          )}
         </div>
       </div>
       )}
@@ -6565,21 +6598,44 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
           <h2 data-tour="evento-setlist" style={{ fontFamily: "'Fraunces', serif", fontSize: 20, margin: 0 }}>Setlist</h2>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             <span style={{ fontSize: 12, color: "var(--wf-faint)" }}>{formatFullDate(event.date) || event.dateLabel}</span>
-            {isAdminViewer && (
+            {puedeAgregarAlgo && (
               <button
                 data-tour="evento-editar-setlist"
-                onClick={() => setEditingSetlist((v) => !v)}
+                onClick={() => setShowAgregar(true)}
                 className="hoverable"
-                style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 18, border: "none", cursor: "pointer", background: editingSetlist ? "#1F8A73" : "var(--wf-hover)", color: editingSetlist ? "#fff" : "var(--wf-text)" }}
+                style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 800, padding: "7px 14px", borderRadius: 18, border: "none", cursor: "pointer", background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)" }}
               >
-                {editingSetlist ? <><Check size={12} /> Guardar</> : <><Pencil size={12} /> Editar</>}
+                <Plus size={15} /> Agregar
               </button>
             )}
           </div>
         </div>
-        <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
-          <Sparkles size={13} color="var(--wf-brand-accent)" /> Solo se agrega en orden — las canciones ya traen su letra lista para proyectar.
-        </div>
+        <div style={{ height: 10 }} />
+        {/* Evento nuevo: en vez de verse vacío, dice por dónde empezar. Cada paso se toca para hacerlo
+            y se tacha solo cuando ya está listo; desaparece cuando lo principal está hecho. */}
+        {pasosInicio && (
+          <div style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", marginBottom: 14, overflow: "hidden" }}>
+            <div style={{ padding: "12px 14px 6px", display: "flex", alignItems: "flex-start", gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14.5, fontWeight: 700 }}>Empieza aquí</div>
+                <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>Arma este culto en este orden</div>
+              </div>
+              <button onClick={ocultarPasos} title="Ocultar" aria-label="Ocultar Empieza aquí" style={{ ...iconGhost, width: 26, height: 26 }}><X size={14} /></button>
+            </div>
+            {pasosInicio.map((p, i) => (
+              <button key={p.clave} onClick={p.hecho ? undefined : p.accion} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "11px 14px", border: "none", borderTop: "1px solid var(--wf-divider)", background: "transparent", cursor: p.hecho ? "default" : "pointer", color: "var(--wf-text)" }}>
+                <span style={{ width: 28, height: 28, borderRadius: 14, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, background: p.hecho ? "#E1F5EE" : i === pasosInicio.findIndex((x) => !x.hecho) ? "var(--wf-active-bg)" : "var(--wf-hover)", color: p.hecho ? "#1F8A73" : "var(--wf-active-text)" }}>
+                  {p.hecho ? <Check size={15} /> : i + 1}
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 14, fontWeight: 600, textDecoration: p.hecho ? "line-through" : "none", color: p.hecho ? "var(--wf-muted)" : "var(--wf-text)" }}>{p.titulo}</span>
+                  <span style={{ display: "block", fontSize: 12, color: "var(--wf-muted)" }}>{p.detalle}</span>
+                </span>
+                {!p.hecho && <ChevronRight size={16} color="var(--wf-faint)" />}
+              </button>
+            ))}
+          </div>
+        )}
         {visibleServiceOrder.map((item, idx) => {
           const meta = TYPE_META[item.type];
           const filaArrastre = arrastre.filaProps(idx);
@@ -6600,7 +6656,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
             const canEdit = canEditItem(idx);
             return (
               <div
-                key={item.id} {...filaArrastre}
+                key={item.id} {...filaArrastre} data-item-id={item.id}
                 style={{
                   background: "rgba(124,140,216,0.16)", border: "1px solid #5661B3", borderRadius: 14, padding: "12px 14px", marginBottom: 8,
                   ...arrastre.estiloFila(idx),
@@ -6648,12 +6704,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                         {isWorshipBlock(item) ? (event.worshipRoles || []).reduce((acc, r) => acc + r.members.length, 0) : (item.encargados || []).length}
                       </span>
                     )}
-                    {canEditNow && (
-                      <>
-                        <button onClick={() => onDuplicate(item.id)} title="Duplicar" style={iconGhost}><Copy size={14} /></button>
-                        <button onClick={() => onRemove(item.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>
-                      </>
-                    )}
+                    {canEditNow && botonMenu(item)}
                   </div>
                 </div>
 
@@ -6800,12 +6851,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                 {/* Asignar encargados (Encargados) es solo de bloques — una canción/versículo/slide
                     individual ya no lo ofrece, no tiene sentido asignar una persona "responsable" de
                     proyectar una diapositiva puntual. */}
-                {canEditNow && (
-                  <div style={{ display: "flex", gap: 2 }}>
-                    <button onClick={() => onDuplicate(item.id)} title="Duplicar" style={iconGhost}><Copy size={14} /></button>
-                    <button onClick={() => onRemove(item.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>
-                  </div>
-                )}
+                {canEditNow && botonMenu(item)}
               </div>
             </div>
           );
@@ -6819,6 +6865,88 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
           <textarea value={sermonPointText} onChange={(e) => setSermonPointText(e.target.value)} placeholder="Ej. Dios cumple sus promesas a su tiempo" style={{ ...inputStyle, height: 80, resize: "none" }} autoFocus />
           <button onClick={addSermonPoint} style={{ ...primaryBtn, marginTop: 10 }}>Agregar punto</button>
         </ModalShell>
+      )}
+      {/* Menú "⋯" de un elemento del Setlist */}
+      {itemDelMenu && (() => {
+        const it = itemDelMenu;
+        const indice = event.serviceOrder.findIndex((x) => x.id === it.id);
+        const opcion = (Icon, label, accion, peligro) => (
+          <button key={label} onPointerDown={(e) => e.stopPropagation()} onClick={() => { setMenuItem(null); accion(); }}
+            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "transparent", border: "none", borderRadius: 8, padding: "10px 12px", cursor: "pointer", color: peligro ? "#C23B32" : "var(--wf-text)", fontSize: 14, textAlign: "left", fontFamily: "inherit" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--wf-hover)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+            <Icon size={16} /> {label}
+          </button>
+        );
+        return createPortal(
+          <div onPointerDown={(e) => e.stopPropagation()} role="menu" style={{ position: "fixed", left: Math.max(8, menuItem.x), top: menuItem.y, zIndex: 3000, width: 210, background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: 4, boxShadow: "0 12px 30px rgba(0,0,0,0.3)" }}>
+            {it.type === "slide" && onAbrirEditor && opcion(PenTool, "Editar diseño", () => onAbrirEditor(it.id))}
+            {it.type === "cancion" && opcion(Music, "Abrir la canción", () => onOpenSong(it.songId, it.id))}
+            {it.type === "seccion" && opcion(Users, expandedSections[it.id] ? "Ocultar encargados" : "Ver encargados", () => setExpandedSections((e) => ({ ...e, [it.id]: !e[it.id] })))}
+            {opcion(Copy, "Duplicar", () => onDuplicate(it.id))}
+            {indice > 0 && opcion(ChevronUp, "Subir", () => moverItem(it, -1))}
+            {indice < event.serviceOrder.length - 1 && opcion(ChevronDown, "Bajar", () => moverItem(it, 1))}
+            <div style={{ height: 1, background: "var(--wf-border)", margin: "4px 8px" }} />
+            {opcion(Trash2, it.type === "seccion" ? "Quitar el bloque" : "Quitar", () => quitarConDeshacer(it), true)}
+          </div>,
+          document.body,
+        );
+      })()}
+      {/* "+ Agregar": todas las formas de agregar algo, cada una con su explicación. */}
+      {showAgregar && (
+        <ModalShell title="Agregar al culto" icon={Plus} color="var(--wf-brand-accent)" onClose={() => setShowAgregar(false)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, margin: "0 -6px" }}>
+            {opcionesAgregar.map((o) => (
+              <button key={o.clave} onClick={() => { setShowAgregar(false); o.accion(); }} className="hoverable"
+                style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "transparent", border: "none", borderRadius: 12, padding: "10px 8px", cursor: "pointer", color: "var(--wf-text)", fontFamily: "inherit" }}>
+                <span style={{ width: 38, height: 38, borderRadius: 11, background: `color-mix(in srgb, ${o.color} 16%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><o.Icon size={19} color={o.color} /></span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>{o.titulo}</span>
+                  <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-muted)" }}>{o.detalle}</span>
+                </span>
+                <ChevronRight size={16} color="var(--wf-faint)" />
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginTop: 10 }}>Todo entra al final del culto. Luego lo puedes mover con ⋯ → Subir/Bajar, o arrastrándolo.</div>
+        </ModalShell>
+      )}
+      {/* Buscar y agregar canciones (en el celular es la forma de agregarlas; en computadora también
+          está la biblioteca a la izquierda). Se queda abierto para agregar varias seguidas. */}
+      {pickerCancion && (
+        <ModalShell title="Agregar canciones" icon={Music} color="#1F8A73" onClose={() => setPickerCancion(false)}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
+              <Search size={13} color="var(--wf-faint)" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 13, width: "100%" }} />
+            </div>
+          <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
+            {[["todos", "Todos"], ...clasificacionesActuales.map((c) => [c.clave, c.nombre])].map(([key, label]) => (
+              <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 20, border: "none", background: libraryCategoryFilter === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: libraryCategoryFilter === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
+            ))}
+          </div>
+          <div style={{ maxHeight: "50vh", overflowY: "auto", margin: "0 -4px", padding: "0 4px" }}>
+            {filtered.map((s) => {
+              const veces = event.serviceOrder.filter((i) => i.type === "cancion" && i.songId === s.id).length;
+              return (
+                <button key={s.id} onClick={() => { handleAddSong(s.id); showToast(`"${s.title}" se agregó al culto.`, "info"); }} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "10px 10px", marginBottom: 6, borderRadius: 12, background: "transparent", border: "1px solid var(--wf-border)", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, color: "var(--wf-text)", fontFamily: "inherit" }}>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>{s.title}</span>
+                    <span style={{ display: "block", fontSize: 11.5, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)} · {s.tempo} bpm{veces ? <span style={{ color: "var(--wf-muted)", fontFamily: "'Poppins', sans-serif" }}> · ya está en el culto</span> : null}</span>
+                  </span>
+                  <Plus size={18} color="var(--wf-brand-accent)" />
+                </button>
+              );
+            })}
+            {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, padding: "6px 0" }}>Ninguna canción coincide.</div>}
+          </div>
+          <button onClick={() => setPickerCancion(false)} style={{ ...primaryBtn, marginTop: 10 }}>Listo</button>
+        </ModalShell>
+      )}
+      {showImportar && (
+        <ImportarPresentacion
+          iglesiaId={myIglesiaId} destino="Entra al final del culto. Luego la puedes mover con ⋯ → Subir/Bajar."
+          onClose={() => setShowImportar(false)}
+          onImportar={(items) => { onAddItems(items); setShowImportar(false); }}
+        />
       )}
       {showSeccionForm && (
         <ModalShell title="Agregar bloque del culto" icon={ListMusic} color="#5661B3" onClose={() => setShowSeccionForm(false)}>
@@ -7819,6 +7947,15 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             title={puedeDisenar && s.type === "slide" ? "Editar el diseño de esta diapositiva" : "Editar esta diapositiva (corregir texto)"}
             style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 7, padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
           ><Pencil size={11} color="#fff" /></button>}
+          {/* "⋯" visible: el mismo menú del clic derecho (mover, copiar, sacar del grupo...). */}
+          {puedeDisenar && s.type === "slide" && (
+            <button
+              onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setMenuDiap({ x: r.left, y: r.bottom + 4, s, sub: null }); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="Más opciones: mover, copiar, sacar del grupo"
+              style={{ position: "absolute", top: 4, right: 56, width: 22, height: 22, background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 7, padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1 }}
+            ><MoreHorizontal size={12} color="#fff" /></button>
+          )}
           {!adHoc && (
             <button
               onClick={(e) => { e.stopPropagation(); borrarDiapositiva(s); }}

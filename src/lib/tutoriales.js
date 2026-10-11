@@ -157,8 +157,8 @@ export function pasosEvento({ puedeGestionarEventos }) {
     },
     {
       target: "evento-editar-setlist",
-      titulo: "Arma el Setlist",
-      texto: "Toca Editar para agregar canciones, versículos, slides y bloques del culto, reordenarlos y asignar encargados. Toca Guardar al terminar.",
+      titulo: "Arma el culto",
+      texto: "Toca Agregar para sumar canciones, versículos, avisos, diapositivas o bloques. En cada elemento, el botón ⋯ sirve para editarlo, duplicarlo, subirlo, bajarlo o quitarlo. Todo se guarda solo.",
     },
     {
       target: "evento-setlist",

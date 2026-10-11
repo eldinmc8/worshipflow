@@ -5,8 +5,9 @@
 const listeners = new Set();
 let nextId = 1;
 
-export function showToast(message, type = "info") {
-  const toast = { id: nextId++, message, type };
+// accion (opcional): { label, onClick } — un botón en el aviso, ej. "Deshacer" al quitar algo.
+export function showToast(message, type = "info", accion = null) {
+  const toast = { id: nextId++, message, type, accion };
   listeners.forEach((fn) => fn(toast));
 }
 
