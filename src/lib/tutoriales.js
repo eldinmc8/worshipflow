@@ -19,7 +19,7 @@ export const CLAVES_TUTORIAL = {
   evento: "evento",
   canciones: "canciones",
   editorCancion: "editor_cancion",
-  envivo: "envivo_v2",
+  envivo: "envivo_v3", // 2026-10-11: consola sencilla — guía corta de 4 pasos, todos la ven otra vez
 };
 export const TUTORIALES = Object.values(CLAVES_TUTORIAL);
 
@@ -228,61 +228,38 @@ export function pasosEditorCancion() {
 }
 
 export function pasosEnVivo() {
+  // Corta a propósito (pedido de Eldin, 2026-10-11): alguien que nunca usó la consola debe poder
+  // manejar un culto en 5 minutos. Lo demás (Estilo, Insertar...) está en "Más herramientas".
   return [
     {
-      titulo: "Consola en vivo",
-      texto: "Desde aquí manejas lo que se ve en el proyector durante el culto. Te mostramos lo principal en un minuto.",
-    },
-    {
-      target: "envivo-pestanas",
-      titulo: "Pestañas",
-      texto: "Transmisión, Biblia, Estilo e Insertar: como en Word o PowerPoint, las herramientas de arriba cambian sin dejar de ver tus diapositivas ni lo que está al aire.",
-    },
-    {
-      target: "envivo-siguiente",
-      titulo: "Avanzar",
-      texto: "Usa Siguiente y Anterior, o las flechas ← → del teclado. Al terminar una canción pasa sola a lo que sigue en el culto.",
+      titulo: "Tu consola en 1 minuto",
+      texto: "Con 4 cosas ya puedes llevar todo el culto. Si estás en Modo práctica, nada de lo que toques sale en la pantalla de la iglesia.",
     },
     {
       target: "envivo-orden",
-      titulo: "Orden del culto",
-      texto: "El culto dividido por bloques, como en el Setlist. Un clic muestra sus diapositivas; doble clic lo proyecta desde el principio. Arrastra para cambiar el orden, la X lo quita y \"+ Canción\" agrega una justo después de lo que estás viendo.",
+      titulo: "1 · Toca para proyectar",
+      texto: "Este es el orden del culto. Un clic en cualquier cosa (Bienvenida, un canto, la despedida) y sale de una vez en la pantalla.",
     },
     {
-      target: "envivo-diapositivas",
-      titulo: "Diapositivas",
-      lista: [
-        "Clic en una diapositiva para proyectarla.",
-        "Lápiz: corregir la letra o agregar una diapositiva nueva.",
-        "Bote de basura: borrarla (siempre pide confirmar).",
-        "Arrástrala para cambiar su orden dentro de su sección.",
-      ],
-      texto: "Lo que cambies en la letra queda guardado en la canción para la próxima vez.",
-    },
-    {
-      target: "envivo-alaire",
-      titulo: "Al aire y siguiente",
-      texto: "Arriba ves exactamente lo que está en el proyector; abajo, lo que viene.",
+      target: "envivo-siguiente",
+      titulo: "2 · Siguiente",
+      texto: "Pasa a la siguiente diapositiva. También con la flecha → o la barra espaciadora. Al terminar un canto sigue solo con lo que viene.",
     },
     {
       target: "envivo-negro",
-      titulo: "Pantalla en negro",
-      texto: "Esconde la letra al instante sin terminar la transmisión. Tócalo otra vez para volver.",
+      titulo: "3 · ¿Algo salió mal? Negro",
+      texto: "Esconde la pantalla al instante (o la tecla B). Arriba sale una franja roja; toca \"Volver a mostrar\" para regresar.",
     },
     {
-      target: "envivo-proyeccion",
-      titulo: "Pantalla de proyección",
-      texto: "Abre la proyección en el proyector o en la segunda pantalla.",
-    },
-    {
-      titulo: "Estilo",
-      texto: "En la pestaña Estilo eliges el fondo (tema, imagen o video), la tipografía, el diseño y el tamaño de la letra. Vale para todo el culto y se queda guardado para la próxima transmisión. Si quieres, activa \"Cada canción con su fondo\" para darle a una canción su propio fondo.",
+      target: "envivo-agregar",
+      titulo: "4 · Algo de último momento",
+      texto: "Agregar mete un canto, un aviso, un video o un PDF al orden del culto. Nada sale en la pantalla hasta que lo toques.",
     },
     {
       target: "envivo-finalizar",
-      titulo: "Finalizar",
-      texto: "Al terminar el culto, finaliza la transmisión para que otro evento pueda salir en vivo.",
-      boton: "¡Listo!",
+      titulo: "¡Listo!",
+      texto: "Al terminar el culto toca Finalizar (te pide confirmar). Si se te olvida algo, el botón ? te enseña esta guía otra vez.",
+      boton: "¡A servir!",
     },
   ];
 }

@@ -14,7 +14,7 @@ import {
   Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
-  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal,
+  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
@@ -25,7 +25,7 @@ import {
   listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
 } from "./lib/eventos.js";
 import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos, getResumenMensual, guardarResumenMensual, subirArchivoRecurso } from "./lib/ministerios.js";
-import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession } from "./lib/liveSession.js";
+import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession, escucharProyeccion } from "./lib/liveSession.js";
 import { getMusicoLive, updateMusicoLive, clearMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { sincronizarRecordatorios } from "./lib/recordatorios.js";
@@ -853,7 +853,13 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // transmisión (se limpian al iniciar/terminar una), pero SÍ quedan fijas ahí (reseleccionables) en vez
   // de proyectarse una sola vez y desaparecer, igual que cualquier diapositiva agregada a un evento real.
   const [libreServiceOrder, setLibreServiceOrder] = useState([]);
-  const liveEvent = liveLibre ? { ...EVENTO_LIBRE, serviceOrder: libreServiceOrder } : events.find((e) => e.id === liveEventId);
+  // Modo práctica (pedido de Eldin, 2026-10-11): la consola con un culto real, pero SIN tocar la sesión
+  // en vivo — nada sale a la pantalla de la iglesia, no se escribe nada en Supabase y los cambios al
+  // orden quedan solo en esta copia. Para que alguien nuevo aprenda sin miedo antes del culto.
+  const [practica, setPractica] = useState(null); // null | { eventId, title, serviceOrder }
+  const enPractica = !!practica;
+  const liveEvent = practica ? { id: practica.eventId, title: practica.title, serviceOrder: practica.serviceOrder }
+    : liveLibre ? { ...EVENTO_LIBRE, serviceOrder: libreServiceOrder } : events.find((e) => e.id === liveEventId);
   const navFlotante = tab === "envivo" && !!liveEvent && !isCompact; // ver la nav inferior
   // ---- Estilo en vivo de la proyección (fondo/tipografía/tamaño), editable solo por Multimedia mientras transmite ----
   // Se queda guardado entre transmisiones (pedido de Eldin, 2026-10-08): copia en este dispositivo
@@ -891,6 +897,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // se actualiza al instante (para que la operación en vivo se sienta rápida) y la persistencia real
   // pasa por detrás, sin bloquear la interacción.
   const updateLiveOrder = (fn) => {
+    if (practica) { setPractica((p) => (p ? { ...p, serviceOrder: fn(p.serviceOrder) } : p)); return; } // práctica: nada se guarda
     if (liveLibre) { setLibreServiceOrder((o) => fn(o)); return; } // sin evento real, no hay nada que guardar en Supabase
     let nuevoOrden = null;
     setEventsSynced((evs) => evs.map((e) => {
@@ -1318,8 +1325,25 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     setUnidoAlLider(false);
     clearMusicoLive(myIglesiaId).catch(() => {});
   };
+  const empezarPractica = (eventId) => {
+    const ev = events.find((e) => e.id === eventId);
+    if (!ev) return;
+    if (userId === liveOwnerId && (liveEventId || liveLibre)) {
+      showToast("Estás transmitiendo en vivo desde esta computadora. Finaliza el culto antes de practicar.");
+      return;
+    }
+    setPractica({ eventId: ev.id, title: ev.title, serviceOrder: JSON.parse(JSON.stringify(ev.serviceOrder || [])) });
+    setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setTab("envivo");
+  };
+  const salirPractica = () => {
+    const eventId = practica?.eventId;
+    setPractica(null); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0);
+    if (eventId) { setSelectedEventId(eventId); setTab("eventos"); } else setTab("eventos");
+  };
+  const avisoPractica = (que) => showToast(`En la práctica no se ${que}. Sal de la práctica para hacerlo de verdad.`);
   const startEvent = async (eventId) => {
     if (!(await confirmReplaceLive(eventId))) return;
+    setPractica(null);
     setLiveEventId(eventId); setLiveLibre(false); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); resetMusicoLive(); setTab("envivo");
     startPresentation(); // abre/enfoca la pantalla de proyección de una vez, sin paso manual extra
   };
@@ -1328,6 +1352,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // video) o de diapositivas agregadas a mano (ver libreServiceOrder) — nunca de un setlist real.
   const startFreeEvent = async () => {
     if (!(await confirmReplaceLive(null))) return;
+    setPractica(null);
     setLiveEventId(null); setLiveLibre(true); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); resetMusicoLive(); setTab("envivo");
     startPresentation();
   };
@@ -1625,7 +1650,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // evento en vivo Y este dispositivo es quien lo está llevando (si no, un músico que solo está
   // observando "En vivo" encendido en su teléfono pisaría por accidente lo que Multimedia proyecta).
   useEffect(() => {
-    if ((!liveEventId && !liveLibre) || userId !== liveOwnerId) return;
+    if (practica || (!liveEventId && !liveLibre) || userId !== liveOwnerId) return;
     const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: current || null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null, libre: liveLibre };
     // Se manda por las dos vías a la vez: BroadcastChannel llega al instante si la pantalla de
     // proyección está en la MISMA computadora (caso típico: TV por HDMI como segunda pantalla) — así el
@@ -1634,7 +1659,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     if (!myIglesiaId) return;
     broadcastLiveSession(myIglesiaId, fila);
     updateLiveSession(myIglesiaId, fila).catch((e) => notifyError("No se pudo actualizar la proyección", e));
-  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId]);
+  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId, practica]);
 
   // ---- Sincroniza EN TIEMPO REAL, en todos los dispositivos, si hay un evento en vivo ahora mismo y
   // quién lo está llevando — así el indicador "En vivo" (pestaña, franja de Inicio, tarjeta del evento)
@@ -2356,7 +2381,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onBack={() => window.history.back()}
           isDraftFromTemplate={selectedEvent.id === draftFromTemplateId}
           onPublish={() => { setDraftFromTemplateId(null); window.history.back(); }}
-          onStart={() => startEvent(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
+          onStart={() => startEvent(selectedEvent.id)} onPracticar={() => empezarPractica(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
           onAddSong={addSong} onAddSeccion={addSeccion}
           onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)} onAddItems={(items) => updateOrder((o) => [...o, ...items])}
           onRemove={removeItem} onRestaurar={restaurarItem} onDuplicate={duplicateItem} onReorder={reorderItem}
@@ -2451,15 +2476,18 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             myIglesiaId={myIglesiaId} palabrasPorParte={palabrasPorParte}
             eventTitle={liveEvent.title} serviceOrder={liveEvent.serviceOrder || []} isFreeSession={liveLibre} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
             goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}
-            onEnd={endEvent} canEnd={isAdminViewer || userId === liveOwnerId} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
+            onEnd={enPractica ? salirPractica : endEvent} canEnd={enPractica || isAdminViewer || userId === liveOwnerId}
+            enPractica={enPractica} onAyuda={() => setTourActivo(CLAVES_TUTORIAL.envivo)} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
             adHoc={adHocVista} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
-            onOpenPublicScreen={startPresentation}
+            onOpenPublicScreen={enPractica ? () => avisoPractica("abre el proyector") : startPresentation}
             onNavigateBibleVerse={navigateBibleVerse}
             onAddLiveSlide={addLiveSlide} onEditLiveSlide={editLiveSlide} onRemoveLiveSlide={removeLiveSlide}
-            onEditSongSlide={editSongSlideLive} onAddSongSlide={addSongSlideLive} onRearmarSeccion={rearmarSeccionLive}
+            onEditSongSlide={enPractica ? () => avisoPractica("cambian las canciones") : editSongSlideLive}
+            onAddSongSlide={enPractica ? () => avisoPractica("cambian las canciones") : addSongSlideLive}
+            onRearmarSeccion={enPractica ? () => avisoPractica("cambian las canciones") : rearmarSeccionLive}
             onAgregarCancion={agregarCancionEnVivo} onReordenarOrden={reordenarOrdenEnVivo} onQuitarDelOrden={quitarDelOrdenEnVivo} onInsertarItems={insertarItemsEnVivo}
-            onAbrirEditor={(itemId, indice) => abrirEditorDiap("vivo", itemId, indice)}
-            onDisenarNueva={(despuesDe) => abrirEditorNuevo("vivo", despuesDe)}
+            onAbrirEditor={enPractica ? undefined : (itemId, indice) => abrirEditorDiap("vivo", itemId, indice)}
+            onDisenarNueva={enPractica ? undefined : (despuesDe) => abrirEditorNuevo("vivo", despuesDe)}
             onMoverDiapositiva={moverDiapositivaEnVivo} onQuitarDiapositivaGrupo={quitarDiapositivaEnVivo}
             onReordenarEnGrupo={(itemId, desde, hacia) => cambiarOrdenEnVivo((o) => reordenarEnGrupo(o, itemId, desde, hacia))}
           />
@@ -6030,7 +6058,7 @@ function EnsayoAlabanzaCard({ event, userId, isAdminViewer, onGuardar }) {
 // ---------------- DETALLE DE EVENTO ----------------
 function EventDetail({
   myIglesiaId, onAbrirEditor, onDisenarNueva,
-  event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onGoLive, onDelete,
+  event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onPracticar, onGoLive, onDelete,
   isDraftFromTemplate, onPublish,
   onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onRemove, onRestaurar, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
@@ -6278,6 +6306,14 @@ function EventDetail({
             <button data-tour="evento-iniciar" onClick={isLive ? onGoLive : onStart} style={{ ...primaryBtn, width: "100%", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: isLive ? "#C23B32" : "var(--wf-brand-accent)", color: isLive ? "#fff" : "var(--wf-text)" }}>
               <Play size={15} /> {isLive ? "Ya en vivo · Ir al control" : "Iniciar evento"}
             </button>
+            {/* Practicar: la consola con este culto, sin proyectar nada (ver empezarPractica). Solo en
+                computadora, que es donde se usa la consola. */}
+            {!isLive && !isCompact && onPracticar && (
+              <button data-tour="evento-practicar" onClick={onPracticar} className="hoverable" title="Abre la consola con este culto para aprender a usarla. Nada sale en la pantalla de la iglesia."
+                style={{ width: "100%", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 13.5, fontWeight: 700, padding: "10px 14px", borderRadius: 14, border: "1.5px solid #1F8A73", background: "transparent", color: "#1F8A73", cursor: "pointer", fontFamily: "inherit" }}>
+                <GraduationCap size={16} /> Practicar sin proyectar
+              </button>
+            )}
             <div style={{ marginBottom: 20 }} />
           </>
         ) : (
@@ -7648,11 +7684,34 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo}) {
+function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda}) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
   const [mmPanel, setMmPanel] = useState("transmision"); // "biblia" | "transmision" | "estilo" | "insertar" (este último solo en escritorio)
+  // ---- Consola fácil (pedido de Eldin, 2026-10-11: "que alguien que nunca la haya usado la pueda usar
+  // en 5 minutos") ----
+  // Modo sencillo (escritorio): sin cinta de pestañas — solo una barra de botones grandes (Anterior,
+  // Siguiente, Negro, + Agregar, Biblia) sobre orden | diapositivas | al aire. Estilo, Insertar y lo
+  // demás quedan en "Modo completo". Se recuerda por computadora; empieza en sencillo.
+  const [sencillo, setSencillo] = useState(() => { const v = loadCache("consola_sencilla"); return v === null ? true : !!v; });
+  useEffect(() => { saveCache("consola_sencilla", sencillo); }, [sencillo]);
+  useEffect(() => { if (sencillo && (mmPanel === "estilo" || mmPanel === "insertar")) setMmPanel("transmision"); }, [sencillo, mmPanel]);
+  // ¿Hay una pantalla de proyección abierta? (ver escucharProyeccion). null = todavía no se sabe: los
+  // primeros segundos no se avisa nada, la ventana de proyección tarda en abrir.
+  const [hayProyeccion, setHayProyeccion] = useState(null);
+  const [avisoProyeccionOculto, setAvisoProyeccionOculto] = useState(false);
+  useEffect(() => {
+    if (!myIglesiaId || enPractica) return;
+    const inicio = Date.now();
+    return escucharProyeccion(myIglesiaId, (hay) => { if (hay || Date.now() - inicio > 8000) setHayProyeccion(hay); });
+  }, [myIglesiaId, enPractica]);
+  const mostrarAvisoProyeccion = !enPractica && hayProyeccion === false && !avisoProyeccionOculto;
+  // Finalizar siempre pide confirmar: un clic de más no debe cortar la proyección a mitad del culto.
+  const finalizarConConfirmacion = async () => {
+    if (enPractica) { onEnd(); return; }
+    if (await confirmDialog("La pantalla de proyección se va a apagar y el culto deja de estar en vivo.", { titulo: "¿Finalizar el culto en vivo?", danger: true, textoConfirmar: "Sí, finalizar" })) onEnd();
+  };
   // Escritorio: qué elemento del orden del culto se está viendo al centro (null = el que está al aire),
   // si se ven todas las diapositivas juntas, y si la cinta de Estilo muestra sus opciones extra.
   const [itemVisto, setItemVisto] = useState(null);
@@ -7729,14 +7788,16 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       const el = document.activeElement;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
       const isNavigableBible = current?.type === "biblia" && current.bookId;
-      if (e.key === "ArrowRight") { e.preventDefault(); avanzar(1); }
-      else if (e.key === "ArrowLeft") { e.preventDefault(); avanzar(-1); }
+      // Espacio y AvPág/RePág también: los clickers de presentación mandan esas teclas.
+      if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); avanzar(1); }
+      else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); avanzar(-1); }
+      else if ((e.key === "b" || e.key === "B" || e.key === "n" || e.key === "N") && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); setBlanked((x) => !x); }
       else if (e.key === "ArrowDown" && isNavigableBible) { e.preventDefault(); onNavigateBibleVerse(1); }
       else if (e.key === "ArrowUp" && isNavigableBible) { e.preventDefault(); onNavigateBibleVerse(-1); }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [navIdx, current, adHoc, goto, onNavigateBibleVerse]);
+  }, [navIdx, current, adHoc, goto, onNavigateBibleVerse, setBlanked]);
 
   // Saltar a una sección (Coro/Puente/Estrofa…) de la canción que está sonando ahora — como el panel "Current" de FreeShow.
   // Funciona igual para el plan y para una canción improvisada (fuera del plan): busca en la lista que
@@ -7841,6 +7902,11 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   useEffect(() => { setItemVisto(null); }, [idAlAire]);
   const itemCentro = verTodas ? null : (itemVisto && serviceOrder.find((it) => it.id === itemVisto)) || itemAlAire;
   const indicesCentro = slides.map((_, i) => i).filter((i) => !itemCentro || perteneceA(slides[i], itemCentro.id));
+  // Lo que viene después de lo que está al aire, cuando al avanzar se cambia de elemento (otro canto,
+  // la despedida...) — para avisarlo: "Al avanzar pasas a: ¡Gloria a Dios!".
+  const itemSiguiente = adHoc ? null : itemDeDiapositiva(next);
+  const cambiaDeElemento = !!itemSiguiente && !!itemAlAire && itemSiguiente.id !== itemAlAire.id;
+  const nombreSiguiente = itemSiguiente ? tituloItem(itemSiguiente) : null;
 
   // ---- Fondo por canción (pedido de Eldin, 2026-10-08) ----
   // Por defecto el fondo que se elige en Estilo es para TODO (canciones, Biblia, diapositivas). Solo si
@@ -8013,7 +8079,53 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
 
 
   const botonFinalizar = (
-    <button data-tour="envivo-finalizar" onClick={onEnd} disabled={!canEnd} title={canEnd ? undefined : `Solo ${liveOwner} o un administrador puede finalizar esta transmisión`} style={{ fontSize: 11, fontWeight: 700, color: canEnd ? "#C23B32" : "#B7BEC9", background: "transparent", border: `1px solid ${canEnd ? "#C23B32" : "var(--wf-border)"}`, borderRadius: 20, padding: "3px 10px", cursor: canEnd ? "pointer" : "not-allowed", flexShrink: 0 }}>Finalizar evento</button>
+    <button data-tour="envivo-finalizar" onClick={finalizarConConfirmacion} disabled={!canEnd && !enPractica} title={canEnd || enPractica ? undefined : `Solo ${liveOwner} o un administrador puede finalizar esta transmisión`} style={{ fontSize: 11, fontWeight: 700, color: canEnd || enPractica ? "#C23B32" : "#B7BEC9", background: "transparent", border: `1px solid ${canEnd || enPractica ? "#C23B32" : "var(--wf-border)"}`, borderRadius: 20, padding: "3px 10px", cursor: canEnd || enPractica ? "pointer" : "not-allowed", flexShrink: 0 }}>{enPractica ? "Salir de la práctica" : "Finalizar evento"}</button>
+  );
+  // Franjas de estado, arriba de todo y en cualquier modo: práctica, pantalla en negro y proyección
+  // cerrada. Que la consola diga en grande cuando algo no está normal.
+  const franja = (fondo, color, icono, texto, accion) => (
+    <div role="status" style={{ display: "flex", alignItems: "center", gap: 10, padding: isCompact ? "8px 16px" : "7px 16px", background: fondo, color, fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+      {icono}<span style={{ flex: 1, minWidth: 0 }}>{texto}</span>{accion}
+    </div>
+  );
+  const botonFranja = (label, onClick, extra = {}) => (
+    <button onClick={onClick} style={{ fontSize: 12, fontWeight: 800, border: "none", borderRadius: 16, padding: "5px 12px", cursor: "pointer", background: "rgba(255,255,255,0.95)", color: "#16324F", flexShrink: 0, fontFamily: "inherit", ...extra }}>{label}</button>
+  );
+  const franjasDeEstado = (
+    <>
+      {enPractica && franja("#1F8A73", "#fff", <GraduationCap size={17} />, <>MODO PRÁCTICA · nada de esto sale en la pantalla de la iglesia. Toca, avanza y equivócate tranquilo.</>, botonFranja("Salir de la práctica", onEnd))}
+      {blanked && franja("#C23B32", "#fff", <MonitorOff size={17} />, <>La pantalla está en NEGRO · la iglesia no ve nada</>, botonFranja("Volver a mostrar", () => setBlanked(false)))}
+      {mostrarAvisoProyeccion && franja("#F6C344", "#16324F", <AlertTriangle size={17} />, <>La pantalla de proyección no está abierta · lo que pases aquí no se ve en el proyector</>, <>
+        {botonFranja("Abrir proyección", onOpenPublicScreen, { background: "#16324F", color: "#fff" })}
+        {botonFranja("Ya está abierta en otro equipo", () => setAvisoProyeccionOculto(true), { background: "transparent", color: "#16324F", textDecoration: "underline", padding: "5px 4px" })}
+      </>)}
+    </>
+  );
+  const tecla = { display: "inline-block", minWidth: 16, padding: "0 6px", borderRadius: 6, border: "1px solid var(--wf-border)", borderBottomWidth: 2, background: "var(--wf-card)", color: "var(--wf-text)", fontWeight: 700, fontSize: 11, lineHeight: "18px", textAlign: "center" };
+  // Botones grandes del modo sencillo (escritorio).
+  const botonGrande = ({ icon: Icon, label, sub, onClick, fondo = "var(--wf-hover)", color = "var(--wf-text)", tour, ancho = 120, titulo }) => (
+    <button onClick={onClick} data-tour={tour} title={titulo || label} className="hoverable"
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minWidth: ancho, height: 52, padding: "0 16px", border: "none", borderRadius: 14, cursor: "pointer", background: fondo, color, fontFamily: "inherit", flexShrink: 0, boxShadow: "0 2px 8px rgba(22,50,79,0.10)" }}>
+      <Icon size={22} strokeWidth={2} />
+      <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.1, minWidth: 0 }}>
+        <span style={{ fontSize: 15, fontWeight: 800 }}>{label}</span>
+        {sub && <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.85, maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</span>}
+      </span>
+    </button>
+  );
+  const barraSencilla = (
+    <div data-tour="envivo-paneles" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)", flexShrink: 0, overflowX: "auto" }}>
+      {botonGrande({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1), ancho: 130 })}
+      {botonGrande({ icon: ChevronRight, label: "Siguiente", sub: cambiaDeElemento ? `Pasas a: ${nombreSiguiente}` : next ? null : "Es la última", onClick: () => avanzar(1), fondo: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", tour: "envivo-siguiente", ancho: 190 })}
+      {botonGrande({ icon: MonitorOff, label: blanked ? "Volver a mostrar" : "Negro", sub: blanked ? null : "Esconde todo", onClick: () => setBlanked((b) => !b), fondo: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)", tour: "envivo-negro", ancho: 140 })}
+      <div style={{ width: 1, alignSelf: "stretch", background: "var(--wf-divider)", margin: "4px 4px" }} />
+      {botonGrande({ icon: Plus, label: "Agregar", sub: "Canción, texto, video…", onClick: () => setShowAgregarConsola(true), tour: "envivo-agregar", ancho: 140 })}
+      {botonGrande({ icon: BookOpen, label: mmPanel === "biblia" ? "Volver" : "Biblia", sub: mmPanel === "biblia" ? "a las diapositivas" : "Buscar un versículo", onClick: () => setMmPanel((p) => (p === "biblia" ? "transmision" : "biblia")), fondo: mmPanel === "biblia" ? "#2F5FA8" : "var(--wf-hover)", color: mmPanel === "biblia" ? "#fff" : "var(--wf-text)", tour: "envivo-biblia", ancho: 140 })}
+      <div style={{ flex: 1 }} />
+      <div style={{ fontSize: 11.5, color: "var(--wf-muted)", lineHeight: 1.9, textAlign: "right", flexShrink: 0 }}>
+        <span style={tecla}>→</span> o <span style={tecla}>Espacio</span> avanza · <span style={tecla}>←</span> regresa<br /><span style={tecla}>B</span> pantalla en negro
+      </div>
+    </div>
   );
 
   return (
@@ -8044,6 +8156,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         <div style={{ flex: 1 }} />
         {botonAgregarConsola({ tour: "envivo-agregar" })}
       </div>
+      {franjasDeEstado}
 
       {/* Sin letrero de "improvisado" (pedido de Eldin, 2026-10-08): para volver al plan basta tocar
           cualquier diapositiva o elemento del orden del culto (gotoPlanSlide). */}
@@ -8239,8 +8352,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", gap: 6 }}>
             <button onClick={() => goto(0)} style={{ ...ctrlBtn, width: 38, justifyContent: "center", padding: "9px 0" }}><SkipBack size={15} /></button>
-            <button onClick={() => goto(navIdx - 1)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><ChevronLeft size={16} /></button>
-            <button onClick={() => goto(navIdx + 1)} style={{ ...ctrlBtn, flex: 1, justifyContent: "center" }}><ChevronRight size={16} /></button>
+            <button onClick={() => avanzar(-1)} aria-label="Anterior" style={{ ...ctrlBtn, flex: 1, justifyContent: "center", minHeight: 48 }}><ChevronLeft size={20} /></button>
+            <button data-tour="envivo-siguiente" onClick={() => avanzar(1)} aria-label="Siguiente" style={{ ...ctrlBtn, flex: 2, justifyContent: "center", minHeight: 48, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", border: "none", fontWeight: 800 }}>Siguiente <ChevronRight size={20} /></button>
             <button onClick={() => goto(Infinity)} style={{ ...ctrlBtn, width: 38, justifyContent: "center", padding: "9px 0" }}><SkipForward size={15} /></button>
           </div>
 
@@ -8314,17 +8427,28 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           <Radio size={13} color="#C23B32" style={{ flexShrink: 0 }} />
           <span style={{ fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{eventTitle}</span>
         </div>
-        {[["transmision", "Transmisión"], ["biblia", "Biblia"], ["estilo", "Estilo"], ["insertar", "Insertar"]].map(([key, label]) => (
+        {!sencillo && [["transmision", "Transmisión"], ["biblia", "Biblia"], ["estilo", "Estilo"], ["insertar", "Insertar"]].map(([key, label]) => (
           <button
             key={key} onClick={() => setMmPanel(key)}
             style={{ padding: "7px 12px 6px", border: "none", background: "transparent", cursor: "pointer", fontSize: 12.5, fontWeight: mmPanel === key ? 700 : 500, color: mmPanel === key ? "var(--wf-text)" : "var(--wf-muted)", borderBottom: `2px solid ${mmPanel === key ? "var(--wf-brand-accent)" : "transparent"}`, flexShrink: 0 }}
           >{label}</button>
         ))}
         <div style={{ flex: 1 }} />
-        <div style={{ marginRight: 10, padding: "3px 0" }}>{botonAgregarConsola({ tour: "envivo-agregar" })}</div>
+        {!sencillo && <div style={{ marginRight: 10, padding: "3px 0" }}>{botonAgregarConsola({ tour: "envivo-agregar" })}</div>}
+        <button
+          data-tour="envivo-modo" onClick={() => setSencillo((v) => !v)} className="hoverable"
+          title={sencillo ? "Ver todas las herramientas: Estilo, Insertar, secciones de la canción…" : "Volver a la vista sencilla, solo con lo esencial"}
+          style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 16, padding: "5px 11px", cursor: "pointer", marginRight: 8, flexShrink: 0, fontFamily: "inherit" }}
+        >{sencillo ? <><SlidersHorizontal size={13} /> Más herramientas</> : <><Sparkles size={13} /> Vista sencilla</>}</button>
+        {onAyuda && (
+          <button data-tour="envivo-ayuda" onClick={onAyuda} title="¿Cómo se usa? Ver la guía otra vez" aria-label="Ayuda" className="hoverable"
+            style={{ width: 28, height: 28, borderRadius: 14, border: "none", background: "var(--wf-hover)", color: "var(--wf-text)", cursor: "pointer", fontSize: 14, fontWeight: 800, marginRight: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>?</button>
+        )}
         {botonFinalizar}
       </nav>
-      <div data-tour="envivo-paneles" style={{ display: "flex", alignItems: "stretch", gap: 0, padding: "6px 8px 4px", minHeight: 76, boxSizing: "border-box", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)", overflowX: "auto", flexShrink: 0 }}>
+      {franjasDeEstado}
+      {sencillo && barraSencilla}
+      {!sencillo && <div data-tour="envivo-paneles" style={{ display: "flex", alignItems: "stretch", gap: 0, padding: "6px 8px 4px", minHeight: 76, boxSizing: "border-box", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)", overflowX: "auto", flexShrink: 0 }}>
         {mmPanel === "transmision" && (
           <>
             {grupoCinta("Navegación", <>
@@ -8454,7 +8578,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             </>, true)}
           </>
         )}
-      </div>
+      </div>}
       {/* "Más opciones" de Estilo: menú flotante encima de las diapositivas, como los desplegables
           de Office — antes empujaba todo hacia abajo y se comía media pantalla (pedido de Eldin,
           2026-10-08). Se cierra con la X, con "Menos" o con un clic afuera. */}
@@ -8546,7 +8670,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, padding: "0 4px" }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.5 }}>ORDEN DEL CULTO</span>
           </div>
-          <div style={{ padding: "0 2px 4px" }}>{botonAgregarConsola({ ancho: true })}</div>
+          {!sencillo && <div style={{ padding: "0 2px 4px" }}>{botonAgregarConsola({ ancho: true })}</div>}
+          {sencillo && serviceOrder.length > 0 && <div style={{ fontSize: 11, color: "var(--wf-faint)", padding: "0 4px 2px" }}>Toca cualquiera para proyectarlo.</div>}
           {serviceOrder.length === 0 && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "8px 4px" }}>Todavía no hay nada en el orden de este culto.</div>}
           {/* Una fila por elemento, en el orden real del Setlist (los bloques son filas más), para poder
               arrastrar con el mismo gesto del Setlist — ver arrastreOrden. */}
@@ -8636,6 +8761,11 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             <ProjectionPanel slide={current} blanked={blanked} split={false} liveStyle={liveStyle} thumbnail />
           </div>
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4, marginTop: 4 }}>SIGUIENTE</div>
+          {cambiaDeElemento && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-brand-primary)", background: "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)", borderRadius: 10, padding: "6px 9px" }}>
+              <ChevronRight size={14} /> <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Termina esto · al avanzar pasas a <b>{nombreSiguiente}</b></span>
+            </div>
+          )}
           <div style={{ width: "62%", aspectRatio: "16/9", borderRadius: 12, overflow: "hidden", opacity: next ? 1 : 0.4, flexShrink: 0 }}>
             <ProjectionPanel slide={next} blanked={false} split={false} liveStyle={liveStyle} thumbnail />
           </div>

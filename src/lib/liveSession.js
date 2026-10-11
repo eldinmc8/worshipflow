@@ -74,3 +74,50 @@ export function subscribeLiveBroadcast(iglesiaId, onChange) {
   channel.addEventListener("message", listener);
   return () => channel.removeEventListener("message", listener);
 }
+
+// ---- ¿Está abierta la pantalla de proyección? (pedido de Eldin, 2026-10-11) ----
+// La consola avisa "La pantalla de proyección no está abierta" para que nadie nuevo se quede pasando
+// diapositivas que nadie ve. PublicScreen se anuncia por dos caminos: un latido por BroadcastChannel
+// (misma computadora, el caso típico del TV por HDMI; funciona sin internet) y presencia de Supabase
+// Realtime (cuando la proyección está en OTRO dispositivo). Canal aparte del de la sesión en vivo, para
+// que ese latido nunca se confunda con una diapositiva.
+const nombreCanalProyeccion = (iglesiaId) => `worshipflow-proyeccion-${iglesiaId}`;
+const nombrePresenciaProyeccion = (iglesiaId) => `proyeccion_presencia_${iglesiaId}`;
+
+export function anunciarProyeccion(iglesiaId) {
+  const bc = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(nombreCanalProyeccion(iglesiaId)) : null;
+  const latir = () => { try { bc?.postMessage({ t: Date.now() }); } catch { /* canal cerrado */ } };
+  latir();
+  const intervalo = setInterval(latir, 2000);
+  let canal = null;
+  try {
+    canal = supabase.channel(nombrePresenciaProyeccion(iglesiaId), { config: { presence: { key: `pantalla-${Math.random().toString(36).slice(2)}` } } });
+    canal.subscribe((estado) => { if (estado === "SUBSCRIBED") canal.track({ pantalla: true }).catch(() => {}); });
+  } catch { canal = null; }
+  return () => { clearInterval(intervalo); try { bc?.close(); } catch { /* ya cerrado */ } if (canal) supabase.removeChannel(canal); };
+}
+
+// onCambio(true|false) cada ~2 segundos: true si hay al menos una pantalla de proyección viva.
+export function escucharProyeccion(iglesiaId, onCambio) {
+  let ultimoLatido = 0;
+  let remotas = 0;
+  const avisar = () => onCambio(Date.now() - ultimoLatido < 6000 || remotas > 0);
+  const bc = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(nombreCanalProyeccion(iglesiaId)) : null;
+  const alLatir = () => { ultimoLatido = Date.now(); avisar(); };
+  bc?.addEventListener("message", alLatir);
+  const intervalo = setInterval(avisar, 2000);
+  let canal = null;
+  try {
+    canal = supabase.channel(nombrePresenciaProyeccion(iglesiaId));
+    canal.on("presence", { event: "sync" }, () => {
+      remotas = Object.values(canal.presenceState() || {}).flat().filter((p) => p?.pantalla).length;
+      avisar();
+    }).subscribe();
+  } catch { canal = null; }
+  return () => {
+    clearInterval(intervalo);
+    bc?.removeEventListener("message", alLatir);
+    try { bc?.close(); } catch { /* ya cerrado */ }
+    if (canal) supabase.removeChannel(canal);
+  };
+}

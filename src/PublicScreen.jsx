@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { ProjectionPanel } from "./PrototipoWorshipFlow.jsx";
-import { getLiveSession, subscribeLiveSession, subscribeLiveBroadcast } from "./lib/liveSession.js";
+import { getLiveSession, subscribeLiveSession, subscribeLiveBroadcast, anunciarProyeccion } from "./lib/liveSession.js";
 import { supabase } from "./lib/supabaseClient.js";
 
 const CURSOR_IDLE_MS = 3000;
@@ -52,6 +52,10 @@ export default function PublicScreen() {
     const unsubscribeBroadcast = subscribeLiveBroadcast(iglesiaId, aplicar);
     return () => { unsubscribeRealtime(); unsubscribeBroadcast(); };
   }, [iglesiaId]);
+
+  // Avisa a la consola que esta pantalla está abierta (ver anunciarProyeccion): si no, la consola
+  // muestra "La pantalla de proyección no está abierta".
+  useEffect(() => (iglesiaId ? anunciarProyeccion(iglesiaId) : undefined), [iglesiaId]);
 
   useEffect(() => {
     const resetIdle = () => {
