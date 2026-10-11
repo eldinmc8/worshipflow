@@ -8576,9 +8576,16 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             return (
               <div
                 key={it.id} {...filaArrastre} className="orden-fila" role="button" tabIndex={0}
-                onClick={() => { setItemVisto(it.id); setVerTodas(false); if (mmPanel === "biblia") setMmPanel("transmision"); }}
-                onDoubleClick={() => { const i = indicePrimeraDiapositiva(it.id); if (i !== -1) { setItemVisto(null); gotoPlanSlide(i); } }}
-                title="Clic: ver sus diapositivas · Doble clic: proyectar desde el inicio · Arrastra para cambiar el orden"
+                // Un clic = proyectar su primera diapositiva (pedido de Eldin, 2026-10-11: antes eran dos
+                // clics y quien no sabía se quedaba tocando). Si ya está AL AIRE no se reinicia — solo se
+                // ven sus diapositivas — para no regresar un canto al inicio por accidente.
+                onClick={() => {
+                  setItemVisto(it.id); setVerTodas(false); if (mmPanel === "biblia") setMmPanel("transmision");
+                  if (alAire) return;
+                  const i = indicePrimeraDiapositiva(it.id);
+                  if (i !== -1) gotoPlanSlide(i);
+                }}
+                title={alAire ? "Ya está al aire · Arrastra para cambiar el orden" : "Clic: proyectar · Arrastra para cambiar el orden"}
                 style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: dentroDeBloque ? 12 : 0, padding: "7px 9px", borderRadius: 10, textAlign: "left", cursor: "pointer", fontSize: 12.5, color: "var(--wf-text)", fontWeight: alAire || visto ? 700 : 500, background: alAire ? "var(--wf-active-bg)" : visto ? "var(--wf-hover)" : "var(--wf-card)", border: visto ? "1px solid var(--wf-border)" : "1px solid transparent", ...arrastreOrden.estiloFila(idx) }}
               >
                 <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: TYPE_META[it.type]?.color || "#5B6472" }} />
