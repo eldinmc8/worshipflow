@@ -8633,29 +8633,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             <ProjectionPanel slide={next} blanked={false} split={false} liveStyle={liveStyle} thumbnail />
           </div>
           <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>{next ? (next.type === "cancion" ? `${next.songTitle} · ${next.blockLabel}` : next.type === "biblia" ? next.reference : next.title) : adHoc ? "No hay más diapositivas" : "Última diapositiva del servicio"}</div>
-          {customItems.length > 0 && (
-            <div style={{ marginTop: 6 }}>
-              <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, marginBottom: 6 }}>DIAPOSITIVAS AGREGADAS</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {customItems.map(({ itemId, s, total }) => {
-                  const isLive = !adHoc && !!current && refDiap(current).itemId === itemId && current.type === "slide";
-                  const nombre = total > 1 ? tituloBase(s.title) : s.title;
-                  return (
-                    <div key={itemId} style={{ display: "flex", alignItems: "center", gap: 6, background: isLive ? "var(--wf-active-bg)" : "var(--wf-card)", border: isLive ? "1px solid var(--wf-brand-accent)" : "1px solid transparent", borderRadius: 12, padding: "5px 6px", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
-                      <button onClick={() => { setItemVisto(itemId); setVerTodas(false); gotoPlanSlide(slides.findIndex((x) => x.slideId === s.slideId)); }} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {nombre || "(sin título)"}{total > 1 && <span style={{ fontWeight: 500, color: "var(--wf-muted)" }}> · {total}</span>}
-                      </button>
-                      {(puedeDisenar || !s.diseno) && <button onClick={() => (puedeDisenar ? abrirEditor(s) : startEditingSlide(s))} title={puedeDisenar ? "Editar el diseño" : "Editar esta diapositiva"} style={{ ...iconGhost, color: "#2F5FA8", flexShrink: 0 }}><Pencil size={13} /></button>}
-                      <button onClick={async () => {
-                        if (total > 1 && !(await confirmDialog(`¿Quitar "${nombre}" con sus ${total} diapositivas del orden del culto?`, { titulo: "Quitar presentación", danger: true, textoConfirmar: "Quitar" }))) return;
-                        onRemoveLiveSlide(itemId);
-                      }} title={total > 1 ? "Quitar el grupo completo" : "Borrar esta diapositiva"} style={{ ...iconGhost, color: "#C23B32", flexShrink: 0 }}><X size={13} /></button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* Lo agregado (textos, diapositivas, canciones) se ve solo en el ORDEN DEL CULTO de la
+              izquierda (pedido de Eldin, 2026-10-11): aquí abajo ya no se repite. */}
         </aside>
       </div>
       </>
