@@ -14,7 +14,7 @@ import {
   Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
-  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal,
+  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
@@ -827,6 +827,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [activeIdx, setActiveIdx] = useState(0);
   const [blanked, setBlanked] = useState(false);
+  // Pantalla FIJADA (pedido de Eldin, 2026-10-11): la proyección se queda en esta diapositiva mientras
+  // Multimedia se mueve por la consola sin que nada salga. null = normal. "Soltar" proyecta lo actual.
+  const [fijada, setFijada] = useState(null);
   // Contenido improvisado en vivo (versículo/canción/video que no están en el setlist): reemplaza al plan mientras esté activo.
   const [adHoc, setAdHoc] = useState(null); // { label, slides } | null
   const [adHocIdx, setAdHocIdx] = useState(0);
@@ -1365,18 +1368,18 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       return;
     }
     setPractica({ eventId: ev.id, title: ev.title, serviceOrder: JSON.parse(JSON.stringify(ev.serviceOrder || [])) });
-    setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setTab("envivo");
+    setActiveIdx(0); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0); setTab("envivo");
   };
   const salirPractica = () => {
     const eventId = practica?.eventId;
-    setPractica(null); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0);
+    setPractica(null); setActiveIdx(0); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0);
     if (eventId) { setSelectedEventId(eventId); setTab("eventos"); } else setTab("eventos");
   };
   const avisoPractica = (que) => showToast(`En la práctica no se ${que}. Sal de la práctica para hacerlo de verdad.`);
   const startEvent = async (eventId) => {
     if (!(await confirmReplaceLive(eventId))) return;
     setPractica(null);
-    setLiveEventId(eventId); setLiveLibre(false); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); resetMusicoLive(); setTab("envivo");
+    setLiveEventId(eventId); setLiveLibre(false); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0); resetMusicoLive(); setTab("envivo");
     startPresentation(); // abre/enfoca la pantalla de proyección de una vez, sin paso manual extra
   };
   // Transmitir sin un evento del calendario detrás — para anuncios, oración u otro contenido suelto que
@@ -1385,11 +1388,11 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const startFreeEvent = async () => {
     if (!(await confirmReplaceLive(null))) return;
     setPractica(null);
-    setLiveEventId(null); setLiveLibre(true); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); resetMusicoLive(); setTab("envivo");
+    setLiveEventId(null); setLiveLibre(true); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); resetMusicoLive(); setTab("envivo");
     startPresentation();
   };
   const endEvent = () => {
-    setLiveEventId(null); setLiveLibre(false); setLiveOwnerId(null); setBlanked(false); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); setTab("eventos");
+    setLiveEventId(null); setLiveLibre(false); setLiveOwnerId(null); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); setTab("eventos");
     clearLiveSession(myIglesiaId).catch((e) => notifyError("No se pudo cerrar la sesión en vivo", e));
     resetMusicoLive();
   };
@@ -1683,7 +1686,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // observando "En vivo" encendido en su teléfono pisaría por accidente lo que Multimedia proyecta).
   useEffect(() => {
     if (practica || (!liveEventId && !liveLibre) || userId !== liveOwnerId) return;
-    const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: current || null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null, libre: liveLibre };
+    const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: (fijada || current) || null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null, libre: liveLibre };
     // Se manda por las dos vías a la vez: BroadcastChannel llega al instante si la pantalla de
     // proyección está en la MISMA computadora (caso típico: TV por HDMI como segunda pantalla) — así el
     // cambio de diapositiva no depende del internet del lugar, igual que un presentador local. Supabase
@@ -1691,7 +1694,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     if (!myIglesiaId) return;
     broadcastLiveSession(myIglesiaId, fila);
     updateLiveSession(myIglesiaId, fila).catch((e) => notifyError("No se pudo actualizar la proyección", e));
-  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId, practica]);
+  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId, practica, fijada]);
 
   // ---- Sincroniza EN TIEMPO REAL, en todos los dispositivos, si hay un evento en vivo ahora mismo y
   // quién lo está llevando — así el indicador "En vivo" (pestaña, franja de Inicio, tarjeta del evento)
@@ -2510,7 +2513,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             eventTitle={liveEvent.title} serviceOrder={liveEvent.serviceOrder || []} isFreeSession={liveLibre} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
             goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}
             onEnd={enPractica ? salirPractica : endEvent} canEnd={enPractica || isAdminViewer || userId === liveOwnerId}
-            enPractica={enPractica} onAyuda={() => setTourActivo(CLAVES_TUTORIAL.envivo)} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
+            enPractica={enPractica} onAyuda={() => setTourActivo(CLAVES_TUTORIAL.envivo)}
+            fijada={fijada} onFijar={() => setFijada(current ? { ...current } : null)} onSoltar={() => setFijada(null)} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
             adHoc={adHocVista} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
             onOpenPublicScreen={enPractica ? () => avisoPractica("abre el proyector") : startPresentation}
             onNavigateBibleVerse={navigateBibleVerse}
@@ -7749,7 +7753,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos}) {
+function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar}) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -7857,12 +7861,13 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); avanzar(1); }
       else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); avanzar(-1); }
       else if ((e.key === "b" || e.key === "B" || e.key === "n" || e.key === "N") && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); setBlanked((x) => !x); }
+      else if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && !e.altKey && onFijar) { e.preventDefault(); if (fijada) onSoltar(); else onFijar(); }
       else if (e.key === "ArrowDown" && isNavigableBible) { e.preventDefault(); onNavigateBibleVerse(1); }
       else if (e.key === "ArrowUp" && isNavigableBible) { e.preventDefault(); onNavigateBibleVerse(-1); }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [navIdx, current, adHoc, goto, onNavigateBibleVerse, setBlanked]);
+  }, [navIdx, current, adHoc, goto, onNavigateBibleVerse, setBlanked, fijada, onFijar, onSoltar]);
 
   // Saltar a una sección (Coro/Puente/Estrofa…) de la canción que está sonando ahora — como el panel "Current" de FreeShow.
   // Funciona igual para el plan y para una canción improvisada (fuera del plan): busca en la lista que
@@ -7935,7 +7940,9 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
     if (bloquesOrden.length === 0) bloquesOrden.push({ id: "_inicio", titulo: null, items: [] });
     bloquesOrden[bloquesOrden.length - 1].items.push(it);
   });
-  const itemAlAire = adHoc ? null : itemDeDiapositiva(current);
+  // Con la pantalla fijada, "al aire" es la diapositiva fijada (no a donde se mueva el operador).
+  const itemAlAire = fijada ? itemDeDiapositiva(fijada) : adHoc ? null : itemDeDiapositiva(current);
+  const alAire = fijada || current;
   // ---- Editar el orden del culto desde la consola, igual que el Setlist (ver agregarCancionEnVivo y
   // compañía en el componente principal: lo que está al aire no se mueve al reordenar) ----
   const arrastreOrden = useArrastreLista({ habilitado: true, onReorder: (desde, hacia) => onReordenarOrden(desde, hacia) });
@@ -8175,6 +8182,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   const franjasDeEstado = (
     <>
       {enPractica && franja("#1F8A73", "#fff", <GraduationCap size={17} />, <>MODO PRÁCTICA · nada de esto sale en la pantalla de la iglesia. Toca, avanza y equivócate tranquilo.</>, botonFranja("Salir de la práctica", onEnd))}
+      {fijada && franja("#7B3FA0", "#fff", <Pin size={17} />, <>Pantalla FIJADA en "{fijada.type === "cancion" ? `${fijada.songTitle} · ${fijada.blockLabel}` : fijada.type === "biblia" ? fijada.reference : fijada.nombre || fijada.title || "Diapositiva"}" · puedes tocar y moverte, nada sale en la pantalla</>, botonFranja("Soltar y proyectar lo que veo", onSoltar))}
       {blanked && franja("#C23B32", "#fff", <MonitorOff size={17} />, <>La pantalla está en NEGRO · la iglesia no ve nada</>, botonFranja("Volver a mostrar", () => setBlanked(false)))}
       {mostrarAvisoProyeccion && franja("#F6C344", "#16324F", <AlertTriangle size={17} />, <>La pantalla de proyección no está abierta · lo que pases aquí no se ve en el proyector</>, <>
         {botonFranja("Abrir proyección", onOpenPublicScreen, { background: "#16324F", color: "#fff" })}
@@ -8199,12 +8207,13 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       {botonGrande({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1), ancho: 130 })}
       {botonGrande({ icon: ChevronRight, label: "Siguiente", sub: cambiaDeElemento ? `Pasas a: ${nombreSiguiente}` : next ? null : "Es la última", onClick: () => avanzar(1), fondo: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", tour: "envivo-siguiente", ancho: 190 })}
       {botonGrande({ icon: MonitorOff, label: blanked ? "Volver a mostrar" : "Negro", sub: blanked ? null : "Esconde todo", onClick: () => setBlanked((b) => !b), fondo: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)", tour: "envivo-negro", ancho: 140 })}
+      {onFijar && botonGrande({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", sub: fijada ? "Volver a transmitir" : "Congela la pantalla", onClick: () => (fijada ? onSoltar() : onFijar()), fondo: fijada ? "#7B3FA0" : "var(--wf-hover)", color: fijada ? "#fff" : "var(--wf-text)", tour: "envivo-fijar", ancho: 140, titulo: "Deja la pantalla quieta en lo que se ve ahora, para moverte por la consola sin que se proyecte (tecla F)" })}
       <div style={{ width: 1, alignSelf: "stretch", background: "var(--wf-divider)", margin: "4px 4px" }} />
       {botonGrande({ icon: Plus, label: "Agregar", sub: "Canción, texto, video…", onClick: () => { setDestinoConsola(null); setShowAgregarConsola(true); }, tour: "envivo-agregar", ancho: 140 })}
       {botonGrande({ icon: BookOpen, label: mmPanel === "biblia" ? "Volver" : "Biblia", sub: mmPanel === "biblia" ? "a las diapositivas" : "Buscar un versículo", onClick: () => setMmPanel((p) => (p === "biblia" ? "transmision" : "biblia")), fondo: mmPanel === "biblia" ? "#2F5FA8" : "var(--wf-hover)", color: mmPanel === "biblia" ? "#fff" : "var(--wf-text)", tour: "envivo-biblia", ancho: 140 })}
       <div style={{ flex: 1 }} />
       <div style={{ fontSize: 11.5, color: "var(--wf-muted)", lineHeight: 1.9, textAlign: "right", flexShrink: 0 }}>
-        <span style={tecla}>→</span> o <span style={tecla}>Espacio</span> avanza · <span style={tecla}>←</span> regresa<br /><span style={tecla}>B</span> pantalla en negro
+        <span style={tecla}>→</span> o <span style={tecla}>Espacio</span> avanza · <span style={tecla}>←</span> regresa<br /><span style={tecla}>B</span> negro · <span style={tecla}>F</span> fijar
       </div>
     </div>
   );
@@ -8540,6 +8549,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             </>)}
             {grupoCinta("Pantalla", <>
               {botonCinta({ icon: MonitorOff, label: "Negro", onClick: () => setBlanked((b) => !b), activo: blanked, tour: "envivo-negro" })}
+              {onFijar && botonCinta({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", onClick: () => (fijada ? onSoltar() : onFijar()), activo: !!fijada, title: "Congelar la pantalla para moverte sin proyectar (tecla F)" })}
               {botonCinta({ icon: Radio, label: "Proyección", onClick: onOpenPublicScreen, title: "Reabrir la pantalla de proyección", tour: "envivo-proyeccion" })}
             </>)}
             {grupoCinta("Secciones de la canción", currentSongSections.length > 0 ? (
@@ -8846,11 +8856,19 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         <aside aria-label="Vista previa" data-tour="envivo-alaire" style={{ width: "clamp(260px, 25vw, 400px)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, minHeight: 0, overflowY: "auto", paddingRight: 2 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#C23B32", letterSpacing: 0.4 }}><Radio size={11} /> AL AIRE</span>
-            {current && <span style={{ fontSize: 11, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{blanked ? "Pantalla en negro" : current.type === "cancion" ? `${current.songTitle} · ${current.blockLabel}` : current.type === "biblia" ? current.reference : current.nombre || current.title}</span>}
+            {alAire && <span style={{ fontSize: 11, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{blanked ? "Pantalla en negro" : alAire.type === "cancion" ? `${alAire.songTitle} · ${alAire.blockLabel}` : alAire.type === "biblia" ? alAire.reference : alAire.nombre || alAire.title}</span>}
           </div>
           <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)", border: "2px solid #C23B32", flexShrink: 0 }}>
-            <ProjectionPanel slide={current} blanked={blanked} split={false} liveStyle={liveStyle} thumbnail />
+            <ProjectionPanel slide={alAire} blanked={blanked} split={false} liveStyle={liveStyle} thumbnail />
           </div>
+          {fijada && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#7B3FA0", letterSpacing: 0.4, marginTop: 4 }}>DONDE ESTÁS · SE PROYECTA AL SOLTAR</div>
+              <div style={{ width: "62%", aspectRatio: "16/9", borderRadius: 12, overflow: "hidden", border: "2px dashed #7B3FA0", flexShrink: 0 }}>
+                <ProjectionPanel slide={current} blanked={false} split={false} liveStyle={liveStyle} thumbnail />
+              </div>
+            </>
+          )}
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4, marginTop: 4 }}>SIGUIENTE</div>
           {cambiaDeElemento && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-brand-primary)", background: "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)", borderRadius: 10, padding: "6px 9px" }}>
