@@ -3483,7 +3483,8 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
 
       <SectionLabel>AYUDA</SectionLabel>
       {onVerTutorial && <NavRow icon={Sparkles} label="Ver el tutorial de nuevo" onClick={onVerTutorial} right={chevron} />}
-      <NavRow icon={MessageCircle} label="Escríbenos" onClick={() => { window.location.href = `mailto:${CORREO_SOPORTE}?subject=${encodeURIComponent("WorshipFlow — " + (teamName || "mi iglesia"))}`; }} right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>Dudas o ideas</span>} />
+      <NavRow icon={MessageCircle} label="Escríbenos por WhatsApp" onClick={() => { window.open(`https://wa.me/${WHATSAPP_SOPORTE}?text=${encodeURIComponent(`Hola, te escribo de ${teamName || "mi iglesia"} sobre WorshipFlow: `)}`, "_blank", "noopener"); }} right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>Dudas o ideas</span>} />
+      <NavRow icon={Send} label="Escríbenos por correo" onClick={() => { window.location.href = `mailto:${CORREO_SOPORTE}?subject=${encodeURIComponent("WorshipFlow — " + (teamName || "mi iglesia"))}`; }} right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>{CORREO_SOPORTE}</span>} />
 
       <div style={{ marginTop: 18 }}>
         <NavRow icon={LogOut} label="Cerrar sesión" danger onClick={signOut} />
@@ -3498,6 +3499,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
 
 // Adónde llega "Escríbenos" en Ajustes → Ayuda.
 const CORREO_SOPORTE = "eldinmc8@gmail.com";
+const WHATSAPP_SOPORTE = "50240543813"; // +502 4054 3813, sin "+" ni espacios para wa.me
 
 // Cambiar la propia contraseña sin depender de un administrador — a diferencia de "Reiniciar
 // contraseña" en Usuarios (que un admin usa para OTRA persona), esto es autoservicio: updateUser()
