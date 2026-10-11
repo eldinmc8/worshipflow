@@ -878,9 +878,16 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const palabrasPorParte = palabrasPorParteSegun(liveStyle.fontScale, !!myIglesia.dividirVersiculos);
   // Cómo se reparte la letra de canciones en pantalla — ajuste de cada iglesia (Identidad de la iglesia).
   const formatoLetra = myIglesia.formatoLetra || "dos_lineas";
+  // Ocultos en la consola (pedido de Eldin, 2026-10-11): la ✕ de la consola ya NO borra del setlist —
+  // solo esconde ese elemento en la consola de ESTA computadora y no lo proyecta. El setlist general
+  // queda intacto. Se guarda por evento (y sobrevive a recargar); "Mostrar ocultos" los regresa.
+  const [ocultosConsola, setOcultosConsola] = useState(() => loadCache("consola_ocultos") || {});
+  useEffect(() => { saveCache("consola_ocultos", ocultosConsola); }, [ocultosConsola]);
+  const claveOcultos = liveEvent?.id || null;
+  const idsOcultosConsola = useMemo(() => new Set((claveOcultos && ocultosConsola[claveOcultos]) || []), [ocultosConsola, claveOcultos]);
   const slides = useMemo(
-    () => (liveEvent ? expandirVersiculosLargos(reorganizarLetra(buildSlides(liveEvent.serviceOrder, library), formatoLetra), palabrasPorParte) : []),
-    [liveEvent, library, palabrasPorParte, formatoLetra]
+    () => (liveEvent ? expandirVersiculosLargos(reorganizarLetra(buildSlides(liveEvent.serviceOrder.filter((it) => !idsOcultosConsola.has(it.id)), library), formatoLetra), palabrasPorParte) : []),
+    [liveEvent, library, palabrasPorParte, formatoLetra, idsOcultosConsola]
   );
   const adHocSlides = useMemo(
     () => (adHoc ? expandirVersiculosLargos(reorganizarLetra(adHoc.slides, formatoLetra), palabrasPorParte) : []),
@@ -965,6 +972,25 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     arr.splice(hacia, 0, movido);
     return arr;
   });
+  const ocultarEnConsola = (ids) => {
+    if (!claveOcultos || !ids.length) return;
+    // Lo que está al aire se queda al aire si no es lo que se oculta (mismo truco que al reordenar).
+    if (!adHoc && slides[activeIdx] && !ids.some((id) => slides[activeIdx].slideId === id || String(slides[activeIdx].slideId).startsWith(`${id}-`) || String(slides[activeIdx].slideId).startsWith(`${id}~`))) mantenerAlAireRef.current = slides[activeIdx].slideId;
+    setOcultosConsola((m) => {
+      // Solo se guardan los últimos 30 eventos para no acumular basura en esta computadora.
+      const otros = Object.entries(m).filter(([k]) => k !== claveOcultos).slice(-29);
+      return { ...Object.fromEntries(otros), [claveOcultos]: [...new Set([...(m[claveOcultos] || []), ...ids])] };
+    });
+  };
+  const mostrarOcultosConsola = (ids = null) => {
+    if (!claveOcultos) return;
+    if (!adHoc && slides[activeIdx]) mantenerAlAireRef.current = slides[activeIdx].slideId;
+    setOcultosConsola((m) => {
+      const quedan = ids ? (m[claveOcultos] || []).filter((x) => !ids.includes(x)) : [];
+      const { [claveOcultos]: _fuera, ...resto } = m;
+      return quedan.length ? { ...resto, [claveOcultos]: quedan } : resto;
+    });
+  };
   const quitarDelOrdenEnVivo = (itemId) => {
     const alAireEsDeEste = !adHoc && slides[activeIdx] && (slides[activeIdx].slideId === itemId || String(slides[activeIdx].slideId).startsWith(`${itemId}-`) || String(slides[activeIdx].slideId).startsWith(`${itemId}~`));
     if (alAireEsDeEste) { removeLiveSlide(itemId); return; } // lo que estaba al aire se va: se queda en el mismo lugar
@@ -2486,6 +2512,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             onAddSongSlide={enPractica ? () => avisoPractica("cambian las canciones") : addSongSlideLive}
             onRearmarSeccion={enPractica ? () => avisoPractica("cambian las canciones") : rearmarSeccionLive}
             onAgregarCancion={agregarCancionEnVivo} onReordenarOrden={reordenarOrdenEnVivo} onQuitarDelOrden={quitarDelOrdenEnVivo} onInsertarItems={insertarItemsEnVivo}
+            ocultos={idsOcultosConsola} onOcultar={ocultarEnConsola} onMostrarOcultos={mostrarOcultosConsola}
             onAbrirEditor={enPractica ? undefined : (itemId, indice) => abrirEditorDiap("vivo", itemId, indice)}
             onDisenarNueva={enPractica ? undefined : (despuesDe) => abrirEditorNuevo("vivo", despuesDe)}
             onMoverDiapositiva={moverDiapositivaEnVivo} onQuitarDiapositivaGrupo={quitarDiapositivaEnVivo}
@@ -7684,7 +7711,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda}) {
+function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos}) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -7874,6 +7901,18 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   // ---- Editar el orden del culto desde la consola, igual que el Setlist (ver agregarCancionEnVivo y
   // compañía en el componente principal: lo que está al aire no se mueve al reordenar) ----
   const arrastreOrden = useArrastreLista({ habilitado: true, onReorder: (desde, hacia) => onReordenarOrden(desde, hacia) });
+  // ---- Ocultar en la consola (no borra del setlist; ver ocultarEnConsola en el componente principal) ----
+  const estaOculto = (it) => !!ocultos?.has(it.id);
+  const visiblesDeBloque = (bloqueId) => (bloquesOrden.find((b) => b.id === bloqueId)?.items || []).filter((x) => !estaOculto(x));
+  const cuantosOcultos = ocultos ? serviceOrder.filter((it) => ocultos.has(it.id)).length : 0;
+  const ocultar = (it) => {
+    if (!onOcultar) return;
+    const ids = it.type === "seccion" ? [it.id, ...(bloquesOrden.find((b) => b.id === it.id)?.items || []).map((x) => x.id)] : [it.id];
+    if (ids.includes(itemVisto)) setItemVisto(null);
+    onOcultar(ids);
+    const nombre = it.type === "seccion" ? (it.title || "Bloque") : tituloItem(it);
+    showToast(`"${nombre}" ya no se ve en la consola. Sigue en el setlist.`, "info", { label: "Deshacer", onClick: () => onMostrarOcultos?.(ids) });
+  };
   const quitarDelOrden = async (it) => {
     const nombre = it.type === "seccion" ? `el bloque "${it.title || "Bloque"}"` : `"${tituloItem(it)}"`;
     const ok = await confirmDialog(
@@ -8679,13 +8718,17 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             const filaArrastre = arrastreOrden.filaProps(idx);
             const quitar = (
               <button
-                className="orden-quitar" onClick={(e) => { e.stopPropagation(); quitarDelOrden(it); }}
-                title={it.type === "seccion" ? "Quitar este bloque" : "Quitar del orden del culto"}
-                style={{ ...iconGhost, padding: 2, color: "#C23B32", flexShrink: 0 }}
-              ><X size={12} /></button>
+                className="orden-quitar" onClick={(e) => { e.stopPropagation(); if (onOcultar) ocultar(it); else quitarDelOrden(it); }}
+                title={onOcultar ? (it.type === "seccion" ? "Ocultar este bloque en la consola (sigue en el setlist)" : "Ocultar en la consola (sigue en el setlist)") : it.type === "seccion" ? "Quitar este bloque" : "Quitar del orden del culto"}
+                aria-label="Ocultar en la consola"
+                style={{ ...iconGhost, padding: 2, color: "var(--wf-faint)", flexShrink: 0 }}
+              >{onOcultar ? <EyeOff size={13} /> : <X size={12} />}</button>
             );
+            if (estaOculto(it)) return null;
             if (it.type === "seccion") {
-              const cuantos = (bloquesOrden.find((b) => b.id === it.id)?.items || []).length;
+              const cuantos = visiblesDeBloque(it.id).length;
+              // Un bloque sin nada que proyectar (Orden y limpieza, Multimedia...) no se muestra en la consola.
+              if (cuantos === 0) return null;
               return (
                 <div key={it.id} {...filaArrastre} className="orden-fila" style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 9px", borderRadius: 10, background: "rgba(124,140,216,0.16)", border: "1px solid #5661B3", marginTop: idx === 0 ? 0 : 4, ...arrastreOrden.estiloFila(idx) }}>
                   <ListMusic size={13} color="#5661B3" />
@@ -8721,6 +8764,12 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
               </div>
             );
           })}
+          {cuantosOcultos > 0 && onMostrarOcultos && (
+            <button onClick={() => onMostrarOcultos()} className="hoverable"
+              style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11.5, fontWeight: 600, color: "var(--wf-muted)", background: "transparent", border: "1px dashed var(--wf-border)", borderRadius: 10, padding: "6px 9px", cursor: "pointer", fontFamily: "inherit" }}>
+              <Eye size={13} /> Mostrar ocultos ({cuantosOcultos})
+            </button>
+          )}
         </aside>
 
         {mmPanel === "biblia" ? (
