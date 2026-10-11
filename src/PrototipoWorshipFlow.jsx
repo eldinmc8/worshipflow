@@ -7403,18 +7403,17 @@ function MediaPicker({ iglesiaId, tipo, value, onChange, color = "#B15EA0" }) {
 // 2026-10-11). valor: id del bloque elegido o null (textoSinElegir: "Al final del culto", "Después de
 // lo que estás viendo"...). Se usa en "+ Agregar" del Setlist y de la consola.
 function ElegirParteDelCulto({ orden, valor, onCambiar, textoSinElegir }) {
+  // Lista desplegable (pedido de Eldin, 2026-10-11: mejor que burbujas).
   const bloques = bloquesDelCulto(orden);
   if (bloques.length === 0) return null;
-  const chip = (activo) => ({ fontSize: 12.5, fontWeight: 700, padding: "6px 11px", borderRadius: 16, cursor: "pointer", fontFamily: "inherit", border: activo ? "1.5px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", background: activo ? "color-mix(in srgb, var(--wf-brand-accent) 18%, transparent)" : "transparent", color: "var(--wf-text)" });
   return (
     <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--wf-divider)" }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: "var(--wf-text)", marginBottom: 7 }}>¿En qué parte del culto va?</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        <button type="button" onClick={() => onCambiar(null)} style={chip(!valor)}>{textoSinElegir}</button>
-        {bloques.map((b) => (
-          <button type="button" key={b.id} onClick={() => onCambiar(b.id)} style={chip(valor === b.id)}>{b.titulo}</button>
-        ))}
-      </div>
+      <label htmlFor="parte-del-culto" style={{ display: "block", fontSize: 12, fontWeight: 800, color: "var(--wf-text)", marginBottom: 7 }}>¿En qué parte del culto va?</label>
+      <select id="parte-del-culto" value={valor || ""} onChange={(e) => onCambiar(e.target.value || null)}
+        style={{ ...inputStyle, fontSize: 14, fontWeight: 600, cursor: "pointer", borderColor: valor ? "var(--wf-brand-accent)" : undefined }}>
+        <option value="">{textoSinElegir}</option>
+        {bloques.map((b) => <option key={b.id} value={b.id}>{b.titulo}</option>)}
+      </select>
     </div>
   );
 }
