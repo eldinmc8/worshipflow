@@ -3499,7 +3499,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
 
 // Adónde llega "Escríbenos" en Ajustes → Ayuda.
 const CORREO_SOPORTE = "eldinmc8@gmail.com";
-const WHATSAPP_SOPORTE = "50240543813"; // +502 4054 3813, sin "+" ni espacios para wa.me
+const WHATSAPP_SOPORTE = "50240544813"; // +502 4054 4813, sin "+" ni espacios para wa.me
 
 // Cambiar la propia contraseña sin depender de un administrador — a diferencia de "Reiniciar
 // contraseña" en Usuarios (que un admin usa para OTRA persona), esto es autoservicio: updateUser()
