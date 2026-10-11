@@ -20,6 +20,7 @@ import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guard
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
 import AutoFitText from "./components/AutoFitText.jsx";
 import { misProximosServicios, cuandoEs, companeros, indicaciones, cancionesParaEnsayar, necesitaAtencion, estaSemana } from "./lib/inicio.js";
+import { bloquesDelCulto, insertarEnBloque, anclaDeBloque } from "./lib/ordenCulto.js";
 import { expandirVersiculosLargos, reorganizarLetra, FORMATOS_LETRA, palabrasPorParteSegun, partesDeVersiculo } from "./lib/dividirTexto.js";
 import {
   listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
@@ -435,7 +436,7 @@ function buildSlides(serviceOrder, library) {
       // Presentación agrupada o diapositiva diseñada en el editor: cada diapositiva con su diseño.
       slides.push(...slidesDeGrupo(item));
     } else if (item.type === "slide") {
-      slides.push({ slideId: item.id, type: "slide", title: item.title, subtitle: item.subtitle, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl, imageUrl: item.imageUrl });
+      slides.push({ slideId: item.id, type: "slide", title: item.title, nombre: item.name || "", subtitle: item.subtitle, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl, imageUrl: item.imageUrl });
     }
   });
   return slides;
@@ -1115,9 +1116,14 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // agrega al final de ese bloque, o se crea el bloque si el evento todavía no lo tiene. Los bloques
   // son simples marcadores de posición (no hay anidado real en los datos), así que "pertenecer a un
   // bloque" es estar entre ese marcador y el siguiente.
+  // "¿En qué parte del culto va?" — el bloque elegido en "+ Agregar" del Setlist (null = al final).
+  // Se usa para lo que se agregue mientras esa elección está abierta (ver SetlistPane).
+  const [destinoSetlist, setDestinoSetlist] = useState(null);
+  const colocar = (o, items) => insertarEnBloque(o, items, destinoSetlist);
   const addSong = (songId) => {
     const song = library.find((s) => s.id === songId);
     const newItem = { id: nextId(), type: "cancion", songId, structure: song.defaultStructure };
+    if (destinoSetlist) { updateOrder((o) => colocar(o, newItem)); return; } // eligió el bloque a mano
     const targetBlock = clasificaciones.find((c) => c.clave === song.category)?.bloque?.trim();
     updateOrder((o) => {
       if (!targetBlock) return [...o, newItem]; // sin clasificación: al final, como antes
@@ -1131,11 +1137,11 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       return [...o.slice(0, insertAt), newItem, ...o.slice(insertAt)];
     });
   };
-  const addBible = (b) => { updateOrder((o) => [...o, { id: nextId(), type: "biblia", reference: b.ref, version: b.version, text: b.text, bookId: b.bookId, bookName: b.bookName, chapter: b.chapter, verseStart: b.verseStart, verseEnd: b.verseEnd }]); setShowBibleForm(false); };
+  const addBible = (b) => { updateOrder((o) => colocar(o, { id: nextId(), type: "biblia", reference: b.ref, version: b.version, text: b.text, bookId: b.bookId, bookName: b.bookName, chapter: b.chapter, verseStart: b.verseStart, verseEnd: b.verseEnd })); setShowBibleForm(false); };
   const addSlide = () => {
     if (!slideDraft.title && !(slideDraft.bgType === "video" && slideDraft.videoUrl) && !(slideDraft.bgType === "imagen" && slideDraft.imageUrl)) return; // se permite solo-video/solo-imagen sin texto
-    updateOrder((o) => [...o, { id: nextId(), type: "slide", ...slideDraft }]);
-    setSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" });
+    updateOrder((o) => colocar(o, { id: nextId(), type: "slide", ...slideDraft }));
+    setSlideDraft({ title: "", subtitle: "", name: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" });
     setShowSlideForm(false);
   };
   const addSeccion = (title, description) => updateOrder((o) => [...o, { id: nextId(), type: "seccion", title: title.trim() || "Nuevo bloque", description: description.trim(), ministryId: null }]);
@@ -1143,7 +1149,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // cualquier otra), marcada con isSermonPoint para distinguirla visualmente en el Setlist y en el grid en vivo.
   const addSermonPoint = () => {
     if (!sermonPointText.trim()) return;
-    updateOrder((o) => [...o, { id: nextId(), type: "slide", title: sermonPointText.trim(), subtitle: "", bg: "var(--wf-brand-primary)", bgType: "color", isSermonPoint: true }]);
+    updateOrder((o) => colocar(o, { id: nextId(), type: "slide", title: sermonPointText.trim(), subtitle: "", bg: "var(--wf-brand-primary)", bgType: "color", isSermonPoint: true }));
     setSermonPointText("");
     setShowSermonForm(false);
   };
@@ -2398,7 +2404,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       {tab === "eventos" && selectedEvent && !openSong && (
         <EventDetail
           onAbrirEditor={(itemId) => abrirEditorDiap(selectedEvent.id, itemId, 0)}
-          onDisenarNueva={() => abrirEditorNuevo(selectedEvent.id)}
+          onDisenarNueva={(despuesDe) => abrirEditorNuevo(selectedEvent.id, typeof despuesDe === "string" ? despuesDe : null)}
           myIglesiaId={myIglesiaId}
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
           isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={puedeGestionarEventos}
@@ -2409,7 +2415,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onPublish={() => { setDraftFromTemplateId(null); window.history.back(); }}
           onStart={() => startEvent(selectedEvent.id)} onPracticar={() => empezarPractica(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
           onAddSong={addSong} onAddSeccion={addSeccion}
-          onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)} onAddItems={(items) => updateOrder((o) => [...o, ...items])}
+          onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)} onAddItems={(items) => updateOrder((o) => colocar(o, items))}
+          destinoAgregar={destinoSetlist} onDestinoAgregar={setDestinoSetlist}
           onRemove={removeItem} onRestaurar={restaurarItem} onDuplicate={duplicateItem} onReorder={reorderItem}
           onLinkMinistry={linkMinistry} onUpdateSeccionText={updateSeccionText}
           onSetSongKey={setSongKey}
@@ -6087,7 +6094,7 @@ function EventDetail({
   myIglesiaId, onAbrirEditor, onDisenarNueva,
   event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onPracticar, onGoLive, onDelete,
   isDraftFromTemplate, onPublish,
-  onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onRemove, onRestaurar, onDuplicate, onReorder,
+  onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, destinoAgregar, onDestinoAgregar, onRemove, onRestaurar, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
@@ -6361,6 +6368,7 @@ function EventDetail({
         event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer || puedeEditarSetlist} userId={userId} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onAddSeccion={onAddSeccion}
         onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick} onAddItems={onAddItems}
+        destinoAgregar={destinoAgregar} onDestinoAgregar={onDestinoAgregar}
         onRemove={onRemove} onRestaurar={onRestaurar} onDuplicate={onDuplicate} onReorder={onReorder}
         onLinkMinistry={onLinkMinistry} onUpdateSeccionText={onUpdateSeccionText}
         onSetSongKey={onSetSongKey}
@@ -6518,7 +6526,7 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, destinoAgregar = null, onDestinoAgregar, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   const [showImportar, setShowImportar] = useState(false); // Importar presentación (ver ImportarPresentacion)
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
@@ -6568,6 +6576,10 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   const [libraryCategoryFilter, setLibraryCategoryFilter] = useState("todos");
   const [expandedSections, setExpandedSections] = useState({});
   const [showSeccionForm, setShowSeccionForm] = useState(false);
+  // La parte del culto elegida en "+ Agregar" solo vale mientras se está agregando: al cerrarse todo
+  // (o cancelar), vuelve a "al final" para que lo siguiente no caiga en un bloque viejo.
+  const agregando = showAgregar || pickerCancion || showImportar || showBibleForm || showSlideForm || showSermonForm;
+  useEffect(() => { if (!agregando && destinoAgregar) onDestinoAgregar?.(null); }, [agregando, destinoAgregar, onDestinoAgregar]);
   const [seccionDraft, setSeccionDraft] = useState({ title: "", description: "" });
   const confirmAddSeccion = () => {
     if (!seccionDraft.title.trim()) return;
@@ -6643,7 +6655,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
     isAdminViewer && { clave: "cancion", Icon: Music, color: "#1F8A73", titulo: "Canción", detalle: "De la biblioteca, con su letra lista", accion: () => setPickerCancion(true) },
     canAddBibleReading && { clave: "biblia", Icon: BookOpen, color: "#2F5FA8", titulo: "Versículo", detalle: "Búscalo en la Biblia", accion: onAddBibleClick },
     isAdminViewer && { clave: "texto", Icon: Type, color: "#B15EA0", titulo: "Texto rápido", detalle: "Un aviso o un título en segundos", accion: onAddSlideClick },
-    isAdminViewer && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: onDisenarNueva },
+    isAdminViewer && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(destinoAgregar ? anclaDeBloque(event.serviceOrder, destinoAgregar)?.id : undefined) },
     isAdminViewer && { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
     canAddSermonPoints && { clave: "bosquejo", Icon: Mic2, color: "var(--wf-heading)", titulo: "Punto del bosquejo", detalle: "Lo que el predicador va a ir mostrando", accion: () => setShowSermonForm(true) },
     isAdminViewer && { clave: "bloque", Icon: ListMusic, color: "#5661B3", titulo: "Bloque del culto", detalle: "Una parte del culto: Bienvenida, Ofrenda…", accion: () => setShowSeccionForm(true) },
@@ -6687,7 +6699,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
             {puedeAgregarAlgo && (
               <button
                 data-tour="evento-editar-setlist"
-                onClick={() => setShowAgregar(true)}
+                onClick={() => { onDestinoAgregar?.(null); setShowAgregar(true); }}
                 className="hoverable"
                 style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 800, padding: "7px 14px", borderRadius: 18, border: "none", cursor: "pointer", background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)" }}
               >
@@ -6926,7 +6938,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                     ) : (
                       <div style={{ width: 26, height: 26, borderRadius: 10, background: `${meta.color}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={13} color={meta.color} /></div>
                     )}
-                    <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{item.type === "biblia" ? item.reference : item.title}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{item.type === "biblia" ? item.reference : item.name || item.title}</span>
                     {diapsItem?.length > 1 && <span style={{ fontSize: 11, color: "var(--wf-muted)", background: "var(--wf-hover)", borderRadius: 14, padding: "2px 8px", flexShrink: 0 }}>{diapsItem.length} diapositivas</span>}
                     {item.type === "slide" && isAdminViewer && onAbrirEditor && (
                       <button onClick={() => onAbrirEditor(item.id)} title="Editar el diseño" style={{ ...iconGhost, color: "#2F5FA8" }}><Pencil size={14} /></button>
@@ -6980,6 +6992,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
       {/* "+ Agregar": todas las formas de agregar algo, cada una con su explicación. */}
       {showAgregar && (
         <ModalShell title="Agregar al culto" icon={Plus} color="var(--wf-brand-accent)" onClose={() => setShowAgregar(false)}>
+          {onDestinoAgregar && <ElegirParteDelCulto orden={event.serviceOrder} valor={destinoAgregar} onCambiar={onDestinoAgregar} textoSinElegir="Al final del culto" />}
           <div style={{ display: "flex", flexDirection: "column", gap: 2, margin: "0 -6px" }}>
             {opcionesAgregar.map((o) => (
               <button key={o.clave} onClick={() => { setShowAgregar(false); o.accion(); }} className="hoverable"
@@ -6993,13 +7006,13 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
               </button>
             ))}
           </div>
-          <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginTop: 10 }}>Todo entra al final del culto. Luego lo puedes mover con ⋯ → Subir/Bajar, o arrastrándolo.</div>
+          <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginTop: 10 }}>Luego lo puedes mover con ⋯ → Subir/Bajar, o arrastrándolo.</div>
         </ModalShell>
       )}
       {/* Buscar y agregar canciones (en el celular es la forma de agregarlas; en computadora también
           está la biblioteca a la izquierda). Se queda abierto para agregar varias seguidas. */}
       {pickerCancion && (
-        <ModalShell title="Agregar canciones" icon={Music} color="#1F8A73" onClose={() => setPickerCancion(false)}>
+        <ModalShell title="Agregar canciones" icon={Music} color="#1F8A73" onClose={() => { setPickerCancion(false); onDestinoAgregar?.(null); }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
               <Search size={13} color="var(--wf-faint)" />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 13, width: "100%" }} />
@@ -7024,7 +7037,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
             })}
             {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, padding: "6px 0" }}>Ninguna canción coincide.</div>}
           </div>
-          <button onClick={() => setPickerCancion(false)} style={{ ...primaryBtn, marginTop: 10 }}>Listo</button>
+          <button onClick={() => { setPickerCancion(false); onDestinoAgregar?.(null); }} style={{ ...primaryBtn, marginTop: 10 }}>Listo</button>
         </ModalShell>
       )}
       {showImportar && (
@@ -7386,15 +7399,41 @@ function MediaPicker({ iglesiaId, tipo, value, onChange, color = "#B15EA0" }) {
     </div>
   );
 }
-function SlideModal({ draft, setDraft, onClose, onAdd, title = "Slide personalizada", submitLabel = "Agregar al servicio", iglesiaId }) {
+// "¿En qué parte del culto va?" — fila de botones con los bloques del culto (pedido de Eldin,
+// 2026-10-11). valor: id del bloque elegido o null (textoSinElegir: "Al final del culto", "Después de
+// lo que estás viendo"...). Se usa en "+ Agregar" del Setlist y de la consola.
+function ElegirParteDelCulto({ orden, valor, onCambiar, textoSinElegir }) {
+  const bloques = bloquesDelCulto(orden);
+  if (bloques.length === 0) return null;
+  const chip = (activo) => ({ fontSize: 12.5, fontWeight: 700, padding: "6px 11px", borderRadius: 16, cursor: "pointer", fontFamily: "inherit", border: activo ? "1.5px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", background: activo ? "color-mix(in srgb, var(--wf-brand-accent) 18%, transparent)" : "transparent", color: "var(--wf-text)" });
+  return (
+    <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--wf-divider)" }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: "var(--wf-text)", marginBottom: 7 }}>¿En qué parte del culto va?</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        <button type="button" onClick={() => onCambiar(null)} style={chip(!valor)}>{textoSinElegir}</button>
+        {bloques.map((b) => (
+          <button type="button" key={b.id} onClick={() => onCambiar(b.id)} style={chip(valor === b.id)}>{b.titulo}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+const etiquetaCampo = { display: "block", fontSize: 11.5, fontWeight: 800, color: "var(--wf-text)", marginBottom: 6, letterSpacing: 0.2 };
+function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositiva de texto", submitLabel = "Agregar al culto", iglesiaId }) {
   const bgOptions = ["#1B2029", "#2A1F33", "#1F2A2C", "#332420"];
   const bgType = draft.bgType || "color";
   return (
     <ModalShell title={title} icon={ImgIcon} color="#B15EA0" onClose={onClose}>
       {/* Textarea, no input: para un texto largo se puede tocar Enter y armar el salto de línea a mano
           (dónde se corta cada línea en la proyección), en vez de dejarlo todo al ajuste automático. */}
-      <textarea placeholder="Título (opcional si es solo video/imagen) — Enter para salto de línea" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} style={{ ...inputStyle, height: 70, resize: "none" }} />
-      <textarea placeholder="Subtítulo (opcional)" value={draft.subtitle} onChange={(e) => setDraft({ ...draft, subtitle: e.target.value })} style={{ ...inputStyle, height: 44, resize: "none", marginTop: 8 }} />
+      {/* Contenido (lo que se proyecta) separado del NOMBRE (cómo aparece en la lista y en la miniatura)
+          — pedido de Eldin, 2026-10-11, para que no se confundan. */}
+      <label style={etiquetaCampo}>Contenido · lo que se ve en la pantalla</label>
+      <textarea placeholder="Escribe el texto que se va a proyectar (Enter para cambiar de línea). Opcional si es solo imagen o video." value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} style={{ ...inputStyle, height: 80, resize: "none" }} />
+      <textarea placeholder="Texto pequeño debajo (opcional)" value={draft.subtitle} onChange={(e) => setDraft({ ...draft, subtitle: e.target.value })} style={{ ...inputStyle, height: 44, resize: "none", marginTop: 8 }} />
+      <label style={{ ...etiquetaCampo, marginTop: 14 }}>Nombre de la diapositiva · no se proyecta</label>
+      <input placeholder={`Ej. "Anuncio de ayuno" — así sale en el orden del culto y en la miniatura`} value={draft.name || ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={inputStyle} />
+      <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 5 }}>Si lo dejas vacío, se usa el contenido como nombre.</div>
       <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, margin: "14px 0 8px" }}>FONDO</div>
       <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 10, width: "fit-content" }}>
         {[["color", "Color"], ["imagen", "Imagen"], ["video", "Video"]].map(([val, label]) => (
@@ -7767,7 +7806,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
     setEditDraft(
       s.type === "biblia" ? { reference: s.baseReference ?? s.reference, text: s.baseText ?? s.text }
       : s.type === "cancion" ? { text: (s.baseLines || s.lines).join("\n") }
-      : { title: s.title, subtitle: s.subtitle || "", bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "" }
+      : { title: s.title, subtitle: s.subtitle || "", name: s.nombre || "", bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "" }
     );
   };
   const saveSlideEdit = () => {
@@ -7890,7 +7929,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   const indicePrimeraDiapositiva = (itemId) => slides.findIndex((s) => perteneceA(s, itemId));
   const tituloItem = (it) => (it.type === "cancion" ? library.find((x) => x.id === it.songId)?.title || "Canción"
     : it.type === "biblia" ? it.reference || "Versículo"
-    : it.title || (it.bgType === "video" ? "Video" : it.bgType === "imagen" ? "Imagen" : "Diapositiva"));
+    : it.name || it.title || (it.bgType === "video" ? "Video" : it.bgType === "imagen" ? "Imagen" : "Diapositiva"));
   const bloquesOrden = [];
   serviceOrder.forEach((it) => {
     if (it.type === "seccion") { bloquesOrden.push({ id: it.id, titulo: it.title || "Bloque", items: [] }); return; }
@@ -7925,7 +7964,11 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   };
   // La canción nueva entra justo DESPUÉS de lo que se está viendo al centro (o de lo que está al aire);
   // si no hay nada, al final. Luego se puede arrastrar a donde se quiera.
-  const anclaParaAgregar = () => itemCentro || itemAlAire || null; // función: itemCentro se declara más abajo
+  // Si en "+ Agregar" se eligió una parte del culto, entra al final de ese bloque.
+  const [destinoConsola, setDestinoConsola] = useState(null);
+  const anclaParaAgregar = () => (destinoConsola && anclaDeBloque(serviceOrder, destinoConsola)) || itemCentro || itemAlAire || null; // función: itemCentro se declara más abajo
+  const agregandoConsola = showAgregarConsola || showAdHocSong || showImportar || showAddSlide;
+  useEffect(() => { if (!agregandoConsola && destinoConsola) setDestinoConsola(null); }, [agregandoConsola, destinoConsola]);
   const agregarCancionAqui = (song) => {
     const ancla = anclaParaAgregar();
     const nuevoId = onAgregarCancion(song.id, ancla?.id || null);
@@ -8010,7 +8053,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   ].filter(Boolean);
   const botonAgregarConsola = ({ ancho = false, tour } = {}) => (
     <button
-      onClick={() => setShowAgregarConsola(true)} data-tour={tour} className="hoverable"
+      onClick={() => { setDestinoConsola(null); setShowAgregarConsola(true); }} data-tour={tour} className="hoverable"
       title="Agregar algo al culto: canción, versículo, diapositiva, presentación o video"
       style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 13, fontWeight: 800, padding: "7px 14px", borderRadius: 18, border: "none", cursor: "pointer", background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", flexShrink: 0, width: ancho ? "100%" : undefined, boxSizing: "border-box", fontFamily: "inherit" }}
     ><Plus size={15} /> Agregar</button>
@@ -8070,7 +8113,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   };
   const miniatura = (s, i) => {
     const color = sectionColorFor(s);
-    const label = s.type === "cancion" ? s.blockLabel : s.type === "biblia" ? s.reference : s.title;
+    const label = s.type === "cancion" ? s.blockLabel : s.type === "biblia" ? s.reference : s.nombre || s.title;
     const preview = s.type === "cancion" ? s.lines.join(" ") : s.type === "biblia" ? s.text : s.subtitle;
     const isActive = !adHoc && i === activeIdx;
     return (
@@ -8158,7 +8201,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       {botonGrande({ icon: ChevronRight, label: "Siguiente", sub: cambiaDeElemento ? `Pasas a: ${nombreSiguiente}` : next ? null : "Es la última", onClick: () => avanzar(1), fondo: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", tour: "envivo-siguiente", ancho: 190 })}
       {botonGrande({ icon: MonitorOff, label: blanked ? "Volver a mostrar" : "Negro", sub: blanked ? null : "Esconde todo", onClick: () => setBlanked((b) => !b), fondo: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)", tour: "envivo-negro", ancho: 140 })}
       <div style={{ width: 1, alignSelf: "stretch", background: "var(--wf-divider)", margin: "4px 4px" }} />
-      {botonGrande({ icon: Plus, label: "Agregar", sub: "Canción, texto, video…", onClick: () => setShowAgregarConsola(true), tour: "envivo-agregar", ancho: 140 })}
+      {botonGrande({ icon: Plus, label: "Agregar", sub: "Canción, texto, video…", onClick: () => { setDestinoConsola(null); setShowAgregarConsola(true); }, tour: "envivo-agregar", ancho: 140 })}
       {botonGrande({ icon: BookOpen, label: mmPanel === "biblia" ? "Volver" : "Biblia", sub: mmPanel === "biblia" ? "a las diapositivas" : "Buscar un versículo", onClick: () => setMmPanel((p) => (p === "biblia" ? "transmision" : "biblia")), fondo: mmPanel === "biblia" ? "#2F5FA8" : "var(--wf-hover)", color: mmPanel === "biblia" ? "#fff" : "var(--wf-text)", tour: "envivo-biblia", ancho: 140 })}
       <div style={{ flex: 1 }} />
       <div style={{ fontSize: 11.5, color: "var(--wf-muted)", lineHeight: 1.9, textAlign: "right", flexShrink: 0 }}>
@@ -8346,7 +8389,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
             {slides.map((s, i) => {
               const color = sectionColorFor(s);
-              const label = s.type === "cancion" ? s.blockLabel : s.type === "biblia" ? s.reference : s.title;
+              const label = s.type === "cancion" ? s.blockLabel : s.type === "biblia" ? s.reference : s.nombre || s.title;
               const preview = s.type === "cancion" ? s.lines.join(" ") : s.type === "biblia" ? s.text : s.subtitle;
               const isActive = !adHoc && i === activeIdx;
               const isEditable = s.type === "biblia" || s.type === "slide" || s.type === "cancion";
@@ -8410,7 +8453,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           {current && (
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, color: TYPE_META[current.type].color, letterSpacing: 0.5, marginBottom: 4 }}>AHORA · {TYPE_META[current.type].label.toUpperCase()}</div>
-              <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>{next ? `Siguiente: ${next.type === "cancion" ? next.blockLabel : next.type === "biblia" ? next.reference : next.title}` : adHoc ? "No hay más diapositivas" : "Última slide del servicio"}</div>
+              <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>{next ? `Siguiente: ${next.type === "cancion" ? next.blockLabel : next.type === "biblia" ? next.reference : next.nombre || next.title}` : adHoc ? "No hay más diapositivas" : "Última slide del servicio"}</div>
             </div>
           )}
 
@@ -8804,7 +8847,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         <aside aria-label="Vista previa" data-tour="envivo-alaire" style={{ width: "clamp(260px, 25vw, 400px)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, minHeight: 0, overflowY: "auto", paddingRight: 2 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#C23B32", letterSpacing: 0.4 }}><Radio size={11} /> AL AIRE</span>
-            {current && <span style={{ fontSize: 11, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{blanked ? "Pantalla en negro" : current.type === "cancion" ? `${current.songTitle} · ${current.blockLabel}` : current.type === "biblia" ? current.reference : current.title}</span>}
+            {current && <span style={{ fontSize: 11, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{blanked ? "Pantalla en negro" : current.type === "cancion" ? `${current.songTitle} · ${current.blockLabel}` : current.type === "biblia" ? current.reference : current.nombre || current.title}</span>}
           </div>
           <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)", border: "2px solid #C23B32", flexShrink: 0 }}>
             <ProjectionPanel slide={current} blanked={blanked} split={false} liveStyle={liveStyle} thumbnail />
@@ -8818,7 +8861,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           <div style={{ width: "62%", aspectRatio: "16/9", borderRadius: 12, overflow: "hidden", opacity: next ? 1 : 0.4, flexShrink: 0 }}>
             <ProjectionPanel slide={next} blanked={false} split={false} liveStyle={liveStyle} thumbnail />
           </div>
-          <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>{next ? (next.type === "cancion" ? `${next.songTitle} · ${next.blockLabel}` : next.type === "biblia" ? next.reference : next.title) : adHoc ? "No hay más diapositivas" : "Última diapositiva del servicio"}</div>
+          <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>{next ? (next.type === "cancion" ? `${next.songTitle} · ${next.blockLabel}` : next.type === "biblia" ? next.reference : next.nombre || next.title) : adHoc ? "No hay más diapositivas" : "Última diapositiva del servicio"}</div>
           {/* Lo agregado (textos, diapositivas, canciones) se ve solo en el ORDEN DEL CULTO de la
               izquierda (pedido de Eldin, 2026-10-11): aquí abajo ya no se repite. */}
         </aside>
@@ -8890,6 +8933,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       {/* "+ Agregar" de la consola: las mismas opciones que el Setlist, con lo que pasa con cada una. */}
       {showAgregarConsola && (
         <ModalShell title="Agregar al culto" icon={Plus} color="var(--wf-brand-accent)" onClose={() => setShowAgregarConsola(false)}>
+          {!isFreeSession && <ElegirParteDelCulto orden={serviceOrder} valor={destinoConsola} onCambiar={setDestinoConsola} textoSinElegir={itemCentro || itemAlAire ? `Después de "${tituloItem(itemCentro || itemAlAire)}"` : "Al final del culto"} />}
           <div style={{ display: "flex", flexDirection: "column", gap: 2, margin: "0 -6px" }}>
             {opcionesAgregarConsola.map((o) => (
               <button key={o.clave} onClick={() => { setShowAgregarConsola(false); o.accion(); }} className="hoverable"
