@@ -7671,6 +7671,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   const [showAdHocVideo, setShowAdHocVideo] = useState(false);
   const [showImportar, setShowImportar] = useState(false);
   const [showAddSlide, setShowAddSlide] = useState(false);
+  const [showAgregarConsola, setShowAgregarConsola] = useState(false); // "+ Agregar" (igual que en el Setlist)
   const [newSlideDraft, setNewSlideDraft] = useState({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" });
   // Editar una diapositiva ya agregada (versículo/slide/punto del bosquejo) por si algo se escribió mal.
   const [editingSlide, setEditingSlide] = useState(null); // la slide original que se está editando, o null
@@ -7891,6 +7892,24 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         color: activo ? "var(--wf-on-brand-primary)" : acento ? "var(--wf-brand-primary)" : "var(--wf-text)" }}
     ><Icon size={20} strokeWidth={1.75} />{label}</button>
   );
+  // ---- "+ Agregar" de la consola (pedido de Eldin, 2026-10-11): el mismo botón naranja y la misma
+  // hoja del Setlist, para que alguien nuevo vea de una vez cómo meter algo al culto en vivo. ----
+  const nuevaDiapositivaTexto = () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); };
+  const opcionesAgregarConsola = [
+    { clave: "cancion", Icon: Music, color: "#1F8A73", titulo: "Canción", detalle: "De la biblioteca — queda en el orden del culto", accion: () => setShowAdHocSong(true) },
+    { clave: "biblia", Icon: BookOpen, color: "#2F5FA8", titulo: "Versículo", detalle: "Búscalo en la Biblia y proyéctalo al momento", accion: () => setMmPanel("biblia") },
+    { clave: "texto", Icon: Type, color: "#B15EA0", titulo: "Texto rápido", detalle: "Un aviso o el título de la prédica, en segundos", accion: nuevaDiapositivaTexto },
+    !isCompact && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(anclaParaAgregar()?.id || null) },
+    { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
+    { clave: "video", Icon: ImgIcon, color: "#C23B32", titulo: "Video", detalle: "Se proyecta una vez (no queda en el orden)", accion: () => setShowAdHocVideo(true) },
+  ].filter(Boolean);
+  const botonAgregarConsola = ({ ancho = false, tour } = {}) => (
+    <button
+      onClick={() => setShowAgregarConsola(true)} data-tour={tour} className="hoverable"
+      title="Agregar algo al culto: canción, versículo, diapositiva, presentación o video"
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 13, fontWeight: 800, padding: "7px 14px", borderRadius: 18, border: "none", cursor: "pointer", background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", flexShrink: 0, width: ancho ? "100%" : undefined, boxSizing: "border-box", fontFamily: "inherit" }}
+    ><Plus size={15} /> Agregar</button>
+  );
   // ---- Borrar y mover diapositivas desde la consola (pedido de Eldin, 2026-10-08) ----
   // Una "sección" aquí = una aparición de una sección de la canción en el plan (mismo prefijo de
   // slideId: `${item}-${posición en la estructura}`), con todos sus pedazos. Moverlas solo se puede
@@ -8022,6 +8041,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       <div style={{ display: "flex", gap: 8, padding: "8px 16px 10px", flexWrap: "wrap" }}>
         <button data-tour="envivo-proyeccion" onClick={onOpenPublicScreen} style={{ ...ctrlBtn, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)" }}><Radio size={14} /> Reabrir proyección</button>
         <button data-tour="envivo-negro" onClick={() => setBlanked((b) => !b)} style={{ ...ctrlBtn, background: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)" }}><MonitorOff size={14} /> {blanked ? "Reanudar" : "Pantalla en negro"}</button>
+        <div style={{ flex: 1 }} />
+        {botonAgregarConsola({ tour: "envivo-agregar" })}
       </div>
 
       {/* Sin letrero de "improvisado" (pedido de Eldin, 2026-10-08): para volver al plan basta tocar
@@ -8300,6 +8321,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           >{label}</button>
         ))}
         <div style={{ flex: 1 }} />
+        <div style={{ marginRight: 10, padding: "3px 0" }}>{botonAgregarConsola({ tour: "envivo-agregar" })}</div>
         {botonFinalizar}
       </nav>
       <div data-tour="envivo-paneles" style={{ display: "flex", alignItems: "stretch", gap: 0, padding: "6px 8px 4px", minHeight: 76, boxSizing: "border-box", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)", overflowX: "auto", flexShrink: 0 }}>
@@ -8523,8 +8545,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         <aside aria-label="Orden del culto" data-tour="envivo-orden" style={{ width: "clamp(200px, 17vw, 260px)", flexShrink: 0, overflowY: "auto", background: "var(--wf-card)", borderRadius: 12, boxShadow: "0 2px 10px rgba(22,50,79,0.08)", padding: "10px 8px", display: "flex", flexDirection: "column", gap: 6, boxSizing: "border-box" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, padding: "0 4px" }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.5 }}>ORDEN DEL CULTO</span>
-            <button onClick={() => setShowAdHocSong(true)} title="Agregar una canción al orden del culto" className="hoverable" style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "var(--wf-brand-accent)", background: "transparent", border: "none", borderRadius: 8, padding: "3px 6px", cursor: "pointer" }}><Plus size={12} /> Canción</button>
           </div>
+          <div style={{ padding: "0 2px 4px" }}>{botonAgregarConsola({ ancho: true })}</div>
           {serviceOrder.length === 0 && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "8px 4px" }}>Todavía no hay nada en el orden de este culto.</div>}
           {/* Una fila por elemento, en el orden real del Setlist (los bloques son filas más), para poder
               arrastrar con el mismo gesto del Setlist — ver arrastreOrden. */}
@@ -8699,6 +8721,28 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             showToast(`Se agregaron ${items.filter((it) => it.type !== "seccion").length} diapositivas al orden del culto.`, "info");
           }}
         />
+      )}
+      {/* "+ Agregar" de la consola: las mismas opciones que el Setlist, con lo que pasa con cada una. */}
+      {showAgregarConsola && (
+        <ModalShell title="Agregar al culto" icon={Plus} color="var(--wf-brand-accent)" onClose={() => setShowAgregarConsola(false)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, margin: "0 -6px" }}>
+            {opcionesAgregarConsola.map((o) => (
+              <button key={o.clave} onClick={() => { setShowAgregarConsola(false); o.accion(); }} className="hoverable"
+                style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "transparent", border: "none", borderRadius: 12, padding: "10px 8px", cursor: "pointer", color: "var(--wf-text)", fontFamily: "inherit" }}>
+                <span style={{ width: 38, height: 38, borderRadius: 11, background: `color-mix(in srgb, ${o.color} 16%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><o.Icon size={19} color={o.color} /></span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>{o.titulo}</span>
+                  <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-muted)" }}>{o.detalle}</span>
+                </span>
+                <ChevronRight size={16} color="var(--wf-faint)" />
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginTop: 10 }}>
+            {anclaParaAgregar() ? `Entra después de "${tituloItem(anclaParaAgregar())}". ` : "Entra al final del orden del culto. "}
+            Nada sale a la pantalla hasta que tú lo proyectes. Luego lo puedes arrastrar a otro lugar del orden.
+          </div>
+        </ModalShell>
       )}
       {showAdHocVideo && <AdHocVideoModal onClose={() => setShowAdHocVideo(false)} onPlay={(url) => { onStartAdHocVideo(url); setShowAdHocVideo(false); }} />}
       {showAddSlide && (
