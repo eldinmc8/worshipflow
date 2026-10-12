@@ -8137,7 +8137,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   const miniatura = (s, i) => {
     const color = sectionColorFor(s);
     const label = s.type === "cancion" ? s.blockLabel : s.type === "biblia" ? s.reference : s.nombre || s.title;
-    const preview = s.type === "cancion" ? s.lines.join(" ") : s.type === "biblia" ? s.text : s.subtitle;
+    const preview = s.type === "cancion" ? s.lines.join(" ") : s.type === "biblia" ? s.text : s.nombre ? [s.title, s.subtitle].filter(Boolean).join(" · ") : s.subtitle; // con nombre: el cuadro muestra el contenido
     const isActive = !adHoc && i === activeIdx;
     return (
       <div
@@ -8415,7 +8415,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             {slides.map((s, i) => {
               const color = sectionColorFor(s);
               const label = s.type === "cancion" ? s.blockLabel : s.type === "biblia" ? s.reference : s.nombre || s.title;
-              const preview = s.type === "cancion" ? s.lines.join(" ") : s.type === "biblia" ? s.text : s.subtitle;
+              const preview = s.type === "cancion" ? s.lines.join(" ") : s.type === "biblia" ? s.text : s.nombre ? [s.title, s.subtitle].filter(Boolean).join(" · ") : s.subtitle; // con nombre: el cuadro muestra el contenido
               const isActive = !adHoc && i === activeIdx;
               const isEditable = s.type === "biblia" || s.type === "slide" || s.type === "cancion";
               return (
