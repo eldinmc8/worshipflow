@@ -2420,6 +2420,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onAddSong={addSong} onAddSeccion={addSeccion}
           onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)} onAddItems={(items) => updateOrder((o) => colocar(o, items))}
           destinoAgregar={destinoSetlist} onDestinoAgregar={setDestinoSetlist}
+          onEditarItem={(itemId, patch) => updateOrder((o) => o.map((i) => (i.id === itemId ? { ...i, ...patch } : i)))}
           onRemove={removeItem} onRestaurar={restaurarItem} onDuplicate={duplicateItem} onReorder={reorderItem}
           onLinkMinistry={linkMinistry} onUpdateSeccionText={updateSeccionText}
           onSetSongKey={setSongKey}
@@ -2509,6 +2510,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       {tab === "envivo" && liveEvent && (
         <div style={{ width: "100%", flex: 1, minHeight: 0, display: "flex" }}>
           <MultimediaControl
+            key={liveEvent.id || "libre"} eventoId={liveEvent.id || null}
             myIglesiaId={myIglesiaId} palabrasPorParte={palabrasPorParte}
             eventTitle={liveEvent.title} serviceOrder={liveEvent.serviceOrder || []} isFreeSession={liveLibre} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
             goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}
@@ -6098,7 +6100,7 @@ function EventDetail({
   myIglesiaId, onAbrirEditor, onDisenarNueva,
   event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onPracticar, onGoLive, onDelete,
   isDraftFromTemplate, onPublish,
-  onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, destinoAgregar, onDestinoAgregar, onRemove, onRestaurar, onDuplicate, onReorder,
+  onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, destinoAgregar, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
@@ -6372,7 +6374,7 @@ function EventDetail({
         event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer || puedeEditarSetlist} userId={userId} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onAddSeccion={onAddSeccion}
         onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick} onAddItems={onAddItems}
-        destinoAgregar={destinoAgregar} onDestinoAgregar={onDestinoAgregar}
+        destinoAgregar={destinoAgregar} onDestinoAgregar={onDestinoAgregar} onEditarItem={onEditarItem}
         onRemove={onRemove} onRestaurar={onRestaurar} onDuplicate={onDuplicate} onReorder={onReorder}
         onLinkMinistry={onLinkMinistry} onUpdateSeccionText={onUpdateSeccionText}
         onSetSongKey={onSetSongKey}
@@ -6530,7 +6532,7 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, destinoAgregar = null, onDestinoAgregar, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, destinoAgregar = null, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   const [showImportar, setShowImportar] = useState(false); // Importar presentación (ver ImportarPresentacion)
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
@@ -6580,6 +6582,9 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   const [libraryCategoryFilter, setLibraryCategoryFilter] = useState("todos");
   const [expandedSections, setExpandedSections] = useState({});
   const [showSeccionForm, setShowSeccionForm] = useState(false);
+  // Editar una diapositiva de texto con el mismo formulario con que se creó (sin el editor de diseño).
+  const [editTexto, setEditTexto] = useState(null); // { id, draft }
+  const abrirEditarTexto = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "" } });
   // La parte del culto elegida en "+ Agregar" solo vale mientras se está agregando: al cerrarse todo
   // (o cancelar), vuelve a "al final" para que lo siguiente no caiga en un bloque viejo.
   const agregando = showAgregar || pickerCancion || showImportar || showBibleForm || showSlideForm || showSermonForm;
@@ -6944,7 +6949,10 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                     )}
                     <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{item.type === "biblia" ? item.reference : item.name || item.title}</span>
                     {diapsItem?.length > 1 && <span style={{ fontSize: 11, color: "var(--wf-muted)", background: "var(--wf-hover)", borderRadius: 14, padding: "2px 8px", flexShrink: 0 }}>{diapsItem.length} diapositivas</span>}
-                    {item.type === "slide" && isAdminViewer && onAbrirEditor && (
+                    {item.type === "slide" && isAdminViewer && !esGrupoDiapositivas(item) && onEditarItem && (
+                      <button onClick={() => abrirEditarTexto(item)} title="Editar el texto" style={{ ...iconGhost, color: "#2F5FA8" }}><Pencil size={14} /></button>
+                    )}
+                    {item.type === "slide" && isAdminViewer && esGrupoDiapositivas(item) && onAbrirEditor && (
                       <button onClick={() => onAbrirEditor(item.id)} title="Editar el diseño" style={{ ...iconGhost, color: "#2F5FA8" }}><Pencil size={14} /></button>
                     )}
                     {item.isSermonPoint && <span style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-heading)", background: "var(--wf-hover)", borderRadius: 14, padding: "2px 8px", flexShrink: 0 }}>BOSQUEJO</span>}
@@ -6961,6 +6969,11 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
       </div>
       {showBibleForm && <BibleModal onClose={() => setShowBibleForm(false)} onAdd={addBible} splitVersesIndividually />}
       {showSlideForm && <SlideModal iglesiaId={myIglesiaId} draft={slideDraft} setDraft={setSlideDraft} onClose={() => setShowSlideForm(false)} onAdd={addSlide} />}
+      {editTexto && (
+        <SlideModal iglesiaId={myIglesiaId} title="Editar diapositiva" submitLabel="Guardar cambios" draft={editTexto.draft}
+          setDraft={(d) => setEditTexto((e) => ({ ...e, draft: d }))} onClose={() => setEditTexto(null)}
+          onAdd={() => { onEditarItem(editTexto.id, editTexto.draft); setEditTexto(null); }} />
+      )}
       {showSermonForm && (
         <ModalShell title="Agregar punto del bosquejo" icon={Mic2} color="var(--wf-heading)" onClose={() => setShowSermonForm(false)}>
           <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 10 }}>Cada punto se agrega como su propia diapositiva, en el orden en que los escribas — así Multimedia los proyecta uno por uno mientras predicas.</div>
@@ -6981,7 +6994,8 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
         );
         return createPortal(
           <div onPointerDown={(e) => e.stopPropagation()} role="menu" style={{ position: "fixed", left: Math.max(8, menuItem.x), top: menuItem.y, zIndex: 3000, width: 210, background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: 4, boxShadow: "0 12px 30px rgba(0,0,0,0.3)" }}>
-            {it.type === "slide" && onAbrirEditor && opcion(PenTool, "Editar diseño", () => onAbrirEditor(it.id))}
+            {it.type === "slide" && !esGrupoDiapositivas(it) && onEditarItem && opcion(Pencil, "Editar texto", () => abrirEditarTexto(it))}
+            {it.type === "slide" && onAbrirEditor && opcion(PenTool, esGrupoDiapositivas(it) ? "Editar diseño" : "Diseñar (imágenes, plantillas)", () => onAbrirEditor(it.id))}
             {it.type === "cancion" && opcion(Music, "Abrir la canción", () => onOpenSong(it.songId, it.id))}
             {it.type === "seccion" && opcion(Users, expandedSections[it.id] ? "Ocultar encargados" : "Ver encargados", () => setExpandedSections((e) => ({ ...e, [it.id]: !e[it.id] })))}
             {opcion(Copy, "Duplicar", () => onDuplicate(it.id))}
@@ -7753,7 +7767,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar}) {
+function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null}) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -7792,9 +7806,12 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   // localStorage (mismo mecanismo que offlineCache) para que sobrevivan a salir de "En vivo" del todo
   // (MultimediaControl se desmonta con la pestaña) o recargar la app a medio culto.
   const [bibleVersion, setBibleVersion] = useState(() => loadCache("bible_version") || BIBLE_VERSIONS[0].code);
-  const [bibleHistory, setBibleHistory] = useState(() => loadCache("bible_historial") || []);
+  // Historial de versículos POR EVENTO (pedido de Eldin, 2026-10-11): solo los que se usaron en este
+  // culto, no todos los de siempre. La consola se vuelve a montar al cambiar de evento (key).
+  const claveHistorial = `bible_historial_${eventoId || "libre"}`;
+  const [bibleHistory, setBibleHistory] = useState(() => loadCache(claveHistorial) || []);
   useEffect(() => { saveCache("bible_version", bibleVersion); }, [bibleVersion]);
-  useEffect(() => { saveCache("bible_historial", bibleHistory); }, [bibleHistory]);
+  useEffect(() => { saveCache(claveHistorial, bibleHistory); }, [bibleHistory, claveHistorial]);
   const [showAdHocSong, setShowAdHocSong] = useState(false);
   const [showAdHocVideo, setShowAdHocVideo] = useState(false);
   const [showImportar, setShowImportar] = useState(false);
@@ -8139,7 +8156,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           <span style={{ position: "absolute", top: 3, left: 6, fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.45)", zIndex: 1 }}>{i + 1}</span>
           {!esPaginaPresentacion(s) && !s.diseno && <span style={{ fontSize: 10.5, lineHeight: 1.3, textAlign: "center", color: "#fff", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{preview}</span>}
           {((!esPaginaPresentacion(s) && !s.diseno) || (puedeDisenar && s.type === "slide")) && <button
-            onClick={(e) => { e.stopPropagation(); if (puedeDisenar && s.type === "slide") abrirEditor(s); else startEditingSlide(s); }}
+            onClick={(e) => { e.stopPropagation(); if (puedeDisenar && s.type === "slide" && s.diseno) abrirEditor(s); else startEditingSlide(s); }}
             title={puedeDisenar && s.type === "slide" ? "Editar el diseño de esta diapositiva" : "Editar esta diapositiva (corregir texto)"}
             style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 7, padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
           ><Pencil size={11} color="#fff" /></button>}
@@ -8905,7 +8922,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           <div onPointerDown={(e) => e.stopPropagation()} role="menu" style={{ position: "fixed", left: x, top: y, zIndex: 3000, background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: 4, width: 240, maxHeight: 360, overflowY: "auto", boxShadow: "0 12px 30px rgba(0,0,0,0.35)" }}>
             {!menuDiap.sub ? (
               <>
-                {fila(PenTool, "Editar diseño", () => { setMenuDiap(null); abrirEditor(s); })}
+                {!s.diseno && fila(Pencil, "Editar texto", () => { setMenuDiap(null); startEditingSlide(s); })}
+                {fila(PenTool, s.diseno ? "Editar diseño" : "Diseñar (imágenes, plantillas)", () => { setMenuDiap(null); abrirEditor(s); })}
                 {fila(ArrowRightLeft, "Mover a…", () => setMenuDiap({ ...menuDiap, sub: "mover" }), { flecha: true })}
                 {fila(CopyPlus, "Copiar a…", () => setMenuDiap({ ...menuDiap, sub: "copiar" }), { flecha: true })}
                 {s.totalGrupo > 1 && fila(Ungroup, "Sacar del grupo", () => { setMenuDiap(null); enviarDiapositiva(s, "suelta", false); })}
@@ -9241,7 +9259,9 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           {slide.type === "slide" && (
             <div style={{ textAlign: "center", zIndex: 1, width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               <AutoFitText
-                lines={(slide.title || "").split("\n")} targetRatio={slideRatio} minPx={thumbnail ? 8 : 16} maxPx={thumbnail ? 30 : 130} maxWidth="90%" {...ubicacion}
+                // Un renglón vacío se proyecta como espacio (pedido de Eldin, 2026-10-11): una línea "" medía
+                // 0 de alto y el texto quedaba junto. Solo se quitan los renglones vacíos de las orillas.
+                lines={(slide.title || "").replace(/^\s*\n+|\n+\s*$/g, "").split("\n").map((l) => (l.trim() === "" ? "\u00A0" : l))} targetRatio={slideRatio} minPx={thumbnail ? 8 : 16} maxPx={thumbnail ? 30 : 130} maxWidth="90%" {...ubicacion}
                 style={{ fontFamily: font.family, fontWeight: Math.max(font.weight, 600), textTransform: font.transform, letterSpacing: espaciadoLetras, fontStyle: font.italic ? "italic" : "normal", textAlign: alineacion.text, lineHeight: liveStyle?.interlineado ?? undefined, textShadow: sombraTexto, color: textColor }}
               />
               {slide.subtitle && !thumbnail && <div style={{ fontSize: 15, color: "#B7BEC9", marginTop: 8, flexShrink: 0, whiteSpace: "pre-line" }}>{slide.subtitle}</div>}
