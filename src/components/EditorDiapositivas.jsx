@@ -2,12 +2,13 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Undo2, Redo2, Type, ImagePlus, PaintBucket, AlignLeft, AlignCenter, AlignRight, AlignStartVertical, AlignCenterVertical, AlignEndVertical,
-  Copy, BringToFront, SendToBack, Trash2, LayoutTemplate, Plus, Bold, Italic, Loader2, ClipboardPaste, CopyPlus,
+  Copy, BringToFront, SendToBack, Trash2, LayoutTemplate, Plus, Bold, Italic, Loader2, ClipboardPaste, CopyPlus, Shapes, Smile, Search,
 } from "lucide-react";
+import { ICONOS_DISENO } from "./iconosDiseno.js";
 import DiapositivaDisenada from "./DiapositivaDisenada.jsx";
 import {
   FUENTES, COLORES, PLANTILLAS, LIENZO_ANCHO, familiaDe, nuevaCapaTexto, nuevaCapaImagen, clonarDiapositiva, clonarCapa,
-  posicionRapida, ajustarAGuias, redondear, nuevaDiapositiva,
+  posicionRapida, ajustarAGuias, redondear, nuevaDiapositiva, FORMAS, nuevaCapaForma, nuevaCapaIcono, DEGRADADOS, degradado, cssDegradado,
 } from "../lib/diapositivas.js";
 import { subirFondo } from "../lib/multimedia.js";
 import { useArrastreLista } from "../lib/arrastreLista.js";
@@ -104,6 +105,8 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
   const [guias, setGuias] = useState({ x: null, y: null });
   const [menu, setMenu] = useState(null); // { x, y, indice } — clic derecho en una miniatura
   const [plantillasAbiertas, setPlantillasAbiertas] = useState(nueva); // una diapositiva nueva abre con las plantillas a la vista
+  const [panelInsertar, setPanelInsertar] = useState(null); // null | "formas" | "iconos"
+  const [buscarIcono, setBuscarIcono] = useState("");
   const [subiendo, setSubiendo] = useState(false);
   const [zona, setZona] = useState("lienzo"); // dónde fue el último clic: "lienzo" | "lista" (para Supr)
   const [lienzoPx, setLienzoPx] = useState({ w: 960, h: 540 });
@@ -185,7 +188,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
       if (m.includes("s")) h = Math.max(2, c0.h + dy);
       if (m.includes("w")) { w = Math.max(2, c0.w - dx); x = c0.x + c0.w - w; }
       if (m.includes("n")) { h = Math.max(2, c0.h - dy); y = c0.y + c0.h - h; }
-      const mantener = (c0.tipo === "imagen") !== e.shiftKey && m.length === 2;
+      const mantener = (c0.tipo === "imagen" || c0.tipo === "icono" || (c0.tipo === "forma" && c0.forma === "circulo")) !== e.shiftKey && m.length === 2;
       if (mantener) {
         const prop = c0.w / c0.h;
         if (Math.abs(dx) > Math.abs(dy)) { const h2 = w / prop; if (m.includes("n")) y = c0.y + c0.h - h2; h = h2; }
@@ -203,6 +206,10 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
     cambiarDiap((d) => ({ ...d, capas: [...d.capas, c] }));
     setCapaSel(c.id);
     setTimeout(() => { setEditandoTexto(c.id); }, 0);
+  };
+  const agregarCapa = (c) => {
+    cambiarDiap((d) => ({ ...d, capas: [...d.capas, c] }));
+    setCapaSel(c.id); setEditandoTexto(null); setPanelInsertar(null); setZona("lienzo");
   };
   const elegirImagen = async (file, destino) => {
     if (!file) return;
@@ -314,7 +321,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
       else if (mod && k === "v") { e.preventDefault(); a.pegar(); }
       else if (mod && k === "d") { e.preventDefault(); if (a.capa && a.zona !== "lista") a.duplicarCapa(); else a.duplicarDiapositiva(); }
       else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); if (a.capa && a.zona !== "lista") a.borrarCapa(); else if (a.zona === "lista") a.borrarDiapositiva(); }
-      else if (e.key === "Escape") { setCapaSel(null); setMenu(null); setPlantillasAbiertas(false); }
+      else if (e.key === "Escape") { setCapaSel(null); setMenu(null); setPlantillasAbiertas(false); setPanelInsertar(null); }
       else if (e.key.startsWith("Arrow")) {
         e.preventDefault();
         if (a.capa && a.zona !== "lista") {
@@ -352,7 +359,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
   const fondo = diap?.fondo || {};
 
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: C.fondo, color: C.texto, display: "flex", flexDirection: "column", fontFamily: "'Poppins', sans-serif" }} onPointerDown={() => { if (menu) setMenu(null); if (plantillasAbiertas) setPlantillasAbiertas(false); }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: C.fondo, color: C.texto, display: "flex", flexDirection: "column", fontFamily: "'Poppins', sans-serif" }} onPointerDown={() => { if (menu) setMenu(null); if (plantillasAbiertas) setPlantillasAbiertas(false); if (panelInsertar) setPanelInsertar(null); }}>
       {/* Barra superior */}
       <div style={{ height: 54, background: C.marino, display: "flex", alignItems: "center", gap: 12, padding: "0 16px", flexShrink: 0 }}>
         <span style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, whiteSpace: "nowrap" }}>Diseño de diapositivas</span>
@@ -373,6 +380,58 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
         <GrupoCinta label="Insertar">
           <BotonCinta icon={Type} label="Texto" onClick={agregarTexto} />
           <BotonCinta icon={ImagePlus} label="Imagen" onClick={() => inputImagenRef.current?.click()} />
+          <div style={{ position: "relative" }} onPointerDown={(e) => e.stopPropagation()}>
+            <BotonCinta icon={Shapes} label="Forma" onClick={() => setPanelInsertar((p) => (p === "formas" ? null : "formas"))} activo={panelInsertar === "formas"} titulo="Rectángulo, círculo, línea, franja, marco" />
+            {panelInsertar === "formas" && (
+              <div style={{ position: "absolute", top: 58, left: 0, zIndex: 5, background: C.panel, border: `1px solid ${C.bordeCampo}`, borderRadius: 12, padding: 10, width: 300, boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>
+                <div style={{ ...etiqueta, marginBottom: 8 }}>Formas</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                  {FORMAS.map((f) => {
+                    const ej = nuevaCapaForma(f.clave);
+                    return (
+                      <button key={f.clave} onClick={() => agregarCapa(nuevaCapaForma(f.clave))} title={f.nombre}
+                        style={{ background: C.campo, border: `1px solid ${C.bordeCampo}`, borderRadius: 8, padding: 8, cursor: "pointer", color: C.texto, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, fontSize: 11 }}>
+                        <span style={{ width: 54, height: 34, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <span style={{ display: "block", width: `${Math.min(100, ej.w * 1.6)}%`, height: `${Math.max(6, Math.min(100, ej.h * 1.6))}%`, background: ej.color || "transparent", border: ej.borde ? `2px solid ${ej.borde}` : "none", borderRadius: ej.forma === "circulo" ? "50%" : Math.min(10, (ej.radio || 0) / 6), aspectRatio: ej.forma === "circulo" ? "1" : undefined, maxHeight: "100%" }} />
+                        </span>
+                        {f.nombre}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+          <div style={{ position: "relative" }} onPointerDown={(e) => e.stopPropagation()}>
+            <BotonCinta icon={Smile} label="Ícono" onClick={() => setPanelInsertar((p) => (p === "iconos" ? null : "iconos"))} activo={panelInsertar === "iconos"} titulo="Cruz, paloma, Biblia, corazón, micrófono…" />
+            {panelInsertar === "iconos" && (
+              <div style={{ position: "absolute", top: 58, left: 0, zIndex: 5, background: C.panel, border: `1px solid ${C.bordeCampo}`, borderRadius: 12, padding: 10, width: 380, maxHeight: "62vh", overflowY: "auto", boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, ...estiloCampo, marginBottom: 10 }}>
+                  <Search size={14} color={C.suave} />
+                  <input autoFocus value={buscarIcono} onChange={(e) => setBuscarIcono(e.target.value)} placeholder="Buscar: cruz, música, fecha…" style={{ background: "transparent", border: "none", outline: "none", color: C.texto, fontSize: 12.5, flex: 1, fontFamily: "inherit" }} />
+                </div>
+                {[...new Set(ICONOS_DISENO.map((i) => i.grupo))].map((grupo) => {
+                  const q = buscarIcono.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                  const lista = ICONOS_DISENO.filter((i) => i.grupo === grupo && (!q || `${i.nombre} ${i.clave}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q)));
+                  if (!lista.length) return null;
+                  return (
+                    <div key={grupo} style={{ marginBottom: 10 }}>
+                      <div style={{ ...etiqueta, marginBottom: 6 }}>{grupo}</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
+                        {lista.map(({ clave, nombre, Icon }) => (
+                          <button key={clave} onClick={() => agregarCapa(nuevaCapaIcono(clave))} title={nombre}
+                            style={{ aspectRatio: "1", background: C.campo, border: `1px solid ${C.bordeCampo}`, borderRadius: 8, cursor: "pointer", color: C.texto, display: "flex", alignItems: "center", justifyContent: "center" }}
+                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.naranja; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.bordeCampo; }}>
+                            <Icon size={22} strokeWidth={1.6} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <BotonCinta icon={PaintBucket} label="Fondo" onClick={() => { setCapaSel(null); setEditandoTexto(null); }} activo={!capa} titulo="Opciones del fondo (a la derecha)" />
         </GrupoCinta>
         <GrupoCinta label="Alinear en la diapositiva">
@@ -393,9 +452,9 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
           <div style={{ position: "relative" }} onPointerDown={(e) => e.stopPropagation()}>
             <BotonCinta icon={LayoutTemplate} label="Plantillas" onClick={() => setPlantillasAbiertas((v) => !v)} activo={plantillasAbiertas} />
             {plantillasAbiertas && (
-              <div style={{ position: "absolute", top: 58, right: 0, zIndex: 5, background: C.panel, border: `1px solid ${C.bordeCampo}`, borderRadius: 12, padding: 10, width: 380, boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>
-                <div style={{ ...etiqueta, marginBottom: 8 }}>Plantillas</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div style={{ position: "absolute", top: 58, right: 0, zIndex: 5, background: C.panel, border: `1px solid ${C.bordeCampo}`, borderRadius: 12, padding: 10, width: 560, maxHeight: "70vh", overflowY: "auto", boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>
+                <div style={{ ...etiqueta, marginBottom: 8 }}>Plantillas · todo se puede cambiar después</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                   {PLANTILLAS.map((p) => {
                     const ejemplo = p.crear();
                     return (
@@ -485,7 +544,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
             </DiapositivaDisenada>
           </div>
           <div style={{ position: "absolute", left: 16, bottom: 12, fontSize: 11.5, color: C.tenue }}>
-            {capa ? (capa.tipo === "texto" ? "Texto seleccionado · Doble clic para escribir · Flechas para mover · Alt = sin guías" : "Imagen seleccionada · Arrastra las esquinas para cambiar el tamaño · Shift = libre") : "Clic en un texto o imagen para seleccionarlo"}
+            {capa ? (capa.tipo === "texto" ? "Texto seleccionado · Doble clic para escribir · Flechas para mover · Alt = sin guías" : `${capa.tipo === "forma" ? "Forma seleccionada" : capa.tipo === "icono" ? "Ícono seleccionado" : "Imagen seleccionada"} · Arrastra las esquinas para cambiar el tamaño · Shift = libre`) : "Clic en un elemento para seleccionarlo"}
           </div>
           <div style={{ position: "absolute", right: 16, bottom: 12, fontSize: 11.5, color: C.tenue }}>Diapositiva {sel + 1} de {diaps.length} · 16:9</div>
         </div>
@@ -527,6 +586,38 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
                 {capa.caja && <div style={{ marginTop: 8 }}><div style={{ ...etiqueta, marginBottom: 2 }}>Esquinas</div><Deslizador valor={capa.radio || 0} min={0} max={120} onInicio={marcarHistoria} onCambiar={(v) => cambiarCapa({ radio: v }, { guardarHistoria: false })} /></div>}
               </div>
             </>
+          ) : capa?.tipo === "forma" ? (
+            <>
+              <div style={{ ...etiqueta, fontSize: 12, color: C.texto }}>Forma</div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={etiqueta}>Tipo</div>
+                <Segmentos valor={capa.forma} onCambiar={(v) => cambiarCapa({ forma: v })} opciones={[["rect", "Rectángulo"], ["circulo", "Círculo"]]} />
+              </div>
+              <div style={{ marginBottom: 14 }}><div style={etiqueta}>Relleno</div><Muestras valor={capa.color} conNinguno onCambiar={(v) => cambiarCapa({ color: v })} /></div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={etiqueta}>Borde</div>
+                <Muestras valor={capa.borde} conNinguno onCambiar={(v) => cambiarCapa({ borde: v })} />
+                {capa.borde && <div style={{ marginTop: 8 }}><div style={{ ...etiqueta, marginBottom: 2 }}>Grosor</div><Deslizador valor={capa.grosor || 6} min={1} max={40} onInicio={marcarHistoria} onCambiar={(v) => cambiarCapa({ grosor: v }, { guardarHistoria: false })} /></div>}
+              </div>
+              {capa.forma !== "circulo" && <div style={{ marginBottom: 14 }}><div style={etiqueta}>Esquinas</div><Deslizador valor={capa.radio || 0} min={0} max={300} onInicio={marcarHistoria} onCambiar={(v) => cambiarCapa({ radio: v }, { guardarHistoria: false })} /></div>}
+              <div style={{ marginBottom: 14 }}><div style={etiqueta}>Transparencia</div><Deslizador valor={Math.round((capa.opacidad ?? 1) * 100)} min={5} max={100} sufijo="%" onInicio={marcarHistoria} onCambiar={(v) => cambiarCapa({ opacidad: v / 100 }, { guardarHistoria: false })} /></div>
+              <div style={{ fontSize: 11, color: C.tenue, lineHeight: 1.5, marginBottom: 14 }}>Truco: una forma con transparencia detrás de un texto lo hace leer mejor sobre una foto. Usa <b>Atrás</b> para mandarla detrás.</div>
+            </>
+          ) : capa?.tipo === "icono" ? (
+            <>
+              <div style={{ ...etiqueta, fontSize: 12, color: C.texto }}>Ícono</div>
+              <div style={{ marginBottom: 14 }}><div style={etiqueta}>Color</div><Muestras valor={capa.color} onCambiar={(v) => cambiarCapa({ color: v })} /></div>
+              <div style={{ marginBottom: 14 }}><div style={etiqueta}>Grosor del trazo</div><Deslizador valor={(capa.grosor || 1.6) * 10} min={5} max={35} onInicio={marcarHistoria} onCambiar={(v) => cambiarCapa({ grosor: v / 10 }, { guardarHistoria: false })} /></div>
+              <div style={{ marginBottom: 14 }}><div style={etiqueta}>Transparencia</div><Deslizador valor={Math.round((capa.opacidad ?? 1) * 100)} min={5} max={100} sufijo="%" onInicio={marcarHistoria} onCambiar={(v) => cambiarCapa({ opacidad: v / 100 }, { guardarHistoria: false })} /></div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={etiqueta}>Cambiar por otro</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 5, maxHeight: 170, overflowY: "auto" }}>
+                  {ICONOS_DISENO.map(({ clave, nombre, Icon }) => (
+                    <button key={clave} onClick={() => cambiarCapa({ icono: clave })} title={nombre} style={{ aspectRatio: "1", background: capa.icono === clave ? C.naranja : C.campo, border: `1px solid ${C.bordeCampo}`, borderRadius: 6, cursor: "pointer", color: capa.icono === clave ? C.marino : C.texto, display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><Icon size={16} /></button>
+                  ))}
+                </div>
+              </div>
+            </>
           ) : capa?.tipo === "imagen" ? (
             <>
               <div style={{ ...etiqueta, fontSize: 12, color: C.texto }}>Imagen</div>
@@ -541,7 +632,27 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
           ) : (
             <>
               <div style={{ ...etiqueta, fontSize: 12, color: C.texto }}>Fondo de la diapositiva</div>
-              <div style={{ marginBottom: 14 }}><div style={etiqueta}>Color</div><Muestras valor={fondo.color} onCambiar={(v) => cambiarDiap((d) => ({ ...d, fondo: { ...d.fondo, color: v, ...(d.fondo?.tipo === "imagen" || d.fondo?.tipo === "video" ? {} : { tipo: "color" }) } }))} /></div>
+              <div style={{ marginBottom: 14 }}><div style={etiqueta}>Color</div><Muestras valor={fondo.tipo === "degradado" ? null : fondo.color} onCambiar={(v) => cambiarDiap((d) => ({ ...d, fondo: { ...d.fondo, color: v, ...(d.fondo?.tipo === "imagen" || d.fondo?.tipo === "video" ? {} : { tipo: "color" }) } }))} /></div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={etiqueta}>Degradado</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
+                  {DEGRADADOS.map((g) => {
+                    const activo = fondo.tipo === "degradado" && fondo.color === g.color && fondo.color2 === g.color2;
+                    return <button key={g.clave} title={g.nombre} onClick={() => cambiarDiap((d) => ({ ...d, fondo: degradado(g.clave) }))} style={{ aspectRatio: "16/10", borderRadius: 6, cursor: "pointer", padding: 0, background: cssDegradado(g), border: `2px solid ${activo ? C.naranja : C.bordeCampo}` }} />;
+                  })}
+                </div>
+                {fondo.tipo === "degradado" && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                      <span style={{ fontSize: 11.5, color: C.suave }}>Colores</span>
+                      <input type="color" value={fondo.color || "#16324F"} onChange={(e) => cambiarDiap((d) => ({ ...d, fondo: { ...d.fondo, color: e.target.value } }))} style={{ width: 34, height: 26, border: "none", background: "none", cursor: "pointer" }} />
+                      <input type="color" value={fondo.color2 || "#000000"} onChange={(e) => cambiarDiap((d) => ({ ...d, fondo: { ...d.fondo, color2: e.target.value } }))} style={{ width: 34, height: 26, border: "none", background: "none", cursor: "pointer" }} />
+                    </div>
+                    <div style={{ ...etiqueta, marginBottom: 2 }}>Dirección</div>
+                    <Deslizador valor={fondo.angulo ?? 160} min={0} max={360} sufijo="°" onInicio={marcarHistoria} onCambiar={(v) => cambiarDiap((d) => ({ ...d, fondo: { ...d.fondo, angulo: v } }), { guardarHistoria: false })} />
+                  </div>
+                )}
+              </div>
               <div style={{ marginBottom: 14 }}>
                 <div style={etiqueta}>Imagen de fondo</div>
                 {fondo.tipo === "imagen" && fondo.url ? (
@@ -557,7 +668,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
                   <button onClick={() => inputFondoRef.current?.click()} style={{ ...estiloCampo, cursor: "pointer" }}>Subir imagen…</button>
                 )}
               </div>
-              <div style={{ fontSize: 11.5, color: C.tenue, lineHeight: 1.6 }}>Usa <b>Texto</b> o <b>Imagen</b> arriba para agregar algo encima. Las páginas de un PDF quedan como fondo: puedes ponerles texto o un logo encima sin rehacer el archivo.</div>
+              <div style={{ fontSize: 11.5, color: C.tenue, lineHeight: 1.6 }}>Usa <b>Texto</b>, <b>Imagen</b>, <b>Forma</b> o <b>Ícono</b> arriba para agregar algo encima. Las páginas de un PDF quedan como fondo: puedes ponerles texto o un logo encima sin rehacer el archivo.</div>
             </>
           )}
           {capa && (

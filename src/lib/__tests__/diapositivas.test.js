@@ -125,3 +125,24 @@ describe("herramientas del editor", () => {
     expect(tituloBase("Bienvenida (2/5)")).toBe("Bienvenida");
   });
 });
+
+describe("editor tipo Canva", () => {
+  it("formas, íconos y degradados", async () => {
+    const { nuevaCapaForma, nuevaCapaIcono, degradado, cssDegradado, PLANTILLAS: P } = await import("../diapositivas.js");
+    const c = nuevaCapaForma("circulo");
+    expect(c).toMatchObject({ tipo: "forma", forma: "circulo" });
+    expect(Math.round((c.w * 16) / 9)).toBe(Math.round(c.h)); // círculo redondo en 16:9
+    expect(nuevaCapaForma("marco").color).toBeNull();
+    const i = nuevaCapaIcono("paloma");
+    expect(i).toMatchObject({ tipo: "icono", icono: "paloma" });
+    expect(cssDegradado(degradado("atardecer"))).toContain("linear-gradient");
+    expect(P.length).toBeGreaterThanOrEqual(12);
+    P.forEach((p) => { const d = p.crear(); expect(d.fondo).toBeTruthy(); expect(Array.isArray(d.capas)).toBe(true); });
+  });
+  it("todos los íconos de las plantillas existen", async () => {
+    const { PLANTILLAS: P } = await import("../diapositivas.js");
+    const { ICONOS_DISENO } = await import("../../components/iconosDiseno.js");
+    const claves = new Set(ICONOS_DISENO.map((x) => x.clave));
+    P.flatMap((p) => p.crear().capas).filter((c) => c.tipo === "icono").forEach((c) => expect(claves.has(c.icono)).toBe(true));
+  });
+});

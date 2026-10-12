@@ -9,6 +9,9 @@
 // Diapositiva = { id, fondo: { tipo: "color" | "imagen" | "video", color, url, ajuste: "contain" | "cover" }, capas: [Capa] }
 // Capa texto  = { id, tipo: "texto", x, y, w, h, texto, fuente, tamano, color, negrita, cursiva, alinear, vertical, caja, radio }
 // Capa imagen = { id, tipo: "imagen", x, y, w, h, url, ajuste, radio, opacidad }
+// Capa forma  = { id, tipo: "forma", x, y, w, h, forma: "rect" | "circulo", color, borde, grosor, radio, opacidad }
+// Capa icono  = { id, tipo: "icono", x, y, w, h, icono (clave de components/iconosDiseno.js), color, grosor, opacidad }
+// Fondo "degradado" = { tipo: "degradado", color, color2, angulo } (editor tipo Canva, 2026-10-11)
 // x, y, w, h en % del lienzo 16:9; tamano en px sobre un lienzo de 1920 de ancho; radio en px sobre 1920.
 // Así se ve igual en una miniatura, en el editor y en el proyector.
 
@@ -64,6 +67,41 @@ export function nuevaCapaImagen(url, anchoPx = 16, altoPx = 9, props = {}) {
   if (h > 50) { h = 50; w = (h * proporcion * 9) / 16; }
   return { id: uid(), tipo: "imagen", x: (100 - w) / 2, y: (100 - h) / 2, w, h, url, ajuste: "contain", radio: 0, opacidad: 1, ...props };
 }
+
+// ---- Formas, íconos y degradados (editor tipo Canva, pedido de Eldin, 2026-10-11) ----
+// Formas listas para insertar: todas son un rectángulo o un círculo con distinto tamaño/esquinas.
+export const FORMAS = [
+  { clave: "rect", nombre: "Rectángulo", crear: () => ({ forma: "rect", w: 40, h: 30, radio: 0 }) },
+  { clave: "redondeado", nombre: "Redondeado", crear: () => ({ forma: "rect", w: 40, h: 30, radio: 60 }) },
+  { clave: "circulo", nombre: "Círculo", crear: () => ({ forma: "circulo", w: 22.5, h: 40 }) },
+  { clave: "linea", nombre: "Línea", crear: () => ({ forma: "rect", w: 50, h: 0.8, radio: 8 }) },
+  { clave: "franja", nombre: "Franja", crear: () => ({ forma: "rect", w: 100, h: 22, radio: 0, x: 0 }) },
+  { clave: "marco", nombre: "Marco", crear: () => ({ forma: "rect", w: 90, h: 84, radio: 24, color: null, borde: "#FFFFFF", grosor: 8 }) },
+];
+export function nuevaCapaForma(clave = "rect", props = {}) {
+  const f = (FORMAS.find((x) => x.clave === clave) || FORMAS[0]).crear();
+  const w = f.w; const h = f.h;
+  return { id: uid(), tipo: "forma", x: f.x ?? (100 - w) / 2, y: (100 - h) / 2, w, h, forma: f.forma, color: f.color === null ? null : "#E8821E", borde: f.borde || null, grosor: f.grosor || 6, radio: f.radio || 0, opacidad: 1, ...props };
+}
+// Un ícono entra cuadrado en pantalla (16:9 → el alto en % es 16/9 del ancho).
+export function nuevaCapaIcono(icono = "cruz", props = {}) {
+  const w = 12; const h = (w * 16) / 9;
+  return { id: uid(), tipo: "icono", x: (100 - w) / 2, y: (100 - h) / 2, w, h, icono, color: "#FFFFFF", grosor: 1.6, opacidad: 1, ...props };
+}
+export const DEGRADADOS = [
+  { clave: "noche", nombre: "Noche", color: "#16324F", color2: "#0B1622", angulo: 160 },
+  { clave: "atardecer", nombre: "Atardecer", color: "#E8821E", color2: "#B1345E", angulo: 135 },
+  { clave: "real", nombre: "Real", color: "#3B2A7A", color2: "#B15EA0", angulo: 135 },
+  { clave: "oceano", nombre: "Océano", color: "#0E7C86", color2: "#16324F", angulo: 160 },
+  { clave: "dorado", nombre: "Dorado", color: "#C8963E", color2: "#5A3B12", angulo: 150 },
+  { clave: "cielo", nombre: "Cielo", color: "#8EC5FC", color2: "#2F5FA8", angulo: 180 },
+  { clave: "bosque", nombre: "Bosque", color: "#1F8A73", color2: "#0D3B2E", angulo: 160 },
+  { clave: "fuego", nombre: "Fuego", color: "#F4A62A", color2: "#C23B32", angulo: 135 },
+  { clave: "claro", nombre: "Claro", color: "#FFFFFF", color2: "#E3EAF4", angulo: 180 },
+  { clave: "carbon", nombre: "Carbón", color: "#2B3240", color2: "#07090D", angulo: 160 },
+];
+export const degradado = (clave) => { const d = DEGRADADOS.find((x) => x.clave === clave) || DEGRADADOS[0]; return { tipo: "degradado", color: d.color, color2: d.color2, angulo: d.angulo, url: "", ajuste: "cover" }; };
+export const cssDegradado = (f) => `linear-gradient(${f.angulo ?? 160}deg, ${f.color || "#16324F"}, ${f.color2 || "#000000"})`;
 
 const copiaProfunda = (v) => JSON.parse(JSON.stringify(v));
 
@@ -187,37 +225,125 @@ export function quitarDiapositiva(orden, itemId, indice) {
 }
 
 // ---- Plantillas ----
+// Plantillas de iglesia (pedido de Eldin, 2026-10-11): todo es editable después de aplicarla.
+const T = nuevaCapaTexto;
+const I = nuevaCapaIcono;
+const F = nuevaCapaForma;
+const conFondo = (fondo, capas) => ({ ...nuevaDiapositiva(fondo), capas });
 export const PLANTILLAS = [
   {
     clave: "bienvenida", nombre: "Bienvenida",
-    crear: () => ({ ...nuevaDiapositiva({ color: "#16324F" }), capas: [
-      nuevaCapaTexto({ texto: "Bienvenidos", fuente: "dancing", tamano: 180, y: 22, h: 30, negrita: true }),
-      nuevaCapaTexto({ texto: "Venid a mí todos los que estáis trabajados y cargados,\ny yo os haré descansar.", tamano: 52, y: 56, h: 18, negrita: false, color: "#F4E6C8" }),
-      nuevaCapaTexto({ texto: "Mateo 11:28", tamano: 40, y: 76, h: 8, negrita: true, color: "#E8821E" }),
-    ] }),
+    crear: () => conFondo(degradado("noche"), [
+      I("brillos", { x: 45, y: 8, w: 10, h: 17.8, color: "#E8821E" }),
+      T({ texto: "Bienvenidos", fuente: "dancing", tamano: 190, y: 26, h: 30, negrita: true }),
+      T({ texto: "Venid a mí todos los que estáis trabajados y cargados,\ny yo os haré descansar.", tamano: 50, y: 58, h: 16, negrita: false, color: "#F4E6C8" }),
+      T({ texto: "Mateo 11:28", tamano: 40, y: 77, h: 8, negrita: true, color: "#E8821E" }),
+    ]),
   },
   {
     clave: "anuncio", nombre: "Anuncio",
-    crear: () => ({ ...nuevaDiapositiva({ color: "#0F141C" }), capas: [
-      nuevaCapaTexto({ texto: "ANUNCIO", tamano: 44, x: 8, y: 14, w: 40, h: 8, alinear: "left", color: "#E8821E" }),
-      nuevaCapaTexto({ texto: "Título del anuncio", tamano: 120, x: 8, y: 24, w: 84, h: 22, alinear: "left", fuente: "fraunces" }),
-      nuevaCapaTexto({ texto: "Domingo 10:00 a. m. · Templo principal", tamano: 56, x: 8, y: 50, w: 84, h: 10, alinear: "left", negrita: false, color: "#C9D1DC" }),
-      nuevaCapaTexto({ texto: "¡Te esperamos!", tamano: 52, x: 8, y: 72, w: 40, h: 11, color: "#16324F", caja: "#E8821E", radio: 30 }),
-    ] }),
+    crear: () => conFondo({ color: "#0F141C" }, [
+      F("rect", { x: 0, y: 0, w: 1.2, h: 100, color: "#E8821E" }),
+      I("megafono", { x: 8, y: 12, w: 6, h: 10.7, color: "#E8821E" }),
+      T({ texto: "ANUNCIO", tamano: 44, x: 16, y: 13, w: 40, h: 8, alinear: "left", color: "#E8821E" }),
+      T({ texto: "Título del anuncio", tamano: 120, x: 8, y: 26, w: 84, h: 22, alinear: "left", fuente: "fraunces" }),
+      I("fecha", { x: 8, y: 54, w: 3.5, h: 6.2, color: "#C9D1DC" }),
+      T({ texto: "Domingo 10:00 a. m. · Templo principal", tamano: 52, x: 13, y: 53, w: 80, h: 9, alinear: "left", negrita: false, color: "#C9D1DC" }),
+      T({ texto: "¡Te esperamos!", tamano: 52, x: 8, y: 72, w: 36, h: 11, color: "#16324F", caja: "#E8821E", radio: 30 }),
+    ]),
   },
   {
     clave: "versiculo", nombre: "Versículo",
-    crear: () => ({ ...nuevaDiapositiva({ color: "#1B2029" }), capas: [
-      nuevaCapaTexto({ texto: "Porque de tal manera amó Dios al mundo, que ha dado a su Hijo unigénito…", fuente: "fraunces", tamano: 84, x: 10, y: 24, w: 80, h: 40, negrita: false }),
-      nuevaCapaTexto({ texto: "Juan 3:16", tamano: 48, x: 30, y: 70, w: 40, h: 9, color: "#E8821E" }),
-    ] }),
+    crear: () => conFondo(degradado("carbon"), [
+      I("cita", { x: 8, y: 12, w: 8, h: 14.2, color: "#E8821E", grosor: 1.2 }),
+      T({ texto: "Porque de tal manera amó Dios al mundo, que ha dado a su Hijo unigénito…", fuente: "fraunces", tamano: 84, x: 10, y: 26, w: 80, h: 38, negrita: false }),
+      F("linea", { x: 42, y: 69, w: 16, h: 0.6, color: "#E8821E" }),
+      T({ texto: "Juan 3:16", tamano: 48, x: 30, y: 73, w: 40, h: 9, color: "#E8821E" }),
+    ]),
+  },
+  {
+    clave: "ofrenda", nombre: "Ofrenda",
+    crear: () => conFondo(degradado("dorado"), [
+      I("ofrenda", { x: 44, y: 10, w: 12, h: 21.3, color: "#FFF4DD" }),
+      T({ texto: "Tiempo de dar", fuente: "dancing", tamano: 170, y: 34, h: 24 }),
+      T({ texto: "Cada uno dé como propuso en su corazón:\nno con tristeza, ni por necesidad,\nporque Dios ama al dador alegre.", tamano: 46, y: 60, h: 20, negrita: false, color: "#FFF4DD" }),
+      T({ texto: "2 Corintios 9:7", tamano: 36, y: 82, h: 7, color: "#FFFFFF" }),
+    ]),
+  },
+  {
+    clave: "cumpleanos", nombre: "Cumpleañeros",
+    crear: () => conFondo(degradado("real"), [
+      I("pastel", { x: 44, y: 8, w: 12, h: 21.3, color: "#FFFFFF" }),
+      I("fiesta", { x: 18, y: 16, w: 8, h: 14.2, color: "#F4A62A" }),
+      I("fiesta", { x: 74, y: 16, w: 8, h: 14.2, color: "#F4A62A" }),
+      T({ texto: "¡Feliz cumpleaños!", fuente: "pacifico", tamano: 130, y: 32, h: 22, negrita: false }),
+      T({ texto: "Nombre · Nombre · Nombre", tamano: 60, y: 58, h: 12 }),
+      T({ texto: "Que Dios te bendiga este nuevo año de vida", tamano: 42, y: 74, h: 9, negrita: false, color: "#F4E6C8" }),
+    ]),
+  },
+  {
+    clave: "santa-cena", nombre: "Santa Cena",
+    crear: () => conFondo(degradado("carbon"), [
+      I("trigo", { x: 36, y: 10, w: 11, h: 19.6, color: "#E3C27A" }),
+      I("copa", { x: 53, y: 10, w: 11, h: 19.6, color: "#B1345E" }),
+      T({ texto: "Santa Cena", fuente: "cinzel", tamano: 140, y: 34, h: 20 }),
+      T({ texto: "Haced esto en memoria de mí.", fuente: "fraunces", tamano: 60, y: 58, h: 12, negrita: false, cursiva: true, color: "#F4E6C8" }),
+      T({ texto: "Lucas 22:19", tamano: 38, y: 74, h: 8, color: "#E3C27A" }),
+    ]),
+  },
+  {
+    clave: "bautizo", nombre: "Bautizo",
+    crear: () => conFondo(degradado("cielo"), [
+      I("paloma", { x: 45, y: 8, w: 10, h: 17.8, color: "#FFFFFF" }),
+      T({ texto: "Bautizos", fuente: "dancing", tamano: 180, y: 28, h: 26 }),
+      T({ texto: "El que creyere y fuere bautizado, será salvo.", tamano: 52, y: 58, h: 12, negrita: false }),
+      I("agua", { x: 40, y: 74, w: 20, h: 12, color: "#FFFFFF", grosor: 1.2 }),
+    ]),
+  },
+  {
+    clave: "ayuno", nombre: "Ayuno y oración",
+    crear: () => conFondo(degradado("noche"), [
+      F("marco", { borde: "#E8821E", grosor: 6 }),
+      I("manos", { x: 45, y: 14, w: 10, h: 17.8, color: "#E8821E" }),
+      T({ texto: "Ayuno y oración", fuente: "fraunces", tamano: 120, y: 34, h: 20 }),
+      T({ texto: "Viernes · 6:00 a. m. a 12:00 p. m.", tamano: 52, y: 58, h: 10, negrita: false, color: "#C9D1DC" }),
+      T({ texto: "¡Te esperamos!", tamano: 44, x: 38, y: 72, w: 24, h: 10, color: "#16324F", caja: "#E8821E", radio: 30 }),
+    ]),
+  },
+  {
+    clave: "oracion", nombre: "Oración",
+    crear: () => conFondo(degradado("oceano"), [
+      I("llama", { x: 45, y: 12, w: 10, h: 17.8, color: "#F4A62A" }),
+      T({ texto: "Tiempo de oración", fuente: "fraunces", tamano: 120, y: 34, h: 20 }),
+      T({ texto: "Clama a mí, y yo te responderé.", fuente: "fraunces", tamano: 56, y: 58, h: 12, negrita: false, cursiva: true }),
+      T({ texto: "Jeremías 33:3", tamano: 38, y: 74, h: 8, color: "#F4E6C8" }),
+    ]),
+  },
+  {
+    clave: "despedida", nombre: "Despedida",
+    crear: () => conFondo(degradado("atardecer"), [
+      T({ texto: "Dios les bendiga", fuente: "dancing", tamano: 180, y: 20, h: 28 }),
+      F("linea", { x: 30, y: 52, w: 40, h: 0.6, color: "#FFFFFF" }),
+      I("fecha", { x: 31, y: 58, w: 4, h: 7.1, color: "#FFFFFF" }),
+      T({ texto: "Nos vemos el domingo a las 10:00", tamano: 56, x: 36, y: 57, w: 50, h: 10, alinear: "left", negrita: false }),
+    ]),
+  },
+  {
+    clave: "jovenes", nombre: "Jóvenes",
+    crear: () => conFondo(degradado("fuego"), [
+      F("franja", { y: 66, h: 34, color: "#16324F" }),
+      T({ texto: "CULTO DE JÓVENES", fuente: "bebas", tamano: 190, y: 18, h: 26, negrita: false }),
+      T({ texto: "Sábado · 5:00 p. m.", tamano: 56, y: 72, h: 10 }),
+      I("musica", { x: 8, y: 72, w: 6, h: 10.7, color: "#F4A62A" }),
+      I("microfono", { x: 86, y: 72, w: 6, h: 10.7, color: "#F4A62A" }),
+    ]),
   },
   {
     clave: "titulo", nombre: "Título",
-    crear: () => ({ ...nuevaDiapositiva({ color: "#16324F" }), capas: [
-      nuevaCapaTexto({ texto: "Título", fuente: "fraunces", tamano: 150, y: 32, h: 24 }),
-      nuevaCapaTexto({ texto: "Subtítulo", tamano: 56, y: 58, h: 10, negrita: false, color: "#C9D1DC" }),
-    ] }),
+    crear: () => conFondo({ color: "#16324F" }, [
+      T({ texto: "Título", fuente: "fraunces", tamano: 150, y: 32, h: 24 }),
+      T({ texto: "Subtítulo", tamano: 56, y: 58, h: 10, negrita: false, color: "#C9D1DC" }),
+    ]),
   },
   { clave: "blanco", nombre: "En blanco", crear: () => nuevaDiapositiva({ color: "#000000" }) },
 ];

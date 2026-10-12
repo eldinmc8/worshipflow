@@ -1,4 +1,5 @@
-import { familiaDe, LIENZO_ANCHO } from "../lib/diapositivas.js";
+import { familiaDe, LIENZO_ANCHO, cssDegradado } from "../lib/diapositivas.js";
+import { iconoDe } from "./iconosDiseno.js";
 
 // Dibuja una diapositiva con diseño (ver lib/diapositivas.js) a cualquier tamaño: el lienzo 16:9 se
 // ajusta dentro de su contenedor (con bandas negras si no es 16:9) y todo se mide en unidades del
@@ -8,6 +9,23 @@ const enCqw = (px) => `${(px / LIENZO_ANCHO) * 100}cqw`;
 
 export function CapaDisenada({ capa }) {
   const base = { position: "absolute", left: `${capa.x}%`, top: `${capa.y}%`, width: `${capa.w}%`, height: `${capa.h}%`, boxSizing: "border-box" };
+  if (capa.tipo === "forma") {
+    return (
+      <div style={{
+        ...base, background: capa.color || "transparent", opacity: capa.opacidad ?? 1, pointerEvents: "none",
+        borderRadius: capa.forma === "circulo" ? "50%" : enCqw(capa.radio || 0),
+        border: capa.borde ? `${enCqw(capa.grosor || 6)} solid ${capa.borde}` : "none",
+      }} />
+    );
+  }
+  if (capa.tipo === "icono") {
+    const Icono = iconoDe(capa.icono);
+    return (
+      <div style={{ ...base, opacity: capa.opacidad ?? 1, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Icono width="100%" height="100%" color={capa.color || "#FFFFFF"} strokeWidth={capa.grosor || 1.6} style={{ display: "block", filter: "drop-shadow(0 0.15cqw 0.6cqw rgba(0,0,0,0.25))" }} />
+      </div>
+    );
+  }
   if (capa.tipo === "imagen") {
     return (
       <img
@@ -41,7 +59,7 @@ export function FondoDisenado({ fondo }) {
   const f = fondo || {};
   return (
     <>
-      <div style={{ position: "absolute", inset: 0, background: f.color || "#000" }} />
+      <div style={{ position: "absolute", inset: 0, background: f.tipo === "degradado" ? cssDegradado(f) : f.color || "#000" }} />
       {f.tipo === "imagen" && f.url && <img src={f.url} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: f.ajuste || "cover", pointerEvents: "none", userSelect: "none" }} />}
       {f.tipo === "video" && f.url && <video src={f.url} autoPlay muted loop playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: f.ajuste || "cover", pointerEvents: "none" }} />}
     </>
