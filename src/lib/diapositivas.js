@@ -40,6 +40,13 @@ export const FUENTES = [
   { clave: "pacifico", nombre: "Pacifico", family: "'Pacifico', cursive" },
   { clave: "marker", nombre: "Permanent Marker", family: "'Permanent Marker', cursive" },
   { clave: "georgia", nombre: "Georgia", family: "Georgia, 'Times New Roman', serif" },
+  // Caligrafía (fase 2 del editor, 2026-10-11) — como las letras de las diapositivas de Bienvenida.
+  { clave: "greatvibes", nombre: "Great Vibes (caligrafía)", family: "'Great Vibes', cursive" },
+  { clave: "allura", nombre: "Allura (caligrafía)", family: "'Allura', cursive" },
+  { clave: "alexbrush", nombre: "Alex Brush (caligrafía)", family: "'Alex Brush', cursive" },
+  { clave: "sacramento", nombre: "Sacramento (firma)", family: "'Sacramento', cursive" },
+  { clave: "parisienne", nombre: "Parisienne (caligrafía)", family: "'Parisienne', cursive" },
+  { clave: "satisfy", nombre: "Satisfy (pincel)", family: "'Satisfy', cursive" },
 ];
 export const familiaDe = (clave) => (FUENTES.find((f) => f.clave === clave) || FUENTES[0]).family;
 

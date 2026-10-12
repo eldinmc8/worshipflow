@@ -7,12 +7,17 @@ import { iconoDe } from "./iconosDiseno.js";
 // hijos: lo que se dibuja ENCIMA del lienzo con sus mismas coordenadas (el editor pone ahí sus asas).
 const enCqw = (px) => `${(px / LIENZO_ANCHO) * 100}cqw`;
 
+// Sombra (0–100) y giro (grados) valen para cualquier elemento — fase 2 del editor, 2026-10-11.
+export const sombraFiltro = (k) => (k > 0 ? `drop-shadow(0 ${enCqw(4 + k * 0.12)} ${enCqw(8 + k * 0.32)} rgba(0,0,0,${(0.15 + k * 0.006).toFixed(2)}))` : "none");
+const sombraTexto = (k) => (k > 0 ? `0 ${enCqw(2 + k * 0.08)} ${enCqw(6 + k * 0.26)} rgba(0,0,0,${(0.2 + k * 0.006).toFixed(2)})` : "none");
+
 export function CapaDisenada({ capa }) {
-  const base = { position: "absolute", left: `${capa.x}%`, top: `${capa.y}%`, width: `${capa.w}%`, height: `${capa.h}%`, boxSizing: "border-box" };
+  const base = { position: "absolute", left: `${capa.x}%`, top: `${capa.y}%`, width: `${capa.w}%`, height: `${capa.h}%`, boxSizing: "border-box", ...(capa.rotacion ? { transform: `rotate(${capa.rotacion}deg)` } : {}) };
+  const filtro = capa.sombra > 0 ? sombraFiltro(capa.sombra) : undefined;
   if (capa.tipo === "forma") {
     return (
       <div style={{
-        ...base, background: capa.color || "transparent", opacity: capa.opacidad ?? 1, pointerEvents: "none",
+        ...base, background: capa.color || "transparent", opacity: capa.opacidad ?? 1, pointerEvents: "none", filter: filtro,
         borderRadius: capa.forma === "circulo" ? "50%" : enCqw(capa.radio || 0),
         border: capa.borde ? `${enCqw(capa.grosor || 6)} solid ${capa.borde}` : "none",
       }} />
@@ -22,7 +27,7 @@ export function CapaDisenada({ capa }) {
     const Icono = iconoDe(capa.icono);
     return (
       <div style={{ ...base, opacity: capa.opacidad ?? 1, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Icono width="100%" height="100%" color={capa.color || "#FFFFFF"} strokeWidth={capa.grosor || 1.6} style={{ display: "block", filter: "drop-shadow(0 0.15cqw 0.6cqw rgba(0,0,0,0.25))" }} />
+        <Icono width="100%" height="100%" color={capa.color || "#FFFFFF"} strokeWidth={capa.grosor || 1.6} style={{ display: "block", filter: capa.sombra === undefined ? "drop-shadow(0 0.15cqw 0.6cqw rgba(0,0,0,0.25))" : sombraFiltro(capa.sombra) }} />
       </div>
     );
   }
@@ -30,7 +35,7 @@ export function CapaDisenada({ capa }) {
     return (
       <img
         src={capa.url} alt="" draggable={false}
-        style={{ ...base, objectFit: capa.ajuste || "contain", borderRadius: enCqw(capa.radio || 0), opacity: capa.opacidad ?? 1, pointerEvents: "none", userSelect: "none" }}
+        style={{ ...base, objectFit: capa.ajuste || "contain", borderRadius: enCqw(capa.radio || 0), opacity: capa.opacidad ?? 1, pointerEvents: "none", userSelect: "none", filter: filtro }}
       />
     );
   }
@@ -42,14 +47,16 @@ export function CapaDisenada({ capa }) {
         justifyContent: capa.vertical === "top" ? "flex-start" : capa.vertical === "bottom" ? "flex-end" : "center",
         background: capa.caja || "transparent", borderRadius: enCqw(capa.radio || 0),
         padding: capa.caja ? `${enCqw(18)} ${enCqw(32)}` : 0, overflow: "hidden",
-        pointerEvents: "none", userSelect: "none",
+        pointerEvents: "none", userSelect: "none", opacity: capa.opacidad ?? 1,
+        ...(capa.caja && filtro ? { filter: filtro } : {}),
       }}
     >
       <div style={{
         fontFamily: familiaDe(capa.fuente), fontSize: enCqw(capa.tamano || 64), color: capa.color || "#fff",
         fontWeight: capa.negrita ? 700 : 400, fontStyle: capa.cursiva ? "italic" : "normal",
         textAlign: alinear, lineHeight: 1.2, whiteSpace: "pre-wrap", overflowWrap: "break-word",
-        textShadow: capa.caja ? "none" : `0 ${enCqw(3)} ${enCqw(14)} rgba(0,0,0,0.35)`,
+        // Sin "sombra" elegida: la de siempre (suave, solo sin caja). Con sombra elegida, esa.
+        textShadow: capa.sombra === undefined ? (capa.caja ? "none" : `0 ${enCqw(3)} ${enCqw(14)} rgba(0,0,0,0.35)`) : capa.caja ? "none" : sombraTexto(capa.sombra),
       }}>{capa.texto}</div>
     </div>
   );

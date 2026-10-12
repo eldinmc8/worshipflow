@@ -2,8 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Undo2, Redo2, Type, ImagePlus, PaintBucket, AlignLeft, AlignCenter, AlignRight, AlignStartVertical, AlignCenterVertical, AlignEndVertical,
-  Copy, BringToFront, SendToBack, Trash2, LayoutTemplate, Plus, Bold, Italic, Loader2, ClipboardPaste, CopyPlus, Shapes, Smile, Search,
+  Copy, BringToFront, SendToBack, Trash2, LayoutTemplate, Plus, Bold, Italic, Loader2, ClipboardPaste, CopyPlus, Shapes, Smile, Search, BookmarkPlus, RotateCcw, X as XIcon,
 } from "lucide-react";
+import { listarPlantillasIglesia, guardarPlantillaIglesia, borrarPlantillaIglesia } from "../lib/plantillasIglesia.js";
 import { ICONOS_DISENO } from "./iconosDiseno.js";
 import DiapositivaDisenada from "./DiapositivaDisenada.jsx";
 import {
@@ -12,8 +13,8 @@ import {
 } from "../lib/diapositivas.js";
 import { subirFondo } from "../lib/multimedia.js";
 import { useArrastreLista } from "../lib/arrastreLista.js";
-import { confirmDialog } from "../lib/confirm.js";
-import { notifyError } from "../lib/toast.js";
+import { confirmDialog, promptDialog } from "../lib/confirm.js";
+import { notifyError, showToast } from "../lib/toast.js";
 
 // Editor de diapositivas (pedido de Eldin, 2026-10-10) — SOLO escritorio, tipo PowerPoint:
 // a la izquierda las diapositivas del grupo (reordenar arrastrando, duplicar, copiar/pegar), al centro
@@ -107,6 +108,16 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
   const [plantillasAbiertas, setPlantillasAbiertas] = useState(nueva); // una diapositiva nueva abre con las plantillas a la vista
   const [panelInsertar, setPanelInsertar] = useState(null); // null | "formas" | "iconos"
   const [buscarIcono, setBuscarIcono] = useState("");
+  // Plantillas propias de la iglesia (null = todavía no se cargan, o la tabla no existe aún).
+  const [misPlantillas, setMisPlantillas] = useState(null);
+  const [plantillasDisponibles, setPlantillasDisponibles] = useState(true);
+  useEffect(() => {
+    let vivo = true;
+    listarPlantillasIglesia()
+      .then((lista) => { if (!vivo) return; if (lista === null) setPlantillasDisponibles(false); else setMisPlantillas(lista); })
+      .catch(() => { if (vivo) setPlantillasDisponibles(false); });
+    return () => { vivo = false; };
+  }, []);
   const [subiendo, setSubiendo] = useState(false);
   const [zona, setZona] = useState("lienzo"); // dónde fue el último clic: "lienzo" | "lista" (para Supr)
   const [lienzoPx, setLienzoPx] = useState({ w: 960, h: 540 });
@@ -267,6 +278,22 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
     if (vacia) { cambiar((ds) => ds.map((x, i) => (i === sel ? d : x))); setCapaSel(null); }
     else insertarDiapositiva(d);
     if (nueva && (!titulo.trim() || titulo === "Diapositiva") && p.clave !== "blanco") setTitulo(p.nombre);
+  };
+  const guardarComoPlantilla = async () => {
+    if (!diap) return;
+    if (!plantillasDisponibles) { showToast("Guardar plantillas todavía no está activado en esta iglesia. Avísale a Eldin.", "error"); return; }
+    const nombre = await promptDialog("Así la vas a encontrar en Plantillas → De mi iglesia.", { titulo: "Guardar como mi plantilla", placeholder: "Ej. Anuncio estilo JBP", textoConfirmar: "Guardar" });
+    if (!nombre || !nombre.trim()) return;
+    try {
+      const nueva = await guardarPlantillaIglesia(nombre.trim(), clonarDiapositiva(diap));
+      setMisPlantillas((l) => [nueva, ...(l || [])]);
+      showToast(`Plantilla "${nombre.trim()}" guardada. La encuentras en Plantillas.`, "info");
+    } catch (e) { notifyError("No se pudo guardar la plantilla", e); }
+  };
+  const borrarMiPlantilla = async (t) => {
+    if (!(await confirmDialog(`Se borra para toda la iglesia. Las diapositivas que ya la usan no cambian.`, { titulo: `¿Borrar la plantilla "${t.nombre}"?`, danger: true, textoConfirmar: "Borrar" }))) return;
+    try { await borrarPlantillaIglesia(t.id); setMisPlantillas((l) => (l || []).filter((x) => x.id !== t.id)); }
+    catch (e) { notifyError("No se pudo borrar la plantilla", e); }
   };
   const duplicarDiapositiva = (i = sel) => insertarDiapositiva(clonarDiapositiva(diaps[i]), i);
   const borrarDiapositiva = async (i = sel) => {
@@ -449,10 +476,27 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
           <BotonCinta icon={Trash2} label="Eliminar" onClick={borrarCapa} deshabilitado={!capa} titulo="Eliminar (Supr)" />
         </GrupoCinta>
         <GrupoCinta label="Diseños" ultimo>
+          <BotonCinta icon={BookmarkPlus} label="Guardar plantilla" onClick={guardarComoPlantilla} titulo="Guardar esta diapositiva como plantilla de tu iglesia, para reusarla" />
           <div style={{ position: "relative" }} onPointerDown={(e) => e.stopPropagation()}>
             <BotonCinta icon={LayoutTemplate} label="Plantillas" onClick={() => setPlantillasAbiertas((v) => !v)} activo={plantillasAbiertas} />
             {plantillasAbiertas && (
               <div style={{ position: "absolute", top: 58, right: 0, zIndex: 5, background: C.panel, border: `1px solid ${C.bordeCampo}`, borderRadius: 12, padding: 10, width: 560, maxHeight: "70vh", overflowY: "auto", boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>
+                {misPlantillas?.length > 0 && (
+                  <>
+                    <div style={{ ...etiqueta, marginBottom: 8 }}>De mi iglesia</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+                      {misPlantillas.map((t) => (
+                        <div key={t.id} style={{ position: "relative" }}>
+                          <button onClick={() => { usarPlantilla({ clave: t.id, nombre: t.nombre, crear: () => clonarDiapositiva(t.diapositiva) }); setPlantillasAbiertas(false); }} style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left", color: C.texto, width: "100%" }}>
+                            <div style={{ position: "relative", aspectRatio: "16/9", borderRadius: 8, overflow: "hidden", border: `1px solid ${C.naranja}` }}><DiapositivaDisenada diapositiva={t.diapositiva} /></div>
+                            <div style={{ fontSize: 11.5, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.nombre}</div>
+                          </button>
+                          <button onClick={() => borrarMiPlantilla(t)} title="Borrar esta plantilla" style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: 10, border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><XIcon size={12} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
                 <div style={{ ...etiqueta, marginBottom: 8 }}>Plantillas · todo se puede cambiar después</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                   {PLANTILLAS.map((p) => {
@@ -516,7 +560,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
                         background: c.caja || "rgba(0,0,0,0.25)", border: `2px solid ${C.azul}`, borderRadius: (c.radio || 0) * escala, outline: "none",
                         padding: c.caja ? `${18 * escala}px ${32 * escala}px` : 0, margin: 0, overflow: "hidden",
                         fontFamily: familiaDe(c.fuente), fontSize: (c.tamano || 64) * escala, color: c.color, fontWeight: c.negrita ? 700 : 400, fontStyle: c.cursiva ? "italic" : "normal",
-                        textAlign: c.alinear || "center", lineHeight: 1.2,
+                        textAlign: c.alinear || "center", lineHeight: 1.2, transform: c.rotacion ? `rotate(${c.rotacion}deg)` : undefined,
                       }}
                     />
                   );
@@ -527,7 +571,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
                     onPointerDown={(e) => iniciarGesto(e, c, "mover")} onPointerMove={moverGesto} onPointerUp={terminarGesto} onPointerCancel={terminarGesto}
                     onDoubleClick={() => { if (c.tipo === "texto") setEditandoTexto(c.id); else setCapaSel(c.id); }}
                     title={c.tipo === "texto" ? "Doble clic para escribir" : undefined}
-                    style={{ position: "absolute", left: `${c.x}%`, top: `${c.y}%`, width: `${c.w}%`, height: `${c.h}%`, boxSizing: "border-box", cursor: "move", outline: seleccionada ? `2px solid ${C.azul}` : "1px dashed transparent", touchAction: "none" }}
+                    style={{ position: "absolute", left: `${c.x}%`, top: `${c.y}%`, width: `${c.w}%`, height: `${c.h}%`, boxSizing: "border-box", cursor: "move", outline: seleccionada ? `2px solid ${C.azul}` : "1px dashed transparent", touchAction: "none", transform: c.rotacion ? `rotate(${c.rotacion}deg)` : undefined }}
                     onMouseEnter={(e) => { if (!seleccionada) e.currentTarget.style.outline = "1px dashed rgba(255,255,255,0.6)"; }}
                     onMouseLeave={(e) => { if (!seleccionada) e.currentTarget.style.outline = "1px dashed transparent"; }}
                   >
@@ -670,6 +714,23 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
               </div>
               <div style={{ fontSize: 11.5, color: C.tenue, lineHeight: 1.6 }}>Usa <b>Texto</b>, <b>Imagen</b>, <b>Forma</b> o <b>Ícono</b> arriba para agregar algo encima. Las páginas de un PDF quedan como fondo: puedes ponerles texto o un logo encima sin rehacer el archivo.</div>
             </>
+          )}
+          {capa && (
+            <div style={{ marginBottom: 14, paddingTop: 12, borderTop: `1px solid ${C.borde}` }}>
+              <div style={{ ...etiqueta, fontSize: 12, color: C.texto }}>Efectos</div>
+              {capa.tipo === "texto" && <div style={{ marginBottom: 12 }}><div style={etiqueta}>Transparencia</div><Deslizador valor={Math.round((capa.opacidad ?? 1) * 100)} min={5} max={100} sufijo="%" onInicio={marcarHistoria} onCambiar={(v) => cambiarCapa({ opacidad: v / 100 }, { guardarHistoria: false })} /></div>}
+              <div style={{ marginBottom: 12 }}>
+                <div style={etiqueta}>Sombra</div>
+                <Deslizador valor={capa.sombra ?? (capa.tipo === "texto" && !capa.caja ? 30 : 0)} min={0} max={100} onInicio={marcarHistoria} onCambiar={(v) => cambiarCapa({ sombra: v }, { guardarHistoria: false })} />
+              </div>
+              <div>
+                <div style={{ ...etiqueta, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  Girar
+                  {capa.rotacion ? <button onClick={() => cambiarCapa({ rotacion: 0 })} title="Enderezar" style={{ background: "transparent", border: "none", color: C.naranja, cursor: "pointer", display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, padding: 0 }}><RotateCcw size={11} /> Enderezar</button> : null}
+                </div>
+                <Deslizador valor={capa.rotacion || 0} min={-180} max={180} sufijo="°" onInicio={marcarHistoria} onCambiar={(v) => cambiarCapa({ rotacion: Math.abs(v) < 2 ? 0 : v }, { guardarHistoria: false })} />
+              </div>
+            </div>
           )}
           {capa && (
             <div style={{ marginBottom: 14 }}>
