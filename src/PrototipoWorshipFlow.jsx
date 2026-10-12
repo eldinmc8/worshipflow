@@ -436,7 +436,7 @@ function buildSlides(serviceOrder, library) {
       // Presentación agrupada o diapositiva diseñada en el editor: cada diapositiva con su diseño.
       slides.push(...slidesDeGrupo(item));
     } else if (item.type === "slide") {
-      slides.push({ slideId: item.id, type: "slide", title: item.title, nombre: item.name || "", subtitle: item.subtitle, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl, imageUrl: item.imageUrl });
+      slides.push({ slideId: item.id, type: "slide", title: item.title, nombre: item.name || "", subtitle: item.subtitle, escalaSubtitulo: item.escalaSubtitulo, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl, imageUrl: item.imageUrl });
     }
   });
   return slides;
@@ -6584,7 +6584,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   const [showSeccionForm, setShowSeccionForm] = useState(false);
   // Editar una diapositiva de texto con el mismo formulario con que se creó (sin el editor de diseño).
   const [editTexto, setEditTexto] = useState(null); // { id, draft }
-  const abrirEditarTexto = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "" } });
+  const abrirEditarTexto = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", escalaSubtitulo: it.escalaSubtitulo, bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "" } });
   // La parte del culto elegida en "+ Agregar" solo vale mientras se está agregando: al cerrarse todo
   // (o cancelar), vuelve a "al final" para que lo siguiente no caiga en un bloque viejo.
   const agregando = showAgregar || pickerCancion || showImportar || showBibleForm || showSlideForm || showSermonForm;
@@ -7448,6 +7448,14 @@ function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositiva de t
       <label style={etiquetaCampo}>Contenido · lo que se ve en la pantalla</label>
       <textarea placeholder="Escribe el texto que se va a proyectar (Enter para cambiar de línea). Opcional si es solo imagen o video." value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} style={{ ...inputStyle, height: 80, resize: "none" }} />
       <textarea placeholder="Texto pequeño debajo (opcional)" value={draft.subtitle} onChange={(e) => setDraft({ ...draft, subtitle: e.target.value })} style={{ ...inputStyle, height: 44, resize: "none", marginTop: 8 }} />
+      {(draft.subtitle || "").trim() && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 2 }}>
+            <span>Tamaño del texto pequeño (comparado con el contenido)</span><b>{Math.round((draft.escalaSubtitulo ?? 0.65) * 100)}%</b>
+          </div>
+          <input type="range" min={0.4} max={0.9} step={0.05} value={draft.escalaSubtitulo ?? 0.65} onChange={(e) => setDraft({ ...draft, escalaSubtitulo: parseFloat(e.target.value) })} style={{ width: "100%", accentColor: "var(--wf-brand-accent)" }} />
+        </div>
+      )}
       <label style={{ ...etiquetaCampo, marginTop: 14 }}>Nombre de la diapositiva · no se proyecta</label>
       <input placeholder={`Ej. "Anuncio de ayuno" — así sale en el orden del culto y en la miniatura`} value={draft.name || ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={inputStyle} />
       <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 5 }}>Si lo dejas vacío, se usa el contenido como nombre.</div>
@@ -7826,7 +7834,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
     setEditDraft(
       s.type === "biblia" ? { reference: s.baseReference ?? s.reference, text: s.baseText ?? s.text }
       : s.type === "cancion" ? { text: (s.baseLines || s.lines).join("\n") }
-      : { title: s.title, subtitle: s.subtitle || "", name: s.nombre || "", bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "" }
+      : { title: s.title, subtitle: s.subtitle || "", name: s.nombre || "", escalaSubtitulo: s.escalaSubtitulo, bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "" }
     );
   };
   const saveSlideEdit = () => {
@@ -9043,6 +9051,9 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // es largo. La cita se calcula a partir de ESTE valor medido (no del tamaño deseado) para que nunca
   // pueda verse más grande que el propio versículo, sin importar cuánto se haya tenido que achicar.
   const [bibliaFontPx, setBibliaFontPx] = useState(null);
+  // Tamaño real al que quedó el contenido de una diapositiva de texto: el texto pequeño de abajo sigue
+  // ese tamaño (escalaSubtitulo, 65% por defecto) en vez de un px fijo — pedido de Eldin, 2026-10-11.
+  const [slideFontPx, setSlideFontPx] = useState(null);
   // Fondo por canción: solo si quien transmite lo activó y ESTA canción tiene uno propio — si no, el
   // fondo general de siempre (que también es el de la Biblia y las diapositivas).
   const fondoCancion = liveStyle?.fondoPorCancion && slide?.type === "cancion" && slide.songId ? liveStyle.fondosCanciones?.[slide.songId] : null;
@@ -9261,10 +9272,21 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
               <AutoFitText
                 // Un renglón vacío se proyecta como espacio (pedido de Eldin, 2026-10-11): una línea "" medía
                 // 0 de alto y el texto quedaba junto. Solo se quitan los renglones vacíos de las orillas.
-                lines={(slide.title || "").replace(/^\s*\n+|\n+\s*$/g, "").split("\n").map((l) => (l.trim() === "" ? "\u00A0" : l))} targetRatio={slideRatio} minPx={thumbnail ? 8 : 16} maxPx={thumbnail ? 30 : 130} maxWidth="90%" {...ubicacion}
+                lines={(slide.title || "").replace(/^\s*\n+|\n+\s*$/g, "").split("\n").map((l) => (l.trim() === "" ? "\u00A0" : l))} targetRatio={slideRatio} onFontSize={setSlideFontPx} minPx={thumbnail ? 8 : 16} maxPx={thumbnail ? 30 : 130} maxWidth="90%" {...ubicacion}
+                // Con texto pequeño: el contenido se pega a él (abajo de su espacio) y un espacio debajo
+                // los centra juntos como un solo bloque, en vez de quedar uno arriba y otro abajo.
+                {...(slide.subtitle && slide.title && posicion.flex !== "flex-start" ? { alinearV: "flex-end" } : {})}
                 style={{ fontFamily: font.family, fontWeight: Math.max(font.weight, 600), textTransform: font.transform, letterSpacing: espaciadoLetras, fontStyle: font.italic ? "italic" : "normal", textAlign: alineacion.text, lineHeight: liveStyle?.interlineado ?? undefined, textShadow: sombraTexto, color: textColor }}
               />
-              {slide.subtitle && !thumbnail && <div style={{ fontSize: 15, color: "#B7BEC9", marginTop: 8, flexShrink: 0, whiteSpace: "pre-line" }}>{slide.subtitle}</div>}
+              {slide.subtitle && (
+                <div style={{
+                  fontSize: slide.title && slideFontPx ? Math.max(thumbnail ? 5 : 14, slideFontPx * (slide.escalaSubtitulo ?? 0.65)) : thumbnail ? 9 : 44,
+                  fontFamily: font.family, fontWeight: 500, color: textColor, opacity: 0.85, textShadow: sombraTexto, textAlign: alineacion.text,
+                  marginTop: "0.4em", flexShrink: 0, whiteSpace: "pre-line", maxWidth: "90%", lineHeight: 1.25, zIndex: 1,
+                  display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden",
+                }}>{slide.subtitle}</div>
+              )}
+              {slide.subtitle && slide.title && posicion.flex === "center" && <div style={{ flex: 0.55, minHeight: 0 }} />}
             </div>
           )}
         </>
