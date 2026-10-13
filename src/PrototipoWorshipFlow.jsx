@@ -14,11 +14,12 @@ import {
   Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
-  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff,
+  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff, ClipboardPaste,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
 import AutoFitText from "./components/AutoFitText.jsx";
+import EditorTextoCancion from "./components/EditorTextoCancion.jsx";
 import { misProximosServicios, cuandoEs, companeros, indicaciones, cancionesParaEnsayar, necesitaAtencion, estaSemana } from "./lib/inicio.js";
 import { bloquesDelCulto, insertarEnBloque, anclaDeBloque } from "./lib/ordenCulto.js";
 import { expandirVersiculosLargos, reorganizarLetra, FORMATOS_LETRA, palabrasPorParteSegun, partesDeVersiculo } from "./lib/dividirTexto.js";
@@ -5360,6 +5361,16 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
   const [activeBlockKey, setActiveBlockKey] = useState(null);
   const [showAddSections, setShowAddSections] = useState(false);
   const textareaRefs = useRef({});
+  // "Pegar canción / Editar como texto" (ver components/EditorTextoCancion.jsx). Sin letra todavía =
+  // modo pegar (cuadro vacío); con letra = la canción completa como texto.
+  const [modoTexto, setModoTexto] = useState(false);
+  const sinLetra = Object.values(draft.blocks).every((b) => !(b.lines || []).some((l) => String(l).trim()));
+  const aplicarTexto = ({ blocks, letra, defaultStructure, key, title }) => {
+    // Artista es obligatorio para guardar; una canción pegada no lo trae → "Unknown", como las demás.
+    setDraft((d) => ({ ...d, blocks, letra, defaultStructure, key: d.key || key || "", title: d.title.trim() ? d.title : title || "", artist: d.artist.trim() ? d.artist : "Unknown" }));
+    setModoTexto(false);
+    setSubTab("contenido");
+  };
 
   // En celular, el teclado nativo se come la mitad inferior de la pantalla pero el navegador NO
   // achica el viewport donde vive esta barra "fixed" — se queda calculando su posición contra el
@@ -5524,10 +5535,15 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
           o diapositivas más abajo, sin tener que volver a subir hasta el principio. */}
       <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--wf-bg)", paddingBottom: 10, marginBottom: 4 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             <button onClick={onCancel} style={iconGhost}><ArrowLeft size={16} /></button>
-            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600 }}>{song ? "Editar canción" : "Nueva canción"}</span>
+            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{song ? "Editar canción" : "Nueva canción"}</span>
           </div>
+          <span style={{ flex: 1 }} />
+          <button data-tour="cancion-texto" onClick={() => setModoTexto(true)} title={sinLetra ? "Pega la canción completa (con o sin acordes) y se arma sola" : "Ver y editar toda la canción en un solo texto"}
+            style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--wf-hover)", border: "none", borderRadius: 14, padding: "8px 12px", marginRight: 8, fontSize: 12.5, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 }}>
+            <ClipboardPaste size={14} /> {sinLetra ? "Pegar" : "Como texto"}
+          </button>
           <button data-tour="cancion-guardar" disabled={!canSave || isSaving} onClick={handleSaveClick} style={{ ...primaryBtn, width: "auto", padding: "8px 18px", opacity: canSave && !isSaving ? 1 : 0.4, cursor: canSave && !isSaving ? "pointer" : "not-allowed" }}>{isSaving ? "Guardando…" : "Guardar"}</button>
         </div>
 
@@ -5538,6 +5554,17 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
         </div>
       </div>
 
+      {subTab === "detalles" && sinLetra && (
+        <button onClick={() => setModoTexto(true)} className="hoverable"
+          style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", maxWidth: 480, textAlign: "left", border: "1.5px dashed var(--wf-brand-accent)", background: "color-mix(in srgb, var(--wf-brand-accent) 8%, transparent)", borderRadius: 16, padding: "12px 14px", marginBottom: 16, cursor: "pointer", color: "var(--wf-text)", fontFamily: "inherit" }}>
+          <span style={{ width: 40, height: 40, borderRadius: 12, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ClipboardPaste size={20} /></span>
+          <span style={{ flex: 1 }}>
+            <span style={{ display: "block", fontWeight: 800, fontSize: 14.5 }}>¿Ya tienes la canción escrita?</span>
+            <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-muted)" }}>Pégala completa (de LaCuerda, WhatsApp…), con o sin acordes, y se arma sola.</span>
+          </span>
+        </button>
+      )}
+      {modoTexto && <EditorTextoCancion cancion={draft} nueva={sinLetra} onAplicar={aplicarTexto} onCerrar={() => setModoTexto(false)} />}
       {subTab === "detalles" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 480 }}>
           <Field label="Título" required><input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Introduce un título" style={inputStyle} /></Field>
