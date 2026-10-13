@@ -103,3 +103,24 @@ describe("editar como texto una canción existente", () => {
     expect(r.blocks.c).toMatchObject({ badge: "C1", bars: 16 });
   });
 });
+
+describe("estructura sola, sin nombres de sección", () => {
+  it("el párrafo que se repite es el coro y lo demás estrofas, en orden", () => {
+    const t = "Primera estrofa uno\nPrimera estrofa dos\n\nEste es el coro\nque se repite\n\nSegunda estrofa uno\nSegunda estrofa dos\n\nEste es el coro\nque se repite";
+    const r = textoACancion(t);
+    expect(r.defaultStructure.map((k) => r.blocks[k].label)).toEqual(["Estrofa 1", "Coro", "Estrofa 2", "Coro"]);
+    expect(Object.values(r.blocks).filter((b) => b.label === "Coro")).toHaveLength(1);
+  });
+  it("coro de dos párrafos (dos diapositivas)", () => {
+    const t = "Mi primera parte\n\nCoro a\n\nCoro b\n\nOtra parte\n\nCoro a\n\nCoro b";
+    const r = textoACancion(t);
+    const coro = Object.entries(r.blocks).find(([, b]) => b.label === "Coro");
+    expect(r.letra[coro[0]]).toEqual([["Coro a"], ["Coro b"]]);
+    expect(r.defaultStructure.map((k) => r.blocks[k].label)).toEqual(["Estrofa 1", "Coro", "Estrofa 2", "Coro"]);
+  });
+  it("sin repeticiones se queda en una sola Estrofa con sus diapositivas por renglón vacío", () => {
+    const r = textoACancion("uno\ndos\n\ntres\ncuatro");
+    expect(Object.values(r.blocks)).toHaveLength(1);
+    expect(Object.values(r.letra)[0]).toEqual([["uno", "dos"], ["tres", "cuatro"]]);
+  });
+});

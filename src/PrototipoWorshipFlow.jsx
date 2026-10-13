@@ -14,7 +14,7 @@ import {
   Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
-  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff, ClipboardPaste,
+  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff, ClipboardPaste, PencilLine,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
@@ -5357,19 +5357,31 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
   const canEditKey = isAdminViewer || !song;
   const initialSnapshotRef = useRef(song ? JSON.stringify(song) : JSON.stringify(blankSong()));
   const [draft, setDraft] = useState(() => JSON.parse(initialSnapshotRef.current));
-  const [subTab, setSubTab] = useState("detalles"); // detalles | contenido | letra | estructura
+  // "Escribir" (pedido de Eldin, 2026-10-13): la letra se escribe directo en un cuadro grande y las
+  // diapositivas salen solas. Canción nueva o sin letra abre ahí; una ya armada, en Detalles.
+  const [subTab, setSubTab] = useState(() => {
+    const d = song || blankSong();
+    return Object.values(d.blocks || {}).every((b) => !(b.lines || []).some((l) => String(l).trim())) ? "escribir" : "detalles";
+  }); // escribir | detalles | contenido | letra | estructura
   const [activeBlockKey, setActiveBlockKey] = useState(null);
   const [showAddSections, setShowAddSections] = useState(false);
   const textareaRefs = useRef({});
   // "Pegar canción / Editar como texto" (ver components/EditorTextoCancion.jsx). Sin letra todavía =
   // modo pegar (cuadro vacío); con letra = la canción completa como texto.
-  const [modoTexto, setModoTexto] = useState(false);
   const sinLetra = Object.values(draft.blocks).every((b) => !(b.lines || []).some((l) => String(l).trim()));
-  const aplicarTexto = ({ blocks, letra, defaultStructure, key, title }) => {
-    // Artista es obligatorio para guardar; una canción pegada no lo trae → "Unknown", como las demás.
-    setDraft((d) => ({ ...d, blocks, letra, defaultStructure, key: d.key || key || "", title: d.title.trim() ? d.title : title || "", artist: d.artist.trim() ? d.artist : "Unknown" }));
-    setModoTexto(false);
-    setSubTab("contenido");
+  // Lo que el cuadro "Escribir" sugirió la última vez (tonalidad/título): si la persona no lo cambió a
+  // mano, se va actualizando mientras escribe; si lo cambió, se respeta.
+  const autoRef = useRef({ key: "", title: "" });
+  const escribirTexto = ({ blocks, letra, defaultStructure, key, title }) => {
+    setDraft((d) => {
+      const auto = autoRef.current;
+      const nuevoKey = key && (!d.key || d.key === auto.key) ? key : d.key;
+      const nuevoTitulo = title && (!d.title.trim() || d.title === auto.title) ? title : d.title;
+      if (nuevoKey === key) auto.key = key;
+      if (nuevoTitulo === title) auto.title = title;
+      // Artista es obligatorio para guardar; una canción escrita aquí no lo trae → "Unknown", como las demás.
+      return { ...d, blocks, letra, defaultStructure, key: nuevoKey, title: nuevoTitulo, artist: d.artist.trim() ? d.artist : "Unknown" };
+    });
   };
 
   // En celular, el teclado nativo se come la mitad inferior de la pantalla pero el navegador NO
@@ -5530,7 +5542,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
   };
 
   return (
-    <div style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+    <div style={{ padding: 20, maxWidth: subTab === "escribir" ? 1200 : 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       {/* Fijo al hacer scroll: así "Guardar" queda siempre a mano después de agregar bloques, acordes
           o diapositivas más abajo, sin tener que volver a subir hasta el principio. */}
       <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--wf-bg)", paddingBottom: 10, marginBottom: 4 }}>
@@ -5540,31 +5552,32 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
             <span style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{song ? "Editar canción" : "Nueva canción"}</span>
           </div>
           <span style={{ flex: 1 }} />
-          <button data-tour="cancion-texto" onClick={() => setModoTexto(true)} title={sinLetra ? "Pega la canción completa (con o sin acordes) y se arma sola" : "Ver y editar toda la canción en un solo texto"}
-            style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--wf-hover)", border: "none", borderRadius: 14, padding: "8px 12px", marginRight: 8, fontSize: 12.5, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 }}>
-            <ClipboardPaste size={14} /> {sinLetra ? "Pegar" : "Como texto"}
-          </button>
           <button data-tour="cancion-guardar" disabled={!canSave || isSaving} onClick={handleSaveClick} style={{ ...primaryBtn, width: "auto", padding: "8px 18px", opacity: canSave && !isSaving ? 1 : 0.4, cursor: canSave && !isSaving ? "pointer" : "not-allowed" }}>{isSaving ? "Guardando…" : "Guardar"}</button>
         </div>
 
-        <div style={{ display: "flex", gap: 18, borderBottom: "1px solid var(--wf-divider)", marginTop: 14 }}>
-          {[["detalles", "Detalles"], ["contenido", "Contenido"], ["letra", "Letra"], ["estructura", "Estructura"]].map(([val, label]) => (
-            <button key={val} data-tour={`cancion-${val}`} onClick={() => setSubTab(val)} style={{ background: "none", border: "none", padding: "0 0 10px", fontSize: 13, fontWeight: 700, color: subTab === val ? "var(--wf-text)" : "var(--wf-faint)", borderBottom: subTab === val ? "2px solid #2F5FA8" : "2px solid transparent", cursor: "pointer" }}>{label}</button>
+        <div style={{ display: "flex", gap: 16, borderBottom: "1px solid var(--wf-divider)", marginTop: 14, overflowX: "auto", scrollbarWidth: "none" }}>
+          {[["escribir", "Escribir"], ["detalles", "Detalles"], ["contenido", "Contenido"], ["letra", "Letra"], ["estructura", "Estructura"]].map(([val, label]) => (
+            <button key={val} data-tour={`cancion-${val === "escribir" ? "texto" : val}`} onClick={() => setSubTab(val)} style={{ background: "none", border: "none", padding: "0 0 10px", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4, color: subTab === val ? "var(--wf-text)" : "var(--wf-faint)", borderBottom: subTab === val ? "2px solid #2F5FA8" : "2px solid transparent", cursor: "pointer" }}>{val === "escribir" && <PencilLine size={13} />}{label}</button>
           ))}
         </div>
       </div>
 
+      {subTab === "escribir" && !canSave && !sinLetra && (
+        <button onClick={() => setSubTab("detalles")} style={{ display: "block", width: "100%", textAlign: "left", background: "color-mix(in srgb, var(--wf-brand-accent) 10%, transparent)", border: "none", borderRadius: 12, padding: "8px 12px", marginBottom: 10, fontSize: 12.5, color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit" }}>
+          Para guardar falta {[!draft.title.trim() && "el título", !draft.key.trim() && "la tonalidad"].filter(Boolean).join(" y ") || "completar Detalles"} → <b>ir a Detalles</b>
+        </button>
+      )}
+      {subTab === "escribir" && <EditorTextoCancion inline cancion={draft} nueva={sinLetra} onCambio={escribirTexto} />}
       {subTab === "detalles" && sinLetra && (
-        <button onClick={() => setModoTexto(true)} className="hoverable"
+        <button onClick={() => setSubTab("escribir")} className="hoverable"
           style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", maxWidth: 480, textAlign: "left", border: "1.5px dashed var(--wf-brand-accent)", background: "color-mix(in srgb, var(--wf-brand-accent) 8%, transparent)", borderRadius: 16, padding: "12px 14px", marginBottom: 16, cursor: "pointer", color: "var(--wf-text)", fontFamily: "inherit" }}>
           <span style={{ width: 40, height: 40, borderRadius: 12, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ClipboardPaste size={20} /></span>
           <span style={{ flex: 1 }}>
             <span style={{ display: "block", fontWeight: 800, fontSize: 14.5 }}>¿Ya tienes la canción escrita?</span>
-            <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-muted)" }}>Pégala completa (de LaCuerda, WhatsApp…), con o sin acordes, y se arma sola.</span>
+            <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-muted)" }}>Escríbela o pégala completa en la pestaña Escribir, con o sin acordes, y se arma sola.</span>
           </span>
         </button>
       )}
-      {modoTexto && <EditorTextoCancion cancion={draft} nueva={sinLetra} onAplicar={aplicarTexto} onCerrar={() => setModoTexto(false)} />}
       {subTab === "detalles" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 480 }}>
           <Field label="Título" required><input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Introduce un título" style={inputStyle} /></Field>

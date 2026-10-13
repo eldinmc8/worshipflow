@@ -168,6 +168,41 @@ export function cancionATexto(cancion) {
   return partes.join("\n\n");
 }
 
+// ---- Secciones automáticas (texto sin nombres de sección) ----
+// Párrafo = bloque separado por renglón vacío. Los párrafos que aparecen idénticos 2+ veces son el
+// coro (un tramo de párrafos repetidos seguidos = un coro); lo que queda entre coros son estrofas.
+function seccionesAutomaticas(lineas, lineaInicio = 1) {
+  const parrafos = [];
+  let cur = [];
+  lineas.forEach((l) => { if (!String(l).trim()) { if (cur.length) { parrafos.push(cur); cur = []; } } else cur.push(l); });
+  if (cur.length) parrafos.push(cur);
+  const llave = (p) => p.map((l) => String(l).trim().replace(/\s+/g, " ")).join("\n").toLowerCase();
+  const cuenta = {};
+  parrafos.forEach((p) => { cuenta[llave(p)] = (cuenta[llave(p)] || 0) + 1; });
+  if (!parrafos.some((p) => cuenta[llave(p)] >= 2)) return null;
+  // Tramos consecutivos de "repetidos" / "no repetidos".
+  const tramos = [];
+  parrafos.forEach((p) => {
+    const rep = cuenta[llave(p)] >= 2;
+    const ultimo = tramos[tramos.length - 1];
+    if (ultimo && ultimo.rep === rep) ultimo.parrafos.push(p); else tramos.push({ rep, parrafos: [p] });
+  });
+  const nombreCoro = {};
+  let coros = 0;
+  let estrofas = 0;
+  let repeticiones = 0;
+  const trozos = tramos.map((t) => {
+    const lineasTramo = t.parrafos.flatMap((p, i) => (i ? ["", ...p] : p));
+    if (!t.rep) { estrofas++; return { etiqueta: `Estrofa ${estrofas}`, veces: null, lineas: lineasTramo, linea: lineaInicio }; }
+    const k = t.parrafos.map(llave).join("\n\n");
+    if (!nombreCoro[k]) { coros++; nombreCoro[k] = coros === 1 ? "Coro" : `Coro ${coros}`; } else repeticiones++;
+    return { etiqueta: nombreCoro[k], veces: null, lineas: lineasTramo, linea: lineaInicio };
+  });
+  // Una sola estrofa: sin número.
+  if (estrofas === 1) trozos.forEach((t) => { if (t.etiqueta === "Estrofa 1") t.etiqueta = "Estrofa"; });
+  return { trozos, repeticiones: repeticiones + 1 };
+}
+
 // ---- Texto → canción ----
 // original (opcional): la canción que se está editando — para conservar claves, distintivos, compases
 // y SOBRE TODO las diapositivas de las secciones que no cambiaron.
@@ -203,7 +238,17 @@ export function textoACancion(texto, original = null) {
       trozos.shift();
     }
   }
-  if (trozos.some((t) => t.implicita) && trozos.length === 1) avisos.push({ tipo: "info", texto: "No encontré nombres de sección (Coro, Estrofa…): todo quedó en una Estrofa. Puedes agregarlos con los botones." });
+  // Sin ningún nombre de sección: si hay párrafos que se repiten iguales, ese es el coro (pedido de
+  // Eldin, 2026-10-13: "la estructura sale sola del orden en que se escribe").
+  if (trozos.length === 1 && trozos[0].implicita) {
+    const auto = seccionesAutomaticas(trozos[0].lineas, trozos[0].linea);
+    if (auto) {
+      trozos.splice(0, 1, ...auto.trozos);
+      avisos.push({ tipo: "ok", texto: `Encontré el coro solo (se repite ${auto.repeticiones} veces) y armé el orden. Si quieres, ponle nombre a cada parte con los botones de abajo.` });
+    } else {
+      avisos.push({ tipo: "info", texto: "Sin nombres de sección todo queda en una Estrofa. Si la canción tiene coro, escríbelo con [Coro] (o pega el coro completo cada vez que se repite y lo detecto solo)." });
+    }
+  }
 
   // 2) Acordes encima de la letra → dentro de la letra.
   let acordesEncima = 0;

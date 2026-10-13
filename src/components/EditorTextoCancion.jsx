@@ -44,9 +44,17 @@ function LineaConAcordes({ linea }) {
   );
 }
 
-export default function EditorTextoCancion({ cancion, nueva = false, onAplicar, onCerrar }) {
+// inline: vive como pestaña "Escribir" del editor de canciones (pedido de Eldin, 2026-10-13: escribir
+// la letra directo en el cuadro grande, sin ventana aparte) y avisa cada cambio con onCambio. Sin
+// inline: ventana completa con "Usar esto".
+export default function EditorTextoCancion({ cancion: cancionProp, nueva: nuevaProp = false, onAplicar, onCerrar, inline = false, onCambio }) {
+  // La canción tal como estaba al abrir: contra ella se decide qué secciones "no cambiaron" (y por lo
+  // tanto conservan sus diapositivas hechas a mano), aunque el borrador se vaya actualizando.
+  const [cancion] = useState(cancionProp);
+  const [nueva] = useState(nuevaProp);
   const textoInicial = useMemo(() => (nueva ? "" : cancionATexto(cancion)), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [texto, setTexto] = useState(textoInicial);
+  const tocadoRef = useRef(false);
   const [vista, setVista] = useState("escribir"); // celular: "escribir" | "vista"
   const [angosto, setAngosto] = useState(() => window.innerWidth < 900);
   const areaRef = useRef(null);
@@ -59,6 +67,12 @@ export default function EditorTextoCancion({ cancion, nueva = false, onAplicar, 
 
   const resultado = useMemo(() => textoACancion(texto, nueva ? null : cancion), [texto, cancion, nueva]);
   const { blocks, letra, defaultStructure, avisos, tonalidadSugerida, tituloSugerido, acordesEncima } = resultado;
+  // En la pestaña: cada cambio del texto actualiza la canción (solo después de que la persona escribe).
+  useEffect(() => {
+    if (!inline || !onCambio || !tocadoRef.current) return;
+    onCambio({ blocks, letra, defaultStructure, key: tonalidadSugerida || "", title: tituloSugerido || "" });
+  }, [resultado]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cambiarTexto = (t) => { tocadoRef.current = true; setTexto(t); };
   const orden = defaultStructure.length ? defaultStructure : Object.keys(blocks);
   const vacio = !texto.trim();
   const cambiaTonalidad = tonalidadSugerida && !cancion?.key;
@@ -78,7 +92,7 @@ export default function EditorTextoCancion({ cancion, nueva = false, onAplicar, 
     const pre = antes && !antes.endsWith("\n\n") ? (antes.endsWith("\n") ? "\n" : "\n\n") : "";
     const insercion = `${pre}[${nombre}]\n`;
     const nuevo = antes + insercion + despues;
-    setTexto(nuevo);
+    cambiarTexto(nuevo);
     requestAnimationFrame(() => { const pos = (antes + insercion).length; el?.focus(); el?.setSelectionRange(pos, pos); });
   };
 
@@ -92,8 +106,8 @@ export default function EditorTextoCancion({ cancion, nueva = false, onAplicar, 
   const panelTexto = (
     <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <textarea
-        ref={areaRef} value={texto} onChange={(e) => setTexto(e.target.value)} spellCheck={false}
-        placeholder={"Pega aquí la canción, con o sin acordes.\n\nEjemplo:\n\n[Estrofa 1]\nG              Bm\nVenimos ante ti Señor,\nEm         A        D\nLlenos de alabanza y de adoración.\n\n[Coro]\n[G]Porque tú eres [A]Rey de reyes\n\n· Un renglón vacío = nueva diapositiva\n· [Coro] sin letra = se repite el coro"}
+        ref={areaRef} value={texto} onChange={(e) => cambiarTexto(e.target.value)} spellCheck={false}
+        placeholder={"Escribe o pega aquí la letra (con o sin acordes).\n· Doble Enter (un renglón vacío) = nueva diapositiva\n· Los botones de abajo ponen el nombre de cada parte\n· Si el coro se repite igual, lo detecto solo\n\nEjemplo:\n\n[Estrofa 1]\nG              Bm\nVenimos ante ti Señor,\nEm         A        D\nLlenos de alabanza y de adoración.\n\n[Coro]\n[G]Porque tú eres [A]Rey de reyes"}
         style={{ flex: 1, minHeight: 0, width: "100%", boxSizing: "border-box", resize: "none", border: "none", outline: "none", padding: "14px 16px", fontFamily: "'JetBrains Mono', monospace", fontSize: 13.5, lineHeight: 1.5, background: "var(--wf-card)", color: "var(--wf-text)" }}
       />
       <div style={{ display: "flex", gap: 6, padding: "8px 10px", borderTop: `1px solid ${C.borde}`, overflowX: "auto", background: "var(--wf-bg)", flexShrink: 0 }}>
@@ -112,7 +126,7 @@ export default function EditorTextoCancion({ cancion, nueva = false, onAplicar, 
       {vacio ? (
         <div style={{ color: "var(--wf-faint)", fontSize: 13, lineHeight: 1.6, padding: "30px 10px", textAlign: "center" }}>
           <ClipboardPaste size={28} style={{ opacity: 0.5, marginBottom: 8 }} /><br />
-          Pega la canción a la izquierda y aquí ves cómo queda: secciones, acordes sobre la letra y las diapositivas.
+          Escribe o pega la letra y aquí ves cómo queda: las partes de la canción, el orden y cada diapositiva.
         </div>
       ) : (
         <>
@@ -163,6 +177,32 @@ export default function EditorTextoCancion({ cancion, nueva = false, onAplicar, 
     </div>
   );
 
+  const pestanasCelular = angosto && (
+    <div style={{ display: "flex", borderBottom: `1px solid ${C.borde}`, background: "var(--wf-card)", flexShrink: 0 }}>
+      {[["escribir", "Escribir", PencilLine], ["vista", "Vista previa", Eye]].map(([v, label, Icon]) => (
+        <button key={v} onClick={() => setVista(v)} style={{ flex: 1, padding: "9px 0", border: "none", background: "transparent", cursor: "pointer", fontWeight: 700, fontSize: 13, color: vista === v ? "var(--wf-text)" : "var(--wf-faint)", borderBottom: `2px solid ${vista === v ? "var(--wf-brand-accent)" : "transparent"}`, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}><Icon size={15} /> {label}</button>
+      ))}
+    </div>
+  );
+  const cuerpo = (
+    <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+      {angosto ? (vista === "escribir" ? panelTexto : panelVista) : (
+        <>
+          {panelTexto}
+          <div style={{ width: 1, background: C.borde }} />
+          {panelVista}
+        </>
+      )}
+    </div>
+  );
+  if (inline) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: angosto ? "calc(100dvh - 190px)" : "calc(100vh - 200px)", minHeight: 380, borderRadius: 16, overflow: "hidden", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", background: "var(--wf-card)" }}>
+        {pestanasCelular}
+        {cuerpo}
+      </div>
+    );
+  }
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: 8000, background: "var(--wf-bg)", display: "flex", flexDirection: "column", fontFamily: "'Poppins', sans-serif", color: "var(--wf-text)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderBottom: `1px solid ${C.borde}`, background: "var(--wf-card)", flexShrink: 0 }}>
@@ -173,22 +213,8 @@ export default function EditorTextoCancion({ cancion, nueva = false, onAplicar, 
         </div>
         <button onClick={aplicar} disabled={vacio} style={{ border: "none", borderRadius: 12, padding: "9px 16px", fontWeight: 800, fontSize: 13.5, cursor: vacio ? "not-allowed" : "pointer", opacity: vacio ? 0.4 : 1, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit" }}><Check size={16} /> Usar esto</button>
       </div>
-      {angosto && (
-        <div style={{ display: "flex", borderBottom: `1px solid ${C.borde}`, background: "var(--wf-card)", flexShrink: 0 }}>
-          {[["escribir", "Escribir", PencilLine], ["vista", "Vista previa", Eye]].map(([v, label, Icon]) => (
-            <button key={v} onClick={() => setVista(v)} style={{ flex: 1, padding: "9px 0", border: "none", background: "transparent", cursor: "pointer", fontWeight: 700, fontSize: 13, color: vista === v ? "var(--wf-text)" : "var(--wf-faint)", borderBottom: `2px solid ${vista === v ? "var(--wf-brand-accent)" : "transparent"}`, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}><Icon size={15} /> {label}</button>
-          ))}
-        </div>
-      )}
-      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-        {angosto ? (vista === "escribir" ? panelTexto : panelVista) : (
-          <>
-            {panelTexto}
-            <div style={{ width: 1, background: C.borde }} />
-            {panelVista}
-          </>
-        )}
-      </div>
+      {pestanasCelular}
+      {cuerpo}
     </div>,
     document.body,
   );
