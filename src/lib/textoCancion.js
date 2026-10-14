@@ -333,3 +333,101 @@ export function sugerirTonalidad(lineas) {
   const ultimo = raiz(acordes[acordes.length - 1]);
   return primero || ultimo;
 }
+
+// ---- Solo la letra (pestaña "Escribir" de una canción que ya existe) ----
+// Pedido de Eldin (2026-10-14): "Escribir" es SOLO para la letra que se proyecta. Los acordes
+// (Contenido) y el orden (Estructura) no se tocan desde aquí. Cada parte de la canción aparece UNA
+// vez con su nombre; el orden en que se canta (coro x2, etc.) lo sigue diciendo la Estructura.
+//   [Coro]
+//   Porque tú eres Rey      ← diapositiva 1
+//   de reyes y Señor
+//                           ← renglón vacío = nueva diapositiva
+//   Y por siempre…          ← diapositiva 2
+const normalizarNombre = (s) => String(s || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ");
+const ordenSecciones = (cancion) => {
+  const blocks = cancion?.blocks || {};
+  const vistos = new Set();
+  const out = [];
+  [...(cancion?.defaultStructure || []), ...Object.keys(blocks)].forEach((k) => { if (blocks[k] && !vistos.has(k)) { vistos.add(k); out.push(k); } });
+  return out;
+};
+export function letraATexto(cancion) {
+  const blocks = cancion?.blocks || {};
+  return ordenSecciones(cancion).map((k) => {
+    const slides = cancion?.letra?.[k] || [];
+    const cuerpo = slides.map((s) => (s || []).join("\n")).filter((s) => s.trim()).join("\n\n");
+    return [escribirEncabezado(blocks[k].label || "Sección", 1), cuerpo].filter(Boolean).join("\n");
+  }).join("\n\n");
+}
+const slidesDeTexto = (lineas) => {
+  const grupos = [];
+  let actual = [];
+  lineas.forEach((l) => {
+    const t = String(l).replace(/\s+$/, "");
+    if (!t.trim()) { if (actual.length) { grupos.push(actual); actual = []; } return; }
+    actual.push(t);
+  });
+  if (actual.length) grupos.push(actual);
+  return grupos;
+};
+// (Algunas diapositivas guardadas traen un renglón vacío al final: no cuenta como cambio.)
+const mismasSlides = (a, b) => JSON.stringify((a || []).map((s) => (s || []).map((l) => String(l).replace(/\s+$/, "")).filter(Boolean)).filter((s) => s.length)) === JSON.stringify(b);
+
+export function textoALetra(texto, cancion) {
+  const avisos = [];
+  const origBlocks = cancion?.blocks || {};
+  const origLetra = cancion?.letra || {};
+  const lineas = String(texto || "").replace(/\r\n?/g, "\n").split("\n");
+  const trozos = [];
+  let sueltas = 0;
+  let actual = null;
+  lineas.forEach((l) => {
+    const enc = leerEncabezado(l);
+    if (enc) { actual = { etiqueta: enc.etiqueta, lineas: enc.resto.trim() ? [enc.resto] : [] }; trozos.push(actual); return; }
+    if (!actual) { if (l.trim()) sueltas++; return; }
+    actual.lineas.push(l);
+  });
+  if (sueltas) avisos.push({ tipo: "aviso", texto: `Hay ${sueltas} línea${sueltas === 1 ? "" : "s"} arriba que no está${sueltas === 1 ? "" : "n"} debajo de ninguna parte. Ponles encima el nombre de la parte (ej. [Coro]) para que se proyecten.` });
+
+  const libres = ordenSecciones(cancion);
+  const usadas = new Set();
+  const blocks = { ...origBlocks };
+  const letra = { ...origLetra };
+  let defaultStructure = cancion?.defaultStructure || [];
+  const nuevas = [];
+  let acordesQuitados = 0;
+  let n = 0;
+  const base = Date.now();
+  trozos.forEach((t) => {
+    const id = normalizarNombre(t.etiqueta);
+    const clave = libres.find((k) => !usadas.has(k) && normalizarNombre(origBlocks[k].label) === id);
+    const yaEscrita = !clave && (libres.some((k) => usadas.has(k) && normalizarNombre(origBlocks[k].label) === id) || nuevas.some((x) => normalizarNombre(blocks[x].label) === id));
+    if (yaEscrita) {
+      if (t.lineas.some((l) => l.trim())) avisos.push({ tipo: "aviso", texto: `"${t.etiqueta}" está escrita dos veces; usé la primera. Cada parte va una sola vez: las repeticiones se ponen en Estructura.` });
+      return;
+    }
+    const conAcordes = t.lineas.filter((l) => /\[[^\]]*\]/.test(l)).length;
+    acordesQuitados += conAcordes;
+    const slides = slidesDeTexto(t.lineas.map((l) => quitarAcordes(l)));
+    if (clave) {
+      usadas.add(clave);
+      if (!mismasSlides(origLetra[clave], slides)) letra[clave] = slides;
+      // Sección sin nada en Contenido: se llena con esta letra para que los músicos la vean (y le
+      // pongan acordes después). Si ya tenía contenido, NO se toca.
+      const b = origBlocks[clave];
+      if (!(b.lines || []).some((l) => String(l).trim()) && slides.length) blocks[clave] = { ...b, lines: slides.flatMap((s, i) => (i ? ["", ...s] : s)) };
+      return;
+    }
+    // Parte nueva: se crea (con su letra también en Contenido) y va al final del orden.
+    const k = `b${base}_${n++}`;
+    nuevas.push(k);
+    blocks[k] = { badge: distintivoDe(t.etiqueta), label: t.etiqueta, bars: 8, lines: slides.length ? slides.flatMap((s, i) => (i ? ["", ...s] : s)) : [""] };
+    letra[k] = slides;
+    if (defaultStructure.length) defaultStructure = [...defaultStructure, k];
+  });
+  if (nuevas.length) avisos.push({ tipo: "info", texto: `Parte nueva: ${nuevas.map((k) => blocks[k].label).join(", ")}. La puse al final del orden; muévela en Estructura si va en otro lugar.` });
+  const faltan = libres.filter((k) => !usadas.has(k));
+  if (faltan.length && trozos.length) avisos.push({ tipo: "info", texto: `No están en el texto: ${faltan.map((k) => origBlocks[k].label).join(", ")}. No se borran: se quedan como estaban.` });
+  if (acordesQuitados) avisos.push({ tipo: "info", texto: "Aquí va solo la letra: los acordes [ ] no se proyectan. Para acordes usa la pestaña Contenido." });
+  return { blocks, letra, defaultStructure, avisos, acordesEncima: 0, tonalidadSugerida: null, tituloSugerido: null, soloLetra: true, secciones: trozos.map((t) => t.etiqueta) };
+}

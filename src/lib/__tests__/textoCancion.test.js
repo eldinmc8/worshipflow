@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cancionATexto, textoACancion, leerEncabezado, esLineaDeAcordes, unirAcordesEncima, limpiarParaProyectar, diapositivasDeLineas, distintivoDe } from "../textoCancion.js";
+import { letraATexto, textoALetra, cancionATexto, textoACancion, leerEncabezado, esLineaDeAcordes, unirAcordesEncima, limpiarParaProyectar, diapositivasDeLineas, distintivoDe } from "../textoCancion.js";
 
 describe("encabezados", () => {
   it("reconoce las formas comunes y no confunde letra ni acordes", () => {
@@ -122,5 +122,37 @@ describe("estructura sola, sin nombres de sección", () => {
     const r = textoACancion("uno\ndos\n\ntres\ncuatro");
     expect(Object.values(r.blocks)).toHaveLength(1);
     expect(Object.values(r.letra)[0]).toEqual([["uno", "dos"], ["tres", "cuatro"]]);
+  });
+});
+
+describe("solo letra (pestaña Escribir de una canción existente)", () => {
+  const cancion = {
+    blocks: { a: { badge: "V1", label: "Estrofa 1", lines: ["[G]hola mundo", "dos"] }, c: { badge: "C", label: "Coro", lines: ["[D]coro"] } },
+    letra: { a: [["hola mundo", "dos"]], c: [["coro uno", "coro dos"]] },
+    defaultStructure: ["a", "c", "a", "c", "c"],
+  };
+  it("cada parte aparece una vez, sin acordes", () => {
+    expect(letraATexto(cancion)).toBe("[Estrofa 1]\nhola mundo\ndos\n\n[Coro]\ncoro uno\ncoro dos");
+  });
+  it("sin cambios: todo queda igual (mismos objetos)", () => {
+    const r = textoALetra(letraATexto(cancion), cancion);
+    expect(r.letra.a).toBe(cancion.letra.a);
+    expect(r.blocks.a).toBe(cancion.blocks.a);
+    expect(r.defaultStructure).toEqual(cancion.defaultStructure);
+  });
+  it("renglón vacío = nueva diapositiva; acordes y orden no se tocan", () => {
+    const r = textoALetra("[Estrofa 1]\nhola mundo\n\ndos\n\n[Coro]\ncoro uno\ncoro dos", cancion);
+    expect(r.letra.a).toEqual([["hola mundo"], ["dos"]]);
+    expect(r.letra.c).toBe(cancion.letra.c);
+    expect(r.blocks.a.lines).toEqual(["[G]hola mundo", "dos"]);
+    expect(r.defaultStructure).toEqual(["a", "c", "a", "c", "c"]);
+  });
+  it("parte nueva va al final del orden; una parte que falta no se borra", () => {
+    const r = textoALetra("[Coro]\ncoro uno\ncoro dos\n\n[Puente]\nnueva", cancion);
+    const k = Object.keys(r.blocks).find((x) => r.blocks[x].label === "Puente");
+    expect(r.letra[k]).toEqual([["nueva"]]);
+    expect(r.defaultStructure).toEqual(["a", "c", "a", "c", "c", k]);
+    expect(r.letra.a).toBe(cancion.letra.a);
+    expect(r.avisos.some((a) => /No están en el texto: Estrofa 1/.test(a.texto))).toBe(true);
   });
 });

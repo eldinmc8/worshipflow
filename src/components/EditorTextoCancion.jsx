@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, ClipboardPaste, AlertTriangle, Info, Check, Eye, PencilLine } from "lucide-react";
-import { cancionATexto, textoACancion } from "../lib/textoCancion.js";
+import { cancionATexto, textoACancion, letraATexto, textoALetra } from "../lib/textoCancion.js";
 import { parseChordLine, buildChordRow } from "../lib/musicTheory.js";
 import { acordeEn, lineaEn } from "../lib/preferencias.js";
 
@@ -52,7 +52,10 @@ export default function EditorTextoCancion({ cancion: cancionProp, nueva: nuevaP
   // tanto conservan sus diapositivas hechas a mano), aunque el borrador se vaya actualizando.
   const [cancion] = useState(cancionProp);
   const [nueva] = useState(nuevaProp);
-  const textoInicial = useMemo(() => (nueva ? "" : cancionATexto(cancion)), []); // eslint-disable-line react-hooks/exhaustive-deps
+  // En la pestaña, una canción que ya existe se edita SOLO en su letra (pedido de Eldin, 2026-10-14):
+  // acordes y orden quedan como están. Una canción nueva sí se arma completa desde el texto.
+  const soloLetra = inline && !nueva;
+  const textoInicial = useMemo(() => (nueva ? "" : soloLetra ? letraATexto(cancion) : cancionATexto(cancion)), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [texto, setTexto] = useState(textoInicial);
   const tocadoRef = useRef(false);
   const [vista, setVista] = useState("escribir"); // celular: "escribir" | "vista"
@@ -65,7 +68,7 @@ export default function EditorTextoCancion({ cancion: cancionProp, nueva: nuevaP
   }, []);
   useEffect(() => { if (!angosto || vista === "escribir") areaRef.current?.focus(); }, [angosto, vista]);
 
-  const resultado = useMemo(() => textoACancion(texto, nueva ? null : cancion), [texto, cancion, nueva]);
+  const resultado = useMemo(() => (soloLetra ? textoALetra(texto, cancion) : textoACancion(texto, nueva ? null : cancion)), [texto, cancion, nueva, soloLetra]);
   const { blocks, letra, defaultStructure, avisos, tonalidadSugerida, tituloSugerido, acordesEncima } = resultado;
   // En la pestaña: cada cambio del texto actualiza la canción (solo después de que la persona escribe).
   useEffect(() => {
@@ -107,7 +110,7 @@ export default function EditorTextoCancion({ cancion: cancionProp, nueva: nuevaP
     <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <textarea
         ref={areaRef} value={texto} onChange={(e) => cambiarTexto(e.target.value)} spellCheck={false}
-        placeholder={"Escribe o pega aquí la letra (con o sin acordes).\n· Doble Enter (un renglón vacío) = nueva diapositiva\n· Los botones de abajo ponen el nombre de cada parte\n· Si el coro se repite igual, lo detecto solo\n\nEjemplo:\n\n[Estrofa 1]\nG              Bm\nVenimos ante ti Señor,\nEm         A        D\nLlenos de alabanza y de adoración.\n\n[Coro]\n[G]Porque tú eres [A]Rey de reyes"}
+        placeholder={soloLetra ? "Escribe la letra debajo del nombre de cada parte, ej.:\n\n[Coro]\nPorque tú eres Rey\nde reyes y Señor\n\n· Doble Enter (un renglón vacío) = nueva diapositiva\n· Cada parte se escribe UNA vez: las repeticiones las dice la Estructura" : "Escribe o pega aquí la letra (con o sin acordes).\n· Doble Enter (un renglón vacío) = nueva diapositiva\n· Los botones de abajo ponen el nombre de cada parte\n· Si el coro se repite igual, lo detecto solo\n\nEjemplo:\n\n[Estrofa 1]\nG              Bm\nVenimos ante ti Señor,\nEm         A        D\nLlenos de alabanza y de adoración.\n\n[Coro]\n[G]Porque tú eres [A]Rey de reyes"}
         style={{ flex: 1, minHeight: 0, width: "100%", boxSizing: "border-box", resize: "none", border: "none", outline: "none", padding: "14px 16px", fontFamily: "'JetBrains Mono', monospace", fontSize: 13.5, lineHeight: 1.5, background: "var(--wf-card)", color: "var(--wf-text)" }}
       />
       <div style={{ display: "flex", gap: 6, padding: "8px 10px", borderTop: `1px solid ${C.borde}`, overflowX: "auto", background: "var(--wf-bg)", flexShrink: 0 }}>
@@ -138,13 +141,13 @@ export default function EditorTextoCancion({ cancion: cancionProp, nueva: nuevaP
               {avisos.map((a, i) => <Aviso key={i} tipo={a.tipo}>{a.texto}</Aviso>)}
             </div>
           )}
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.5, marginBottom: 8 }}>ORDEN DE LA CANCIÓN</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.5, marginBottom: 8 }}>ORDEN DE LA CANCIÓN{soloLetra && <span style={{ fontWeight: 600, letterSpacing: 0, textTransform: "none" }}> · se cambia en Estructura</span>}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 16 }}>
             {orden.map((k, i) => <span key={i} style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", background: colorSeccion(blocks[k]?.label), borderRadius: 12, padding: "3px 9px" }}>{blocks[k]?.label}</span>)}
           </div>
           {Object.entries(blocks).map(([k, b]) => {
             const slides = letra[k] || [];
-            const conservada = !nueva && cancion?.blocks?.[k] === b;
+            const conservada = !nueva && (soloLetra ? cancion?.letra?.[k] === slides : cancion?.blocks?.[k] === b);
             const veces = orden.filter((x) => x === k).length;
             return (
               <div key={k} style={{ background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 2px 10px rgba(22,50,79,0.07)", padding: "10px 12px", marginBottom: 10 }}>
@@ -154,9 +157,9 @@ export default function EditorTextoCancion({ cancion: cancionProp, nueva: nuevaP
                   {veces > 1 && <span style={{ fontSize: 11, color: "var(--wf-muted)" }}>· se canta {veces} veces</span>}
                   {veces === 0 && <span style={{ fontSize: 11, color: "var(--wf-muted)" }}>· guardada, no está en el orden</span>}
                   <span style={{ flex: 1 }} />
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: conservada ? "var(--wf-muted)" : "#1F8A73" }}>{conservada ? "sin cambios" : nueva ? "" : "cambió"}</span>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: conservada ? "var(--wf-muted)" : "#1F8A73" }}>{conservada ? "sin cambios" : nueva ? "" : !cancion?.blocks?.[k] ? "nueva" : "cambió"}</span>
                 </div>
-                {b.lines.map((l, i) => <LineaConAcordes key={i} linea={l} />)}
+                {!soloLetra && b.lines.map((l, i) => <LineaConAcordes key={i} linea={l} />)}
                 <div style={{ marginTop: 8, fontSize: 10.5, fontWeight: 700, color: "var(--wf-muted)" }}>
                   {slides.length === 0 ? "SIN DIAPOSITIVAS (solo para músicos)" : `${slides.length} DIAPOSITIVA${slides.length === 1 ? "" : "S"}${conservada ? " · se quedan como estaban" : ""}`}
                 </div>
