@@ -200,6 +200,11 @@ export function pasosCanciones({ puedeGestionarCanciones }) {
 export function pasosEditorCancion() {
   return [
     {
+      target: "cancion-texto",
+      titulo: "Escribir",
+      texto: "Aquí va la letra que se proyecta. Escribe debajo del nombre de cada parte; un renglón vacío (doble Enter) = nueva diapositiva.",
+    },
+    {
       target: "cancion-detalles",
       titulo: "Detalles",
       texto: "Título, tonalidad, tempo, compás y artista de la canción.",
@@ -208,11 +213,6 @@ export function pasosEditorCancion() {
       target: "cancion-contenido",
       titulo: "Contenido",
       texto: "La letra con acordes, escritos así: [G]Cuando el día. La barra de abajo inserta los acordes de la tonalidad donde está el cursor.",
-    },
-    {
-      target: "cancion-letra",
-      titulo: "Letra",
-      texto: "Las diapositivas que de verdad se proyectan. Divide cada sección como quieras; esto es lo que ve la congregación.",
     },
     {
       target: "cancion-estructura",

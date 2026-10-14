@@ -5362,7 +5362,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
   const [subTab, setSubTab] = useState(() => {
     const d = song || blankSong();
     return Object.values(d.blocks || {}).every((b) => !(b.lines || []).some((l) => String(l).trim())) ? "escribir" : "detalles";
-  }); // escribir | detalles | contenido | letra | estructura
+  }); // escribir | detalles | contenido | estructura (la pestaña Letra se quitó el 2026-10-14: Escribir la reemplaza)
   const [activeBlockKey, setActiveBlockKey] = useState(null);
   const [showAddSections, setShowAddSections] = useState(false);
   const textareaRefs = useRef({});
@@ -5419,36 +5419,6 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
   const blockKeys = Object.keys(draft.blocks);
   const setBlockField = (key, field, value) => setDraft((d) => ({ ...d, blocks: { ...d.blocks, [key]: { ...d.blocks[key], [field]: value } } }));
   const setBlockLines = (key, text) => setBlockField(key, "lines", text.split("\n"));
-
-  // ---- Editor de diapositivas (Letra) ----
-  const setSlideText = (key, slideIdx, text) => setDraft((d) => {
-    const group = [...d.letra[key]]; group[slideIdx] = text.split("\n");
-    return { ...d, letra: { ...d.letra, [key]: group } };
-  });
-  const addSlide = (key, afterIdx) => setDraft((d) => {
-    const group = [...(d.letra[key] || [])];
-    group.splice(afterIdx + 1, 0, [""]);
-    return { ...d, letra: { ...d.letra, [key]: group } };
-  });
-  // Se permite borrar incluso la última diapositiva de una sección (queda con 0) — por ejemplo,
-  // secciones que no llevan letra en pantalla (instrumental, respiro) y no deben proyectar nada.
-  const removeSlide = (key, slideIdx) => setDraft((d) => {
-    const group = [...d.letra[key]];
-    group.splice(slideIdx, 1);
-    return { ...d, letra: { ...d.letra, [key]: group } };
-  });
-  const moveSlide = (key, slideIdx, dir) => setDraft((d) => {
-    const group = [...d.letra[key]]; const j = slideIdx + dir;
-    if (j < 0 || j >= group.length) return d;
-    [group[slideIdx], group[j]] = [group[j], group[slideIdx]];
-    return { ...d, letra: { ...d.letra, [key]: group } };
-  });
-  const syncLetraFromContenido = (key) => setDraft((d) => ({ ...d, letra: { ...d.letra, [key]: [d.blocks[key].lines.map(stripChords)] } }));
-  const autoSplit = (key) => setDraft((d) => {
-    const flat = d.blocks[key].lines.map(stripChords);
-    const chunks = []; for (let i = 0; i < flat.length; i += 2) chunks.push(flat.slice(i, i + 2));
-    return { ...d, letra: { ...d.letra, [key]: chunks.length ? chunks : [[""]] } };
-  });
 
   // Agrega varias secciones de una (ver AddSectionsModal) — cada una con su propio key único aunque
   // se hayan creado en el mismo tick (Date.now() solo no alcanza para eso).
@@ -5556,7 +5526,7 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
         </div>
 
         <div style={{ display: "flex", gap: 16, borderBottom: "1px solid var(--wf-divider)", marginTop: 14, overflowX: "auto", scrollbarWidth: "none" }}>
-          {[["escribir", "Escribir"], ["detalles", "Detalles"], ["contenido", "Contenido"], ["letra", "Letra"], ["estructura", "Estructura"]].map(([val, label]) => (
+          {[["escribir", "Escribir"], ["detalles", "Detalles"], ["contenido", "Contenido"], ["estructura", "Estructura"]].map(([val, label]) => (
             <button key={val} data-tour={`cancion-${val === "escribir" ? "texto" : val}`} onClick={() => setSubTab(val)} style={{ background: "none", border: "none", padding: "0 0 10px", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4, color: subTab === val ? "var(--wf-text)" : "var(--wf-faint)", borderBottom: subTab === val ? "2px solid #2F5FA8" : "2px solid transparent", cursor: "pointer" }}>{val === "escribir" && <PencilLine size={13} />}{label}</button>
           ))}
         </div>
@@ -5658,54 +5628,6 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
           {blockKeys.length > 0 && (
             <button onClick={() => setShowAddSections(true)} className="hoverable" style={addBtnStyle}><Plus size={14} /> Agregar secciones</button>
           )}
-        </div>
-      )}
-
-      {subTab === "letra" && (
-        <div>
-          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
-            <Sparkles size={13} color="var(--wf-brand-accent)" /> Arma aquí las diapositivas exactas que se van a proyectar. Multimedia solo las va a ejecutar en vivo — no necesita escribir nada ese día.
-          </div>
-          {blockKeys.map((key) => {
-            const slideGroup = draft.letra[key] || [[""]];
-            return (
-              <div key={key} style={{ marginBottom: 22 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{draft.blocks[key].badge} · {draft.blocks[key].label} <span style={{ color: "var(--wf-faint)", fontWeight: 500 }}>({slideGroup.length} diapositiva{slideGroup.length !== 1 ? "s" : ""})</span></span>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={() => autoSplit(key)} className="hoverable" style={miniBtnStyle}><Sparkles size={11} /> Dividir en pares de líneas</button>
-                    <button onClick={() => syncLetraFromContenido(key)} className="hoverable" style={miniBtnStyle}><RefreshCw size={11} /> Reiniciar desde Contenido</button>
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
-                  {slideGroup.map((lines, si) => (
-                    <div key={si} style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 10 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-faint)" }}>DIAPOSITIVA {si + 1}</span>
-                        <div style={{ display: "flex", gap: 2 }}>
-                          <button onClick={() => moveSlide(key, si, -1)} style={iconGhost}><ChevronUp size={13} /></button>
-                          <button onClick={() => moveSlide(key, si, 1)} style={iconGhost}><ChevronDown size={13} /></button>
-                          <button onClick={() => removeSlide(key, si)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={13} /></button>
-                        </div>
-                      </div>
-                      <SlideMiniPreview lines={lines} />
-                      <textarea
-                        value={lines.join("\n")}
-                        onChange={(e) => setSlideText(key, si, e.target.value)}
-                        rows={Math.max(lines.length, 2) + 1}
-                        style={{ ...inputStyle, resize: "vertical", fontSize: 12, marginTop: 8 }}
-                      />
-                      <button onClick={() => addSlide(key, si)} className="hoverable" style={{ ...miniBtnStyle, width: "100%", justifyContent: "center", marginTop: 8 }}><Plus size={12} /> Diapositiva después</button>
-                    </div>
-                  ))}
-                  {slideGroup.length === 0 && (
-                    <button onClick={() => addSlide(key, -1)} className="hoverable" style={{ ...addBtnStyle, justifyContent: "center" }}><Plus size={13} /> Agregar diapositiva</button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
         </div>
       )}
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, ClipboardPaste, AlertTriangle, Info, Check, Eye, PencilLine } from "lucide-react";
-import { cancionATexto, textoACancion, letraATexto, textoALetra } from "../lib/textoCancion.js";
+import { cancionATexto, textoACancion, letraATexto, textoALetra, leerEncabezado, diapositivasDeLineas } from "../lib/textoCancion.js";
 import { parseChordLine, buildChordRow } from "../lib/musicTheory.js";
 import { acordeEn, lineaEn } from "../lib/preferencias.js";
 
@@ -99,6 +99,29 @@ export default function EditorTextoCancion({ cancion: cancionProp, nueva: nuevaP
     requestAnimationFrame(() => { const pos = (antes + insercion).length; el?.focus(); el?.setSelectionRange(pos, pos); });
   };
 
+  // "Traer letra de Contenido" (reemplaza el botón que tenía la pestaña Letra): para una parte que tiene
+  // letra con acordes pero todavía no tiene diapositivas. Pone esa letra (sin acordes, cada 2 líneas)
+  // debajo del nombre de la parte en el texto.
+  const nombreIgual = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+  const traerDeContenido = (k) => {
+    const b = blocks[k];
+    const cuerpo = diapositivasDeLineas(b.lines || []).map((sl) => sl.join("\n")).join("\n\n");
+    if (!cuerpo) return;
+    const lineas = texto.split("\n");
+    const idx = lineas.findIndex((l) => { const enc = leerEncabezado(l); return enc && nombreIgual(enc.etiqueta, b.label); });
+    let nuevo;
+    if (idx >= 0) {
+      // Debajo del encabezado, antes de lo que ya hubiera (normalmente nada).
+      let fin = idx + 1;
+      while (fin < lineas.length && !lineas[fin].trim()) fin++;
+      const siguienteEsOtra = fin >= lineas.length || leerEncabezado(lineas[fin]);
+      nuevo = [...lineas.slice(0, idx + 1), cuerpo, ...(siguienteEsOtra && fin < lineas.length ? [""] : []), ...lineas.slice(fin)].join("\n");
+    } else {
+      nuevo = `${texto.replace(/\s+$/, "")}${texto.trim() ? "\n\n" : ""}[${b.label}]\n${cuerpo}`;
+    }
+    cambiarTexto(nuevo);
+  };
+
   const aplicar = () => onAplicar({
     blocks, letra, defaultStructure,
     key: cancion?.key || tonalidadSugerida || "",
@@ -161,8 +184,13 @@ export default function EditorTextoCancion({ cancion: cancionProp, nueva: nuevaP
                 </div>
                 {!soloLetra && b.lines.map((l, i) => <LineaConAcordes key={i} linea={l} />)}
                 <div style={{ marginTop: 8, fontSize: 10.5, fontWeight: 700, color: "var(--wf-muted)" }}>
-                  {slides.length === 0 ? "SIN DIAPOSITIVAS (solo para músicos)" : `${slides.length} DIAPOSITIVA${slides.length === 1 ? "" : "S"}${conservada ? " · se quedan como estaban" : ""}`}
+                  {slides.length === 0 ? "SIN DIAPOSITIVAS (no se proyecta)" : `${slides.length} DIAPOSITIVA${slides.length === 1 ? "" : "S"}${conservada ? " · se quedan como estaban" : ""}`}
                 </div>
+                {soloLetra && slides.length === 0 && (b.lines || []).some((l) => String(l).replace(/\[[^\]]*\]/g, "").trim()) && (
+                  <button onClick={() => traerDeContenido(k)} style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, padding: "7px 12px", borderRadius: 14, border: "none", cursor: "pointer", background: "color-mix(in srgb, #1F8A73 14%, transparent)", color: "#1F8A73", fontFamily: "inherit" }}>
+                    <ClipboardPaste size={14} /> Traer letra de Contenido
+                  </button>
+                )}
                 {slides.length > 0 && (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 6, marginTop: 6 }}>
                     {slides.map((s, i) => (
