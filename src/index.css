@@ -84,7 +84,14 @@ body {
   padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
   background: var(--wf-bg);
   box-sizing: border-box;
-  min-height: 100vh;
+  /* Mismo alto que la app (.app-shell-height, más abajo) y con la misma corrección del tamaño de letra.
+     Antes era 100vh a secas: en Android (barra de direcciones) y con letra "Grande" (zoom) el body
+     quedaba MÁS ALTO que la app, la página entera se podía deslizar y la barra de abajo "se subía"
+     dejando una franja vacía debajo (reportado por Eldin, 2026-10-14). */
+  min-height: calc(100vh / var(--wf-vh-div, 1));
+}
+@supports (height: 100dvh) {
+  body { min-height: calc(100dvh / var(--wf-vh-div, 1)); }
 }
 
 /* Nadie puede seleccionar/copiar texto de la interfaz (títulos, botones, listas, letras de

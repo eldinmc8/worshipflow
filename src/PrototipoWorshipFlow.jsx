@@ -682,7 +682,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   useEffect(() => {
     const el = bottomNavRef.current;
     if (!el) return;
-    const publish = () => document.documentElement.style.setProperty("--bottom-nav-height", `${el.getBoundingClientRect().height}px`);
+    // offsetHeight (no getBoundingClientRect): con el tamaño de letra "Grande" (zoom en <html>) el rect
+    // viene ya agrandado y al usarlo como CSS se agrandaba otra vez — la barra quedaba mal puesta.
+    const publish = () => document.documentElement.style.setProperty("--bottom-nav-height", `${el.offsetHeight}px`);
     publish();
     const ro = new ResizeObserver(publish);
     ro.observe(el);
@@ -4953,6 +4955,14 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [otherLeaderFresh, siguiendo, liveSync?.state?.sectionIdx, liveSync?.state?.songItemId]);
 
+  // La fila de partes sigue sola a la que suena (solo de lado: nunca mueve la página hacia arriba).
+  const filaPartesRef = useRef(null);
+  useEffect(() => {
+    const fila = filaPartesRef.current;
+    const pill = fila?.querySelector(`[data-pill="${currentSectionIdx}"]`);
+    if (!fila || !pill) return;
+    fila.scrollTo({ left: pill.offsetLeft - fila.offsetLeft - fila.clientWidth / 2 + pill.offsetWidth / 2, behavior: "smooth" });
+  }, [currentSectionIdx]);
   const goToSectionIdx = (i) => {
     const clamped = Math.max(0, Math.min(order.length - 1, i));
     setCurrentSectionIdx(clamped);
@@ -5183,13 +5193,21 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-        {blockKeys.map((key) => {
+      {/* Partes de la canción EN ORDEN (pedido de Eldin, 2026-10-14: con solo "V1"/"C" no se sabía qué
+          parte era). Se lee el nombre completo, y la parte que suena queda resaltada; en celular la fila
+          se desliza de lado y sigue sola a la parte actual. */}
+      <div ref={filaPartesRef} className="chordbar-scroll" style={{ display: "flex", gap: 6, marginBottom: 20, overflowX: "auto", paddingBottom: 2 }}>
+        {order.map((key, i) => {
           const b = song.blocks[key];
+          if (!b) return null;
           const color = badgeColor(b.badge);
+          const actual = (autoMode || isLive) && i === currentSectionIdx;
           return (
-            <button key={key} onClick={() => { scrollTo(key); goToSectionIdx(order.indexOf(key)); }} className="hoverable" style={{ width: 40, height: 40, borderRadius: "50%", border: `1.5px solid ${color}`, background: "transparent", color, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-              {b.badge}
+            <button key={`${key}-${i}`} data-pill={i}
+              onClick={() => goToSectionIdx(i)} className="hoverable"
+              style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, borderRadius: 18, border: `1.5px solid ${color}`, background: actual ? color : "transparent", color: actual ? "#fff" : "var(--wf-text)", fontSize: 12.5, fontWeight: 700, padding: "6px 12px 6px 6px", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}>
+              <span style={{ minWidth: 22, height: 22, borderRadius: 11, padding: "0 4px", boxSizing: "border-box", background: actual ? "rgba(255,255,255,0.25)" : `${color}22`, color: actual ? "#fff" : color, fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{b.badge}</span>
+              {b.label || b.badge}
             </button>
           );
         })}
