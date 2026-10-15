@@ -168,7 +168,8 @@ export default function EditorTextoCancion({ cancion: cancionProp, nueva: nuevaP
           <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 16 }}>
             {orden.map((k, i) => <span key={i} style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", background: colorSeccion(blocks[k]?.label), borderRadius: 12, padding: "3px 9px" }}>{blocks[k]?.label}</span>)}
           </div>
-          {Object.entries(blocks).map(([k, b]) => {
+          {/* En el orden en que se canta (lo que no está en el orden, al final). */}
+          {[...new Set([...orden.filter((k) => blocks[k]), ...Object.keys(blocks)])].map((k) => [k, blocks[k]]).map(([k, b]) => {
             const slides = letra[k] || [];
             const conservada = !nueva && (soloLetra ? cancion?.letra?.[k] === slides : cancion?.blocks?.[k] === b);
             const veces = orden.filter((x) => x === k).length;
