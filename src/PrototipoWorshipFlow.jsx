@@ -39,6 +39,7 @@ import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } fr
 import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FULL, MONTH_ABBR, DOW_LABELS, monthKey, monthLabelFromKey, formatFullDate, buildMonthWeeks } from "./lib/dates.js";
 import { saveCache, loadCache } from "./lib/offlineCache.js";
 import { showToast, notifyError } from "./lib/toast.js";
+import { cargarNotas, guardarNota, DUENO_EQUIPO } from "./lib/notasSeccion.js";
 import { confirmDialog, promptDialog } from "./lib/confirm.js";
 import { validarPassword } from "./lib/passwordSegura.js";
 import MedidorPassword from "./MedidorPassword.jsx";
@@ -1654,6 +1655,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // ser los de ESA persona, no los del admin real — si no, probar "¿ve Miembro X solo lo suyo?" no
   // serviría de nada.
   const myUserId = realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride)?.id : userId;
+  // Notas por parte de la canción: las "del líder" las escriben quienes arman el setlist o las canciones.
+  const notasCtx = useMemo(() => ({ usuarioId: myUserId, nombre: myName, puedeEquipo: puedeEditarSetlist || puedeGestionarCanciones }), [myUserId, myName, puedeEditarSetlist, puedeGestionarCanciones]);
   // Un evento está "asignado a mí" si me pusieron como encargado de algún bloque/canción/versículo del
   // Setlist, o si estoy en el roster del equipo de alabanza de ese evento (ej. "Guitarra").
   const isEventAssignedToMe = (event, uid) =>
@@ -2375,7 +2378,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         <CancionesList library={library} clasificaciones={clasificaciones} puedeConfigurarClasificaciones={realIsAdmin && isAdminViewer} onGuardarClasificaciones={guardarClasificaciones} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onDelete={deleteSong} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "view" && (
-        <SongView song={library.find((s) => s.id === openSong.id)} isAdminViewer={puedeGestionarCanciones} mode="biblioteca" onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
+        <SongView song={library.find((s) => s.id === openSong.id)} notasCtx={notasCtx} isAdminViewer={puedeGestionarCanciones} mode="biblioteca" onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "edit" && (
         <SongEditor
@@ -2480,6 +2483,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         return (
           <SongView
             key={currentItem?.id ?? openSong.id}
+            notasCtx={notasCtx}
             iglesiaId={myIglesiaId}
             song={displaySong} isAdminViewer={puedeGestionarCanciones} mode="setlist" positionLabel={positionLabel}
             structureOverride={currentItem?.structure}
@@ -4756,7 +4760,7 @@ function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResult
   );
 }
 
-function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, enterDirection, structureOverride, liveSync, iglesiaId }) {
+function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, enterDirection, structureOverride, liveSync, iglesiaId, notasCtx }) {
   const sectionRefs = useRef({});
   // Ref aparte, por POSICIÓN en el orden (no por clave de sección): si una sección se repite (V1, V2,
   // V1, Coro...) sectionRefs solo guarda la primera aparición (para los pills de arriba, que son un
@@ -4954,6 +4958,33 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
     indexRefs.current[state.sectionIdx || 0]?.scrollIntoView({ behavior: "smooth", block: "start" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [otherLeaderFresh, siguiendo, liveSync?.state?.sectionIdx, liveSync?.state?.songItemId]);
+
+  // ---- Notas por parte (pedido de Eldin, 2026-10-14): la del líder la ven todos; "mi nota" solo yo. ----
+  const [notas, setNotas] = useState({ disponible: false, equipo: {}, mias: {} });
+  const [notaAbierta, setNotaAbierta] = useState(null); // clave de la parte cuyas notas se están editando
+  useEffect(() => {
+    if (!song?.id || !notasCtx?.usuarioId) return;
+    let vivo = true;
+    cargarNotas(song.id, notasCtx.usuarioId).then((r) => { if (vivo) setNotas(r); }).catch(() => {});
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [song?.id, notasCtx?.usuarioId]);
+  const guardarNotas = async (clave, { equipo, mia }) => {
+    const tareas = [];
+    const antesEquipo = notas.equipo[clave]?.texto || "";
+    const antesMia = notas.mias[clave]?.texto || "";
+    if (notasCtx.puedeEquipo && equipo.trim() !== antesEquipo) tareas.push(guardarNota({ cancionId: song.id, seccionClave: clave, duenoId: DUENO_EQUIPO, texto: equipo, nombre: notasCtx.nombre }).then((n) => ["equipo", n]));
+    if (mia.trim() !== antesMia) tareas.push(guardarNota({ cancionId: song.id, seccionClave: clave, duenoId: notasCtx.usuarioId, texto: mia, nombre: notasCtx.nombre }).then((n) => ["mias", n]));
+    try {
+      const hechos = await Promise.all(tareas);
+      setNotas((prev) => {
+        const sig = { ...prev, equipo: { ...prev.equipo }, mias: { ...prev.mias } };
+        hechos.forEach(([tipo, n]) => { if (n) sig[tipo][clave] = n; else delete sig[tipo][clave]; });
+        return sig;
+      });
+      setNotaAbierta(null);
+    } catch (e) { notifyError("No se pudo guardar la nota", e); }
+  };
 
   // La fila de partes sigue sola a la que suena (solo de lado: nunca mueve la página hacia arriba).
   const filaPartesRef = useRef(null);
@@ -5234,16 +5265,48 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
             className="hoverable"
             style={{ marginBottom: 16, borderRadius: 14, outline: isActive ? "2px solid var(--wf-brand-accent)" : "none", outlineOffset: 3, cursor: "pointer" }}
           >
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${color}22`, borderRadius: 20, padding: "5px 12px", marginBottom: 10 }}>
-              <span style={{ width: 22, height: 22, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{b.badge}</span>
-              <span style={{ fontSize: 13, fontWeight: 700 }}>{b.label}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${color}22`, borderRadius: 20, padding: "5px 12px" }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{b.badge}</span>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{b.label}</span>
+              </div>
+              <span style={{ flex: 1 }} />
+              {notas.disponible && (
+                <button onClick={(e) => { e.stopPropagation(); setNotaAbierta(key); }} onPointerDown={(e) => e.stopPropagation()} aria-label={`Notas de ${b.label}`}
+                  style={{ display: "flex", alignItems: "center", gap: 5, background: (notas.equipo[key] || notas.mias[key]) ? "#F6C94522" : "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 14, padding: "6px 11px", fontSize: 12, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit", minHeight: 34 }}>
+                  <StickyNote size={14} color="#D9A514" /> {(notas.equipo[key] || notas.mias[key]) ? "Notas" : "Nota"}
+                </button>
+              )}
             </div>
+            {notas.equipo[key] && (
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start", background: "#F6C94526", borderLeft: "3px solid #E0A800", borderRadius: 10, padding: "8px 10px", marginBottom: 8, fontSize: 13.5, lineHeight: 1.4 }}>
+                <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, letterSpacing: 0.4, color: "#B58500", background: "#F6C94540", borderRadius: 8, padding: "2px 6px", marginTop: 1 }}>LÍDER</span>
+                <span style={{ whiteSpace: "pre-wrap" }}>{notas.equipo[key].texto}</span>
+              </div>
+            )}
+            {notas.mias[key] && (
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start", background: "#2F5FA81F", borderLeft: "3px solid #2F5FA8", borderRadius: 10, padding: "8px 10px", marginBottom: 8, fontSize: 13.5, lineHeight: 1.4 }}>
+                <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, letterSpacing: 0.4, color: "#2F5FA8", background: "#2F5FA826", borderRadius: 8, padding: "2px 6px", marginTop: 1 }}>MI NOTA</span>
+                <span style={{ whiteSpace: "pre-wrap" }}>{notas.mias[key].texto}</span>
+              </div>
+            )}
             <div style={{ background: isActive ? "var(--wf-active-bg)" : "var(--wf-hover)", borderRadius: 14, padding: 16 }}>
               {b.lines.map((l, i2) => <ChordsAboveLyrics key={i2} raw={l} semitones={semitonesDesdeOriginal} />)}
             </div>
           </div>
         );
       })}
+
+      {notaAbierta && song.blocks[notaAbierta] && (
+        <NotasParteSheet
+          parte={song.blocks[notaAbierta]}
+          equipo={notas.equipo[notaAbierta]}
+          mia={notas.mias[notaAbierta]}
+          puedeEquipo={!!notasCtx?.puedeEquipo}
+          onGuardar={(v) => guardarNotas(notaAbierta, v)}
+          onCerrar={() => setNotaAbierta(null)}
+        />
+      )}
 
       {/* Fija abajo (como la barra de acordes del editor): para saber qué sigue en Modo Músico sin
           tener que bajar hasta el final de la canción actual ni cambiar de pantalla — antes esta
@@ -5275,6 +5338,41 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
         </div>
       )}
     </div>
+  );
+}
+
+// Hoja de abajo para las notas de una parte (pensada para el pulgar en el celular). Portal a <body>
+// por lo mismo que ModalShell: SongView anima transform al deslizar entre canciones.
+function NotasParteSheet({ parte, equipo, mia, puedeEquipo, onGuardar, onCerrar }) {
+  const [textoEquipo, setTextoEquipo] = useState(equipo?.texto || "");
+  const [textoMia, setTextoMia] = useState(mia?.texto || "");
+  const [guardando, setGuardando] = useState(false);
+  const area = { width: "100%", boxSizing: "border-box", minHeight: 76, resize: "vertical", borderRadius: 12, border: "1px solid var(--wf-border)", background: "var(--wf-bg)", color: "var(--wf-text)", padding: "10px 12px", fontSize: 15, fontFamily: "inherit", lineHeight: 1.4, outline: "none" };
+  const etiqueta = (txt, color) => <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.5, color, margin: "14px 0 6px" }}>{txt}</div>;
+  return createPortal(
+    <div onClick={onCerrar} style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.55)", zIndex: 60, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 520, background: "var(--wf-card)", borderRadius: "20px 20px 0 0", padding: "10px 18px calc(18px + env(safe-area-inset-bottom))", boxShadow: "0 -10px 30px rgba(0,0,0,0.25)", maxHeight: "85dvh", overflowY: "auto" }}>
+        <div style={{ width: 40, height: 4, borderRadius: 2, background: "var(--wf-border)", margin: "0 auto 10px" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <StickyNote size={18} color="#D9A514" />
+          <span style={{ fontWeight: 800, fontSize: 16, flex: 1 }}>Notas · {parte.label}</span>
+          <button onClick={onCerrar} style={iconGhost} aria-label="Cerrar"><X size={16} /></button>
+        </div>
+        {etiqueta("DEL LÍDER · LA VEN TODOS", "#B58500")}
+        {puedeEquipo ? (
+          <textarea value={textoEquipo} onChange={(e) => setTextoEquipo(e.target.value)} placeholder="Ej.: aquí solo piano · el coro baja · repetir 2 veces al final" style={area} />
+        ) : (
+          <div style={{ fontSize: 14, color: equipo ? "var(--wf-text)" : "var(--wf-faint)", background: "var(--wf-bg)", borderRadius: 12, padding: "10px 12px", whiteSpace: "pre-wrap" }}>{equipo?.texto || "El líder no ha puesto notas en esta parte."}</div>
+        )}
+        {equipo?.editado_nombre && <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Escrita por {equipo.editado_nombre}</div>}
+        {etiqueta("MI NOTA · SOLO LA VES TÚ", "#2F5FA8")}
+        <textarea value={textoMia} onChange={(e) => setTextoMia(e.target.value)} placeholder="Ej.: cejilla 2 · aquí cambio a acústica · ojo con el Bm" style={area} autoFocus={!puedeEquipo} />
+        <button disabled={guardando} onClick={async () => { setGuardando(true); await onGuardar({ equipo: textoEquipo, mia: textoMia }); setGuardando(false); }}
+          style={{ ...primaryBtn, marginTop: 16, minHeight: 46, opacity: guardando ? 0.6 : 1 }}>{guardando ? "Guardando…" : "Guardar"}</button>
+        <div style={{ fontSize: 11.5, color: "var(--wf-faint)", textAlign: "center", marginTop: 8 }}>Las notas se quedan en la canción: aparecen cada vez que se toque.</div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
