@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { WifiOff } from "lucide-react";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
+import { esFalloDeConexion } from "./lib/toast.js";
 import { suscribirPush } from "./lib/notificaciones.js";
 import { colorLegibleSobre } from "./lib/colores.js";
 import Login from "./Login.jsx";
@@ -89,10 +90,25 @@ export default function AuthGate() {
   }, [myIglesia.colorPrimario, myIglesia.colorAcento]);
 
   const [errorSesion, setErrorSesion] = useState("");
+  // Sin internet (2026-10-17): si la app se abre o se recarga sin señal y el token ya venció, Supabase no
+  // puede renovarlo y devolvía "sin sesión" — mandaba al login en pleno culto. Se usa la sesión que ya
+  // estaba guardada en este dispositivo; al volver el internet, Supabase la renueva sola.
+  const sesionGuardada = () => {
+    try {
+      const k = Object.keys(localStorage).find((x) => x.startsWith("sb-") && x.endsWith("-auth-token"));
+      const s = k ? JSON.parse(localStorage.getItem(k)) : null;
+      return s?.user ? s : null;
+    } catch { return null; }
+  };
   useEffect(() => {
+    const sinRed = () => typeof navigator !== "undefined" && navigator.onLine === false;
     supabase.auth.getSession()
-      .then(({ data }) => setSession(data.session ?? null))
-      .catch((e) => { setSession(null); setErrorSesion(e.message); });
+      .then(({ data }) => setSession(data.session ?? (sinRed() ? sesionGuardada() : null)))
+      .catch((e) => {
+        const guardada = sinRed() ? sesionGuardada() : null;
+        setSession(guardada);
+        if (!guardada) setErrorSesion(e.message);
+      });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -100,7 +116,17 @@ export default function AuthGate() {
   useEffect(() => {
     if (!session) { setPerfil(null); return; }
     supabase.from("usuarios").select("*, iglesias(nombre, activa, slug, logo_url, color_primario, color_acento, categorias_canciones, formato_letra, dividir_versiculos)").eq("id", session.user.id).single()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        // Sin internet: NUNCA cerrar la sesión por no poder leer el perfil (antes, recargar la app sin
+        // señal la tomaba como "acceso no autorizado" y sacaba a la persona). Se usa el último perfil
+        // guardado en este dispositivo.
+        if (!data && error && esFalloDeConexion(error)) {
+          try {
+            const guardado = JSON.parse(localStorage.getItem(`worshipflow_perfil_${session.user.id}`) || "null");
+            if (guardado) setPerfil(guardado);
+          } catch { /* sin storage */ }
+          return;
+        }
         if (!data) {
           setAccessDenied(true);
           // Descarta de una la cuenta huérfana que Google acaba de crear en Auth (ver
@@ -118,6 +144,7 @@ export default function AuthGate() {
           return;
         }
         setPerfil(data);
+        try { localStorage.setItem(`worshipflow_perfil_${session.user.id}`, JSON.stringify(data)); } catch { /* sin storage */ }
       });
   }, [session]);
 

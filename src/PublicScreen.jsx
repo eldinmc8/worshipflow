@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { ProjectionPanel } from "./PrototipoWorshipFlow.jsx";
-import { getLiveSession, subscribeLiveSession, subscribeLiveBroadcast, anunciarProyeccion } from "./lib/liveSession.js";
+import { getLiveSession, subscribeLiveSession, subscribeLiveBroadcast, anunciarProyeccion, pedirEstadoActual, guardarUltimaFila, leerUltimaFila } from "./lib/liveSession.js";
 import { supabase } from "./lib/supabaseClient.js";
 
 const CURSOR_IDLE_MS = 3000;
@@ -30,12 +30,25 @@ export default function PublicScreen() {
   // Sin slug en la URL (pantalla instalada antes de este cambio), cae a iglesia_id_por_defecto() —
   // correcto mientras exista una sola iglesia.
   const [iglesiaId, setIglesiaId] = useState(null);
+  // Sin internet (2026-10-17): la consola ahora manda también el id de la iglesia en la URL (&iid=), y
+  // el último id resuelto se guarda en este dispositivo — así la pantalla arranca aunque no haya señal
+  // para preguntarle a Supabase.
   useEffect(() => {
-    const slug = new URLSearchParams(window.location.search).get("igl");
+    const params = new URLSearchParams(window.location.search);
+    const slug = params.get("igl");
+    const claveCache = `worshipflow_iglesia_por_slug_${slug || "_defecto"}`;
+    const directo = params.get("iid");
+    let guardado = null;
+    try { guardado = localStorage.getItem(claveCache); } catch { /* sin storage */ }
+    if (directo || guardado) setIglesiaId(directo || guardado);
     const resolver = slug
       ? supabase.rpc("iglesia_id_por_slug", { p_slug: slug })
       : supabase.rpc("iglesia_id_por_defecto");
-    resolver.then(({ data }) => setIglesiaId(data || null)).catch(() => {});
+    resolver.then(({ data }) => {
+      if (!data) return;
+      setIglesiaId(data);
+      try { localStorage.setItem(claveCache, data); } catch { /* sin storage */ }
+    }).catch(() => {});
   }, []);
 
   // Dos caminos a la vez: BroadcastChannel llega al instante (sin depender de internet) cuando esta
@@ -46,10 +59,18 @@ export default function PublicScreen() {
   // mal, pero funciona aunque control y proyección estén en computadoras distintas.
   useEffect(() => {
     if (!iglesiaId) return;
-    const aplicar = (fila) => setLive({ slide: fila.slide_actual, blanked: fila.blanked, liveStyle: fila.estilo_en_vivo || { theme: "stage", font: "elegante" } });
+    const aplicar = (fila) => {
+      setLive({ slide: fila.slide_actual, blanked: fila.blanked, liveStyle: fila.estilo_en_vivo || { theme: "stage", font: "elegante" } });
+      guardarUltimaFila(iglesiaId, fila);
+    };
+    // Primero lo último que se vio en este dispositivo (por si no hay internet), luego lo que diga la
+    // consola de esta misma computadora, y por último Supabase cuando haya señal.
+    const ultima = leerUltimaFila(iglesiaId);
+    if (ultima) setLive({ slide: ultima.slide_actual, blanked: ultima.blanked, liveStyle: ultima.estilo_en_vivo || { theme: "stage", font: "elegante" } });
+    const unsubscribeBroadcast = subscribeLiveBroadcast(iglesiaId, aplicar);
+    pedirEstadoActual(iglesiaId);
     getLiveSession(iglesiaId).then(aplicar).catch(() => {});
     const unsubscribeRealtime = subscribeLiveSession(iglesiaId, aplicar);
-    const unsubscribeBroadcast = subscribeLiveBroadcast(iglesiaId, aplicar);
     return () => { unsubscribeRealtime(); unsubscribeBroadcast(); };
   }, [iglesiaId]);
 

@@ -19,7 +19,7 @@ export function subscribeToast(fn) {
 // Distingue un fallo por falta de internet de un error real de la app, para no culparla de algo que
 // en realidad es que se cortó la señal — y para no mostrarle a la iglesia un mensaje técnico (fetch
 // failed, TypeError, etc.) que se ve como que la app está fallando.
-function esFalloDeConexion(err) {
+export function esFalloDeConexion(err) {
   if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
   return /failed to fetch|networkerror|load failed|network request failed/i.test(err?.message || "");
 }

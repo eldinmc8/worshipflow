@@ -70,9 +70,34 @@ export function broadcastLiveSession(iglesiaId, fila) {
 export function subscribeLiveBroadcast(iglesiaId, onChange) {
   const channel = getLiveBroadcastChannel(iglesiaId);
   if (!channel) return () => {};
-  const listener = (e) => onChange(e.data);
+  const listener = (e) => { if (e.data && !e.data.__pedirEstado) onChange(e.data); };
   channel.addEventListener("message", listener);
   return () => channel.removeEventListener("message", listener);
+}
+
+// ---- Sin internet (pedido de Eldin, 2026-10-17) ----
+// Una pantalla de proyección que se abre (o se recarga) cuando NO hay internet no puede leer la sesión
+// en vivo de Supabase. Le pide a la consola de la misma computadora lo que está al aire ahora mismo,
+// por el mismo canal local, y la consola le responde al instante (ver responderPedidosDeEstado).
+export function pedirEstadoActual(iglesiaId) {
+  getLiveBroadcastChannel(iglesiaId)?.postMessage({ __pedirEstado: true });
+}
+export function responderPedidosDeEstado(iglesiaId, obtenerFila) {
+  const channel = getLiveBroadcastChannel(iglesiaId);
+  if (!channel) return () => {};
+  const listener = (e) => { if (e.data?.__pedirEstado) { const fila = obtenerFila(); if (fila) channel.postMessage(fila); } };
+  channel.addEventListener("message", listener);
+  return () => channel.removeEventListener("message", listener);
+}
+
+// Lo último que mostró la pantalla de proyección, guardado en ESTE dispositivo: si se recarga sin
+// internet, arranca mostrando eso en vez de quedar en negro.
+const CLAVE_ULTIMA_FILA = (iglesiaId) => `worshipflow_proyeccion_ultima_${iglesiaId}`;
+export function guardarUltimaFila(iglesiaId, fila) {
+  try { localStorage.setItem(CLAVE_ULTIMA_FILA(iglesiaId), JSON.stringify(fila)); } catch { /* sin espacio: no pasa nada */ }
+}
+export function leerUltimaFila(iglesiaId) {
+  try { return JSON.parse(localStorage.getItem(CLAVE_ULTIMA_FILA(iglesiaId)) || "null"); } catch { return null; }
 }
 
 // ---- ¿Está abierta la pantalla de proyección? (pedido de Eldin, 2026-10-11) ----

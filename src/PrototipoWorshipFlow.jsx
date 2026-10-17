@@ -27,7 +27,7 @@ import {
   listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
 } from "./lib/eventos.js";
 import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos, getResumenMensual, guardarResumenMensual, subirArchivoRecurso } from "./lib/ministerios.js";
-import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession, escucharProyeccion } from "./lib/liveSession.js";
+import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession, escucharProyeccion, responderPedidosDeEstado } from "./lib/liveSession.js";
 import { getMusicoLive, updateMusicoLive, clearMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { sincronizarRecordatorios } from "./lib/recordatorios.js";
@@ -38,7 +38,7 @@ import { listarFondos, subirFondo, borrarFondo } from "./lib/multimedia.js";
 import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } from "./lib/pwaInstall.js";
 import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FULL, MONTH_ABBR, DOW_LABELS, monthKey, monthLabelFromKey, formatFullDate, buildMonthWeeks } from "./lib/dates.js";
 import { saveCache, loadCache } from "./lib/offlineCache.js";
-import { showToast, notifyError } from "./lib/toast.js";
+import { showToast, notifyError, esFalloDeConexion } from "./lib/toast.js";
 import { cargarNotas, guardarNota, DUENO_EQUIPO } from "./lib/notasSeccion.js";
 import { listarAdjuntos, subirAdjunto, agregarEnlace, borrarAdjunto, tipoDeArchivo } from "./lib/adjuntosCancion.js";
 import { confirmDialog, promptDialog } from "./lib/confirm.js";
@@ -754,6 +754,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // Refleja el estado real de conexión del navegador (no solo "falló la última carga") — así se puede
   // avisar apenas se corta la señal, aunque los datos ya estuvieran cargados de antes.
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && navigator.onLine === false);
+  const filaAlAireRef = useRef(null); // lo último que se mandó a la proyección (ver sincronización en vivo)
+  const sincroPendienteRef = useRef(false); // true = Supabase no recibió el último cambio por falta de internet
   const reloadLibrary = () => listCancionesCompletas().then(setLibrary).catch((e) => notifyError("No se pudo cargar el cancionero", e));
   // Se reutiliza tanto en la carga inicial como al recuperar la señal (ver el efecto de "online" más
   // abajo) — mismo Promise.all de siempre, solo que ahora tiene nombre para no repetirlo dos veces.
@@ -1300,7 +1302,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     // en vivo — ver iglesia_id_por_slug en la migración 20260930000300 y PublicScreen.jsx. Si el slug
     // todavía no cargó (carrera rara al abrir muy rápido), PublicScreen cae a iglesia_id_por_defecto(),
     // que sigue siendo correcto mientras exista una sola iglesia.
-    const url = `${window.location.origin}${window.location.pathname}?screen=publico${myIglesia.slug ? `&igl=${encodeURIComponent(myIglesia.slug)}` : ""}`;
+    const url = `${window.location.origin}${window.location.pathname}?screen=publico${myIglesia.slug ? `&igl=${encodeURIComponent(myIglesia.slug)}` : ""}${myIglesiaId ? `&iid=${myIglesiaId}` : ""}`;
     const otherScreen = screenDetails.screens.find((s) => s !== screenDetails.currentScreen);
     if (!otherScreen) {
       showToast("No se detectó una segunda pantalla conectada. Conecta el proyector/monitor y vuelve a intentar para que se abra ahí solo.");
@@ -1398,7 +1400,10 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   };
   const endEvent = () => {
     setLiveEventId(null); setLiveLibre(false); setLiveOwnerId(null); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); setTab("eventos");
-    clearLiveSession(myIglesiaId).catch((e) => notifyError("No se pudo cerrar la sesión en vivo", e));
+    // También por el canal local: si no hay internet, la pantalla de esta computadora igual se apaga.
+    filaAlAireRef.current = null;
+    if (myIglesiaId) broadcastLiveSession(myIglesiaId, { evento_id: null, liderado_por: null, slide_actual: null, blanked: false, estilo_en_vivo: liveStyle, ad_hoc_label: null, libre: false });
+    clearLiveSession(myIglesiaId).catch((e) => { if (!esFalloDeConexion(e)) notifyError("No se pudo cerrar la sesión en vivo", e); });
     resetMusicoLive();
   };
 
@@ -1701,9 +1706,27 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     // cambio de diapositiva no depende del internet del lugar, igual que un presentador local. Supabase
     // sigue siendo el camino real cuando la proyección de verdad está en otro dispositivo aparte.
     if (!myIglesiaId) return;
+    filaAlAireRef.current = fila;
     broadcastLiveSession(myIglesiaId, fila);
-    updateLiveSession(myIglesiaId, fila).catch((e) => notifyError("No se pudo actualizar la proyección", e));
+    // Sin internet (2026-10-17): la pantalla en ESTA computadora ya recibió el cambio por el canal local,
+    // así que la falla de internet no se avisa en cada diapositiva (asustaba sin razón). Se anota como
+    // pendiente y se manda solo apenas vuelve la señal (ver el efecto de "online" justo abajo).
+    updateLiveSession(myIglesiaId, fila)
+      .then(() => { sincroPendienteRef.current = false; })
+      .catch((e) => { if (esFalloDeConexion(e)) sincroPendienteRef.current = true; else notifyError("No se pudo actualizar la proyección", e); });
   }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId, practica, fijada]);
+  // Lo que está al aire ahora: para responderle a una pantalla de proyección que se abre o se recarga
+  // sin internet, y para mandarlo a Supabase cuando vuelve la señal.
+  useEffect(() => {
+    if (!myIglesiaId) return;
+    const quitarRespuesta = responderPedidosDeEstado(myIglesiaId, () => filaAlAireRef.current);
+    const alVolver = () => {
+      if (!sincroPendienteRef.current || !filaAlAireRef.current) return;
+      updateLiveSession(myIglesiaId, filaAlAireRef.current).then(() => { sincroPendienteRef.current = false; }).catch(() => {});
+    };
+    window.addEventListener("online", alVolver);
+    return () => { quitarRespuesta(); window.removeEventListener("online", alVolver); };
+  }, [myIglesiaId]);
 
   // ---- Sincroniza EN TIEMPO REAL, en todos los dispositivos, si hay un evento en vivo ahora mismo y
   // quién lo está llevando — así el indicador "En vivo" (pestaña, franja de Inicio, tarjeta del evento)
@@ -2200,7 +2223,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           <WifiOff size={13} />
           {usingCachedData
             ? "Sin conexión — mostrando la última versión guardada en este dispositivo. Los cambios no se guardarán hasta que vuelva el internet."
-            : "Sin conexión a internet — sigue usando la app con normalidad, se sincronizará sola apenas vuelva la señal."}
+            : (liveEventId || liveLibre) && userId === liveOwnerId
+              ? "Sin internet — la proyección en esta computadora sigue funcionando. Se sincroniza sola cuando vuelva la señal."
+              : "Sin conexión a internet — sigue usando la app con normalidad, se sincronizará sola apenas vuelva la señal."}
         </div>
       )}
 
