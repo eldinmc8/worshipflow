@@ -84,6 +84,13 @@ export function cancionCompletaAFormatoEditor({ cancion, secciones, estructura, 
   });
   const defaultStructure = [];
   estructura.forEach((e) => { for (let i = 0; i < (e.multiplicador || 1); i++) defaultStructure.push(e.seccion_clave); });
+  // Las partes en el MISMO orden en que se canta (pedido de Eldin, 2026-10-17: en el editor salían
+  // desordenadas, ej. el Outro primero, y costaba encontrarlas). Primero las que están en la Estructura,
+  // en su orden y sin repetir; después las que no se usan en el orden.
+  const ordenPartes = [...new Set([...defaultStructure.filter((k) => blocks[k]), ...Object.keys(blocks)])];
+  const blocksOrdenados = Object.fromEntries(ordenPartes.map((k) => [k, blocks[k]]));
+  Object.keys(blocks).forEach((k) => delete blocks[k]);
+  Object.assign(blocks, blocksOrdenados);
   const letra = {};
   diapositivas.forEach((d) => {
     if (!letra[d.seccion_clave]) letra[d.seccion_clave] = [];
@@ -103,7 +110,7 @@ export function cancionCompletaAFormatoEditor({ cancion, secciones, estructura, 
     id: cancion.id, title: cancion.titulo, key: cancion.tonalidad, tempo: cancion.tempo || "", compas: cancion.compas || "",
     artist: cancion.artista || "", themes: cancion.temas || "", category: cancion.categoria,
     favorite: cancion.favorito, hasAttachment: false,
-    defaultStructure, blocks, letra,
+    defaultStructure, blocks, letra: Object.fromEntries([...Object.keys(blocks).filter((k) => k in letra), ...Object.keys(letra).filter((k) => !(k in blocks))].map((k) => [k, letra[k]])),
   };
 }
 
