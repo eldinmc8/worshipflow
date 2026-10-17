@@ -20,6 +20,7 @@ import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guard
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
 import AutoFitText from "./components/AutoFitText.jsx";
 import EditorTextoCancion from "./components/EditorTextoCancion.jsx";
+import ImportarCancionesPdf from "./components/ImportarCancionesPdf.jsx";
 import { misProximosServicios, cuandoEs, companeros, indicaciones, cancionesParaEnsayar, necesitaAtencion, estaSemana } from "./lib/inicio.js";
 import { bloquesDelCulto, insertarEnBloque, anclaDeBloque } from "./lib/ordenCulto.js";
 import { expandirVersiculosLargos, reorganizarLetra, FORMATOS_LETRA, palabrasPorParteSegun, partesDeVersiculo } from "./lib/dividirTexto.js";
@@ -753,6 +754,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const [usingCachedData, setUsingCachedData] = useState(false);
   // Refleja el estado real de conexión del navegador (no solo "falló la última carga") — así se puede
   // avisar apenas se corta la señal, aunque los datos ya estuvieran cargados de antes.
+  const [importandoPdf, setImportandoPdf] = useState(false); // ver components/ImportarCancionesPdf.jsx
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && navigator.onLine === false);
   const filaAlAireRef = useRef(null); // lo último que se mandó a la proyección (ver sincronización en vivo)
   const sincroPendienteRef = useRef(false); // true = Supabase no recibió el último cambio por falta de internet
@@ -2403,7 +2405,11 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       )}
 
       {tab === "canciones" && openSong === null && (
-        <CancionesList library={library} clasificaciones={clasificaciones} puedeConfigurarClasificaciones={realIsAdmin && isAdminViewer} onGuardarClasificaciones={guardarClasificaciones} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onDelete={deleteSong} />
+        <CancionesList library={library} clasificaciones={clasificaciones} puedeConfigurarClasificaciones={realIsAdmin && isAdminViewer} onGuardarClasificaciones={guardarClasificaciones} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onImportarPdf={() => setImportandoPdf(true)} onDelete={deleteSong} />
+      )}
+      {importandoPdf && (
+        <ImportarCancionesPdf library={library} clasificaciones={clasificaciones} iglesiaId={myIglesiaId} userId={userId}
+          onCerrar={() => setImportandoPdf(false)} onImportadas={() => reloadLibrary()} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "view" && (
         <SongView song={library.find((s) => s.id === openSong.id)} notasCtx={notasCtx} iglesiaId={myIglesiaId} onAdjuntosChange={marcarAdjuntos} isAdminViewer={puedeGestionarCanciones} mode="biblioteca" onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
@@ -4483,7 +4489,7 @@ function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, 
 }
 
 // ---------------- CANCIONES: LISTA ----------------
-function CancionesList({ library, clasificaciones, puedeConfigurarClasificaciones, onGuardarClasificaciones, isAdminViewer, onToggleFavorite, onOpen, onNew, onDelete }) {
+function CancionesList({ library, clasificaciones, puedeConfigurarClasificaciones, onGuardarClasificaciones, isAdminViewer, onToggleFavorite, onOpen, onNew, onImportarPdf, onDelete }) {
   const [query, setQuery] = useState("");
   // "todos" + las clasificaciones de ESTA iglesia. "sin" (Sin clasificar) solo aparece si hay
   // canciones cuya clasificación ya no existe (ej. la borraron), para que no queden escondidas.
@@ -4522,7 +4528,16 @@ function CancionesList({ library, clasificaciones, puedeConfigurarClasificacione
     <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>{library.length} Canciones</h2>
-        {isAdminViewer && <button data-tour="canciones-nueva" onClick={onNew} style={{ ...iconGhost, width: 30, height: 30, background: "var(--wf-hover)", border: "1px solid var(--wf-border)" }}><Plus size={16} /></button>}
+        {isAdminViewer && (
+          <div style={{ display: "flex", gap: 8 }}>
+            {onImportarPdf && (
+              <button onClick={onImportarPdf} title="Importar canciones desde PDF" style={{ display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 12px", borderRadius: 10, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", color: "var(--wf-text)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <FileUp size={14} /> Importar PDF
+              </button>
+            )}
+            <button data-tour="canciones-nueva" onClick={onNew} style={{ ...iconGhost, width: 30, height: 30, background: "var(--wf-hover)", border: "1px solid var(--wf-border)" }}><Plus size={16} /></button>
+          </div>
+        )}
       </div>
       <div data-tour="canciones-buscar" style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 14, padding: "10px 14px", marginBottom: 12 }}>
         <Search size={15} color="var(--wf-faint)" />
