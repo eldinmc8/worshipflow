@@ -35,3 +35,16 @@ describe("importar canciones desde PDF", () => {
     expect(cs[1].texto).toBe("Sublime gracia del Señor\nQue a un pecador salvó\n\nFui ciego mas hoy veo yo\nPerdido y Él me halló");
   });
 });
+
+describe("PDF real (Yeshua – Generación 12)", () => {
+  it("título en la primera línea, acordes al pie de página con su letra, partes", async () => {
+    const [c, ...resto] = await leer("yeshua.pdf");
+    expect(resto).toHaveLength(0);
+    expect(c.titulo).toBe("YESHUA");
+    expect(c.artista).toBe("Generación 12");
+    expect(c.texto).not.toContain("YESHUA – Generación 12");
+    expect(c.texto).toContain("Qu[C#m]iero conoce[B]r a Jesús\nQu[A]iero");
+    const r = textoACancion(c.texto);
+    expect(Object.values(r.blocks).map((b) => b.label)).toEqual(["Estrofa", "Pre-coro", "Coro"]);
+  });
+});

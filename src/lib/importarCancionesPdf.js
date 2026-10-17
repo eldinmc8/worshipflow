@@ -108,7 +108,16 @@ export function cancionesDeLineas(lineasCrudas, nombreArchivo = "") {
   // Varios títulos seguidos (título + subtítulo grande) cuentan como uno solo.
   const iniciosLimpios = inicios.filter((i, n) => n === 0 || i !== inicios[n - 1] + 1);
   const tramos = [];
-  if (iniciosLimpios.length === 0) tramos.push({ titulo: tituloDeArchivo(nombreArchivo), desde: 0, hasta: lineas.length });
+  if (iniciosLimpios.length === 0) {
+    // Sin letra más grande: si la PRIMERA línea es el título (se parece al nombre del archivo, o viene
+    // como "Título – Autor"), se usa como título y no como letra.
+    const primera = lineas[0].texto.trim();
+    const base = normalizarTitulo(tituloDeArchivo(nombreArchivo));
+    const pareceTitulo = !esLineaDeAcordes(primera) && !leerEncabezado(primera) && primera.length <= 80 &&
+      ((base && normalizarTitulo(primera).includes(base)) || /\s[-–—]\s/.test(primera));
+    if (pareceTitulo) tramos.push({ titulo: primera, desde: 1, hasta: lineas.length });
+    else tramos.push({ titulo: tituloDeArchivo(nombreArchivo), desde: 0, hasta: lineas.length });
+  }
   else iniciosLimpios.forEach((ini, n) => {
     let desde = ini + 1;
     while (desde < lineas.length && inicios.includes(desde)) desde++;
@@ -117,6 +126,7 @@ export function cancionesDeLineas(lineasCrudas, nombreArchivo = "") {
   return tramos.map((t) => armarCancion(t.titulo, lineas.slice(t.desde, t.hasta))).filter((c) => c.texto.trim());
 }
 
+const normalizarTitulo = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 function tituloDeArchivo(nombre) {
   return String(nombre || "Canción").replace(/\.pdf$/i, "").replace(/[_]+/g, " ")
     .replace(/\s*[-–|]\s*(lacuerda|cifra ?club|acordes|chords|letra).*$/i, "").replace(/\s+/g, " ").trim() || "Canción";
@@ -139,7 +149,9 @@ function armarCancion(titulo, lineas) {
   for (let i = 0; i < cuerpo.length; i++) {
     const l = cuerpo[i];
     const sig = cuerpo[i + 1];
-    if (esLineaDeAcordes(l.texto) && sig && sig.pagina === l.pagina && !esLineaDeAcordes(sig.texto) && !leerEncabezado(sig.texto) && l.y - sig.y < Math.max(l.alto, sig.alto) * 2.4) {
+    // Acordes al pie de una página con su letra arriba de la siguiente: también van juntos.
+    const cambioDePagina = sig && sig.pagina === l.pagina + 1 && cuerpo.findIndex((x) => x.pagina === sig.pagina) === i + 1;
+    if (esLineaDeAcordes(l.texto) && sig && !esLineaDeAcordes(sig.texto) && !leerEncabezado(sig.texto) && (cambioDePagina || (sig.pagina === l.pagina && l.y - sig.y < Math.max(l.alto, sig.alto) * 2.4))) {
       salida.push({ texto: pegarAcordes(l, sig), y: sig.y, pagina: sig.pagina, alto: sig.alto });
       i++;
     } else {
@@ -152,7 +164,8 @@ function armarCancion(titulo, lineas) {
   const textoFinal = [];
   salida.forEach((s, i) => {
     const ant = salida[i - 1];
-    if (ant && (ant.pagina !== s.pagina || ant.y - s.y > saltoNormal * 1.45) && textoFinal[textoFinal.length - 1] !== "") textoFinal.push("");
+    // El cambio de página NO corta la diapositiva (la letra sigue igual en la otra hoja); solo un espacio grande.
+    if (ant && ant.pagina === s.pagina && ant.y - s.y > saltoNormal * 1.45 && textoFinal[textoFinal.length - 1] !== "") textoFinal.push("");
     // Un encabezado de parte ("Coro", "Estrofa 2") siempre empieza en su propio bloque.
     if (leerEncabezado(s.texto) && textoFinal.length && textoFinal[textoFinal.length - 1] !== "") textoFinal.push("");
     textoFinal.push(s.texto.replace(/\s+$/, ""));
