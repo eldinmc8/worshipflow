@@ -14,7 +14,7 @@ import {
   Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
-  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff, ClipboardPaste, PencilLine,
+  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff, ClipboardPaste, PencilLine, FileText, Link2,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
@@ -40,6 +40,7 @@ import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FU
 import { saveCache, loadCache } from "./lib/offlineCache.js";
 import { showToast, notifyError } from "./lib/toast.js";
 import { cargarNotas, guardarNota, DUENO_EQUIPO } from "./lib/notasSeccion.js";
+import { listarAdjuntos, subirAdjunto, agregarEnlace, borrarAdjunto, tipoDeArchivo } from "./lib/adjuntosCancion.js";
 import { confirmDialog, promptDialog } from "./lib/confirm.js";
 import { validarPassword } from "./lib/passwordSegura.js";
 import MedidorPassword from "./MedidorPassword.jsx";
@@ -1656,6 +1657,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // serviría de nada.
   const myUserId = realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride)?.id : userId;
   // Notas por parte de la canción: las "del líder" las escriben quienes arman el setlist o las canciones.
+  // El clip de una canción se enciende/apaga al momento al agregar/quitar su último adjunto.
+  const marcarAdjuntos = (songId, tiene) => setLibrary((prev) => prev.map((s) => (s.id === songId && s.hasAttachment !== tiene ? { ...s, hasAttachment: tiene } : s)));
   const notasCtx = useMemo(() => ({ usuarioId: myUserId, nombre: myName, puedeEquipo: puedeEditarSetlist || puedeGestionarCanciones }), [myUserId, myName, puedeEditarSetlist, puedeGestionarCanciones]);
   // Un evento está "asignado a mí" si me pusieron como encargado de algún bloque/canción/versículo del
   // Setlist, o si estoy en el roster del equipo de alabanza de ese evento (ej. "Guitarra").
@@ -2378,7 +2381,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         <CancionesList library={library} clasificaciones={clasificaciones} puedeConfigurarClasificaciones={realIsAdmin && isAdminViewer} onGuardarClasificaciones={guardarClasificaciones} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onDelete={deleteSong} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "view" && (
-        <SongView song={library.find((s) => s.id === openSong.id)} notasCtx={notasCtx} isAdminViewer={puedeGestionarCanciones} mode="biblioteca" onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
+        <SongView song={library.find((s) => s.id === openSong.id)} notasCtx={notasCtx} iglesiaId={myIglesiaId} onAdjuntosChange={marcarAdjuntos} isAdminViewer={puedeGestionarCanciones} mode="biblioteca" onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "edit" && (
         <SongEditor
@@ -2485,6 +2488,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             key={currentItem?.id ?? openSong.id}
             notasCtx={notasCtx}
             iglesiaId={myIglesiaId}
+            onAdjuntosChange={marcarAdjuntos}
             song={displaySong} isAdminViewer={puedeGestionarCanciones} mode="setlist" positionLabel={positionLabel}
             structureOverride={currentItem?.structure}
             enterDirection={openSong.enterDir}
@@ -4760,8 +4764,129 @@ function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResult
   );
 }
 
-function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, enterDirection, structureOverride, liveSync, iglesiaId, notasCtx }) {
+// Adjuntos de la canción (PDF, imágenes y enlaces) — ver src/lib/adjuntosCancion.js. Todos los de la
+// iglesia los ven y los abren; agregan/quitan solo quienes pueden notas "para todos" (puedeEditar).
+function AdjuntosModal({ song, iglesiaId, puedeEditar, onClose, onCambio }) {
+  const [adjuntos, setAdjuntos] = useState(null);
+  const [errorCarga, setErrorCarga] = useState(false);
+  const [subiendo, setSubiendo] = useState(false);
+  const [modoEnlace, setModoEnlace] = useState(false);
+  const [enlace, setEnlace] = useState("");
+  const [tituloEnlace, setTituloEnlace] = useState("");
+  const inputArchivoRef = useRef(null);
+  useEffect(() => {
+    let vivo = true;
+    listarAdjuntos(song.id).then((r) => { if (vivo) setAdjuntos(r); }).catch(() => { if (vivo) { setAdjuntos([]); setErrorCarga(true); } });
+    return () => { vivo = false; };
+  }, [song.id]);
+  const actualizar = (lista) => { setAdjuntos(lista); onCambio?.(lista.length > 0); };
+  const elegirArchivos = async (e) => {
+    const archivos = [...(e.target.files || [])];
+    e.target.value = "";
+    if (!archivos.length) return;
+    if (!iglesiaId) { notifyError("No se pudo identificar tu iglesia. Vuelve a abrir la app."); return; }
+    setSubiendo(true);
+    let lista = adjuntos || [];
+    for (const file of archivos) {
+      if (!tipoDeArchivo(file)) { notifyError(`"${file.name}" no es PDF ni imagen.`); continue; }
+      try {
+        const nuevo = await subirAdjunto({ iglesiaId, cancionId: song.id, file });
+        lista = [...lista, nuevo];
+        actualizar(lista);
+      } catch (err) {
+        notifyError(err?.message ? `No se pudo subir "${file.name}": ${err.message}` : `No se pudo subir "${file.name}".`);
+      }
+    }
+    setSubiendo(false);
+  };
+  const guardarEnlace = async () => {
+    setSubiendo(true);
+    try {
+      const nuevo = await agregarEnlace({ cancionId: song.id, url: enlace, titulo: tituloEnlace });
+      actualizar([...(adjuntos || []), nuevo]);
+      setEnlace(""); setTituloEnlace(""); setModoEnlace(false);
+    } catch (err) {
+      notifyError(err?.message || "No se pudo guardar el enlace.");
+    }
+    setSubiendo(false);
+  };
+  const quitar = async (a) => {
+    if (!(await confirmDialog(`¿Quitar "${a.titulo}" de esta canción?`, { danger: true, textoConfirmar: "Quitar" }))) return;
+    try {
+      await borrarAdjunto(a);
+      actualizar((adjuntos || []).filter((x) => x.id !== a.id));
+    } catch (err) {
+      notifyError(err?.message || "No se pudo quitar.");
+    }
+  };
+  const abrir = (a) => window.open(a.url, "_blank", "noopener");
+  const iconoDe = (tipo) => (tipo === "pdf" ? FileText : tipo === "imagen" ? ImgIcon : Link2);
+  const colorDe = (tipo) => (tipo === "pdf" ? "#C23B32" : tipo === "imagen" ? "#B15EA0" : "#2F5FA8");
+  const campo = { width: "100%", boxSizing: "border-box", borderRadius: 10, border: "1px solid var(--wf-border)", background: "var(--wf-bg)", color: "var(--wf-text)", padding: "10px 12px", fontSize: 14, fontFamily: "inherit", marginBottom: 8, outline: "none" };
+  const botonAgregar = { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "10px 4px", fontSize: 12, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit" };
+  return (
+    <ModalShell title="Adjuntos" icon={Paperclip} color="var(--wf-brand-accent)" onClose={onClose}>
+      <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>{song.title}</div>
+      {adjuntos === null ? (
+        <div style={{ fontSize: 13, color: "var(--wf-faint)", padding: "12px 0" }}>Cargando…</div>
+      ) : adjuntos.length === 0 ? (
+        <div style={{ fontSize: 13, color: "var(--wf-faint)", padding: "8px 0 14px" }}>
+          {errorCarga ? "No se pudieron cargar los adjuntos." : puedeEditar ? "Todavía no hay nada. Agrega partituras, cifrados, fotos o enlaces (YouTube, Drive…)." : "Esta canción no tiene adjuntos."}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+          {adjuntos.map((a) => {
+            const Icono = iconoDe(a.tipo);
+            return (
+              <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-bg)", borderRadius: 12, padding: 8, boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
+                <button onClick={() => abrir(a)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 10, background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left", color: "var(--wf-text)", fontFamily: "inherit" }}>
+                  {a.tipo === "imagen" ? (
+                    <img src={a.url} alt="" loading="lazy" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8, flexShrink: 0, background: "var(--wf-hover)" }} />
+                  ) : (
+                    <span style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: `${colorDe(a.tipo)}1A` }}><Icono size={20} color={colorDe(a.tipo)} /></span>
+                  )}
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.titulo}</span>
+                    <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)" }}>{a.tipo === "pdf" ? "PDF" : a.tipo === "imagen" ? "Imagen" : "Enlace"} · tocar para abrir</span>
+                  </span>
+                </button>
+                {puedeEditar && (
+                  <button onClick={() => quitar(a)} title="Quitar" style={{ ...iconGhost, width: 32, height: 32 }}><Trash2 size={15} color="#C23B32" /></button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {puedeEditar && (
+        modoEnlace ? (
+          <div>
+            <input autoFocus type="url" inputMode="url" value={enlace} onChange={(e) => setEnlace(e.target.value)} placeholder="Pega el enlace (YouTube, Drive, Spotify…)" style={campo} />
+            <input value={tituloEnlace} onChange={(e) => setTituloEnlace(e.target.value)} placeholder="Nombre (opcional) — ej. Video del ensayo" style={campo} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => { setModoEnlace(false); setEnlace(""); setTituloEnlace(""); }} style={{ ...primaryBtn, flex: 1, background: "var(--wf-hover)", color: "var(--wf-text)" }}>Cancelar</button>
+              <button onClick={guardarEnlace} disabled={subiendo || !enlace.trim()} style={{ ...primaryBtn, flex: 1, opacity: subiendo || !enlace.trim() ? 0.6 : 1 }}>{subiendo ? "Guardando…" : "Agregar"}</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <input ref={inputArchivoRef} type="file" multiple accept="application/pdf,.pdf,image/*" onChange={elegirArchivos} style={{ display: "none" }} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button disabled={subiendo} onClick={() => inputArchivoRef.current?.click()} style={botonAgregar}><FileText size={18} color="#C23B32" />PDF o imagen</button>
+              <button disabled={subiendo} onClick={() => setModoEnlace(true)} style={botonAgregar}><Link2 size={18} color="#2F5FA8" />Enlace</button>
+            </div>
+            {subiendo && <div style={{ fontSize: 12, color: "var(--wf-muted)", marginTop: 10, textAlign: "center" }}>Subiendo…</div>}
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 10, textAlign: "center" }}>Hasta 20 MB por archivo. Puedes elegir varios a la vez.</div>
+          </>
+        )
+      )}
+    </ModalShell>
+  );
+}
+
+function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, enterDirection, structureOverride, liveSync, iglesiaId, notasCtx, onAdjuntosChange }) {
   const sectionRefs = useRef({});
+  const [showAdjuntos, setShowAdjuntos] = useState(false);
   // Ref aparte, por POSICIÓN en el orden (no por clave de sección): si una sección se repite (V1, V2,
   // V1, Coro...) sectionRefs solo guarda la primera aparición (para los pills de arriba, que son un
   // índice de secciones únicas) — pero el auto-avance de Modo Músico necesita saber a cuál repetición
@@ -5220,7 +5345,15 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
               onGuardarLocal={(nuevaTonalidad) => { setTonalidadLocal(nuevaTonalidad === song.key ? null : nuevaTonalidad); setShowTonalidadModal(false); }}
             />
           )}
-          {song.hasAttachment && <Paperclip size={16} color="var(--wf-faint)" />}
+          {(song.hasAttachment || notasCtx?.puedeEquipo) && (
+            <button onClick={() => setShowAdjuntos(true)} title="Adjuntos (PDF, imágenes, enlaces)" className="hoverable"
+              style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 32, background: song.hasAttachment ? "var(--wf-active-bg)" : "var(--wf-hover)", border: `1px solid ${song.hasAttachment ? "var(--wf-brand-accent)" : "var(--wf-border)"}`, borderRadius: 10, cursor: "pointer", color: song.hasAttachment ? "var(--wf-brand-accent)" : "var(--wf-text-2)" }}>
+              <Paperclip size={16} />
+            </button>
+          )}
+          {showAdjuntos && (
+            <AdjuntosModal song={song} iglesiaId={iglesiaId} puedeEditar={!!notasCtx?.puedeEquipo} onClose={() => setShowAdjuntos(false)} onCambio={(tiene) => onAdjuntosChange?.(song.id, tiene)} />
+          )}
           {isAdminViewer && (
             <button onClick={onEdit} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer" }}>
               <Pencil size={14} /> Editar
