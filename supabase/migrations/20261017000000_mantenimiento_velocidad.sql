@@ -66,7 +66,9 @@ alter policy "admins editan todo" on public.usuarios
     select 1 from usuarios u where u.id = (select auth.uid()) and u.rol = 'admin')
     and ((rol_id is null) or exists (
       select 1 from roles_app r where r.id = usuarios.rol_id and r.iglesia_id = mi_iglesia_id())));
-alter policy "ver propio usuario" on public.usuarios using ((select auth.uid()) = id);
+-- "ver propio usuario" se queda con auth.uid() directo A PROPÓSITO: con (select auth.uid()) Postgres
+-- detecta "infinite recursion" en las políticas de usuarios al editar un usuario (pasó en producción el
+-- 2026-10-18 y se corrigió de inmediato; lo cubre src/lib/__tests__/aislamientoFk.test.js).
 
 -- Notas: la regla de "escribir" ya no se mezcla con la de "ver" (mismos permisos, más rápido)
 alter policy "ver notas" on public.notas_seccion
