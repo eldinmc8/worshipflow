@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Letras animadas para la proyección (pedido de Eldin, 2026-10-18): "que las letras pasen como en los
 // videos", con un clic desde Estilo. Cada estilo trae su propia letra, sus colores, su forma de entrar
@@ -119,15 +119,32 @@ export function armarLineasAnimadas(clave, lineas, idDiapositiva) {
   return { lineas: nodos, vars: { "--n": totalPal, "--nl": lineas.length } };
 }
 
+// ---------------- Precarga de letras ----------------
+// Varios estilos usan tipos de letra que la app no usaba antes (Bangers, Bungee, Fredoka...). Si se piden
+// recién cuando sale la primera diapositiva, el navegador los descarga en pleno culto y el texto se
+// reacomoda: eso se sentía como "lento al principio". Se piden todos apenas se abre la consola o la
+// proyección, una sola vez.
+let fuentesPrecargadas = false;
+export function precargarFuentesAnimacion() {
+  if (fuentesPrecargadas || typeof document === "undefined" || !document.fonts?.load) return;
+  fuentesPrecargadas = true;
+  for (const a of Object.values(ANIMACIONES)) {
+    document.fonts.load(`${a.fuente.weight} 48px ${a.fuente.family}`, "Aleluya Señor").catch(() => {});
+  }
+}
+
 // ---------------- Fondos animados (canvas) ----------------
 // `pulso` cambia en cada diapositiva nueva: algunos fondos reaccionan (ondas, confeti, destello).
-export function FondoAnimado({ tipo, pulso, chico = false }) {
+// quieto: dibuja un solo cuadro y no se mueve (vistas previas de la consola: la que se anima es la
+// proyección real; tres fondos animándose a la vez en la misma computadora costaban de más).
+// chico: miniatura (menos resolución, ~30 cuadros por segundo).
+export function FondoAnimado({ tipo, pulso, chico = false, quieto = false }) {
   const ref = useRef(null);
-  const estado = useRef({ tipo, pulso: 0, ondas: [], parts: null, t0: performance.now() });
+  const estado = useRef({ tipo, pulso: 0, ondas: [], parts: null, dibujado: false });
 
   useEffect(() => {
     const e = estado.current;
-    if (e.tipo !== tipo) { e.tipo = tipo; e.parts = null; e.ondas = []; }
+    if (e.tipo !== tipo) { e.tipo = tipo; e.parts = null; e.ondas = []; e.dibujado = false; }
   }, [tipo]);
   useEffect(() => {
     const e = estado.current;
@@ -138,36 +155,75 @@ export function FondoAnimado({ tipo, pulso, chico = false }) {
   }, [pulso]);
 
   useEffect(() => {
+    precargarFuentesAnimacion();
     const cv = ref.current;
     if (!cv) return;
     const ctx = cv.getContext("2d");
-    let W = 0, H = 0, raf = 0, ultimo = 0;
-    const dpr = chico ? 1 : Math.min(window.devicePixelRatio || 1, 1.5);
+    let W = 0, H = 0, raf = 0, ultimo = 0, vivo = true;
     const tam = () => {
       const r = cv.getBoundingClientRect();
+      // Nunca más de ~1920 px de ancho por dentro: en un TV 4K o con zoom de Windows, dibujar al doble
+      // no se nota en el proyector y cuesta cuatro veces más.
+      const dpr = chico || quieto ? 1 : Math.min(window.devicePixelRatio || 1, 1.5, 1920 / Math.max(1, r.width));
       W = cv.width = Math.max(1, Math.round(r.width * dpr));
       H = cv.height = Math.max(1, Math.round(r.height * dpr));
       estado.current.parts = null;
+      estado.current.dibujado = false;
     };
     tam();
     const ro = new ResizeObserver(tam);
     ro.observe(cv);
-    const cuadro = (t) => {
-      raf = requestAnimationFrame(cuadro);
-      // Las vistas previas chicas van a ~30 cuadros por segundo: se ven igual y gastan la mitad.
-      if (chico && t - ultimo < 32) return;
-      ultimo = t;
+    const dibujarCuadro = (t) => {
       const e = estado.current;
       const dibujar = FONDOS[e.tipo] || FONDOS.aurora;
       try { dibujar(ctx, W, H, t, e); } catch { /* un cuadro fallido no debe tumbar la proyección */ }
       e.pulso *= 0.95;
       e.estallido = (e.estallido || 0) * 0.9;
+      // Arranque suave: el lienzo aparece con un fundido en vez de exigir todo de golpe.
+      if (cv.style.opacity !== "1") cv.style.opacity = "1";
+    };
+    const cuadro = (t) => {
+      if (!vivo) return;
+      raf = requestAnimationFrame(cuadro);
+      const e = estado.current;
+      if (quieto) {
+        if (e.dibujado) return;
+        // Varios cuadros seguidos para que las partículas se repartan y el fondo se vea "en marcha".
+        for (let k = 0; k < 40; k++) dibujarCuadro(4000 + k * 16);
+        e.dibujado = true;
+        return;
+      }
+      if (chico && t - ultimo < 32) return;
+      ultimo = t;
+      dibujarCuadro(t);
     };
     raf = requestAnimationFrame(cuadro);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
-  }, [chico]);
+    return () => { vivo = false; cancelAnimationFrame(raf); ro.disconnect(); };
+  }, [chico, quieto]);
 
-  return <canvas ref={ref} aria-hidden style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 0, display: "block" }} />;
+  return <canvas ref={ref} aria-hidden style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 0, display: "block", opacity: 0, transition: "opacity .7s ease" }} />;
+}
+
+// Muestra en vivo de un estilo (al pasar el cursor por su tarjeta, como las miniaturas de YouTube):
+// su fondo animado y una frase entrando con su animación, repitiéndose mientras siga el cursor encima.
+const FRASE_MUESTRA = ["Santo, santo es el Señor", "digno de toda gloria"];
+function MiniaturaAnimada({ clave }) {
+  const a = ANIMACIONES[clave];
+  const [vuelta, setVuelta] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setVuelta((v) => v + 1), 4200);
+    return () => clearInterval(id);
+  }, []);
+  const { lineas, vars } = armarLineasAnimadas(clave, FRASE_MUESTRA, `muestra-${vuelta}`);
+  return (
+    <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: 8, background: "#000" }}>
+      <FondoAnimado tipo={a.fondo} pulso={vuelta} chico />
+      {a.flash && <span key={`f${vuelta}`} className="wfa-flash" />}
+      <span key={vuelta} className={`wfa wfa-${clave}`} style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", fontFamily: a.fuente.family, fontWeight: a.fuente.weight, textTransform: a.fuente.transform || "none", letterSpacing: a.fuente.tracking || "normal", color: a.color, textShadow: a.sombra, fontSize: 10.5, lineHeight: 1.2, whiteSpace: "nowrap", ...vars }}>
+        {lineas.map((l, i) => <span key={i} style={{ display: "block" }}>{l}</span>)}
+      </span>
+    </span>
+  );
 }
 
 const R = (a, b) => a + Math.random() * (b - a);
@@ -401,6 +457,9 @@ const FONDOS = {
 // ---------------- Selector (panel de Estilo) ----------------
 export function SelectorAnimacion({ liveStyle, setLiveStyle, columnas = 3 }) {
   const actual = animacionActiva(liveStyle);
+  // Tarjeta bajo el cursor (o enfocada con el teclado): solo esa se anima, así el menú no carga nada de más.
+  const [enVista, setEnVista] = useState(null);
+  useEffect(() => { precargarFuentesAnimacion(); }, []);
   const fondoPropio = liveStyle?.animFondo === "propio";
   const tarjeta = (activo) => ({
     display: "flex", flexDirection: "column", gap: 4, padding: 5, borderRadius: 12, cursor: "pointer", textAlign: "left", minWidth: 0,
@@ -417,8 +476,11 @@ export function SelectorAnimacion({ liveStyle, setLiveStyle, columnas = 3 }) {
           <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4, marginBottom: 6 }}>{g.toUpperCase()}</div>
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))`, gap: 7 }}>
             {Object.entries(ANIMACIONES).filter(([, a]) => a.grupo === g).map(([k, a]) => (
-              <button type="button" key={k} onClick={() => setLiveStyle((s) => ({ ...s, animacion: k }))} title={a.desc} style={tarjeta(actual === k)}>
-                <span style={{ aspectRatio: "16 / 9", width: "100%", borderRadius: 8, background: a.muestra, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              <button type="button" key={k} onClick={() => setLiveStyle((s) => ({ ...s, animacion: k }))} title={a.desc} style={tarjeta(actual === k)}
+                onMouseEnter={() => setEnVista(k)} onMouseLeave={() => setEnVista((v) => (v === k ? null : v))}
+                onFocus={() => setEnVista(k)} onBlur={() => setEnVista((v) => (v === k ? null : v))}>
+                <span style={{ position: "relative", aspectRatio: "16 / 9", width: "100%", borderRadius: 8, background: a.muestra, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  {enVista === k && <MiniaturaAnimada clave={k} />}
                   <span className={`wfa-muestra wfa-muestra-${k}`} style={{ fontFamily: a.fuente.family, fontWeight: a.fuente.weight, textTransform: a.fuente.transform || "none", color: a.degradado ? undefined : (a.colores ? a.colores[0] : a.color === "rgba(255,255,255,.3)" ? "#FFFFFF" : a.color), textShadow: a.sombra, fontSize: 17, lineHeight: 1 }}>Aleluya</span>
                 </span>
                 <span style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text)", padding: "0 2px" }}>{a.nombre}</span>

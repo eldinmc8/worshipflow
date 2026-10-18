@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { ProjectionPanel } from "./PrototipoWorshipFlow.jsx";
+import { precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
 import { getLiveSession, subscribeLiveSession, subscribeLiveBroadcast, anunciarProyeccion, pedirEstadoActual, guardarUltimaFila, leerUltimaFila } from "./lib/liveSession.js";
 import { supabase } from "./lib/supabaseClient.js";
 
@@ -33,6 +34,8 @@ export default function PublicScreen() {
   // Sin internet (2026-10-17): la consola ahora manda también el id de la iglesia en la URL (&iid=), y
   // el último id resuelto se guarda en este dispositivo — así la pantalla arranca aunque no haya señal
   // para preguntarle a Supabase.
+  // Las letras de los estilos animados se descargan al abrir la proyección, antes de que salga la primera diapositiva.
+  useEffect(() => { precargarFuentesAnimacion(); }, []);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const slug = params.get("igl");

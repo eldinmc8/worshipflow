@@ -20,7 +20,7 @@ import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guard
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
 import AutoFitText from "./components/AutoFitText.jsx";
 import { stripBibleSearchMarkup } from "./lib/textoBiblia.js";
-import { ANIMACIONES, animacionActiva, armarLineasAnimadas, FondoAnimado, SelectorAnimacion } from "./components/LetrasAnimadas.jsx";
+import { ANIMACIONES, animacionActiva, armarLineasAnimadas, FondoAnimado, SelectorAnimacion, precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
 import EditorTextoCancion from "./components/EditorTextoCancion.jsx";
 import ImportarCancionesPdf from "./components/ImportarCancionesPdf.jsx";
 import { misProximosServicios, cuandoEs, companeros, indicaciones, cancionesParaEnsayar, necesitaAtencion, estaSemana } from "./lib/inicio.js";
@@ -8124,6 +8124,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   const [estiloMas, setEstiloMas] = useState(false);
   // Menú flotante de "Letra animada" en la cinta de Estilo (computadora).
   const [animMenu, setAnimMenu] = useState(false);
+  // Las letras de los estilos animados se piden apenas se abre la consola, no en pleno culto.
+  useEffect(() => { precargarFuentesAnimacion(); }, []);
   const [fondoDestino, setFondoDestino] = useState("todo"); // "todo" | "cancion" — ver "Fondo por canción"
   // Versión e historial de la Biblia en vivo: se guardan aquí (no dentro de BibleLivePanel) para que
   // sobrevivan al cambiar de pestaña e ir a Estilo/Transmisión y volver a Biblia — y también en
@@ -9512,7 +9514,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           "pantalla en negro" con un video de fondo se veía como negro sólido de verdad (el <video> ni
           se montaba) en vez de seguir el video andando sin la letra encima, que es lo que de verdad se
           quiere: ocultar SOLO la letra/texto que se está transmitiendo, no el fondo. */}
-      {fondoAnimado && !videoSrc && !imageSrc && <FondoAnimado tipo={fondoAnimado} pulso={slide?.slideId ?? slide?.reference ?? slide?.title} chico={!!thumbnail} />}
+      {fondoAnimado && !videoSrc && !imageSrc && <FondoAnimado tipo={fondoAnimado} pulso={slide?.slideId ?? slide?.reference ?? slide?.title} chico={!!thumbnail} quieto={!!thumbnail} />}
       {animarLetra && anim.flash && !blanked && <div key={`flash-${slide.slideId}`} className="wfa-flash" />}
       {videoSrc && (
         <>
