@@ -19,6 +19,7 @@ import {
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
 import AutoFitText from "./components/AutoFitText.jsx";
+import { stripBibleSearchMarkup } from "./lib/textoBiblia.js";
 import { ANIMACIONES, animacionActiva, armarLineasAnimadas, FondoAnimado, SelectorAnimacion } from "./components/LetrasAnimadas.jsx";
 import EditorTextoCancion from "./components/EditorTextoCancion.jsx";
 import ImportarCancionesPdf from "./components/ImportarCancionesPdf.jsx";
@@ -7427,7 +7428,7 @@ async function fetchBibleChapter(version, bookId, chapter) {
 }
 // La API devuelve <mark> alrededor de las palabras encontradas y a veces <br> dentro del texto (saltos de
 // línea de poesía) — se limpia para mostrarlo como texto plano, igual que el resto de la app.
-const stripBibleSearchMarkup = (text) => text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
 // Quita tildes/diacríticos para comparar sin importar si se escribieron o no (ej. "oracion" debe
 // encontrar "oración"). NFD separa la tilde como marca combinante aparte y este regex la descarta.
 const foldAccents = (text) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
