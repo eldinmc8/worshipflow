@@ -20,7 +20,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 // así cabe (texto muy largo) se baja de ahí, como último recurso para no cortar texto.
 // alinearH / alinearV (opcionales, valores de justify/align-items de flex): dónde queda el bloque de
 // texto dentro del espacio disponible — izquierda/centro/derecha y arriba/centro/abajo (Estilo en vivo).
-export default function AutoFitText({ lines, targetRatio, minRatio, minPx = 14, maxPx, style, maxWidth, onFontSize, lineStyles, alinearH = "center", alinearV = "center" }) {
+export default function AutoFitText({ lines, targetRatio, minRatio, minPx = 14, maxPx, style, maxWidth, onFontSize, lineStyles, alinearH = "center", alinearV = "center", className, contenidoLineas }) {
   const containerRef = useRef(null);
   const textRef = useRef(null);
   const [fontPx, setFontPx] = useState(minPx);
@@ -79,11 +79,13 @@ export default function AutoFitText({ lines, targetRatio, minRatio, minPx = 14, 
 
   return (
     <div ref={containerRef} style={{ width: "100%", maxWidth: maxWidth || "100%", flex: 1, minHeight: 0, display: "flex", alignItems: alinearV, justifyContent: alinearH, overflow: "hidden" }}>
-      <div ref={textRef} style={{ ...style, fontSize: fontPx }}>
+      <div ref={textRef} className={className} style={{ ...style, fontSize: fontPx }}>
         {/* lineStyles es opcional, por índice -- pensado para que la letra de una canción pueda
             destacar su 2a línea distinto (mayúscula, color de acento...) sin tocar lines (que sigue
             siendo solo texto plano, para que fitKey arriba no se rompa con objetos React). */}
-        {Array.isArray(lines) ? lines.map((l, i) => <div key={i} style={lineStyles?.[i]}>{l}</div>) : lines}
+        {/* contenidoLineas (opcional): lo que se dibuja en cada línea en vez del texto plano -- las letras
+            animadas lo usan para partir la línea en palabras/letras. lines sigue siendo el texto (fitKey). */}
+        {Array.isArray(lines) ? lines.map((l, i) => <div key={i} style={lineStyles?.[i]}>{contenidoLineas ? contenidoLineas[i] : l}</div>) : lines}
       </div>
     </div>
   );

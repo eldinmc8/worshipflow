@@ -19,6 +19,7 @@ import {
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
 import AutoFitText from "./components/AutoFitText.jsx";
+import { ANIMACIONES, animacionActiva, armarLineasAnimadas, FondoAnimado, SelectorAnimacion } from "./components/LetrasAnimadas.jsx";
 import EditorTextoCancion from "./components/EditorTextoCancion.jsx";
 import ImportarCancionesPdf from "./components/ImportarCancionesPdf.jsx";
 import { misProximosServicios, cuandoEs, companeros, indicaciones, cancionesParaEnsayar, necesitaAtencion, estaSemana } from "./lib/inicio.js";
@@ -8120,6 +8121,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   const [itemVisto, setItemVisto] = useState(null);
   const [verTodas, setVerTodas] = useState(false);
   const [estiloMas, setEstiloMas] = useState(false);
+  // Menú flotante de "Letra animada" en la cinta de Estilo (computadora).
+  const [animMenu, setAnimMenu] = useState(false);
   const [fondoDestino, setFondoDestino] = useState("todo"); // "todo" | "cancion" — ver "Fondo por canción"
   // Versión e historial de la Biblia en vivo: se guardan aquí (no dentro de BibleLivePanel) para que
   // sobrevivan al cambiar de pestaña e ir a Estilo/Transmisión y volver a Biblia — y también en
@@ -8349,7 +8352,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   const fondoEditado = fondoCancionObjetivo ? { ...liveStyle, ...fondoCancionObjetivo } : liveStyle;
   const fondoEditadoTipo = fondoEditado.customBgType || "imagen";
   const aplicarFondo = (cambios) => setLiveStyle((st) => {
-    if (!editandoCancion) return { ...st, ...cambios };
+    // Elegir un fondo de los de siempre con una letra animada puesta = "quiero mi fondo" (no el del estilo).
+    if (!editandoCancion) return { ...st, ...cambios, ...(animacionActiva(st) ? { animFondo: "propio" } : {}) };
     const previo = st.fondosCanciones?.[cancionObjetivo.id] || { theme: st.theme, customBgType: st.customBgType, customImage: st.customImage, customVideo: st.customVideo };
     return { ...st, fondosCanciones: { ...(st.fondosCanciones || {}), [cancionObjetivo.id]: { ...previo, ...cambios } } };
   });
@@ -8616,18 +8620,22 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
 
         {mmPanel === "estilo" && (
           <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>LETRA ANIMADA</div>
+            <div style={{ marginBottom: 16 }}>
+              <SelectorAnimacion liveStyle={liveStyle} setLiveStyle={setLiveStyle} columnas={2} />
+            </div>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>FONDO DE LA PROYECCIÓN</div>
             <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
               {Object.entries(LIVE_THEMES).map(([key, t]) => (
-                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, theme: key }))} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: 12, border: liveStyle.theme === key ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", background: "var(--wf-card)" }}>
+                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, theme: key, ...(animacionActiva(s) ? { animFondo: "propio" } : {}) }))} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: 12, border: liveStyle.theme === key && !(animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", background: "var(--wf-card)" }}>
                   <span style={{ width: 16, height: 16, borderRadius: 8, background: t.bg }} />
                   <span style={{ fontSize: 11, fontWeight: 600 }}>{t.label}</span>
                 </button>
               ))}
             </div>
             <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 8, width: "fit-content" }}>
-              <button onClick={() => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen" }))} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "imagen" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "imagen" ? "#fff" : "var(--wf-muted)" }}><ImgIcon size={12} /> Imagen</button>
-              <button onClick={() => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video" }))} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "video" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "video" ? "#fff" : "var(--wf-muted)" }}><Play size={12} /> Video (movimiento)</button>
+              <button onClick={() => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) }))} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "imagen" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "imagen" ? "#fff" : "var(--wf-muted)" }}><ImgIcon size={12} /> Imagen</button>
+              <button onClick={() => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) }))} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "video" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "video" ? "#fff" : "var(--wf-muted)" }}><Play size={12} /> Video (movimiento)</button>
             </div>
             {customBgType === "imagen" ? (
               <div style={{ marginBottom: 12 }}>
@@ -8910,9 +8918,10 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         {mmPanel === "estilo" && (
           <>
             {navegacionRapida()}
+            {grupoCinta("Letra animada", botonCinta({ icon: Sparkles, label: animacionActiva(liveStyle) ? ANIMACIONES[animacionActiva(liveStyle)].nombre : "Animación", onClick: () => { setEstiloMas(false); setAnimMenu((v) => !v); }, activo: !!animacionActiva(liveStyle) || animMenu, title: "Letras animadas: elegir un estilo con movimiento", ancho: 76 }))}
             {grupoCinta(editandoCancion ? `Fondo de "${cancionObjetivo.titulo.length > 22 ? cancionObjetivo.titulo.slice(0, 21) + "…" : cancionObjetivo.titulo}"` : "Fondo", <>
               {Object.entries(LIVE_THEMES).map(([key, t]) => (
-                <button key={key} onClick={() => aplicarFondo({ theme: key })} title={t.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 5px", borderRadius: 10, cursor: "pointer", background: "var(--wf-card)", border: fondoEditado.theme === key ? "2px solid #B15EA0" : "1px solid var(--wf-border)" }}>
+                <button key={key} onClick={() => aplicarFondo({ theme: key })} title={t.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 5px", borderRadius: 10, cursor: "pointer", background: "var(--wf-card)", border: fondoEditado.theme === key && !(animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") ? "2px solid #B15EA0" : "1px solid var(--wf-border)" }}>
                   <span style={{ width: 34, height: 20, borderRadius: 5, background: t.bg }} />
                   <span style={{ fontSize: 9.5, fontWeight: 600, color: "var(--wf-text)", whiteSpace: "nowrap" }}>{t.label}</span>
                 </button>
@@ -8988,7 +8997,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
                 <span style={{ fontSize: 11, fontWeight: 700, width: 34, textAlign: "right" }}>{Math.round(fontScale * 100)}%</span>
               </div>
             ))}
-            {grupoCinta("Más", botonCinta({ icon: estiloMas ? ChevronUp : ChevronDown, label: estiloMas ? "Menos" : "Más opciones", onClick: () => setEstiloMas((v) => !v), activo: estiloMas, ancho: 84 }), true)}
+            {grupoCinta("Más", botonCinta({ icon: estiloMas ? ChevronUp : ChevronDown, label: estiloMas ? "Menos" : "Más opciones", onClick: () => { setAnimMenu(false); setEstiloMas((v) => !v); }, activo: estiloMas, ancho: 84 }), true)}
           </>
         )}
         {mmPanel === "insertar" && (
@@ -9010,6 +9019,18 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       {/* "Más opciones" de Estilo: menú flotante encima de las diapositivas, como los desplegables
           de Office — antes empujaba todo hacia abajo y se comía media pantalla (pedido de Eldin,
           2026-10-08). Se cierra con la X, con "Menos" o con un clic afuera. */}
+      {mmPanel === "estilo" && animMenu && (
+        <div style={{ position: "relative", height: 0, zIndex: 36 }}>
+          <div onClick={() => setAnimMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />
+          <div style={{ position: "absolute", top: 6, left: 16, zIndex: 1, width: "min(760px, calc(100vw - 32px))", maxHeight: "min(560px, 70vh)", overflowY: "auto", padding: "12px 14px 14px", background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 12px 36px rgba(22,50,79,0.25)", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-heading)" }}>Letra animada</span>
+              <button onClick={() => setAnimMenu(false)} title="Cerrar" aria-label="Cerrar" style={iconGhost}><X size={15} /></button>
+            </div>
+            <SelectorAnimacion liveStyle={liveStyle} setLiveStyle={setLiveStyle} columnas={5} />
+          </div>
+        </div>
+      )}
       {mmPanel === "estilo" && estiloMas && (
         <div style={{ position: "relative", height: 0, zIndex: 35 }}>
           <div onClick={() => setEstiloMas(false)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />
@@ -9378,8 +9399,14 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // SIEMPRE, sin importar que la pestaña activa fuera "Imagen" con una imagen ya elegida -- cambiar a
   // imagen no se veía nunca. customBgType (la pestaña que de verdad está activa en Estilo) es lo que
   // decide cuál de los dos usar, no solo cuál de los dos campos tiene algo guardado.
-  const customBgEsVideo = fondo?.theme === "custom" && (fondo.customBgType || "imagen") === "video";
-  const customBgEsImagen = fondo?.theme === "custom" && (fondo.customBgType || "imagen") === "imagen";
+  // Letras animadas (ver components/LetrasAnimadas.jsx): el fondo animado del estilo reemplaza al fondo
+  // general, salvo que se haya elegido "Mi fondo", o que la diapositiva o la canción traigan uno propio.
+  const animKey = animacionActiva(liveStyle);
+  const anim = animKey ? ANIMACIONES[animKey] : null;
+  const slideTraeFondo = slide?.type === "slide" && ((slide.bgType === "video" && slide.videoUrl) || (slide.bgType === "imagen" && slide.imageUrl));
+  const fondoAnimado = anim && liveStyle?.animFondo !== "propio" && !fondoCancion && !slideTraeFondo ? anim.fondo : null;
+  const customBgEsVideo = !fondoAnimado && fondo?.theme === "custom" && (fondo.customBgType || "imagen") === "video";
+  const customBgEsImagen = !fondoAnimado && fondo?.theme === "custom" && (fondo.customBgType || "imagen") === "imagen";
   const globalVideoBg = !slideVideoBg && customBgEsVideo && fondo.customVideo;
   const videoSrc = slideVideoBg ? slide.videoUrl : globalVideoBg ? fondo.customVideo : null;
   const slideImageBg = !videoSrc && slide?.type === "slide" && slide.bgType === "imagen" && slide.imageUrl;
@@ -9394,7 +9421,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // dos usan este mismo componente. El `|| LIVE_THEMES.stage` cubre ese y cualquier otro valor de tema
   // que no sea una clave real.
   const theme = videoSrc || imageSrc ? null : (LIVE_THEMES[fondo?.theme || "stage"] || LIVE_THEMES.stage);
-  const bg = videoSrc ? "#000" : imageSrc ? `center / cover no-repeat url(${imageSrc})` : theme.bg;
+  const bg = fondoAnimado && !videoSrc && !imageSrc ? "#000" : videoSrc ? "#000" : imageSrc ? `center / cover no-repeat url(${imageSrc})` : theme.bg;
   // El tamaño de letra "deseado" viene del slider (liveStyle.fontScale) multiplicando una proporción del
   // alto del contenedor (ver AutoFitText) en vez de un px fijo — así se ve igual de grande en la
   // mini-preview y en la pantalla real, y ese mismo % sigue aplicando de una diapositiva a la siguiente
@@ -9423,8 +9450,11 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // línea (no hay "2a línea" que destacar). "tradicional" no toca nada (ambas líneas iguales, como
   // siempre fue).
   const lineStyleMode = liveStyle?.lineStyle || "tradicional";
+  // Con letra animada el estilo ya decide cómo se ve cada línea: el "diseño de las letras" no aplica.
+  const animarLetra = !!anim && slide?.type === "cancion" && Array.isArray(slide?.lines);
+  const lineasAnimadas = animarLetra ? armarLineasAnimadas(animKey, slide.lines, slide.slideId) : null;
   const cancionLineStyles =
-    slide?.type === "cancion" && lineStyleMode !== "tradicional"
+    slide?.type === "cancion" && lineStyleMode !== "tradicional" && !animarLetra
       ? slide.lines.map((_, i) => {
           // Más contraste (pedido de Eldin, 2026-10-05): antes la línea en minúscula no tenía ningún
           // estilo propio, así que heredaba el peso de la fuente elegida en TIPOGRAFÍA -- con una
@@ -9481,6 +9511,8 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           "pantalla en negro" con un video de fondo se veía como negro sólido de verdad (el <video> ni
           se montaba) en vez de seguir el video andando sin la letra encima, que es lo que de verdad se
           quiere: ocultar SOLO la letra/texto que se está transmitiendo, no el fondo. */}
+      {fondoAnimado && !videoSrc && !imageSrc && <FondoAnimado tipo={fondoAnimado} pulso={slide?.slideId ?? slide?.reference ?? slide?.title} chico={!!thumbnail} />}
+      {animarLetra && anim.flash && !blanked && <div key={`flash-${slide.slideId}`} className="wfa-flash" />}
       {videoSrc && (
         <>
           <video src={videoSrc} autoPlay muted loop playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }} />
@@ -9492,14 +9524,14 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
         <div style={{ color: "#2A3140", position: "relative", zIndex: 1 }}><Mic2 size={thumbnail ? 20 : 40} /></div>
       ) : (
         <>
-          {!videoSrc && <div className="spotlight-glow" style={{ position: "absolute", width: thumbnail ? 140 : 420, height: thumbnail ? 140 : 420, borderRadius: "50%", background: `radial-gradient(circle, ${TYPE_META[slide.type].color}22 0%, transparent 70%)` }} />}
+          {!videoSrc && !fondoAnimado && <div className="spotlight-glow" style={{ position: "absolute", width: thumbnail ? 140 : 420, height: thumbnail ? 140 : 420, borderRadius: "50%", background: `radial-gradient(circle, ${TYPE_META[slide.type].color}22 0%, transparent 70%)` }} />}
           {slide.type === "cancion" && (
             <>
               {thumbnail && <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "var(--wf-brand-accent)", marginBottom: 6, zIndex: 1 }}>{slide.blockLabel.toUpperCase()}</div>}
               {/* "Cita destacada": una comilla grande y translúcida detrás del texto -- a diferencia de
                   los demás diseños, este no cambia el estilo de ninguna línea (ver cancionLineStyles),
                   solo agrega este adorno detrás. */}
-              {lineStyleMode === "cita" && (
+              {lineStyleMode === "cita" && !animarLetra && (
                 <div aria-hidden style={{ position: "absolute", top: thumbnail ? 4 : 10, left: "50%", transform: "translateX(-50%)", fontFamily: "'Fraunces', serif", fontSize: thumbnail ? 50 : 160, lineHeight: 1, color: textColor, opacity: 0.18, zIndex: 1, pointerEvents: "none" }}>❝</div>
               )}
               {(() => {
@@ -9516,8 +9548,12 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
                     // diapositiva -- sin esto, "fundido"/"deslizante" solo se verían la PRIMERA vez
                     // (los mismos <div> de línea se reutilizan, así que la animación CSS no se repite
                     // sola con solo cambiar el texto adentro).
-                    style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: espaciadoLetras, fontStyle: font.italic ? "italic" : "normal", textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.35, textShadow: sombraTexto, color: textColor, whiteSpace: "nowrap", textWrap: "balance" }}
+                    style={animarLetra
+                      ? { fontFamily: anim.fuente.family, fontWeight: anim.fuente.weight, textTransform: anim.fuente.transform || "none", letterSpacing: anim.fuente.tracking || "normal", textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.25, textShadow: anim.sombra, color: anim.color, whiteSpace: "nowrap", ...lineasAnimadas.vars }
+                      : { fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: espaciadoLetras, fontStyle: font.italic ? "italic" : "normal", textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.35, textShadow: sombraTexto, color: textColor, whiteSpace: "nowrap", textWrap: "balance" }}
                     lineStyles={cancionLineStyles}
+                    className={animarLetra ? `wfa wfa-${animKey}` : undefined}
+                    contenidoLineas={lineasAnimadas?.lineas}
                   />
                 );
                 // "Franja inferior": en vez de centrada en toda la pantalla, la letra vive en una
@@ -9525,7 +9561,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
                 // fondo/video arriba, estilo noticiero. Necesita su propio contenedor flex con alto
                 // definido (a diferencia del resto, que usa el alto completo del panel) para que
                 // AutoFitText (flex:1 por dentro) tenga contra qué medirse.
-                if (lineStyleMode !== "franja") return cancionAutoFit;
+                if (lineStyleMode !== "franja" || animarLetra) return cancionAutoFit;
                 return (
                   <div style={{ position: "absolute", left: thumbnail ? 8 : 28, right: thumbnail ? 8 : 28, bottom: thumbnail ? 8 : 36, height: thumbnail ? "42%" : "30%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(8,10,14,0.55)", borderRadius: thumbnail ? 8 : 16, padding: thumbnail ? "4px 8px" : "10px 28px", zIndex: 1, boxSizing: "border-box" }}>
                     {cancionAutoFit}
