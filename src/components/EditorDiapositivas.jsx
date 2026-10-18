@@ -2,11 +2,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Undo2, Redo2, Type, ImagePlus, PaintBucket, AlignLeft, AlignCenter, AlignRight, AlignStartVertical, AlignCenterVertical, AlignEndVertical,
-  Copy, BringToFront, SendToBack, Trash2, LayoutTemplate, Plus, Bold, Italic, Loader2, ClipboardPaste, CopyPlus, Shapes, Smile, Search, BookmarkPlus, RotateCcw, X as XIcon,
+  Copy, BringToFront, SendToBack, Trash2, LayoutTemplate, Plus, Bold, Italic, Loader2, ClipboardPaste, CopyPlus, Shapes, Smile, Search, BookmarkPlus, RotateCcw, X as XIcon, Play, Sparkles,
 } from "lucide-react";
 import { listarPlantillasIglesia, guardarPlantillaIglesia, borrarPlantillaIglesia } from "../lib/plantillasIglesia.js";
 import { ICONOS_DISENO } from "./iconosDiseno.js";
 import DiapositivaDisenada from "./DiapositivaDisenada.jsx";
+import { ENTRADAS, PERMANENCIAS, ANIM_CAPA_VACIA, pasosDeDiapositiva } from "../lib/animaciones.js";
 import {
   FUENTES, COLORES, PLANTILLAS, LIENZO_ANCHO, familiaDe, nuevaCapaTexto, nuevaCapaImagen, clonarDiapositiva, clonarCapa,
   posicionRapida, ajustarAGuias, redondear, nuevaDiapositiva, FORMAS, nuevaCapaForma, nuevaCapaIcono, DEGRADADOS, degradado, cssDegradado,
@@ -130,6 +131,9 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
 
   const diap = diaps[sel] || diaps[0];
   const capa = diap?.capas.find((c) => c.id === capaSel) || null;
+  // Vista previa de las animaciones (pantalla completa): cada clic revela el siguiente paso, como en vivo.
+  const [vistaPrevia, setVistaPrevia] = useState(null); // null | { paso, vuelta }
+  const pasosDiap = pasosDeDiapositiva(diap);
   const sucio = titulo !== (tituloInicial || "") || JSON.stringify(diaps) !== JSON.stringify(inicial || []);
 
   // ---- Historial (deshacer/rehacer) ----
@@ -348,7 +352,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
       else if (mod && k === "v") { e.preventDefault(); a.pegar(); }
       else if (mod && k === "d") { e.preventDefault(); if (a.capa && a.zona !== "lista") a.duplicarCapa(); else a.duplicarDiapositiva(); }
       else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); if (a.capa && a.zona !== "lista") a.borrarCapa(); else if (a.zona === "lista") a.borrarDiapositiva(); }
-      else if (e.key === "Escape") { setCapaSel(null); setMenu(null); setPlantillasAbiertas(false); setPanelInsertar(null); }
+      else if (e.key === "Escape") { setVistaPrevia(null); setCapaSel(null); setMenu(null); setPlantillasAbiertas(false); setPanelInsertar(null); }
       else if (e.key.startsWith("Arrow")) {
         e.preventDefault();
         if (a.capa && a.zona !== "lista") {
@@ -475,6 +479,9 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
           <BotonCinta icon={SendToBack} label="Atrás" onClick={() => ordenCapa(false)} deshabilitado={!capa} />
           <BotonCinta icon={Trash2} label="Eliminar" onClick={borrarCapa} deshabilitado={!capa} titulo="Eliminar (Supr)" />
         </GrupoCinta>
+        <GrupoCinta label="Animación">
+          <BotonCinta icon={Play} label="Reproducir" onClick={() => setVistaPrevia({ paso: 0, vuelta: Date.now() })} titulo="Ver las animaciones de esta diapositiva como en la proyección" />
+        </GrupoCinta>
         <GrupoCinta label="Diseños" ultimo>
           <BotonCinta icon={BookmarkPlus} label="Guardar plantilla" onClick={guardarComoPlantilla} titulo="Guardar esta diapositiva como plantilla de tu iglesia, para reusarla" />
           <div style={{ position: "relative" }} onPointerDown={(e) => e.stopPropagation()}>
@@ -575,6 +582,11 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
                     onMouseEnter={(e) => { if (!seleccionada) e.currentTarget.style.outline = "1px dashed rgba(255,255,255,0.6)"; }}
                     onMouseLeave={(e) => { if (!seleccionada) e.currentTarget.style.outline = "1px dashed transparent"; }}
                   >
+                    {c.anim && (
+                      <span title={c.anim.paso > 0 ? `Aparece con el clic ${c.anim.paso}` : "Tiene animación"} style={{ position: "absolute", top: -9, right: 14, minWidth: 18, height: 18, padding: "0 4px", borderRadius: 9, background: C.naranja, color: C.marino, fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 2, pointerEvents: "none", boxSizing: "border-box" }}>
+                        {c.anim.paso > 0 ? c.anim.paso : <Sparkles size={10} />}
+                      </span>
+                    )}
                     {seleccionada && asas.map((a) => (
                       <span
                         key={a}
@@ -733,6 +745,51 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
             </div>
           )}
           {capa && (
+            <div style={{ marginBottom: 14, paddingTop: 12, borderTop: `1px solid ${C.borde}` }}>
+              <div style={{ ...etiqueta, fontSize: 12, color: C.texto, display: "flex", alignItems: "center", gap: 6 }}><Sparkles size={13} /> Animación</div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={etiqueta}>Cómo entra</div>
+                <select value={capa.anim?.entrada || ""} onChange={(e) => {
+                  const v = e.target.value;
+                  cambiarCapa((c) => (v ? { anim: { ...ANIM_CAPA_VACIA, ...(c.anim || {}), entrada: v } } : { anim: c.anim?.paso > 0 ? { ...c.anim, entrada: "aparecer" } : null }));
+                }} style={estiloCampo}>
+                  <option value="">Sin animación</option>
+                  {ENTRADAS.filter((e) => capa.tipo === "texto" || e.clave !== "escribir").map((e) => <option key={e.clave} value={e.clave}>{e.nombre}</option>)}
+                </select>
+              </div>
+              {capa.anim && (
+                <>
+                  {capa.tipo === "texto" && (
+                    <div style={{ marginBottom: 10 }}>
+                      <Segmentos valor={capa.anim.unidad || "todo"} onCambiar={(v) => cambiarCapa((c) => ({ anim: { ...c.anim, unidad: v } }))} opciones={[["todo", "Todo junto"], ["palabra", "Por palabra"], ["letra", "Por letra"]]} />
+                    </div>
+                  )}
+                  <div style={{ marginBottom: 10 }}><div style={{ ...etiqueta, marginBottom: 2 }}>Velocidad</div><Deslizador valor={Math.round((capa.anim.velocidad ?? 1) * 100)} min={40} max={200} paso={10} sufijo="%" onInicio={marcarHistoria} onCambiar={(v) => cambiarCapa((c) => ({ anim: { ...c.anim, velocidad: v / 100 } }), { guardarHistoria: false })} /></div>
+                  <div style={{ marginBottom: 10 }}><div style={{ ...etiqueta, marginBottom: 2 }}>Esperar antes de entrar (décimas de segundo)</div><Deslizador valor={Math.round((capa.anim.retraso || 0) * 10)} min={0} max={50} onInicio={marcarHistoria} onCambiar={(v) => cambiarCapa((c) => ({ anim: { ...c.anim, retraso: v / 10 } }), { guardarHistoria: false })} /></div>
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={etiqueta}>Mientras está en pantalla</div>
+                    <select value={capa.anim.permanencia || "quieta"} onChange={(e) => cambiarCapa((c) => ({ anim: { ...c.anim, permanencia: e.target.value } }))} style={estiloCampo}>
+                      {PERMANENCIAS.map((p) => <option key={p.clave} value={p.clave}>{p.nombre}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <div style={etiqueta}>Cuándo aparece</div>
+                    <Segmentos valor={(capa.anim.paso || 0) > 0 ? "clic" : "con"} onCambiar={(v) => cambiarCapa((c) => ({ anim: { ...c.anim, paso: v === "clic" ? Math.max(1, pasosDiap + ((c.anim?.paso || 0) > 0 ? 0 : 1)) : 0 } }))} opciones={[["con", "Con la diapositiva"], ["clic", "Al dar clic"]]} />
+                    {(capa.anim.paso || 0) > 0 && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12, color: C.texto }}>
+                        <span style={{ flex: 1 }}>Clic número</span>
+                        <button onClick={() => cambiarCapa((c) => ({ anim: { ...c.anim, paso: Math.max(1, (c.anim.paso || 1) - 1) } }))} style={{ ...estiloCampo, width: 30, padding: 0, height: 26, cursor: "pointer" }}>−</button>
+                        <b style={{ minWidth: 16, textAlign: "center" }}>{capa.anim.paso}</b>
+                        <button onClick={() => cambiarCapa((c) => ({ anim: { ...c.anim, paso: Math.min(20, (c.anim.paso || 1) + 1) } }))} style={{ ...estiloCampo, width: 30, padding: 0, height: 26, cursor: "pointer" }}>+</button>
+                      </div>
+                    )}
+                    <div style={{ fontSize: 10.5, color: C.tenue, lineHeight: 1.5, marginTop: 6 }}>"Al dar clic": en vivo, cada <b>Siguiente</b> revela el próximo elemento antes de pasar a la otra diapositiva — ideal para los puntos de la prédica.</div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {capa && (
             <div style={{ marginBottom: 14 }}>
               <div style={etiqueta}>Posición rápida</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 5 }}>
@@ -750,6 +807,19 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
         </div>
       </div>
 
+      {vistaPrevia && (
+        <div onPointerDown={(e) => e.stopPropagation()} onClick={() => setVistaPrevia((v) => (v.paso < pasosDiap ? { ...v, paso: v.paso + 1 } : null))}
+          style={{ position: "fixed", inset: 0, zIndex: 9200, background: "#000", cursor: "pointer" }}>
+          <DiapositivaDisenada key={vistaPrevia.vuelta} diapositiva={diap} animar paso={vistaPrevia.paso} />
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: 14, display: "flex", justifyContent: "center", gap: 10, pointerEvents: "none" }}>
+            <span style={{ background: "rgba(0,0,0,.6)", color: "#fff", fontSize: 12.5, padding: "6px 12px", borderRadius: 999 }}>
+              {vistaPrevia.paso < pasosDiap ? `Clic para el siguiente paso (${vistaPrevia.paso} de ${pasosDiap})` : "Clic para cerrar"}
+            </span>
+          </div>
+          <button onClick={(e) => { e.stopPropagation(); setVistaPrevia({ paso: 0, vuelta: Date.now() }); }} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.15)", color: "#fff", border: "none", borderRadius: 999, padding: "7px 12px", fontSize: 12.5, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}><RotateCcw size={14} /> Repetir</button>
+          <button onClick={(e) => { e.stopPropagation(); setVistaPrevia(null); }} aria-label="Cerrar vista previa" style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.15)", color: "#fff", border: "none", borderRadius: 999, width: 34, height: 34, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XIcon size={16} /></button>
+        </div>
+      )}
       {menu && (
         <div onPointerDown={(e) => e.stopPropagation()} style={{ position: "fixed", left: menu.x, top: menu.y, zIndex: 9100, background: C.panel, border: `1px solid ${C.bordeCampo}`, borderRadius: 10, padding: 4, minWidth: 190, boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>
           {[

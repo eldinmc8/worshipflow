@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { cssAnimacion, cssSombraReceta, recetaCompleta, listaPalabrasClave } from "../lib/animaciones.js";
+import { familiaDe } from "../lib/diapositivas.js";
 
 // Letras animadas para la proyección (pedido de Eldin, 2026-10-18): "que las letras pasen como en los
 // videos", con un clic desde Estilo. Cada estilo trae su propia letra, sus colores, su forma de entrar
@@ -72,9 +74,50 @@ export const ANIMACIONES = {
     muestra: "repeating-linear-gradient(0deg, rgba(80,255,140,.08) 0 1px, transparent 1px 4px), #04110A" },
 };
 
+// Estilos propios de la iglesia ("recetas", ver lib/animaciones.js y EditorAnimacion.jsx): en el estilo en
+// vivo se guardan como animacion = "mia:<id>" + animReceta (la receta completa), así la pantalla de
+// proyección no necesita ir a buscarla a ningún lado — llega con el mismo estilo, también sin internet.
+export const ES_PROPIA = (k) => typeof k === "string" && k.startsWith("mia:");
+
 export function animacionActiva(liveStyle) {
   const k = liveStyle?.animacion;
+  if (ES_PROPIA(k)) return liveStyle?.animReceta ? k : null;
   return k && ANIMACIONES[k] ? k : null;
+}
+
+// Muestra (miniatura quieta) de cada fondo animado, tomada del estilo de fábrica que lo usa.
+const MUESTRA_FONDO = Object.fromEntries(Object.values(ANIMACIONES).map((a) => [a.fondo, a.muestra]));
+export const FONDOS_DISPONIBLES = [
+  ["aurora", "Aurora"], ["bokeh", "Destellos dorados"], ["estrellas", "Cielo estrellado"], ["foco", "Foco de luz"],
+  ["rayos", "Rayos de luz"], ["olas", "Olas"], ["ondas", "Ondas de choque"], ["confeti", "Confeti"],
+  ["synth", "Neón retro"], ["glitch", "Interferencia"], ["urbano", "Pared urbana"], ["comic", "Cómic"],
+  ["retro", "Atardecer 80"], ["burbujas", "Burbujas"], ["terminal", "Pantalla verde"],
+];
+
+// Convierte una receta en la misma forma que tienen los estilos de fábrica (lo que usa la proyección).
+export function definicionDeReceta(receta, nombre = "Mi animación") {
+  const r = recetaCompleta(receta);
+  const sinFondo = r.fondo.tipo === "propio";
+  return {
+    nombre, grupo: "De mi iglesia", desc: "Animación de tu iglesia", receta: r,
+    fondo: sinFondo ? null : r.fondo.tipo, ajustesFondo: r.fondo,
+    modo: r.unidad === "letra" ? "letra" : "palabra",
+    claves: r.claves, listaClaves: listaPalabrasClave(r.palabrasClave), colorClave: r.colorClave,
+    fuente: { family: familiaDe(r.fuente), weight: r.negrita ? 700 : 400, transform: r.mayusculas ? "uppercase" : "none", tracking: `${r.espaciado || 0}em` },
+    color: r.color, sombra: cssSombraReceta(r.sombra, r.colorEfecto), flash: r.destello,
+    muestra: sinFondo ? "linear-gradient(135deg, #1A1F2B, #0C0E13)" : MUESTRA_FONDO[r.fondo.tipo] || "#111",
+  };
+}
+
+// Lo que necesita la proyección del estilo activo: { clave, def } o null (letra como siempre).
+export function definicionAnimacion(liveStyle) {
+  const k = animacionActiva(liveStyle);
+  if (!k) return null;
+  if (ES_PROPIA(k)) return { clave: k, def: definicionDeReceta(liveStyle.animReceta, liveStyle.animNombre) };
+  return { clave: k, def: ANIMACIONES[k] };
+}
+export function nombreAnimacion(liveStyle) {
+  return definicionAnimacion(liveStyle)?.def.nombre || null;
 }
 
 // Pseudoaleatorio estable (misma diapositiva = mismo vuelo de palabras en todas las pantallas).
@@ -88,7 +131,8 @@ const CLAVES = /^(santo|santa|señor|dios|jesús|jesus|cristo|rey|gloria|aleluya
 // Arma cada línea en palabras (y letras, si el estilo lo pide) con las variables que usa la CSS.
 // Devuelve { lineas: ReactNode[], vars: estilo para el contenedor }.
 export function armarLineasAnimadas(clave, lineas, idDiapositiva) {
-  const a = ANIMACIONES[clave];
+  const a = typeof clave === "string" ? ANIMACIONES[clave] : clave;
+  const r = a.receta || null;
   const rnd = semilla(`${idDiapositiva}|${lineas.join("/")}`);
   let iPal = 0, iLet = 0;
   const totalPal = lineas.reduce((n, l) => n + l.split(/\s+/).filter(Boolean).length, 0) || 1;
@@ -97,15 +141,21 @@ export function armarLineasAnimadas(clave, lineas, idDiapositiva) {
     const partes = [];
     palabras.forEach((p, pi) => {
       const limpia = p.replace(/[¡!¿?.,;:"“”«»()]/g, "");
-      const esClave = !!a.claves && CLAVES.test(limpia);
+      const esClave = !!a.claves && (a.listaClaves?.length ? a.listaClaves.includes(limpia.toLowerCase()) : CLAVES.test(limpia));
       const vars = {
         "--i": iPal, "--li": li, "--pi": pi,
         "--dx": (rnd() * 2 - 1).toFixed(3), "--dy": (rnd() * 2 - 1).toFixed(3), "--r": (rnd() * 2 - 1).toFixed(3),
       };
       if (a.colores) vars.color = a.colores[iPal % a.colores.length];
+      if (r) {
+        // Receta propia: cada palabra (o letra, o línea) lleva su propia animación, con su turno.
+        if (esClave) vars.color = a.colorClave;
+        if (r.unidad === "palabra") vars.animation = cssAnimacion({ entrada: r.entrada, permanencia: r.permanencia, velocidad: r.velocidad, retraso: 0.15 + iPal * r.separacion });
+      }
       const clases = "wfa-p" + (esClave ? " wfa-clave" : "");
       if (a.modo === "letra") {
-        const letras = [...p].map((ch, ci) => <span key={ci} className="wfa-c" style={{ "--c": iLet + ci, "--ci": ci, "--fl": rnd().toFixed(3) }}>{ch}</span>);
+        const letras = [...p].map((ch, ci) => <span key={ci} className="wfa-c" style={{ "--c": iLet + ci, "--ci": ci, "--fl": rnd().toFixed(3),
+          ...(r ? { "--dx": (rnd() * 2 - 1).toFixed(3), "--dy": (rnd() * 2 - 1).toFixed(3), "--r": (rnd() * 2 - 1).toFixed(3), animation: cssAnimacion({ entrada: r.entrada, permanencia: r.permanencia, velocidad: r.velocidad, retraso: 0.15 + (iLet + ci) * r.separacion * 0.35 }) } : {}) }}>{ch}</span>);
         iLet += p.length + 1;
         partes.push(<span key={pi} className={clases} style={vars}>{letras}</span>);
       } else {
@@ -114,10 +164,15 @@ export function armarLineasAnimadas(clave, lineas, idDiapositiva) {
       iPal++;
       if (pi < palabras.length - 1) partes.push(" ");
     });
-    return <span key={li} className="wfa-linea">{partes}</span>;
+    const estiloLinea = { "--li": li, ...(r && r.unidad === "linea" ? { animation: cssAnimacion({ entrada: r.entrada, permanencia: r.permanencia, velocidad: r.velocidad, retraso: 0.15 + li * (0.25 + r.separacion * 3) }) } : {}) };
+    return <span key={li} className="wfa-linea" style={estiloLinea}>{partes}</span>;
   });
-  return { lineas: nodos, vars: { "--n": totalPal, "--nl": lineas.length } };
+  return { lineas: nodos, vars: { "--n": totalPal, "--nl": lineas.length, ...(r ? { "--m": "1em" } : {}) } };
 }
+
+// Clase CSS del contenedor de la letra: los de fábrica traen su propia CSS (.wfa-<clave>); las recetas
+// llevan la animación escrita en cada palabra.
+export const claseAnimacion = (clave) => (ES_PROPIA(clave) ? "wfa wfr" : `wfa wfa-${clave}`);
 
 // ---------------- Precarga de letras ----------------
 // Varios estilos usan tipos de letra que la app no usaba antes (Bangers, Bungee, Fredoka...). Si se piden
@@ -138,9 +193,13 @@ export function precargarFuentesAnimacion() {
 // quieto: dibuja un solo cuadro y no se mueve (vistas previas de la consola: la que se anima es la
 // proyección real; tres fondos animándose a la vez en la misma computadora costaban de más).
 // chico: miniatura (menos resolución, ~30 cuadros por segundo).
-export function FondoAnimado({ tipo, pulso, chico = false, quieto = false }) {
+// ajustes (opcional, recetas propias): { tono (grados), brillo (0.5–1.5), velocidad (0.25–2), densidad (0.5–2) }.
+export function FondoAnimado({ tipo, pulso, chico = false, quieto = false, ajustes }) {
   const ref = useRef(null);
-  const estado = useRef({ tipo, pulso: 0, ondas: [], parts: null, dibujado: false });
+  const estado = useRef({ tipo, pulso: 0, ondas: [], parts: null, dibujado: false, vel: 1, dens: 1 });
+  const vel = ajustes?.velocidad ?? 1, dens = ajustes?.densidad ?? 1;
+  estado.current.vel = vel;
+  if (estado.current.dens !== dens) { estado.current.dens = dens; estado.current.parts = null; estado.current.dibujado = false; }
 
   useEffect(() => {
     const e = estado.current;
@@ -176,7 +235,7 @@ export function FondoAnimado({ tipo, pulso, chico = false, quieto = false }) {
     const dibujarCuadro = (t) => {
       const e = estado.current;
       const dibujar = FONDOS[e.tipo] || FONDOS.aurora;
-      try { dibujar(ctx, W, H, t, e); } catch { /* un cuadro fallido no debe tumbar la proyección */ }
+      try { dibujar(ctx, W, H, t * (e.vel || 1), e); } catch { /* un cuadro fallido no debe tumbar la proyección */ }
       e.pulso *= 0.95;
       e.estallido = (e.estallido || 0) * 0.9;
       // Arranque suave: el lienzo aparece con un fundido en vez de exigir todo de golpe.
@@ -201,25 +260,26 @@ export function FondoAnimado({ tipo, pulso, chico = false, quieto = false }) {
     return () => { vivo = false; cancelAnimationFrame(raf); ro.disconnect(); };
   }, [chico, quieto]);
 
-  return <canvas ref={ref} aria-hidden style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 0, display: "block", opacity: 0, transition: "opacity .7s ease" }} />;
+  const filtro = ajustes && ((ajustes.tono || 0) !== 0 || (ajustes.brillo ?? 1) !== 1) ? `hue-rotate(${ajustes.tono || 0}deg) brightness(${ajustes.brillo ?? 1})` : undefined;
+  return <canvas ref={ref} aria-hidden style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 0, display: "block", opacity: 0, transition: "opacity .7s ease", filter: filtro }} />;
 }
 
 // Muestra en vivo de un estilo (al pasar el cursor por su tarjeta, como las miniaturas de YouTube):
 // su fondo animado y una frase entrando con su animación, repitiéndose mientras siga el cursor encima.
 const FRASE_MUESTRA = ["Santo, santo es el Señor", "digno de toda gloria"];
-function MiniaturaAnimada({ clave }) {
-  const a = ANIMACIONES[clave];
+export function MiniaturaAnimada({ clave, def }) {
+  const a = def || ANIMACIONES[clave];
   const [vuelta, setVuelta] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setVuelta((v) => v + 1), 4200);
     return () => clearInterval(id);
   }, []);
-  const { lineas, vars } = armarLineasAnimadas(clave, FRASE_MUESTRA, `muestra-${vuelta}`);
+  const { lineas, vars } = armarLineasAnimadas(a, FRASE_MUESTRA, `muestra-${vuelta}`);
   return (
     <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", borderRadius: 8, background: "#000" }}>
-      <FondoAnimado tipo={a.fondo} pulso={vuelta} chico />
+      {a.fondo ? <FondoAnimado tipo={a.fondo} pulso={vuelta} chico ajustes={a.ajustesFondo} /> : <span style={{ position: "absolute", inset: 0, background: a.muestra }} />}
       {a.flash && <span key={`f${vuelta}`} className="wfa-flash" />}
-      <span key={vuelta} className={`wfa wfa-${clave}`} style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", fontFamily: a.fuente.family, fontWeight: a.fuente.weight, textTransform: a.fuente.transform || "none", letterSpacing: a.fuente.tracking || "normal", color: a.color, textShadow: a.sombra, fontSize: 10.5, lineHeight: 1.2, whiteSpace: "nowrap", ...vars }}>
+      <span key={vuelta} className={claseAnimacion(clave)} style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", fontFamily: a.fuente.family, fontWeight: a.fuente.weight, textTransform: a.fuente.transform || "none", letterSpacing: a.fuente.tracking || "normal", color: a.color, textShadow: a.sombra, fontSize: 10.5, lineHeight: 1.2, whiteSpace: "nowrap", ...vars }}>
         {lineas.map((l, i) => <span key={i} style={{ display: "block" }}>{l}</span>)}
       </span>
     </span>
@@ -227,7 +287,8 @@ function MiniaturaAnimada({ clave }) {
 }
 
 const R = (a, b) => a + Math.random() * (b - a);
-function particulas(e, n, crear) {
+function particulas(e, n0, crear) {
+  const n = Math.max(1, Math.round(n0 * (e.dens || 1)));
   if (!e.parts || e.parts.length !== n) e.parts = Array.from({ length: n }, (_, i) => crear(i));
   return e.parts;
 }
@@ -261,7 +322,7 @@ const FONDOS = {
     }
     const ps = particulas(e, 55, () => ({ x: Math.random(), y: Math.random(), r: Math.random(), v: R(.3, 1), f: Math.random() * 6.28 }));
     for (const p of ps) {
-      p.y -= 0.0006 * p.v; if (p.y < -0.05) { p.y = 1.05; p.x = Math.random(); }
+      p.y -= 0.0006 * p.v * (e.vel || 1); if (p.y < -0.05) { p.y = 1.05; p.x = Math.random(); }
       const x = (p.x + Math.sin(t / 2000 + p.f) * .01) * W, y = p.y * H, r = (2 + p.r * 10) * W / 900;
       radial(ctx, x, y, r * 3, "255,200,120", (.25 + .35 * Math.sin(t / 900 + p.f) ** 2) * (1 - Math.abs(p.y - .5)));
     }
@@ -343,7 +404,7 @@ const FONDOS = {
     const ps = particulas(e, 120, () => ({ x: Math.random(), y: Math.random() * -1, v: R(.4, 1), r: Math.random() * 6.28, vr: R(-.08, .08), c: colores[Math.floor(Math.random() * colores.length)], s: R(.6, 1.4), f: Math.random() * 6.28 }));
     const u = W / 160;
     for (const p of ps) {
-      p.y += 0.0022 * p.v * (1 + (e.estallido || 0) * 2); p.r += p.vr;
+      p.y += 0.0022 * p.v * (e.vel || 1) * (1 + (e.estallido || 0) * 2); p.r += p.vr * (e.vel || 1);
       if (p.y > 1.05) { p.y = R(-.2, -.02); p.x = Math.random(); }
       ctx.save(); ctx.translate((p.x + Math.sin(t / 900 + p.f) * .015) * W, p.y * H); ctx.rotate(p.r);
       ctx.scale(1, Math.abs(Math.cos(t / 300 + p.f)));
@@ -436,7 +497,7 @@ const FONDOS = {
     const cols = ["255,95,162", "255,210,63", "77,225,193", "143,124,255", "255,138,61"];
     const ps = particulas(e, 26, (i) => ({ x: Math.random(), y: Math.random() * 1.2, r: R(.02, .09), v: R(.3, 1), c: cols[i % cols.length], f: Math.random() * 6.28 }));
     for (const p of ps) {
-      p.y -= 0.0012 * p.v; if (p.y < -0.15) { p.y = 1.15; p.x = Math.random(); }
+      p.y -= 0.0012 * p.v * (e.vel || 1); if (p.y < -0.15) { p.y = 1.15; p.x = Math.random(); }
       const x = (p.x + Math.sin(t / 1500 + p.f) * .02) * W, y = p.y * H, r = p.r * W * (1 + Math.sin(t / 500 + p.f) * .05 + (e.pulso || 0) * .1);
       ctx.fillStyle = `rgba(${p.c},.32)`; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
       ctx.fillStyle = "rgba(255,255,255,.22)"; ctx.beginPath(); ctx.arc(x - r * .35, y - r * .35, r * .22, 0, 6.2832); ctx.fill();
@@ -450,63 +511,7 @@ const FONDOS = {
     // columna de caracteres que cae al fondo, tenue
     const ps = particulas(e, 40, () => ({ x: Math.random(), y: Math.random(), v: R(.3, 1) }));
     ctx.fillStyle = "rgba(80,255,140,.18)"; ctx.font = `${Math.round(H / 30)}px monospace`;
-    for (const p of ps) { p.y += 0.003 * p.v; if (p.y > 1.05) { p.y = -0.05; p.x = Math.random(); } ctx.fillText(String.fromCharCode(0x30a0 + Math.floor(Math.random() * 96)), p.x * W, p.y * H); }
+    for (const p of ps) { p.y += 0.003 * p.v * (e.vel || 1); if (p.y > 1.05) { p.y = -0.05; p.x = Math.random(); } ctx.fillText(String.fromCharCode(0x30a0 + Math.floor(Math.random() * 96)), p.x * W, p.y * H); }
   },
 };
 
-// ---------------- Selector (panel de Estilo) ----------------
-export function SelectorAnimacion({ liveStyle, setLiveStyle, columnas = 3 }) {
-  const actual = animacionActiva(liveStyle);
-  // Tarjeta bajo el cursor (o enfocada con el teclado): solo esa se anima, así el menú no carga nada de más.
-  const [enVista, setEnVista] = useState(null);
-  useEffect(() => { precargarFuentesAnimacion(); }, []);
-  const fondoPropio = liveStyle?.animFondo === "propio";
-  const tarjeta = (activo) => ({
-    display: "flex", flexDirection: "column", gap: 4, padding: 5, borderRadius: 12, cursor: "pointer", textAlign: "left", minWidth: 0,
-    background: "var(--wf-card)", border: activo ? "2px solid #B15EA0" : "1px solid var(--wf-border)", boxShadow: activo ? "0 3px 12px rgba(177,94,160,.25)" : "none",
-  });
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <button type="button" onClick={() => setLiveStyle((s) => ({ ...s, animacion: null }))} style={{ ...tarjeta(!actual), flexDirection: "row", alignItems: "center", gap: 8, padding: "7px 10px" }}>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--wf-text)" }}>Sin animación</span>
-        <span style={{ fontSize: 11, color: "var(--wf-muted)" }}>La letra como siempre</span>
-      </button>
-      {GRUPOS_ANIMACION.map((g) => (
-        <div key={g}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4, marginBottom: 6 }}>{g.toUpperCase()}</div>
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))`, gap: 7 }}>
-            {Object.entries(ANIMACIONES).filter(([, a]) => a.grupo === g).map(([k, a]) => (
-              <button type="button" key={k} onClick={() => setLiveStyle((s) => ({ ...s, animacion: k }))} title={a.desc} style={tarjeta(actual === k)}
-                onMouseEnter={() => setEnVista(k)} onMouseLeave={() => setEnVista((v) => (v === k ? null : v))}
-                onFocus={() => setEnVista(k)} onBlur={() => setEnVista((v) => (v === k ? null : v))}>
-                <span style={{ position: "relative", aspectRatio: "16 / 9", width: "100%", borderRadius: 8, background: a.muestra, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                  {enVista === k && <MiniaturaAnimada clave={k} />}
-                  <span className={`wfa-muestra wfa-muestra-${k}`} style={{ fontFamily: a.fuente.family, fontWeight: a.fuente.weight, textTransform: a.fuente.transform || "none", color: a.degradado ? undefined : (a.colores ? a.colores[0] : a.color === "rgba(255,255,255,.3)" ? "#FFFFFF" : a.color), textShadow: a.sombra, fontSize: 17, lineHeight: 1 }}>Aleluya</span>
-                </span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text)", padding: "0 2px" }}>{a.nombre}</span>
-                <span style={{ fontSize: 10.5, color: "var(--wf-muted)", lineHeight: 1.3, padding: "0 2px 2px" }}>{a.desc}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-      {actual && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 2 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4 }}>FONDO</div>
-          <div style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 10, padding: 3, width: "fit-content" }}>
-            {[["estilo", "Fondo animado del estilo"], ["propio", "Mi fondo (colores, imagen o video)"]].map(([v, l]) => {
-              const on = (fondoPropio ? "propio" : "estilo") === v;
-              return (
-                <button type="button" key={v} onClick={() => setLiveStyle((s) => ({ ...s, animFondo: v }))}
-                  style={{ fontSize: 11.5, fontWeight: 600, border: "none", borderRadius: 8, padding: "5px 10px", cursor: "pointer", background: on ? "var(--wf-card)" : "transparent", boxShadow: on ? "0 1px 3px rgba(22,50,79,0.15)" : "none", color: "var(--wf-text)" }}>{l}</button>
-              );
-            })}
-          </div>
-          <div style={{ fontSize: 11, color: "var(--wf-muted)", lineHeight: 1.45 }}>
-            El estilo trae su propia letra y colores. Se anima la letra de las canciones; los versículos y las diapositivas se ven como siempre sobre el mismo fondo.
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}

@@ -327,3 +327,24 @@ img, svg {
 /* Máquina de escribir */
 .wfa-maquina .wfa-c { animation: wfa-tecla .01s linear calc(.3s + var(--c) * .05s) both; }
 @keyframes wfa-tecla { from { opacity: 0 } to { opacity: 1 } }
+
+/* ---------- Piezas de animación para recetas propias y elementos de diapositivas (ver src/lib/animaciones.js) ----------
+   --m es la unidad de movimiento (1em en la letra de una canción; cqw en una diapositiva). --dx/--dy/--r son
+   un azar estable por palabra (si no hay, valores fijos). */
+@keyframes wfx-aparecer { from { opacity: 0 } to { opacity: 1 } }
+@keyframes wfx-subir { from { opacity: 0; transform: translateY(calc(var(--m, 1em) * .5)); filter: blur(.08em) } to { opacity: 1; transform: none; filter: none } }
+@keyframes wfx-bajar { from { opacity: 0; transform: translate(calc(var(--dx, .2) * var(--m, 1em) * .4), calc(var(--m, 1em) * -1.2)) rotate(calc(var(--r, .3) * 12deg)) } to { opacity: 1; transform: none } }
+@keyframes wfx-deslizar { from { opacity: 0; transform: translateX(calc(var(--m, 1em) * -1.5)) skewX(-20deg) } to { opacity: 1; transform: none } }
+@keyframes wfx-volar { 0% { opacity: 0; transform: translate(calc(var(--dx, .6) * var(--m, 1em) * 3), calc(var(--dy, -.5) * var(--m, 1em) * 2)) scale(.3) rotate(calc(var(--r, .5) * 40deg)) } 60% { opacity: 1 } 100% { opacity: 1; transform: none } }
+@keyframes wfx-rebotar { 0% { opacity: 0; transform: translateY(calc(var(--m, 1em) * .9)) scale(.4) } 60% { opacity: 1; transform: translateY(calc(var(--m, 1em) * -.15)) scale(1.12) } 100% { opacity: 1; transform: none } }
+@keyframes wfx-crecer { 0% { opacity: 0; transform: scale(0) } 70% { opacity: 1; transform: scale(1.15) } 100% { opacity: 1; transform: none } }
+@keyframes wfx-golpe { 0% { opacity: 0; transform: scale(3) } 55% { opacity: 1; transform: scale(.94) } 100% { opacity: 1; transform: none } }
+@keyframes wfx-girar { 0% { opacity: 0; transform: rotate(-200deg) scale(.3) } 100% { opacity: 1; transform: none } }
+@keyframes wfx-desenfoque { from { opacity: 0; transform: scale(1.3); filter: blur(calc(var(--m, 1em) * .35)) } to { opacity: 1; transform: none; filter: none } }
+@keyframes wfx-parpadear { 0% { opacity: 0 } 10% { opacity: 1 } 20% { opacity: .1 } 32% { opacity: 1 } 45% { opacity: .3 } 60%, 100% { opacity: 1 } }
+@keyframes wfx-escribir { from { opacity: 0 } to { opacity: 1 } }
+@keyframes wfx-p-flotar { from { transform: translateY(0) } to { transform: translateY(calc(var(--m, 1em) * -.09)) } }
+@keyframes wfx-p-latir { from { transform: scale(1) } to { transform: scale(1.05) } }
+@keyframes wfx-p-brillar { from { filter: brightness(1) } to { filter: brightness(1.3) } }
+@keyframes wfx-p-ondular { 0% { transform: translateY(0) } 100% { transform: translateY(calc(var(--m, 1em) * -.12)) } }
+@keyframes wfx-p-balancear { from { transform: rotate(-3deg) } to { transform: rotate(3deg) } }

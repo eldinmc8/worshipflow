@@ -20,7 +20,9 @@ import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guard
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
 import AutoFitText from "./components/AutoFitText.jsx";
 import { stripBibleSearchMarkup } from "./lib/textoBiblia.js";
-import { ANIMACIONES, animacionActiva, armarLineasAnimadas, FondoAnimado, SelectorAnimacion, precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
+import { pasosDeDiapositiva } from "./lib/animaciones.js";
+import { animacionActiva, definicionAnimacion, nombreAnimacion, claseAnimacion, armarLineasAnimadas, FondoAnimado, precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
+import SelectorAnimacion from "./components/SelectorAnimacion.jsx";
 import EditorTextoCancion from "./components/EditorTextoCancion.jsx";
 import ImportarCancionesPdf from "./components/ImportarCancionesPdf.jsx";
 import { misProximosServicios, cuandoEs, companeros, indicaciones, cancionesParaEnsayar, necesitaAtencion, estaSemana } from "./lib/inicio.js";
@@ -909,7 +911,17 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     [adHoc, palabrasPorParte, formatoLetra]
   );
   const adHocVista = useMemo(() => (adHoc ? { ...adHoc, slides: adHocSlides } : null), [adHoc, adHocSlides]);
-  const current = adHoc ? adHocSlides[adHocIdx] : slides[activeIdx];
+  const currentBase = adHoc ? adHocSlides[adHocIdx] : slides[activeIdx];
+  // Diapositivas diseñadas con animación "al clic" (editor de diapositivas, 2026-10-18): cada "Siguiente"
+  // revela el próximo elemento antes de pasar a la otra diapositiva. El paso viaja dentro de la
+  // diapositiva al aire (slide.paso) para que la proyección muestre exactamente lo mismo.
+  // Se guarda junto al id de la diapositiva: al cambiar de diapositiva vuelve a 0 en el MISMO render (sin un
+  // cuadro intermedio mostrando de más).
+  const [pasoGuardado, setPasoGuardado] = useState({ id: null, paso: 0 });
+  const idDiapositivaActual = currentBase?.slideId ?? null;
+  const pasoDiseno = pasoGuardado.id === idDiapositivaActual ? pasoGuardado.paso : 0;
+  const setPasoDiseno = (n) => setPasoGuardado({ id: idDiapositivaActual, paso: typeof n === "function" ? n(pasoDiseno) : n });
+  const current = useMemo(() => (currentBase?.diseno ? { ...currentBase, paso: pasoDiseno } : currentBase), [currentBase, pasoDiseno]);
   const next = adHoc ? adHocSlides[adHocIdx + 1] : slides[activeIdx + 1];
 
   // ---- Lectura bíblica en vivo: "Siguiente/Anterior versículo" y cambio de versión sin reabrir el buscador.
@@ -2555,7 +2567,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         <div style={{ width: "100%", flex: 1, minHeight: 0, display: "flex" }}>
           <MultimediaControl
             key={liveEvent.id || "libre"} eventoId={liveEvent.id || null}
-            myIglesiaId={myIglesiaId} palabrasPorParte={palabrasPorParte}
+            myIglesiaId={myIglesiaId} palabrasPorParte={palabrasPorParte} iglesiaNombre={myIglesia.nombre} usuarioId={userId}
+            pasoDiseno={pasoDiseno} setPasoDiseno={setPasoDiseno}
             eventTitle={liveEvent.title} serviceOrder={liveEvent.serviceOrder || []} isFreeSession={liveLibre} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
             goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}
             onEnd={enPractica ? salirPractica : endEvent} canEnd={enPractica || isAdminViewer || userId === liveOwnerId}
@@ -8089,7 +8102,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null}) {
+function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {} }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -8189,6 +8202,10 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   // versículo de la Biblia partido en varias partes: primero recorre sus partes y, ya en la última (o la
   // primera), salta al versículo de al lado.
   const avanzar = (dir) => {
+    // Diapositiva diseñada con elementos "al clic": primero se revelan (o se esconden al volver) sus pasos.
+    const pasosTotales = current?.diseno ? pasosDeDiapositiva(current.diseno) : 0;
+    if (dir > 0 && pasosTotales > 0 && pasoDiseno < pasosTotales) { setPasoDiseno(pasoDiseno + 1); return; }
+    if (dir < 0 && pasosTotales > 0 && pasoDiseno > 0) { setPasoDiseno(pasoDiseno - 1); return; }
     const isNavigableBible = current?.type === "biblia" && current.bookId;
     const sinMasAdelante = adHoc && navIdx >= adHoc.slides.length - 1;
     const sinMasAtras = adHoc && navIdx <= 0;
@@ -8625,7 +8642,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>LETRA ANIMADA</div>
             <div style={{ marginBottom: 16 }}>
-              <SelectorAnimacion liveStyle={liveStyle} setLiveStyle={setLiveStyle} columnas={2} />
+              <SelectorAnimacion liveStyle={liveStyle} setLiveStyle={setLiveStyle} columnas={2} iglesiaId={myIglesiaId} iglesiaNombre={iglesiaNombre} usuarioId={usuarioId} />
             </div>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>FONDO DE LA PROYECCIÓN</div>
             <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
@@ -8921,7 +8938,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         {mmPanel === "estilo" && (
           <>
             {navegacionRapida()}
-            {grupoCinta("Letra animada", botonCinta({ icon: Sparkles, label: animacionActiva(liveStyle) ? ANIMACIONES[animacionActiva(liveStyle)].nombre : "Animación", onClick: () => { setEstiloMas(false); setAnimMenu((v) => !v); }, activo: !!animacionActiva(liveStyle) || animMenu, title: "Letras animadas: elegir un estilo con movimiento", ancho: 76 }))}
+            {grupoCinta("Letra animada", botonCinta({ icon: Sparkles, label: (() => { const n = nombreAnimacion(liveStyle) || "Animación"; return n.length > 12 ? n.slice(0, 11) + "…" : n; })(), onClick: () => { setEstiloMas(false); setAnimMenu((v) => !v); }, activo: !!animacionActiva(liveStyle) || animMenu, title: "Letras animadas: elegir un estilo con movimiento", ancho: 76 }))}
             {grupoCinta(editandoCancion ? `Fondo de "${cancionObjetivo.titulo.length > 22 ? cancionObjetivo.titulo.slice(0, 21) + "…" : cancionObjetivo.titulo}"` : "Fondo", <>
               {Object.entries(LIVE_THEMES).map(([key, t]) => (
                 <button key={key} onClick={() => aplicarFondo({ theme: key })} title={t.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 5px", borderRadius: 10, cursor: "pointer", background: "var(--wf-card)", border: fondoEditado.theme === key && !(animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") ? "2px solid #B15EA0" : "1px solid var(--wf-border)" }}>
@@ -9030,7 +9047,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-heading)" }}>Letra animada</span>
               <button onClick={() => setAnimMenu(false)} title="Cerrar" aria-label="Cerrar" style={iconGhost}><X size={15} /></button>
             </div>
-            <SelectorAnimacion liveStyle={liveStyle} setLiveStyle={setLiveStyle} columnas={5} />
+            <SelectorAnimacion liveStyle={liveStyle} setLiveStyle={setLiveStyle} columnas={5} iglesiaId={myIglesiaId} iglesiaNombre={iglesiaNombre} usuarioId={usuarioId} />
           </div>
         </div>
       )}
@@ -9404,8 +9421,9 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // decide cuál de los dos usar, no solo cuál de los dos campos tiene algo guardado.
   // Letras animadas (ver components/LetrasAnimadas.jsx): el fondo animado del estilo reemplaza al fondo
   // general, salvo que se haya elegido "Mi fondo", o que la diapositiva o la canción traigan uno propio.
-  const animKey = animacionActiva(liveStyle);
-  const anim = animKey ? ANIMACIONES[animKey] : null;
+  const animDef = definicionAnimacion(liveStyle);
+  const animKey = animDef?.clave || null;
+  const anim = animDef?.def || null;
   const slideTraeFondo = slide?.type === "slide" && ((slide.bgType === "video" && slide.videoUrl) || (slide.bgType === "imagen" && slide.imageUrl));
   const fondoAnimado = anim && liveStyle?.animFondo !== "propio" && !fondoCancion && !slideTraeFondo ? anim.fondo : null;
   const customBgEsVideo = !fondoAnimado && fondo?.theme === "custom" && (fondo.customBgType || "imagen") === "video";
@@ -9455,7 +9473,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   const lineStyleMode = liveStyle?.lineStyle || "tradicional";
   // Con letra animada el estilo ya decide cómo se ve cada línea: el "diseño de las letras" no aplica.
   const animarLetra = !!anim && slide?.type === "cancion" && Array.isArray(slide?.lines);
-  const lineasAnimadas = animarLetra ? armarLineasAnimadas(animKey, slide.lines, slide.slideId) : null;
+  const lineasAnimadas = animarLetra ? armarLineasAnimadas(anim, slide.lines, slide.slideId) : null;
   const cancionLineStyles =
     slide?.type === "cancion" && lineStyleMode !== "tradicional" && !animarLetra
       ? slide.lines.map((_, i) => {
@@ -9490,7 +9508,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   if (slide?.diseno) {
     return (
       <div style={{ ...estiloRaiz, background: "#000", padding: 0 }}>
-        <DiapositivaDisenada diapositiva={slide.diseno} blanked={blanked} />
+        <DiapositivaDisenada diapositiva={slide.diseno} blanked={blanked} animar={!thumbnail} paso={slide.paso ?? 0} />
       </div>
     );
   }
@@ -9514,7 +9532,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           "pantalla en negro" con un video de fondo se veía como negro sólido de verdad (el <video> ni
           se montaba) en vez de seguir el video andando sin la letra encima, que es lo que de verdad se
           quiere: ocultar SOLO la letra/texto que se está transmitiendo, no el fondo. */}
-      {fondoAnimado && !videoSrc && !imageSrc && <FondoAnimado tipo={fondoAnimado} pulso={slide?.slideId ?? slide?.reference ?? slide?.title} chico={!!thumbnail} quieto={!!thumbnail} />}
+      {fondoAnimado && !videoSrc && !imageSrc && <FondoAnimado tipo={fondoAnimado} pulso={slide?.slideId ?? slide?.reference ?? slide?.title} chico={!!thumbnail} quieto={!!thumbnail} ajustes={anim?.ajustesFondo} />}
       {animarLetra && anim.flash && !blanked && <div key={`flash-${slide.slideId}`} className="wfa-flash" />}
       {videoSrc && (
         <>
@@ -9555,7 +9573,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
                       ? { fontFamily: anim.fuente.family, fontWeight: anim.fuente.weight, textTransform: anim.fuente.transform || "none", letterSpacing: anim.fuente.tracking || "normal", textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.25, textShadow: anim.sombra, color: anim.color, whiteSpace: "nowrap", ...lineasAnimadas.vars }
                       : { fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: espaciadoLetras, fontStyle: font.italic ? "italic" : "normal", textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.35, textShadow: sombraTexto, color: textColor, whiteSpace: "nowrap", textWrap: "balance" }}
                     lineStyles={cancionLineStyles}
-                    className={animarLetra ? `wfa wfa-${animKey}` : undefined}
+                    className={animarLetra ? claseAnimacion(animKey) : undefined}
                     contenidoLineas={lineasAnimadas?.lineas}
                   />
                 );

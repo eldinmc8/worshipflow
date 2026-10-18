@@ -47,6 +47,11 @@ export const FUENTES = [
   { clave: "sacramento", nombre: "Sacramento (firma)", family: "'Sacramento', cursive" },
   { clave: "parisienne", nombre: "Parisienne (caligrafía)", family: "'Parisienne', cursive" },
   { clave: "satisfy", nombre: "Satisfy (pincel)", family: "'Satisfy', cursive" },
+  // Las de las letras animadas (2026-10-18): historieta, retro, redondeada juvenil y máquina de escribir.
+  { clave: "bangers", nombre: "Bangers (cómic)", family: "'Bangers', 'Bebas Neue', sans-serif" },
+  { clave: "bungee", nombre: "Bungee (retro)", family: "'Bungee', 'Archivo Black', sans-serif" },
+  { clave: "fredoka", nombre: "Fredoka (redondeada)", family: "'Fredoka', 'Quicksand', sans-serif" },
+  { clave: "courier", nombre: "Courier (máquina)", family: "'Courier Prime', 'JetBrains Mono', monospace" },
 ];
 export const familiaDe = (clave) => (FUENTES.find((f) => f.clave === clave) || FUENTES[0]).family;
 
