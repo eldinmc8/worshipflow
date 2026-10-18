@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { ProjectionPanel } from "./PrototipoWorshipFlow.jsx";
 import { precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
+import { leerPantallaDeUrl } from "./lib/enlacePantalla.js";
 import { getLiveSession, subscribeLiveSession, subscribeLiveBroadcast, anunciarProyeccion, pedirEstadoActual, guardarUltimaFila, leerUltimaFila } from "./lib/liveSession.js";
 import { supabase } from "./lib/supabaseClient.js";
 
@@ -38,7 +39,7 @@ export default function PublicScreen() {
   useEffect(() => { precargarFuentesAnimacion(); }, []);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const slug = params.get("igl");
+    const slug = leerPantallaDeUrl(window.location.pathname, window.location.search)?.slug || null;
     const claveCache = `worshipflow_iglesia_por_slug_${slug || "_defecto"}`;
     const directo = params.get("iid");
     let guardado = null;
@@ -101,7 +102,7 @@ export default function PublicScreen() {
   // que la congregación nunca lo ve, pero aparece apenas alguien toca/mueve el mouse si lo necesita.
   const salirDePantallaPublica = () => {
     document.exitFullscreen?.().catch(() => {});
-    window.location.href = window.location.origin + window.location.pathname;
+    window.location.href = window.location.origin + "/";
   };
 
   // Se intenta pantalla completa sola apenas se monta (a veces alcanza a contar como "gesto de usuario"

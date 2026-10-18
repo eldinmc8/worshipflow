@@ -7,6 +7,7 @@ import { iniciarTema } from './lib/theme.js'
 import { iniciarPreferencias } from './lib/preferencias.js'
 import AuthGate from './AuthGate.jsx'
 import PublicScreen from './PublicScreen.jsx'
+import { leerPantallaDeUrl } from './lib/enlacePantalla.js'
 import CrearIglesia from './CrearIglesia.jsx'
 import ToastHost from './ToastHost.jsx'
 import ConfirmDialogHost from './ConfirmDialogHost.jsx'
@@ -16,7 +17,8 @@ import ConfirmDialogHost from './ConfirmDialogHost.jsx'
 // al proyector que arranca directo en la pantalla en vivo). El panel de control (esta misma app,
 // sin ese parámetro) usa el manifest principal — cada uno con su propio manifest.webmanifest para
 // que "Instalar app" abra la pantalla correcta según desde dónde se instaló.
-const isPublicScreen = new URLSearchParams(window.location.search).get('screen') === 'publico'
+// También el enlace corto /p/<iglesia> (ver lib/enlacePantalla.js) para abrirla en otro equipo.
+const isPublicScreen = !!leerPantallaDeUrl(window.location.pathname, window.location.search)
 // Alta de una iglesia nueva (Fase 4) — su propia URL (?crear-iglesia), sin ningún enlace visible
 // hacia ella desde el resto de la app (ver CrearIglesia.jsx para el porqué).
 const isCrearIglesia = new URLSearchParams(window.location.search).has('crear-iglesia')

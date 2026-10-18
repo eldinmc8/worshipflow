@@ -14,7 +14,7 @@ import {
   Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
-  Type, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff, ClipboardPaste, PencilLine, FileText, Link2,
+  Type, MonitorSmartphone, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff, ClipboardPaste, PencilLine, FileText, Link2,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
@@ -23,6 +23,7 @@ import { stripBibleSearchMarkup } from "./lib/textoBiblia.js";
 import { pasosDeDiapositiva } from "./lib/animaciones.js";
 import { animacionActiva, definicionAnimacion, nombreAnimacion, claseAnimacion, armarLineasAnimadas, FondoAnimado, precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
 import SelectorAnimacion from "./components/SelectorAnimacion.jsx";
+import PantallaOtroEquipo from "./components/PantallaOtroEquipo.jsx";
 import EditorTextoCancion from "./components/EditorTextoCancion.jsx";
 import ImportarCancionesPdf from "./components/ImportarCancionesPdf.jsx";
 import { misProximosServicios, cuandoEs, companeros, indicaciones, cancionesParaEnsayar, necesitaAtencion, estaSemana } from "./lib/inicio.js";
@@ -3302,6 +3303,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showIdentidad, setShowIdentidad] = useState(false);
   const [showPantalla, setShowPantalla] = useState(false);
+  const [showOtroEquipoAjustes, setShowOtroEquipoAjustes] = useState(false);
   const [pushEstado, setPushEstado] = useState("cargando"); // cargando | activo | inactivo | sin-soporte
   const [pushBusy, setPushBusy] = useState(false);
   const [screensBusy, setScreensBusy] = useState(false);
@@ -3556,6 +3558,8 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           {chevron}
         </div>
       </button>
+      <NavRow icon={MonitorSmartphone} label="Pantalla en otro equipo" onClick={() => setShowOtroEquipoAjustes(true)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>TV, tablet · QR {chevron}</span>} />
+      {showOtroEquipoAjustes && <PantallaOtroEquipo iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipoAjustes(false)} />}
       {realIsAdmin && (
         <>
           <NavRow icon={Users} label="Personas y permisos" onClick={onGoToUsuarios} right={chevron} />
@@ -8140,6 +8144,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   const [estiloMas, setEstiloMas] = useState(false);
   // Menú flotante de "Letra animada" en la cinta de Estilo (computadora).
   const [animMenu, setAnimMenu] = useState(false);
+  // "Pantalla en otro equipo": enlace corto + QR para abrir la proyección en un TV/tablet/otra computadora.
+  const [showOtroEquipo, setShowOtroEquipo] = useState(false);
   // Las letras de los estilos animados se piden apenas se abre la consola, no en pleno culto.
   useEffect(() => { precargarFuentesAnimacion(); }, []);
   const [fondoDestino, setFondoDestino] = useState("todo"); // "todo" | "cancion" — ver "Fondo por canción"
@@ -8550,6 +8556,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       {blanked && franja("#C23B32", "#fff", <MonitorOff size={17} />, <>La pantalla está en NEGRO · la iglesia no ve nada</>, botonFranja("Volver a mostrar", () => setBlanked(false)))}
       {mostrarAvisoProyeccion && franja("#F6C344", "#16324F", <AlertTriangle size={17} />, <>La pantalla de proyección no está abierta · lo que pases aquí no se ve en el proyector</>, <>
         {botonFranja("Abrir proyección", onOpenPublicScreen, { background: "#16324F", color: "#fff" })}
+        {botonFranja("Abrir en otro equipo", () => setShowOtroEquipo(true))}
         {botonFranja("Ya está abierta en otro equipo", () => setAvisoProyeccionOculto(true), { background: "transparent", color: "#16324F", textDecoration: "underline", padding: "5px 4px" })}
       </>)}
     </>
@@ -8923,6 +8930,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
               {botonCinta({ icon: MonitorOff, label: "Negro", onClick: () => setBlanked((b) => !b), activo: blanked, tour: "envivo-negro" })}
               {onFijar && botonCinta({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", onClick: () => (fijada ? onSoltar() : onFijar()), activo: !!fijada, title: "Congelar la pantalla para moverte sin proyectar (tecla F)" })}
               {botonCinta({ icon: Radio, label: "Proyección", onClick: onOpenPublicScreen, title: "Reabrir la pantalla de proyección", tour: "envivo-proyeccion" })}
+              {botonCinta({ icon: MonitorSmartphone, label: "Otro equipo", onClick: () => setShowOtroEquipo(true), title: "Abrir la proyección en un TV, tablet u otra computadora (enlace y código QR)", ancho: 70 })}
             </>)}
             {grupoCinta("Secciones de la canción", currentSongSections.length > 0 ? (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxWidth: 560, alignContent: "center" }}>
@@ -9046,6 +9054,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       {/* "Más opciones" de Estilo: menú flotante encima de las diapositivas, como los desplegables
           de Office — antes empujaba todo hacia abajo y se comía media pantalla (pedido de Eldin,
           2026-10-08). Se cierra con la X, con "Menos" o con un clic afuera. */}
+      {showOtroEquipo && <PantallaOtroEquipo iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipo(false)} />}
       {mmPanel === "estilo" && animMenu && (
         <div style={{ position: "relative", height: 0, zIndex: 36 }}>
           <div onClick={() => setAnimMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />
