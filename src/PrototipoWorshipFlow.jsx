@@ -8107,6 +8107,9 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
   const [mmPanel, setMmPanel] = useState("transmision"); // "biblia" | "transmision" | "estilo" | "insertar" (este último solo en escritorio)
+  // La Biblia se monta la primera vez que se abre y ya no se desmonta (solo se esconde) mientras dure la consola.
+  const [bibliaAbierta, setBibliaAbierta] = useState(false);
+  useEffect(() => { if (mmPanel === "biblia") setBibliaAbierta(true); }, [mmPanel]);
   // ---- Consola fácil (pedido de Eldin, 2026-10-11: "que alguien que nunca la haya usado la pueda usar
   // en 5 minutos") ----
   // Modo sencillo (escritorio): sin cinta de pestañas — solo una barra de botones grandes (Anterior,
@@ -8628,14 +8631,18 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           ))}
         </div>
 
-        {mmPanel === "biblia" && (
+        {/* La Biblia se queda abierta (escondida) al cambiar de pestaña: así recuerda el libro, el
+            capítulo y la búsqueda donde ibas (pedido de Eldin, 2026-10-18). */}
+        {(bibliaAbierta || mmPanel === "biblia") && (
+          <div style={{ display: mmPanel === "biblia" ? "contents" : "none" }}>
           <BibleLivePanel
-            version={bibleVersion} setVersion={setBibleVersion}
-            history={bibleHistory} setHistory={setBibleHistory}
-            onProject={(b) => onStartAdHocBible(b)}
-            liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.baseReference ?? current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart, parte: current.parte ?? 0 } : null}
-            palabrasPorParte={palabrasPorParte}
-          />
+              version={bibleVersion} setVersion={setBibleVersion}
+              history={bibleHistory} setHistory={setBibleHistory}
+              onProject={(b) => onStartAdHocBible(b)}
+              liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.baseReference ?? current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart, parte: current.parte ?? 0 } : null}
+              palabrasPorParte={palabrasPorParte}
+            />
+          </div>
         )}
 
         {mmPanel === "estilo" && (
@@ -9178,7 +9185,9 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
                 // clics y quien no sabía se quedaba tocando). Si ya está AL AIRE no se reinicia — solo se
                 // ven sus diapositivas — para no regresar un canto al inicio por accidente.
                 onClick={() => {
-                  setItemVisto(it.id); setVerTodas(false); if (mmPanel === "biblia") setMmPanel("transmision");
+                  // Desde la Biblia (en plena prédica) se proyecta sin salir de ella: el operador pone el
+                  // título del mensaje y sigue con los versículos (pedido de Eldin, 2026-10-18).
+                  setItemVisto(it.id); setVerTodas(false);
                   if (alAire) return;
                   const i = indicePrimeraDiapositiva(it.id);
                   if (i !== -1) gotoPlanSlide(i);
@@ -9202,15 +9211,18 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           )}
         </aside>
 
-        {mmPanel === "biblia" ? (
+        {(bibliaAbierta || mmPanel === "biblia") && (
+          <div style={{ display: mmPanel === "biblia" ? "contents" : "none" }}>
           <BibleLivePanel
-            version={bibleVersion} setVersion={setBibleVersion}
-            history={bibleHistory} setHistory={setBibleHistory}
-            onProject={(b) => onStartAdHocBible(b)}
-            liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.baseReference ?? current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart, parte: current.parte ?? 0 } : null}
-            palabrasPorParte={palabrasPorParte}
-          />
-        ) : (
+              version={bibleVersion} setVersion={setBibleVersion}
+              history={bibleHistory} setHistory={setBibleHistory}
+              onProject={(b) => onStartAdHocBible(b)}
+              liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.baseReference ?? current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart, parte: current.parte ?? 0 } : null}
+              palabrasPorParte={palabrasPorParte}
+            />
+          </div>
+        )}
+        {mmPanel !== "biblia" && (
           <section aria-label="Diapositivas" data-tour="envivo-diapositivas" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "0 4px calc(var(--bottom-nav-height, 80px) + 8px)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
               <div style={{ minWidth: 0 }}>
