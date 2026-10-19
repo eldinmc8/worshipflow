@@ -17,7 +17,8 @@ import {
   Type, MonitorSmartphone, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff, ClipboardPaste, PencilLine, FileText, Link2,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
-import { aplicarCambioLetra, rearmarSeccion } from "./lib/letraEnVivo.js";
+import { aplicarCambioLetra, rearmarSeccion, letraEfectiva } from "./lib/letraEnVivo.js";
+import { letraATexto, textoALetra } from "./lib/textoCancion.js";
 import AutoFitText from "./components/AutoFitText.jsx";
 import { stripBibleSearchMarkup } from "./lib/textoBiblia.js";
 import { pasosDeDiapositiva } from "./lib/animaciones.js";
@@ -1468,6 +1469,23 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // que quedan, en el orden nuevo (ver rearmarSeccion). También queda guardado en la canción.
   const rearmarSeccionLive = (songId, blockKey, segmentos, mensajeError) =>
     cambiarLetraEnVivo(songId, (song) => rearmarSeccion(song, blockKey, segmentos), mensajeError);
+  // Corregir la letra COMPLETA de una canción desde la consola (pedido de Eldin, 2026-10-18): en vez de
+  // diapositiva por diapositiva, se abre todo el texto (cada parte con su nombre, una línea en blanco =
+  // diapositiva nueva) y se guarda de una. Mismo convertidor que la pestaña Escribir del editor de
+  // canciones (textoALetra): las partes que no estén en el texto no se borran. Devuelve los avisos.
+  const editarLetraCompletaLive = (songId, texto) => {
+    const song = library.find((s) => s.id === songId);
+    if (!song) return null;
+    const base = { ...song, letra: letraEfectiva(song) };
+    const r = textoALetra(texto, base);
+    const cambiaronPartes = JSON.stringify(Object.keys(r.blocks)) !== JSON.stringify(Object.keys(song.blocks || {})) || JSON.stringify(r.defaultStructure) !== JSON.stringify(song.defaultStructure || []);
+    if (cambiaronPartes || JSON.stringify(r.blocks) !== JSON.stringify(song.blocks)) {
+      persistSongDraft({ ...song, blocks: r.blocks, letra: r.letra, defaultStructure: r.defaultStructure }).catch((e) => notifyError("No se pudo guardar la letra", e));
+    } else {
+      cambiarLetraEnVivo(songId, () => r.letra, "No se pudo guardar la letra");
+    }
+    return r.avisos || [];
+  };
   // Transporta la canción completa a una nueva tonalidad: recalcula todos los acordes de todos los bloques.
   const transposeSong = (songId, newKey) => {
     let transposed = null;
@@ -2582,6 +2600,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             onEditSongSlide={enPractica ? () => avisoPractica("cambian las canciones") : editSongSlideLive}
             onAddSongSlide={enPractica ? () => avisoPractica("cambian las canciones") : addSongSlideLive}
             onRearmarSeccion={enPractica ? () => avisoPractica("cambian las canciones") : rearmarSeccionLive}
+            onEditarLetraCompleta={enPractica ? () => { avisoPractica("cambian las canciones"); return null; } : editarLetraCompletaLive}
             onAgregarCancion={agregarCancionEnVivo} onReordenarOrden={reordenarOrdenEnVivo} onQuitarDelOrden={quitarDelOrdenEnVivo} onInsertarItems={insertarItemsEnVivo}
             ocultos={idsOcultosConsola} onOcultar={ocultarEnConsola} onMostrarOcultos={mostrarOcultosConsola}
             onAbrirEditor={enPractica ? undefined : (itemId, indice) => abrirEditorDiap("vivo", itemId, indice)}
@@ -8106,7 +8125,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {} }) {
+function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {}, onEditarLetraCompleta }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -8146,6 +8165,20 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   const [animMenu, setAnimMenu] = useState(false);
   // "Pantalla en otro equipo": enlace corto + QR para abrir la proyección en un TV/tablet/otra computadora.
   const [showOtroEquipo, setShowOtroEquipo] = useState(false);
+  // Letra completa de la canción del centro, para corregirla toda de una vez: { songId, titulo, texto }.
+  const [letraCompleta, setLetraCompleta] = useState(null);
+  const abrirLetraCompleta = (songId) => {
+    const song = library.find((x) => x.id === songId);
+    if (!song) return;
+    setLetraCompleta({ songId, titulo: song.title, texto: letraATexto({ ...song, letra: letraEfectiva(song) }) });
+  };
+  const guardarLetraCompleta = () => {
+    const avisos = onEditarLetraCompleta?.(letraCompleta.songId, letraCompleta.texto);
+    if (avisos === null) return;
+    setLetraCompleta(null);
+    const importantes = (avisos || []).filter((a) => a.tipo === "aviso");
+    showToast(importantes.length ? importantes[0].texto : "Letra guardada: ya se ve así en la proyección y en la canción.", "info");
+  };
   // Las letras de los estilos animados se piden apenas se abre la consola, no en pleno culto.
   useEffect(() => { precargarFuentesAnimacion(); }, []);
   const [fondoDestino, setFondoDestino] = useState("todo"); // "todo" | "cancion" — ver "Fondo por canción"
@@ -9054,6 +9087,22 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       {/* "Más opciones" de Estilo: menú flotante encima de las diapositivas, como los desplegables
           de Office — antes empujaba todo hacia abajo y se comía media pantalla (pedido de Eldin,
           2026-10-08). Se cierra con la X, con "Menos" o con un clic afuera. */}
+      {letraCompleta && (
+        <ModalShell title={`Letra de "${letraCompleta.titulo}"`} icon={Pencil} color="#1F8A73" onClose={() => setLetraCompleta(null)}>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.5, marginBottom: 8 }}>
+            Corrige lo que necesites. Cada parte empieza con su nombre entre corchetes (ej. <b>[Coro]</b>) y una <b>línea en blanco</b> separa una diapositiva de otra. Se guarda en la canción para siempre.
+          </div>
+          <textarea
+            value={letraCompleta.texto} autoFocus spellCheck
+            onChange={(e) => setLetraCompleta((l) => ({ ...l, texto: e.target.value }))}
+            style={{ ...inputStyle, height: "min(56vh, 520px)", resize: "vertical", fontSize: 14, lineHeight: 1.5, fontFamily: "inherit" }}
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button onClick={() => setLetraCompleta(null)} style={{ ...primaryBtn, background: "var(--wf-hover)", color: "var(--wf-text)" }}>Cancelar</button>
+            <button onClick={guardarLetraCompleta} style={primaryBtn}>Guardar letra</button>
+          </div>
+        </ModalShell>
+      )}
       {showOtroEquipo && <PantallaOtroEquipo iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipo(false)} />}
       {mmPanel === "estilo" && animMenu && (
         <div style={{ position: "relative", height: 0, zIndex: 36 }}>
@@ -9239,6 +9288,9 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
                 <div style={{ fontSize: 11.5, color: "var(--wf-muted)" }}>{indicesCentro.length} diapositiva{indicesCentro.length === 1 ? "" : "s"}{itemCentro && itemAlAire?.id !== itemCentro.id ? " · no está al aire" : ""}</div>
               </div>
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                {itemCentro?.type === "cancion" && onEditarLetraCompleta && (
+                  <button onClick={() => abrirLetraCompleta(itemCentro.songId)} title="Corregir toda la letra de esta canción de una vez" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 18, padding: "5px 10px", cursor: "pointer" }}><Pencil size={12} /> Editar letra</button>
+                )}
                 <button onClick={() => { setVerTodas((v) => !v); setItemVisto(null); }} style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 18, padding: "5px 10px", cursor: "pointer" }}>{verTodas ? "Ver por elemento" : "Ver todas"}</button>
               </div>
             </div>
