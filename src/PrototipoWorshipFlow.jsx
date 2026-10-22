@@ -8017,7 +8017,7 @@ function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositiva de t
   );
 }
 // ---------------- CONTENIDO IMPROVISADO EN VIVO (no toca el setlist) ----------------
-function AdHocSongModal({ library, onClose, onPick, titulo = "Proyectar una canción", ayuda = "Busca cualquier canción de la biblioteca, aunque no esté en el setlist de hoy." }) {
+function AdHocSongModal({ library, onClose, onPick, onProyectar, titulo = "Proyectar una canción", ayuda = "Busca cualquier canción de la biblioteca, aunque no esté en el setlist de hoy." }) {
   const [query, setQuery] = useState("");
   const filtered = buscarCanciones(library, query);
   return (
@@ -8025,12 +8025,19 @@ function AdHocSongModal({ library, onClose, onPick, titulo = "Proyectar una canc
       <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 10 }}>{ayuda}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
         <Search size={13} color="var(--wf-faint)" />
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 12, width: "100%" }} />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} autoFocus placeholder="Buscar canción (aunque esté mal escrita)…" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 12, width: "100%" }} />
       </div>
       {filtered.map((s) => (
-        <button key={s.id} onClick={() => onPick(s)} className="hoverable" style={{ ...addBtnStyle, textAlign: "left", marginBottom: 6 }}>
-          <div><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)} · {s.tempo} bpm</div></div>
-        </button>
+        <div key={s.id} style={{ display: "flex", gap: 6, alignItems: "stretch", marginBottom: 6 }}>
+          <button onClick={() => onPick(s)} className="hoverable" title={onProyectar ? "Agregarla al orden del culto sin proyectarla" : undefined} style={{ ...addBtnStyle, textAlign: "left", flex: 1, minWidth: 0 }}>
+            <div><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)} · {s.tempo} bpm</div></div>
+          </button>
+          {onProyectar && (
+            <button onClick={() => onProyectar(s)} title="Agregarla y ponerla en pantalla de una vez" style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0, padding: "0 12px", borderRadius: 12, border: "none", cursor: "pointer", background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", fontSize: 12, fontWeight: 800, fontFamily: "inherit" }}>
+              <Radio size={14} /> Proyectar ya
+            </button>
+          )}
+        </div>
       ))}
       {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>No hay canciones que coincidan.</div>}
     </ModalShell>
@@ -8578,6 +8585,27 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   const anclaParaAgregar = () => (destinoConsola && anclaDeBloque(serviceOrder, destinoConsola)) || itemCentro || itemAlAire || null; // función: itemCentro se declara más abajo
   const agregandoConsola = showAgregarConsola || showAdHocSong || showImportar || showAddSlide;
   useEffect(() => { if (!agregandoConsola && destinoConsola) setDestinoConsola(null); }, [agregandoConsola, destinoConsola]);
+  // "Proyectar ya" (pedido de Eldin, 2026-10-21: "si cantamos algo que no está, que la pueda buscar y
+  // transmitir"): se agrega después de lo que está al aire y, apenas aparecen sus diapositivas, sale la
+  // primera en pantalla.
+  const [proyectarAlAparecer, setProyectarAlAparecer] = useState(null);
+  useEffect(() => {
+    if (!proyectarAlAparecer) return;
+    const idx = slides.findIndex((sl) => perteneceA(sl, proyectarAlAparecer));
+    if (idx === -1) return;
+    setProyectarAlAparecer(null);
+    // Después del ajuste que mantiene "lo que está al aire" al cambiar el orden (efecto del padre, que
+    // corre después de este): si no, ese ajuste devolvía la pantalla a lo que estaba antes.
+    setTimeout(() => { setItemVisto(null); gotoPlanSlide(idx); }, 0);
+  }, [slides, proyectarAlAparecer]);
+  const proyectarCancionYa = (song) => {
+    const ancla = itemAlAire || anclaParaAgregar();
+    const nuevoId = onAgregarCancion(song.id, ancla?.id || null);
+    setShowAdHocSong(false);
+    if (mmPanel === "biblia") setMmPanel("transmision");
+    if (nuevoId) { setItemVisto(nuevoId); setVerTodas(false); setProyectarAlAparecer(nuevoId); }
+    showToast(`"${song.title}" está en pantalla y quedó en el orden del culto.`, "info");
+  };
   const agregarCancionAqui = (song) => {
     const ancla = anclaParaAgregar();
     const nuevoId = onAgregarCancion(song.id, ancla?.id || null);
@@ -9159,7 +9187,6 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           estilo={{ padding: "6px 8px 4px", minHeight: 76, boxSizing: "border-box", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)" }}
           grupos={(mmPanel === "biblia" ? [
           grupoItem("Proyección", navegacionRapida()),
-          grupoItem("Setlist", botonCinta({ icon: ListMusic, label: "Volver al setlist", onClick: () => setMmPanel("transmision"), ancho: 96 })),
           grupoItem("", <div style={{ display: "flex", alignItems: "center", padding: "0 16px", maxWidth: 440 }}>
               <span style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.5 }}>Busca un libro, una cita (ej. stgo 4:1) o palabras del versículo, aunque no estén exactas. Toca el versículo para proyectarlo. Los versículos largos aparecen en partes (1/2, 2/2): toca la que quieras o avanza con la flecha →.</span>
             </div>, false, "ayuda-biblia"),
@@ -9270,6 +9297,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
               {botonCinta({ icon: Radio, label: "Proyección", onClick: onOpenPublicScreen, title: "Reabrir la pantalla de proyección", tour: "envivo-proyeccion" })}
               {botonCinta({ icon: MonitorSmartphone, label: "Otro equipo", onClick: () => setShowOtroEquipo(true), title: "Abrir la proyección en un TV, tablet u otra computadora (enlace y código QR)", ancho: 70 })}
             </>),
+          grupoItem("Canción que no está", botonCinta({ icon: Music, label: "Buscar canción", onClick: () => setShowAdHocSong(true), title: "Buscar en la biblioteca una canción que no está en el culto y proyectarla", ancho: 92 })),
           grupoItem("Secciones de la canción", currentSongSections.length > 0 ? (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxWidth: 560, alignContent: "center" }}>
                 {currentSongSections.map(([label, color]) => (
@@ -9575,9 +9603,9 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           está viendo; luego se arrastra a donde se quiera. */}
       {showAdHocSong && (
         <AdHocSongModal
-          library={library} onClose={() => setShowAdHocSong(false)} onPick={agregarCancionAqui}
+          library={library} onClose={() => setShowAdHocSong(false)} onPick={agregarCancionAqui} onProyectar={proyectarCancionYa}
           titulo="Agregar canción al culto"
-          ayuda={anclaParaAgregar() ? `Se agrega después de "${tituloItem(anclaParaAgregar())}". Luego puedes arrastrarla a otro lugar en el orden del culto.` : "Se agrega al final del orden del culto. Luego puedes arrastrarla a otro lugar."}
+          ayuda={`Toca el nombre para agregarla ${anclaParaAgregar() ? `después de "${tituloItem(anclaParaAgregar())}"` : "al final del culto"}, o "Proyectar ya" para ponerla en pantalla de una vez.`}
         />
       )}
       {showImportar && (
