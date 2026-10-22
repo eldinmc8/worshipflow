@@ -7145,23 +7145,13 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
           <div style={{ paddingBottom: 120 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--wf-text-2)", background: "var(--wf-active-bg)", border: "1px solid #1F8A73", borderRadius: 12, padding: "8px 12px", margin: "6px 0 10px" }}>
               <ArrowUpDown size={15} color="#1F8A73" style={{ flexShrink: 0 }} />
-              <span>Arrastra cada elemento a su lugar, o usa las flechas y <b>Mover a…</b>. Toca <b>Listo</b> al terminar.</span>
+              <span>Arrastra cada elemento a su lugar, o usa <b>Mover a…</b>. Toca <b>Listo</b> al terminar.</span>
             </div>
             {event.serviceOrder.map((item, idx) => {
               const meta = TYPE_META[item.type] || TYPE_META.slide;
               const Icon = meta.icon;
               const total = event.serviceOrder.length;
               const esBloque = item.type === "seccion";
-              const flecha = (dir) => {
-                const deshabilitado = dir < 0 ? idx === 0 : idx === total - 1;
-                return (
-                  <button type="button" onClick={() => onReorder(idx, idx + dir)} disabled={deshabilitado}
-                    aria-label={dir < 0 ? `Subir ${nombreDeItem(item)}` : `Bajar ${nombreDeItem(item)}`} title={dir < 0 ? "Subir un lugar" : "Bajar un lugar"}
-                    style={{ width: 32, height: 32, borderRadius: 9, border: "1px solid var(--wf-border)", background: "var(--wf-card)", color: "var(--wf-text)", cursor: deshabilitado ? "default" : "pointer", opacity: deshabilitado ? 0.3 : 1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    {dir < 0 ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                  </button>
-                );
-              };
               return (
                 <div key={item.id} {...arrastre.filaProps(idx)} data-item-id={item.id}
                   style={{ display: "flex", alignItems: "center", gap: 8, height: 50, boxSizing: "border-box", padding: "0 8px 0 10px", marginBottom: 6, borderRadius: 12,
@@ -7171,8 +7161,6 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                   <span style={{ width: 22, fontSize: 11.5, fontWeight: 700, color: "var(--wf-faint)", textAlign: "right", flexShrink: 0 }}>{idx + 1}</span>
                   <Icon size={15} color={meta.color} style={{ flexShrink: 0 }} />
                   <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: esBloque ? 800 : 600, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nombreDeItem(item)}</span>
-                  {flecha(-1)}
-                  {flecha(1)}
                   <select aria-label={`Mover ${nombreDeItem(item)} a otro lugar`} value="" onChange={(e) => { const h = Number(e.target.value); if (Number.isFinite(h) && h !== idx) onReorder(idx, h); }}
                     style={{ width: isCompact ? 34 : 104, height: 32, borderRadius: 9, border: "1px solid var(--wf-border)", background: "var(--wf-card)", color: "var(--wf-text)", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0, padding: isCompact ? 0 : "0 6px", fontFamily: "inherit" }}>
                     <option value="" disabled>{isCompact ? "⋯" : "Mover a…"}</option>
