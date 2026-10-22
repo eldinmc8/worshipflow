@@ -227,7 +227,8 @@ let clasificacionesActuales = CLASIFICACIONES_DEFAULT;
 // En producción, cuando haya backend propio, esto se reemplaza por la fuente de texto bíblico que se contrate.
 const BIBLE_VERSIONS = [
   { code: "RV1960", label: "Reina-Valera 1960" },
-  { code: "NVI", label: "Nueva Versión Internacional" },
+  // NVI quitada (2026-10-21): bolls.life ya no la tiene — Biblica se lo prohibió y en su lugar devuelve
+  // un mensaje de protesta en cada versículo, que salía proyectado tal cual.
   { code: "NTV", label: "Nueva Traducción Viviente" },
   { code: "PDT", label: "Palabra de Dios para Todos" },
   { code: "LBLA", label: "La Biblia de las Américas" },
@@ -7572,7 +7573,7 @@ async function fetchBibleChapter(version, bookId, chapter) {
 //    de ortografía (índice en memoria, ver lib/buscarBiblia.js).
 // 3. Si no está guardada: la API (palabras bien escritas), filtrada a los que tienen TODAS las palabras.
 // 4. Si en esta versión no aparece (ej. "cosecharemos" no existe en RV1960, ahí dice "segaremos"),
-//    busca en NVI/NTV/LBLA y ofrece proyectar ese mismo versículo en la versión elegida.
+//    busca en NTV/LBLA/PDT y ofrece proyectar ese mismo versículo en la versión elegida.
 const indicesBiblia = {};
 // La consola baja sola la RV1960 al equipo la primera vez que se abre la Biblia (unos minutos, en segundo
 // plano): con ella guardada la búsqueda aguanta faltas de ortografía y funciona sin internet.
@@ -7620,7 +7621,8 @@ async function buscarEnApiBiblia(version, texto) {
   const res = await fetch(`https://bolls.life/v2/find/${version}?search=${encodeURIComponent(texto)}&match_case=false`);
   if (!res.ok) throw new Error("No se pudo buscar en la Biblia.");
   const data = await res.json();
-  return data.results || [];
+  // Por si otra versión también queda bloqueada: nunca ofrecer un "versículo" que es un aviso legal.
+  return (data.results || []).filter((r) => !/prohibi[oó] usar la traducci[oó]n/i.test(stripBibleSearchMarkup(r.text)));
 }
 async function searchBibleVerses(version, query, books) {
   const cita = leerCita(query, books);
@@ -7662,7 +7664,7 @@ async function searchBibleVerses(version, query, books) {
   }
   if (resultados.length) return { resultados: resultados.slice(0, 60) };
   if (!sinInternet) {
-    for (const otra of ["NVI", "NTV", "LBLA"].filter((v) => v !== version)) {
+    for (const otra of ["NTV", "LBLA", "PDT"].filter((v) => v !== version)) {
       try {
         const r = filtrarResultadosApi(await buscarEnApiBiblia(otra, query), query);
         if (r.length) return { resultados: r.slice(0, 30), otraVersion: otra };
@@ -8385,7 +8387,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   // sobrevivan al cambiar de pestaña e ir a Estilo/Transmisión y volver a Biblia — y también en
   // localStorage (mismo mecanismo que offlineCache) para que sobrevivan a salir de "En vivo" del todo
   // (MultimediaControl se desmonta con la pestaña) o recargar la app a medio culto.
-  const [bibleVersion, setBibleVersion] = useState(() => loadCache("bible_version") || BIBLE_VERSIONS[0].code);
+  const [bibleVersion, setBibleVersion] = useState(() => { const v = loadCache("bible_version"); return BIBLE_VERSIONS.some((x) => x.code === v) ? v : BIBLE_VERSIONS[0].code; });
   // Historial de versículos POR EVENTO (pedido de Eldin, 2026-10-11): solo los que se usaron en este
   // culto, no todos los de siempre. La consola se vuelve a montar al cambiar de evento (key).
   const claveHistorial = `bible_historial_${eventoId || "libre"}`;
