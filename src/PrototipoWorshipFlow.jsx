@@ -21,6 +21,8 @@ import { aplicarCambioLetra, rearmarSeccion, letraEfectiva } from "./lib/letraEn
 import { letraATexto, textoALetra } from "./lib/textoCancion.js";
 import AutoFitText from "./components/AutoFitText.jsx";
 import { stripBibleSearchMarkup } from "./lib/textoBiblia.js";
+import { buscarCanciones, normalizar as normalizarBusqueda, leerCita } from "./lib/busqueda.js";
+import { crearIndice, buscarEnIndice, filtrarResultadosApi } from "./lib/buscarBiblia.js";
 import { pasosDeDiapositiva } from "./lib/animaciones.js";
 import { animacionActiva, definicionAnimacion, nombreAnimacion, claseAnimacion, armarLineasAnimadas, velocidadLetra, FondoAnimado, precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
 import SelectorAnimacion from "./components/SelectorAnimacion.jsx";
@@ -881,6 +883,12 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const liveEvent = practica ? { id: practica.eventId, title: practica.title, serviceOrder: practica.serviceOrder }
     : liveLibre ? { ...EVENTO_LIBRE, serviceOrder: libreServiceOrder } : events.find((e) => e.id === liveEventId);
   const navFlotante = tab === "envivo" && !!liveEvent && !isCompact; // ver la nav inferior
+  // En la consola la barra se encoge a un botón redondo en la esquina (pedido de Eldin, 2026-10-21:
+  // "la barra de navegación estorba en los textos, los últimos ya no se pueden ver"). Se abre al tocarlo
+  // y se vuelve a encoger al elegir una pestaña.
+  const [navAbierta, setNavAbierta] = useState(false);
+  useEffect(() => { setNavAbierta(false); }, [tab]);
+  const navEncogida = navFlotante && !navAbierta;
   // ---- Estilo en vivo de la proyección (fondo/tipografía/tamaño), editable solo por Multimedia mientras transmite ----
   // Se queda guardado entre transmisiones (pedido de Eldin, 2026-10-08): copia en este dispositivo
   // para arrancar al instante, y la de la iglesia (sesiones_en_vivo.estilo_en_vivo, que ya no se borra
@@ -2637,9 +2645,17 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           — solo la isla tapa el fondo y a los lados siguen viéndose el orden del culto y la vista
           previa hasta abajo, como en una app de Office. La consola deja su propio espacio abajo
           (ver paddingBottom en MultimediaControl) para que ninguna diapositiva quede tapada. */}
-      <div ref={bottomNavRef} style={navFlotante
-        ? { position: "absolute", left: 0, right: 0, bottom: 0, display: "flex", justifyContent: "center", padding: "0 0 calc(12px + env(safe-area-inset-bottom))", zIndex: 40, pointerEvents: "none" }
+      <div ref={bottomNavRef} style={navEncogida
+        ? { position: "absolute", right: 14, bottom: 0, display: "flex", padding: "0 0 calc(12px + env(safe-area-inset-bottom))", zIndex: 40, pointerEvents: "none" }
+        : navFlotante
+        ? { position: "absolute", left: 0, right: 0, bottom: 0, display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: "0 0 calc(12px + env(safe-area-inset-bottom))", zIndex: 40, pointerEvents: "none" }
         : { flexShrink: 0, display: "flex", justifyContent: "center", padding: "10px 0 calc(14px + env(safe-area-inset-bottom))", zIndex: 40 }}>
+        {navEncogida ? (
+          <button data-tour="nav-menu" onClick={() => setNavAbierta(true)} aria-label="Abrir el menú (Inicio, Canciones, Eventos…)" title="Menú: Inicio, Canciones, Eventos…"
+            style={{ pointerEvents: "auto", width: 46, height: 46, borderRadius: 23, border: "none", cursor: "pointer", background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)", boxShadow: "0 6px 18px rgba(22,50,79,0.35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <LayoutGrid size={20} />
+          </button>
+        ) : (<>
         <div data-tour="nav" style={{ pointerEvents: "auto", display: "flex", alignItems: "center", gap: 2, background: "var(--wf-brand-primary)", borderRadius: 24, padding: 6, boxShadow: "0 8px 24px rgba(22,50,79,0.35)", maxWidth: "94vw", overflowX: "auto" }}>
           {[["inicio", "Inicio", Home], ["canciones", "Canciones", Music], ["eventos", "Eventos", Calendar], ["ministerios", "Grupos", LayoutGrid], ["asistente", "Asistente", MessageCircle], ["envivo", "En vivo", Radio], ["proyeccion", "Pantalla", ImgIcon], ["ajustes", "Ajustes", Settings]]
             .filter(([val]) => !isCompact || (val !== "envivo" && val !== "proyeccion")) // Control en vivo/Proyección son de escritorio: en celular no aparecen
@@ -2661,7 +2677,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
                   // Cambiar de pestaña siempre lleva a la RAÍZ de esa pestaña — si no se limpian estos
                   // tres, quedaban "pegados" (ej. abrir una canción desde un evento y luego, sin volver
                   // antes, tocar otra pestaña dejaba esa canción/evento fantasma abierto por debajo).
-                  setTab(val); setSelectedEventId(null); setOpenSong(null); setSelectedMinistryId(null);
+                  setTab(val); setSelectedEventId(null); setOpenSong(null); setSelectedMinistryId(null); setNavAbierta(false);
                 })}
                 disabled={isDisabled}
                 className="navitem"
@@ -2673,6 +2689,13 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             );
           })}
         </div>
+        {navFlotante && (
+          <button onClick={() => setNavAbierta(false)} aria-label="Encoger el menú" title="Encoger el menú"
+            style={{ pointerEvents: "auto", width: 40, height: 40, borderRadius: 20, border: "none", cursor: "pointer", background: "var(--wf-card)", color: "var(--wf-text)", boxShadow: "0 6px 18px rgba(22,50,79,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <X size={18} />
+          </button>
+        )}
+        </>)}
       </div>
     </div>
   );
@@ -4556,9 +4579,8 @@ function CancionesList({ library, clasificaciones, puedeConfigurarClasificacione
   const claves = new Set(clasificaciones.map((c) => c.clave));
   const haySinClasificar = library.some((s) => !claves.has(s.category));
   const enFiltro = (s, key) => key === "todos" || (key === "favoritas" ? s.favorite : key === "sin" ? !claves.has(s.category) : s.category === key);
-  const filtered = library
-    .filter((s) => enFiltro(s, categoryFilter))
-    .filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
+  // Búsqueda tolerante (sin tildes, en cualquier orden, con faltas de ortografía) — ver lib/busqueda.js.
+  const filtered = useMemo(() => buscarCanciones(library.filter((s) => enFiltro(s, categoryFilter)), query), [library, categoryFilter, query, clasificaciones]);
   // Barra de clasificaciones (2026-10-10): cada chip dice cuántas canciones tiene, "Favoritas" va
   // fija al inicio, el borde se difumina cuando hay más a la derecha, y la elegida se trae a la vista.
   const filtros = [
@@ -6999,9 +7021,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   // letra, versículos, slides), solo que sin los bloques organizativos de otros grupos (ver
   // visibleServiceOrder más abajo, usado en vez de event.serviceOrder en el render principal).
   const visibleServiceOrder = visibilidadSetlist.modo === "filtrado" ? visibilidadSetlist.visibleOrder : event.serviceOrder;
-  const filtered = library
-    .filter((s) => libraryCategoryFilter === "todos" || s.category === libraryCategoryFilter)
-    .filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
+  const filtered = buscarCanciones(library.filter((s) => libraryCategoryFilter === "todos" || s.category === libraryCategoryFilter), query);
   // ---- Fácil de usar (2026-10-10): "+ Agregar", menú "⋯" y "Empieza aquí" ----
   const puedeAgregarAlgo = isAdminViewer || canAddBibleReading || canAddSermonPoints;
   const nombreDeItem = (it) => (it.type === "cancion" ? library.find((x) => x.id === it.songId)?.title || "Canción"
@@ -7546,37 +7566,110 @@ async function fetchBibleChapter(version, bookId, chapter) {
 // La API devuelve <mark> alrededor de las palabras encontradas y a veces <br> dentro del texto (saltos de
 // línea de poesía) — se limpia para mostrarlo como texto plano, igual que el resto de la app.
 
-// Quita tildes/diacríticos para comparar sin importar si se escribieron o no (ej. "oracion" debe
-// encontrar "oración"). NFD separa la tilde como marca combinante aparte y este regex la descarta.
-const foldAccents = (text) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-// Busca la FRASE (no palabras sueltas) dentro del texto de los versículos de una versión — para cuando
-// el operador solo recuerda un pedazo de una cita y necesita encontrarla rápido en vivo, sin saber en qué
-// libro/capítulo está. La API (bolls.life) solo ignora tildes en su modo "por palabra" (sin match_whole);
-// su modo de frase exacta (match_whole=true) SÍ distingue tildes, así que se pide en modo por palabra
-// (más resultados, pero cualquier verso con la frase exacta queda adentro sí o sí) y la frase exacta —
-// sin importar tildes de ningún lado — se filtra acá mismo, sobre esos resultados.
-async function searchBibleVerses(version, query) {
-  const needle = foldAccents(query);
+// Búsqueda por palabras (pedido de Eldin, 2026-10-21 — antes pedía la frase exacta y fallaba mucho):
+// 1. Si se escribió una cita ("stgo 4:1", "jn 3 16", "salmo 23") abre ese pasaje.
+// 2. Con la Biblia guardada en el equipo: todas las palabras en cualquier orden, sin tildes y con faltas
+//    de ortografía (índice en memoria, ver lib/buscarBiblia.js).
+// 3. Si no está guardada: la API (palabras bien escritas), filtrada a los que tienen TODAS las palabras.
+// 4. Si en esta versión no aparece (ej. "cosecharemos" no existe en RV1960, ahí dice "segaremos"),
+//    busca en NVI/NTV/LBLA y ofrece proyectar ese mismo versículo en la versión elegida.
+const indicesBiblia = {};
+// La consola baja sola la RV1960 al equipo la primera vez que se abre la Biblia (unos minutos, en segundo
+// plano): con ella guardada la búsqueda aguanta faltas de ortografía y funciona sin internet.
+const descargaAuto = { estado: "inactivo", hechos: 0, total: 0, oyentes: new Set() };
+const avisarDescargaAuto = () => descargaAuto.oyentes.forEach((f) => f());
+async function arrancarDescargaAuto() {
+  if (descargaAuto.estado !== "inactivo" || (typeof navigator !== "undefined" && navigator.onLine === false)) return;
+  descargaAuto.estado = "revisando";
   try {
-    const res = await fetch(`https://bolls.life/v2/find/${version}?search=${encodeURIComponent(query)}&match_case=false`);
-    if (!res.ok) throw new Error("No se pudo buscar en la Biblia.");
-    const data = await res.json();
-    return (data.results || []).filter((r) => foldAccents(stripBibleSearchMarkup(r.text)).includes(needle));
-  } catch (e) {
-    // Sin conexión: busca entre lo que sí se haya descargado de esta versión (ver "Descargar Biblia"
-    // en Ajustes) en vez de rendirse — más lento y solo cubre lo descargado, pero sigue funcionando.
-    const capitulos = await todosLosVersiculosOffline(version);
-    if (!capitulos.length) throw e;
-    const resultados = [];
-    for (const cap of capitulos) {
-      for (const v of cap.verses) {
-        if (foldAccents(stripBibleSearchMarkup(v.text)).includes(needle)) {
-          resultados.push({ pk: `${cap.bookId}-${cap.chapter}-${v.verse}`, book: cap.bookId, chapter: cap.chapter, verse: v.verse, text: v.text });
-        }
+    const libros = await fetchBibleBooks(BIBLE_OFFLINE_VERSION);
+    const total = libros.reduce((acc, b) => acc + b.chapters, 0);
+    const guardados = await contarCapitulosGuardados(BIBLE_OFFLINE_VERSION);
+    if (guardados >= total) { descargaAuto.estado = "lista"; avisarDescargaAuto(); return; }
+    descargaAuto.estado = "bajando"; descargaAuto.hechos = guardados; descargaAuto.total = total; avisarDescargaAuto();
+    const r = await descargarBibliaCompleta(BIBLE_OFFLINE_VERSION, {
+      fetchBooks: fetchBibleBooks, fetchChapter: fetchBibleChapter,
+      onProgress: (h, t) => { descargaAuto.hechos = h; descargaAuto.total = t; if (h % 25 === 0) avisarDescargaAuto(); },
+    });
+    delete indicesBiblia[BIBLE_OFFLINE_VERSION];
+    descargaAuto.estado = r.cancelado ? "inactivo" : "lista";
+  } catch {
+    descargaAuto.estado = "inactivo"; // se vuelve a intentar la próxima vez que se abra la Biblia
+  }
+  avisarDescargaAuto();
+}
+function useBibliaParaBuscar() {
+  const [, redibujar] = useState(0);
+  useEffect(() => {
+    const f = () => redibujar((x) => x + 1);
+    descargaAuto.oyentes.add(f);
+    arrancarDescargaAuto();
+    return () => { descargaAuto.oyentes.delete(f); };
+  }, []);
+  return { lista: descargaAuto.estado === "lista", bajando: descargaAuto.estado === "bajando", porcentaje: descargaAuto.total ? Math.round((descargaAuto.hechos / descargaAuto.total) * 100) : 0 };
+}
+async function indiceBibliaLocal(version) {
+  if (!indicesBiblia[version]) {
+    indicesBiblia[version] = todosLosVersiculosOffline(version).then((caps) => (caps.length >= 1100 ? crearIndice(caps) : null));
+  }
+  const indice = await indicesBiblia[version].catch(() => null);
+  if (!indice) delete indicesBiblia[version]; // incompleta: se vuelve a intentar cuando termine de bajar
+  return indice;
+}
+async function buscarEnApiBiblia(version, texto) {
+  const res = await fetch(`https://bolls.life/v2/find/${version}?search=${encodeURIComponent(texto)}&match_case=false`);
+  if (!res.ok) throw new Error("No se pudo buscar en la Biblia.");
+  const data = await res.json();
+  return data.results || [];
+}
+async function searchBibleVerses(version, query, books) {
+  const cita = leerCita(query, books);
+  if (cita) {
+    const { libro, capitulo, desde, hasta } = cita;
+    const verses = await fetchBibleChapter(version, libro.bookid, capitulo);
+    const elegidos = desde ? verses.filter((v) => v.verse >= desde && v.verse <= hasta) : verses;
+    return {
+      cita: `${libro.name} ${capitulo}${desde ? `:${desde}${hasta > desde ? `-${hasta}` : ""}` : ""}`,
+      resultados: elegidos.map((v) => ({ pk: `${libro.bookid}-${capitulo}-${v.verse}`, book: libro.bookid, chapter: capitulo, verse: v.verse, text: stripBibleSearchMarkup(v.text) })),
+    };
+  }
+  const indice = await indiceBibliaLocal(version);
+  if (indice) {
+    const r = buscarEnIndice(indice, query);
+    if (r.length) return { resultados: r };
+  }
+  let resultados = [];
+  let sinInternet = null;
+  try {
+    resultados = filtrarResultadosApi(await buscarEnApiBiblia(version, query), query);
+    if (!resultados.length) {
+      // La API a veces no trae nada con varias palabras: se prueba con las más largas una por una.
+      const largas = normalizarBusqueda(query).split(" ").filter((p) => p.length >= 4).sort((a, b) => b.length - a.length).slice(0, 2);
+      for (const w of largas) {
+        resultados = filtrarResultadosApi(await buscarEnApiBiblia(version, w), query);
+        if (resultados.length) break;
       }
     }
-    return resultados;
+  } catch (e) {
+    sinInternet = e;
+    // Sin conexión y sin la Biblia completa: busca en lo que sí se haya guardado.
+    if (!indice) {
+      const capitulos = await todosLosVersiculosOffline(version);
+      if (!capitulos.length) throw e;
+      const todos = capitulos.flatMap((cap) => cap.verses.map((v) => ({ pk: `${cap.bookId}-${cap.chapter}-${v.verse}`, book: cap.bookId, chapter: cap.chapter, verse: v.verse, text: v.text })));
+      resultados = filtrarResultadosApi(todos, query);
+    }
   }
+  if (resultados.length) return { resultados: resultados.slice(0, 60) };
+  if (!sinInternet) {
+    for (const otra of ["NVI", "NTV", "LBLA"].filter((v) => v !== version)) {
+      try {
+        const r = filtrarResultadosApi(await buscarEnApiBiblia(otra, query), query);
+        if (r.length) return { resultados: r.slice(0, 30), otraVersion: otra };
+      } catch { /* sigue con la siguiente */ }
+    }
+  }
+  return { resultados: [] };
 }
 // Para "Siguiente/Anterior versículo" en vivo: busca el versículo justo después (direction=1) o antes
 // (direction=-1) de fromVerse, cruzando al capítulo siguiente/anterior del mismo libro si hace falta.
@@ -7651,7 +7744,7 @@ function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", splitVer
     const ref = range.start === range.end ? `${selectedBook.name} ${selectedChapter}:${range.start}` : `${selectedBook.name} ${selectedChapter}:${range.start}-${range.end}`;
     onAdd({ ref, version, text, bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: range.start, verseEnd: range.end });
   };
-  const filteredBooks = books ? books.filter((b) => b.name.toLowerCase().includes(bookFilter.toLowerCase())) : [];
+  const filteredBooks = books ? books.filter((b) => normalizarBusqueda(b.name).includes(normalizarBusqueda(bookFilter))) : [];
 
   return (
     <>
@@ -7924,7 +8017,7 @@ function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositiva de t
 // ---------------- CONTENIDO IMPROVISADO EN VIVO (no toca el setlist) ----------------
 function AdHocSongModal({ library, onClose, onPick, titulo = "Proyectar una canción", ayuda = "Busca cualquier canción de la biblioteca, aunque no esté en el setlist de hoy." }) {
   const [query, setQuery] = useState("");
-  const filtered = library.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()));
+  const filtered = buscarCanciones(library, query);
   return (
     <ModalShell title={titulo} icon={Music} color="#5661B3" onClose={onClose}>
       <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 10 }}>{ayuda}</div>
@@ -8002,6 +8095,8 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
   const [searchResults, setSearchResults] = useState(null); // null = sin búsqueda activa; [] = sin resultados
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const [searchInfo, setSearchInfo] = useState({}); // { cita, otraVersion }
+  const bibliaLista = useBibliaParaBuscar(); // descarga sola la RV1960 para buscar con errores
 
   useEffect(() => {
     setLoadError("");
@@ -8013,16 +8108,19 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
   // Debounce de 400ms: no dispara una búsqueda por cada tecla mientras escribe.
   useEffect(() => {
     const query = bookFilter.trim();
-    if (query.length < 3) { setSearchResults(null); setSearchError(""); return; }
+    // Solo el nombre de un libro ("jua", "salmos") no es búsqueda: filtra la lista de libros.
+    const esSoloLibro = books && !/\d/.test(query) && books.some((b) => normalizarBusqueda(b.name).startsWith(normalizarBusqueda(query)));
+    if (query.length < 3 || esSoloLibro) { setSearchResults(null); setSearchError(""); return; }
     setSearching(true); setSearchError("");
+    let vigente = true;
     const timer = setTimeout(() => {
-      searchBibleVerses(version, query)
-        .then((results) => setSearchResults(results.slice(0, 60)))
-        .catch((e) => { setSearchError(e.message); setSearchResults([]); })
-        .finally(() => setSearching(false));
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [bookFilter, version]);
+      searchBibleVerses(version, query, books)
+        .then(({ resultados, ...info }) => { if (!vigente) return; setSearchResults(resultados.slice(0, 60)); setSearchInfo(info); })
+        .catch((e) => { if (!vigente) return; setSearchError(e.message); setSearchResults([]); setSearchInfo({}); })
+        .finally(() => { if (vigente) setSearching(false); });
+    }, 350);
+    return () => { vigente = false; clearTimeout(timer); };
+  }, [bookFilter, version, books, bibliaLista.lista]);
 
   const loadChapter = (bookId, chapter, v) => {
     setLoadingChapter(true); setLoadError("");
@@ -8059,11 +8157,20 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
   };
   // Elegir un resultado de búsqueda: proyecta ese versículo Y salta a su capítulo completo (limpiando la
   // búsqueda), para poder seguir leyendo alrededor de ese versículo con la vista normal de capítulo.
-  const pickSearchResult = (r) => {
+  const pickSearchResult = async (r) => {
     const book = books?.find((b) => b.bookid === r.book);
     const bookName = book?.name || `Libro ${r.book}`;
+    // Encontrado en otra versión: se proyecta el MISMO versículo en la versión elegida.
+    let texto = stripBibleSearchMarkup(r.text);
+    if (searchInfo.otraVersion) {
+      try {
+        const cap = await fetchBibleChapter(version, r.book, r.chapter);
+        const v = cap.find((x) => x.verse === r.verse);
+        if (v) texto = stripBibleSearchMarkup(v.text);
+      } catch { /* sin conexión: se queda con el texto encontrado */ }
+    }
     rememberAndProject({
-      ref: `${bookName} ${r.chapter}:${r.verse}`, version, text: stripBibleSearchMarkup(r.text),
+      ref: `${bookName} ${r.chapter}:${r.verse}`, version, text: texto,
       bookId: r.book, bookName, chapter: r.chapter, verseStart: r.verse, verseEnd: r.verse,
     });
     if (book) setSelectedBook(book);
@@ -8072,7 +8179,8 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
     setBookFilter(""); setSearchResults(null);
   };
 
-  const matchesFilter = (name) => !bookFilter || name.toLowerCase().includes(bookFilter.toLowerCase());
+  // Mientras hay resultados de una frase o cita, la lista de libros se queda completa.
+  const matchesFilter = (name) => !bookFilter || searchResults !== null || normalizarBusqueda(name).includes(normalizarBusqueda(bookFilter));
   const oldTestament = books ? books.filter((b) => b.bookid <= 39 && matchesFilter(b.name)) : [];
   const newTestament = books ? books.filter((b) => b.bookid >= 40 && matchesFilter(b.name)) : [];
   const bookListStyle = (b) => ({ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", padding: "3px 4px", borderRadius: 10, cursor: "pointer", fontSize: 12, fontWeight: selectedBook?.bookid === b.bookid ? 700 : 500, color: selectedBook?.bookid === b.bookid ? "var(--wf-brand-accent)" : "#2F5FA8" });
@@ -8083,11 +8191,16 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
       <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 9px", marginBottom: 8, flexShrink: 0 }}>
           <Search size={12} color="var(--wf-faint)" />
-          <input value={bookFilter} onChange={(e) => setBookFilter(e.target.value)} placeholder="Libro, o una frase del versículo…" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 11.5, width: "100%" }} />
+          <input value={bookFilter} onChange={(e) => setBookFilter(e.target.value)} placeholder="Libro, cita (jn 3:16) o palabras…" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 11.5, width: "100%" }} />
           {bookFilter && <button onClick={() => { setBookFilter(""); setSearchResults(null); }} style={iconGhost}><X size={12} /></button>}
         </div>
+        {bibliaLista.bajando && version === BIBLE_OFFLINE_VERSION && (
+          <div title="Se guarda la Reina-Valera 1960 en esta computadora: así la búsqueda entiende faltas de ortografía y funciona sin internet." style={{ fontSize: 10.5, color: "var(--wf-muted)", margin: "-4px 2px 8px", lineHeight: 1.35 }}>
+            Preparando búsqueda con faltas de ortografía… {bibliaLista.porcentaje}%
+          </div>
+        )}
         {loadError && <div style={{ fontSize: 11, color: "#C23B32", marginBottom: 8 }}>{loadError}</div>}
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingBottom: 64 }}>
           <div style={{ display: "flex", gap: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ position: "sticky", top: 0, background: "var(--wf-bg)", fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", padding: "2px 0 6px" }}>ANTIGUO TESTAMENTO</div>
@@ -8102,7 +8215,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
       </div>
 
       {/* Columna 2: versión, capítulos, historial */}
-      <div style={{ width: 210, flexShrink: 0, minHeight: 0, overflowY: "auto" }}>
+      <div style={{ width: 210, flexShrink: 0, minHeight: 0, overflowY: "auto", paddingBottom: 64 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>VERSIÓN</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 14 }}>
           {BIBLE_VERSIONS.map((v) => (
@@ -8143,15 +8256,20 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
       {/* Columna 3: resultados de búsqueda de frase (si hay una activa), si no el capítulo completo —
           en ambos casos, clic en un versículo proyecta al instante */}
-      <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: "auto" }}>
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: "auto", paddingBottom: 64 }}>
         {searchResults !== null ? (
           <>
             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)", marginBottom: 8 }}>
-              {searching ? "Buscando…" : `"${bookFilter.trim()}" · ${searchResults.length} versículo${searchResults.length === 1 ? "" : "s"}`}
+              {searching ? "Buscando…" : searchInfo.cita ? searchInfo.cita : `"${bookFilter.trim()}" · ${searchResults.length} versículo${searchResults.length === 1 ? "" : "s"}`}
             </div>
+            {!searching && searchInfo.otraVersion && searchResults.length > 0 && (
+              <div style={{ fontSize: 11.5, color: "var(--wf-text-2)", background: "var(--wf-hover)", borderRadius: 10, padding: "7px 9px", marginBottom: 8, lineHeight: 1.45 }}>
+                Con esas palabras no aparece en {version}; esto es de la <b>{searchInfo.otraVersion}</b>. Al tocar uno se proyecta ese mismo versículo en {version}.
+              </div>
+            )}
             {searchError && <div style={{ fontSize: 12, color: "#C23B32", padding: "10px 0" }}>{searchError} Revisa tu conexión a internet e intenta de nuevo.</div>}
             {!searching && !searchError && searchResults.length === 0 && (
-              <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 0", textAlign: "center" }}>No se encontró ningún versículo con esa frase en {version}.</div>
+              <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 0", textAlign: "center" }}>No se encontró ningún versículo con esas palabras. Prueba con menos palabras, o escribe la cita (ej. <b>stgo 4:1</b>).</div>
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               {searchResults.map((r) => {
@@ -9041,7 +9159,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
           grupoItem("Proyección", navegacionRapida()),
           grupoItem("Setlist", botonCinta({ icon: ListMusic, label: "Volver al setlist", onClick: () => setMmPanel("transmision"), ancho: 96 })),
           grupoItem("", <div style={{ display: "flex", alignItems: "center", padding: "0 16px", maxWidth: 440 }}>
-              <span style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.5 }}>Busca un libro o una frase, elige el capítulo y toca el versículo para proyectarlo. Los versículos largos aparecen en partes (1/2, 2/2): toca la que quieras o avanza con la flecha →.</span>
+              <span style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.5 }}>Busca un libro, una cita (ej. stgo 4:1) o palabras del versículo, aunque no estén exactas. Toca el versículo para proyectarlo. Los versículos largos aparecen en partes (1/2, 2/2): toca la que quieras o avanza con la flecha →.</span>
             </div>, false, "ayuda-biblia"),
         ] : mmPanel === "estilo" ? [
           grupoItem("Proyección", navegacionRapida()),
