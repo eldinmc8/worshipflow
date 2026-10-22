@@ -22,9 +22,10 @@ import { letraATexto, textoALetra } from "./lib/textoCancion.js";
 import AutoFitText from "./components/AutoFitText.jsx";
 import { stripBibleSearchMarkup } from "./lib/textoBiblia.js";
 import { pasosDeDiapositiva } from "./lib/animaciones.js";
-import { animacionActiva, definicionAnimacion, nombreAnimacion, claseAnimacion, armarLineasAnimadas, FondoAnimado, precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
+import { animacionActiva, definicionAnimacion, nombreAnimacion, claseAnimacion, armarLineasAnimadas, velocidadLetra, FondoAnimado, precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
 import SelectorAnimacion from "./components/SelectorAnimacion.jsx";
 import PantallaOtroEquipo from "./components/PantallaOtroEquipo.jsx";
+import CintaAdaptable from "./components/CintaAdaptable.jsx";
 import EditorTextoCancion from "./components/EditorTextoCancion.jsx";
 import ImportarCancionesPdf from "./components/ImportarCancionesPdf.jsx";
 import { misProximosServicios, cuandoEs, companeros, indicaciones, cancionesParaEnsayar, necesitaAtencion, estaSemana } from "./lib/inicio.js";
@@ -2218,6 +2219,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         .live-dot { animation: pulseDot 1.6s ease-in-out infinite; }
         @keyframes glowPulse { 0%,100% { opacity:.55; transform: scale(1); } 50% { opacity:.85; transform: scale(1.04); } }
         .spotlight-glow { animation: glowPulse 3.2s ease-in-out infinite; }
+        @keyframes brilloEnVivo { 0%,100% { box-shadow: 0 8px 22px rgba(232,130,30,.35), 0 0 0 0 rgba(232,130,30,.35); } 50% { box-shadow: 0 10px 34px rgba(232,130,30,.6), 0 0 0 6px rgba(232,130,30,.12); } }
+        .tarjeta-en-vivo { animation: brilloEnVivo 2.4s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .tarjeta-en-vivo { animation: none; box-shadow: 0 10px 30px rgba(232,130,30,.5); } }
         .hoverable:hover { background:var(--wf-hover) !important; }
         .thumb:hover { transform: translateY(-2px); }
         .thumb { transition: transform .15s; }
@@ -3100,14 +3104,30 @@ function InicioView({ events, library, ministries = [], myUserId, myName, favori
             <div style={{ fontFamily: "'Fraunces', serif", fontSize: isCompact ? 23 : 26, fontWeight: 600, lineHeight: 1.2 }}>{greetingWord()}{myName ? `, ${myName.split(" ")[0]}` : ""}</div>
             <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 2 }}>{fechaLarga(today)}{isCompact ? "" : ` · ${teamName}`}</div>
           </div>
-          {liveEvent && (
-            <button onClick={() => (liveLibre ? onGoLive() : onSelectEvent(liveEvent.id))} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, maxWidth: "62%", background: "var(--wf-brand-primary)", borderRadius: 20, padding: "10px 16px", border: "none", cursor: "pointer" }}>
-              <span className="live-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--wf-brand-accent)", flexShrink: 0 }} />
-              <span style={{ color: "var(--wf-on-brand-primary)", fontWeight: 700, fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>En vivo: {liveEvent.title}</span>
-              <ChevronRight size={14} color="color-mix(in srgb, var(--wf-on-brand-primary) 70%, transparent)" style={{ flexShrink: 0 }} />
-            </button>
-          )}
         </div>
+
+        {/* Evento en vivo (pedido de Eldin, 2026-10-21: "antes… se resaltaba con una luz sombreada y
+            resaltaba antes que cualquier otro evento"): tarjeta grande con brillo naranja que late,
+            arriba de todo lo demás. */}
+        {liveEvent && (
+          <button onClick={() => (liveLibre ? onGoLive() : onSelectEvent(liveEvent.id))} className="tarjeta-en-vivo" aria-label={`En vivo ahora: ${liveEvent.title}`}
+            style={{ position: "relative", display: "flex", alignItems: "center", gap: 14, width: "100%", textAlign: "left", border: "none", cursor: "pointer", borderRadius: 20, padding: isCompact ? "16px 16px" : "18px 22px", marginBottom: 16, overflow: "hidden", color: "#fff", background: liveEvent.cover || DEFAULT_COVERS[0] }}>
+            <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 12% 30%, rgba(232,130,30,.45), transparent 60%)", pointerEvents: "none" }} />
+            <span style={{ position: "relative", width: 46, height: 46, borderRadius: 16, background: "rgba(255,255,255,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Radio size={22} color="#fff" />
+            </span>
+            <span style={{ position: "relative", flex: 1, minWidth: 0 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, letterSpacing: 0.6 }}>
+                <span className="live-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "#FF5A4E", boxShadow: "0 0 8px #FF5A4E" }} /> EN VIVO AHORA
+              </span>
+              <span style={{ display: "block", fontFamily: "'Fraunces', serif", fontSize: isCompact ? 18 : 21, fontWeight: 600, lineHeight: 1.25, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{liveEvent.title}</span>
+              {liveEvent.location && <span style={{ display: "block", fontSize: 12, opacity: 0.85, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{liveEvent.location}</span>}
+            </span>
+            <span style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, background: "#fff", color: "var(--wf-brand-primary, #16324F)", borderRadius: 14, padding: "8px 12px", fontSize: 12.5, fontWeight: 700, flexShrink: 0 }}>
+              {isCompact ? "Ver" : "Ver evento"} <ChevronRight size={14} />
+            </span>
+          </button>
+        )}
 
         {avisoPush && <AvisoActivarPush estado={avisoPush} onActivar={onActivarPush} onCerrar={onOcultarPush} />}
 
@@ -6899,6 +6919,11 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   const canEditItem = () => canEditNow;
   const [showAgregar, setShowAgregar] = useState(false); // hoja "+ Agregar" con todas las opciones
   const [pickerCancion, setPickerCancion] = useState(false);
+  // Orden en que se van eligiendo canciones en "Agregar canciones" (pedido de Eldin, 2026-10-21: "que al
+  // elegir una aparezca entre paréntesis un número uno y si son dos dos"). Se reinicia al abrirlo.
+  const [elegidasPicker, setElegidasPicker] = useState([]);
+  useEffect(() => { if (pickerCancion) setElegidasPicker([]); }, [pickerCancion]);
+  const numerosElegida = (id) => elegidasPicker.reduce((acc, x, i) => (x === id ? [...acc, i + 1] : acc), []);
   const [menuItem, setMenuItem] = useState(null); // { id, x, y } — menú "⋯" de un elemento
   // "Empieza aquí" se puede ocultar por evento (por si esta iglesia no usa el equipo de alabanza, etc.).
   const claveOcultarPasos = `worshipflow_pasos_ocultos_${event.id}`;
@@ -6922,9 +6947,10 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   const lastAddSongRef = useRef({ id: null, at: 0 });
   const handleAddSong = (songId) => {
     const now = Date.now();
-    if (lastAddSongRef.current.id === songId && now - lastAddSongRef.current.at < 600) return;
+    if (lastAddSongRef.current.id === songId && now - lastAddSongRef.current.at < 600) return false;
     lastAddSongRef.current = { id: songId, at: now };
     onAddSong(songId);
+    return true;
   };
   const [query, setQuery] = useState("");
   // Igual que en Canciones: poder ver solo los coros (para armar una cadena de coros seguidos), o solo
@@ -7028,7 +7054,10 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
       {!isCompact && isAdminViewer && (
       <div style={{ width: 270, margin: "14px 0 14px 14px", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, display: "flex", flexDirection: "column", minHeight: 0, boxSizing: "border-box", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 4 }}><ListMusic size={13} /> AGREGAR CANCIONES</div>
-        <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginBottom: 10 }}>Toca una canción para agregarla al final.</div>
+        <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginBottom: 10 }}>
+          Toca una canción para agregarla al final.
+          {elegidasPicker.length > 0 && <> <b style={{ color: "#1F8A73" }}>{elegidasPicker.length} {elegidasPicker.length === 1 ? "agregada" : "agregadas"}</b> · <button onClick={() => setElegidasPicker([])} style={{ background: "none", border: "none", padding: 0, fontSize: 11.5, fontWeight: 700, color: "#2F5FA8", cursor: "pointer" }}>Reiniciar números</button></>}
+        </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
             <Search size={13} color="var(--wf-faint)" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 12, width: "100%" }} />
@@ -7039,12 +7068,15 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
             ))}
           </div>
         <div style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
-          {filtered.map((s) => (
-            <button key={s.id} onClick={() => handleAddSong(s.id)} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 6, borderRadius: 12, background: "transparent", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)} · {s.tempo} bpm</div></div>
+          {filtered.map((s) => {
+            const numeros = numerosElegida(s.id);
+            return (
+            <button key={s.id} onClick={() => { if (handleAddSong(s.id)) setElegidasPicker((l) => [...l, s.id]); }} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 6, borderRadius: 12, background: numeros.length ? "var(--wf-active-bg)" : "transparent", border: "none", boxShadow: numeros.length ? "inset 0 0 0 1.5px #1F8A73" : "0 3px 14px rgba(22,50,79,0.09)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div><div style={{ fontSize: 13, fontWeight: 600 }}>{numeros.length > 0 && <span style={{ color: "#1F8A73", fontWeight: 800, marginRight: 5 }}>({numeros.join(", ")})</span>}{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)} · {s.tempo} bpm</div></div>
               <Plus size={15} color="var(--wf-brand-accent)" />
             </button>
-          ))}
+            );
+          })}
           {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, padding: "6px 0" }}>Ninguna canción coincide.</div>}
         </div>
       </div>
@@ -7393,10 +7425,11 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
           <div style={{ maxHeight: "50vh", overflowY: "auto", margin: "0 -4px", padding: "0 4px" }}>
             {filtered.map((s) => {
               const veces = event.serviceOrder.filter((i) => i.type === "cancion" && i.songId === s.id).length;
+              const numeros = numerosElegida(s.id);
               return (
-                <button key={s.id} onClick={() => { handleAddSong(s.id); showToast(`"${s.title}" se agregó al culto.`, "info"); }} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "10px 10px", marginBottom: 6, borderRadius: 12, background: "transparent", border: "1px solid var(--wf-border)", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, color: "var(--wf-text)", fontFamily: "inherit" }}>
+                <button key={s.id} onClick={() => { if (!handleAddSong(s.id)) return; setElegidasPicker((l) => [...l, s.id]); showToast(`"${s.title}" se agregó al culto (${elegidasPicker.length + 1}).`, "info"); }} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "10px 10px", marginBottom: 6, borderRadius: 12, background: numeros.length ? "var(--wf-active-bg)" : "transparent", border: numeros.length ? "1px solid #1F8A73" : "1px solid var(--wf-border)", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, color: "var(--wf-text)", fontFamily: "inherit" }}>
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>{s.title}</span>
+                    <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>{numeros.length > 0 && <span aria-label={`elegida en el lugar ${numeros.join(" y ")}`} style={{ color: "#1F8A73", fontWeight: 800, marginRight: 6 }}>({numeros.join(", ")})</span>}{s.title}</span>
                     <span style={{ display: "block", fontSize: 11.5, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)} · {s.tempo} bpm{veces ? <span style={{ color: "var(--wf-muted)", fontFamily: "'Poppins', sans-serif" }}> · ya está en el culto</span> : null}</span>
                   </span>
                   <Plus size={18} color="var(--wf-brand-accent)" />
@@ -7405,7 +7438,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
             })}
             {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, padding: "6px 0" }}>Ninguna canción coincide.</div>}
           </div>
-          <button onClick={() => { setPickerCancion(false); onDestinoAgregar?.(null); }} style={{ ...primaryBtn, marginTop: 10 }}>Listo</button>
+          <button onClick={() => { setPickerCancion(false); onDestinoAgregar?.(null); }} style={{ ...primaryBtn, marginTop: 10 }}>{elegidasPicker.length ? `Listo · ${elegidasPicker.length} ${elegidasPicker.length === 1 ? "canción agregada" : "canciones agregadas"}` : "Listo"}</button>
         </ModalShell>
       )}
       {showImportar && (
@@ -8434,11 +8467,13 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   );
   // Anterior / Siguiente / Negro en TODAS las pestañas de la cinta (pedido de Eldin, 2026-10-08): las
   // diapositivas se manejan igual estando en Biblia, Estilo o Insertar, sin volver a Transmisión.
-  const navegacionRapida = () => grupoCinta("Proyección", <>
+  const navegacionRapida = () => (<>
     {botonCinta({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1), ancho: 54 })}
     {botonCinta({ icon: ChevronRight, label: "Siguiente", onClick: () => avanzar(1), acento: true, ancho: 58 })}
     {botonCinta({ icon: MonitorOff, label: "Negro", onClick: () => setBlanked((b) => !b), activo: blanked, ancho: 50 })}
   </>);
+  // Grupo de la cinta como dato (CintaAdaptable decide si va a la vista o en "Más opciones").
+  const grupoItem = (titulo, contenido, _ultimo, clave) => ({ clave: clave || titulo, titulo, contenido });
   // Botones de la cinta al estilo Office: sin relleno (solo se marcan al pasar el mouse), ícono arriba
   // y texto chico abajo — solo "Siguiente" (acento) y lo que está encendido (activo) llevan color.
   const botonCinta = ({ icon: Icon, label, onClick, activo, acento, title, tour, ancho = 58 }) => (
@@ -8607,7 +8642,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
     </button>
   );
   const barraSencilla = (
-    <div data-tour="envivo-paneles" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)", flexShrink: 0, overflowX: "auto" }}>
+    <div data-tour="envivo-paneles" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)", flexShrink: 0, flexWrap: "wrap", rowGap: 8 }}>
       {botonGrande({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1), ancho: 130 })}
       {botonGrande({ icon: ChevronRight, label: "Siguiente", sub: cambiaDeElemento ? `Pasas a: ${nombreSiguiente}` : next ? null : "Es la última", onClick: () => avanzar(1), fondo: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", tour: "envivo-siguiente", ancho: 190 })}
       {botonGrande({ icon: MonitorOff, label: blanked ? "Volver a mostrar" : "Negro", sub: blanked ? null : "Esconde todo", onClick: () => setBlanked((b) => !b), fondo: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)", tour: "envivo-negro", ancho: 140 })}
@@ -8950,44 +8985,20 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       </nav>
       {franjasDeEstado}
       {sencillo && barraSencilla}
-      {!sencillo && <div data-tour="envivo-paneles" style={{ display: "flex", alignItems: "stretch", gap: 0, padding: "6px 8px 4px", minHeight: 76, boxSizing: "border-box", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)", overflowX: "auto", flexShrink: 0 }}>
-        {mmPanel === "transmision" && (
-          <>
-            {grupoCinta("Navegación", <>
-              {botonCinta({ icon: SkipBack, label: "Inicio", onClick: () => goto(0) })}
-              {botonCinta({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1) })}
-              {botonCinta({ icon: ChevronRight, label: "Siguiente", onClick: () => avanzar(1), acento: true, tour: "envivo-siguiente" })}
-              {botonCinta({ icon: SkipForward, label: "Final", onClick: () => goto(Infinity) })}
-            </>)}
-            {grupoCinta("Pantalla", <>
-              {botonCinta({ icon: MonitorOff, label: "Negro", onClick: () => setBlanked((b) => !b), activo: blanked, tour: "envivo-negro" })}
-              {onFijar && botonCinta({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", onClick: () => (fijada ? onSoltar() : onFijar()), activo: !!fijada, title: "Congelar la pantalla para moverte sin proyectar (tecla F)" })}
-              {botonCinta({ icon: Radio, label: "Proyección", onClick: onOpenPublicScreen, title: "Reabrir la pantalla de proyección", tour: "envivo-proyeccion" })}
-              {botonCinta({ icon: MonitorSmartphone, label: "Otro equipo", onClick: () => setShowOtroEquipo(true), title: "Abrir la proyección en un TV, tablet u otra computadora (enlace y código QR)", ancho: 70 })}
-            </>)}
-            {grupoCinta("Secciones de la canción", currentSongSections.length > 0 ? (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxWidth: 560, alignContent: "center" }}>
-                {currentSongSections.map(([label, color]) => (
-                  <button key={label} onClick={() => jumpToLabel(label)} style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", background: color, border: "none", borderRadius: 14, padding: "3px 9px", cursor: "pointer" }}>{label}</button>
-                ))}
-              </div>
-            ) : <span style={{ fontSize: 11, color: "var(--wf-faint)", maxWidth: 200 }}>Aparecen cuando hay una canción al aire.</span>, true)}
-          </>
-        )}
-        {mmPanel === "biblia" && (
-          <>
-            {navegacionRapida()}
-            {grupoCinta("Setlist", botonCinta({ icon: ListMusic, label: "Volver al setlist", onClick: () => setMmPanel("transmision"), ancho: 96 }))}
-            <div style={{ display: "flex", alignItems: "center", padding: "0 16px", maxWidth: 440 }}>
+      {!sencillo && (
+        <CintaAdaptable
+          tour="envivo-paneles" dibujarGrupo={grupoCinta}
+          estilo={{ padding: "6px 8px 4px", minHeight: 76, boxSizing: "border-box", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)" }}
+          grupos={(mmPanel === "biblia" ? [
+          grupoItem("Proyección", navegacionRapida()),
+          grupoItem("Setlist", botonCinta({ icon: ListMusic, label: "Volver al setlist", onClick: () => setMmPanel("transmision"), ancho: 96 })),
+          grupoItem("", <div style={{ display: "flex", alignItems: "center", padding: "0 16px", maxWidth: 440 }}>
               <span style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.5 }}>Busca un libro o una frase, elige el capítulo y toca el versículo para proyectarlo. Los versículos largos aparecen en partes (1/2, 2/2): toca la que quieras o avanza con la flecha →.</span>
-            </div>
-          </>
-        )}
-        {mmPanel === "estilo" && (
-          <>
-            {navegacionRapida()}
-            {grupoCinta("Letra animada", botonCinta({ icon: Sparkles, label: (() => { const n = nombreAnimacion(liveStyle) || "Animación"; return n.length > 12 ? n.slice(0, 11) + "…" : n; })(), onClick: () => { setEstiloMas(false); setAnimMenu((v) => !v); }, activo: !!animacionActiva(liveStyle) || animMenu, title: "Letras animadas: elegir un estilo con movimiento", ancho: 76 }))}
-            {grupoCinta(editandoCancion ? `Fondo de "${cancionObjetivo.titulo.length > 22 ? cancionObjetivo.titulo.slice(0, 21) + "…" : cancionObjetivo.titulo}"` : "Fondo", <>
+            </div>, false, "ayuda-biblia"),
+        ] : mmPanel === "estilo" ? [
+          grupoItem("Proyección", navegacionRapida()),
+          grupoItem("Letra animada", botonCinta({ icon: Sparkles, label: (() => { const n = nombreAnimacion(liveStyle) || "Animación"; return n.length > 12 ? n.slice(0, 11) + "…" : n; })(), onClick: () => { setEstiloMas(false); setAnimMenu((v) => !v); }, activo: !!animacionActiva(liveStyle) || animMenu, title: "Letras animadas: elegir un estilo con movimiento", ancho: 76 })),
+          grupoItem(editandoCancion ? `Fondo de "${cancionObjetivo.titulo.length > 22 ? cancionObjetivo.titulo.slice(0, 21) + "…" : cancionObjetivo.titulo}"` : "Fondo", <>
               {Object.entries(LIVE_THEMES).map(([key, t]) => (
                 <button key={key} onClick={() => aplicarFondo({ theme: key })} title={t.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 5px", borderRadius: 10, cursor: "pointer", background: "var(--wf-card)", border: fondoEditado.theme === key && !(animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") ? "2px solid #B15EA0" : "1px solid var(--wf-border)" }}>
                   <span style={{ width: 34, height: 20, borderRadius: 5, background: t.bg }} />
@@ -8996,8 +9007,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
               ))}
               {botonCinta({ icon: ImgIcon, label: "Imagen", onClick: () => { aplicarFondo({ theme: "custom", customBgType: "imagen" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen", ancho: 62 })}
               {botonCinta({ icon: Play, label: "Video", onClick: () => { aplicarFondo({ theme: "custom", customBgType: "video" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "video", ancho: 62 })}
-            </>)}
-            {grupoCinta("Fondo por canción", (
+            </>, false, "fondo"),
+          grupoItem("Fondo por canción", (
               <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
                   <input
@@ -9025,8 +9036,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
                   </div>
                 )}
               </div>
-            ))}
-            {grupoCinta("Texto", <>
+            )),
+          grupoItem("Texto", <>
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                 <select
                   aria-label="Tipografía" value={liveStyle.font || "elegante"}
@@ -9043,8 +9054,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
                   ))}
                 </div>
               </div>
-            </>)}
-            {grupoCinta("Diseño de la letra", (
+            </>),
+          grupoItem("Diseño de la letra", (
               <select
                 aria-label="Diseño de la letra" value={liveStyle.lineStyle || "tradicional"}
                 onChange={(e) => setLiveStyle((st) => ({ ...st, lineStyle: e.target.value }))}
@@ -9052,8 +9063,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
               >
                 {Object.entries(LINE_STYLES).map(([key, ls]) => <option key={key} value={key}>{ls.label}</option>)}
               </select>
-            ))}
-            {grupoCinta("Tamaño de letra", (
+            )),
+          grupoItem("Tamaño de letra", (
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-faint)" }}>A</span>
                 <input
@@ -9064,26 +9075,43 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
                 <span style={{ fontSize: 17, fontWeight: 700, color: "var(--wf-faint)" }}>A</span>
                 <span style={{ fontSize: 11, fontWeight: 700, width: 34, textAlign: "right" }}>{Math.round(fontScale * 100)}%</span>
               </div>
-            ))}
-            {grupoCinta("Más", botonCinta({ icon: estiloMas ? ChevronUp : ChevronDown, label: estiloMas ? "Menos" : "Más opciones", onClick: () => { setAnimMenu(false); setEstiloMas((v) => !v); }, activo: estiloMas, ancho: 84 }), true)}
-          </>
-        )}
-        {mmPanel === "insertar" && (
-          <>
-            {navegacionRapida()}
-            {grupoCinta("Del culto", <>
+            )),
+          grupoItem("Ajustes de la letra", botonCinta({ icon: estiloMas ? ChevronUp : SlidersHorizontal, label: estiloMas ? "Cerrar" : "Sombra y más", title: "Sombra, alineación, interlineado e imagen o video de fondo", onClick: () => { setAnimMenu(false); setEstiloMas((v) => !v); }, activo: estiloMas, ancho: 84 }), true),
+        ] : mmPanel === "insertar" ? [
+          grupoItem("Proyección", navegacionRapida()),
+          grupoItem("Del culto", <>
               {botonCinta({ icon: Music, label: "Canción", onClick: () => setShowAdHocSong(true) })}
               {botonCinta({ icon: BookOpen, label: "Versículo", onClick: () => setMmPanel("biblia") })}
-            </>)}
-            {grupoCinta("Presentación", botonCinta({ icon: FileUp, label: "Importar", onClick: () => setShowImportar(true), title: "Importar un PDF, imágenes de Canva, o un Word con el bosquejo", ancho: 64 }))}
-            {grupoCinta("De último momento", <>
+            </>),
+          grupoItem("Presentación", botonCinta({ icon: FileUp, label: "Importar", onClick: () => setShowImportar(true), title: "Importar un PDF, imágenes de Canva, o un Word con el bosquejo", ancho: 64 })),
+          grupoItem("De último momento", <>
               {onDisenarNueva && botonCinta({ icon: PenTool, label: "Diseñar", title: "Diseñar una diapositiva desde cero (con plantillas)", onClick: () => onDisenarNueva(anclaParaAgregar()?.id || null) })}
               {botonCinta({ icon: Type, label: "Diapositiva", onClick: () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); } })}
               {botonCinta({ icon: ImgIcon, label: "Video", onClick: () => setShowAdHocVideo(true) })}
-            </>, true)}
-          </>
-        )}
-      </div>}
+            </>, true),
+        ] : [
+          grupoItem("Navegación", <>
+              {botonCinta({ icon: SkipBack, label: "Inicio", onClick: () => goto(0) })}
+              {botonCinta({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1) })}
+              {botonCinta({ icon: ChevronRight, label: "Siguiente", onClick: () => avanzar(1), acento: true, tour: "envivo-siguiente" })}
+              {botonCinta({ icon: SkipForward, label: "Final", onClick: () => goto(Infinity) })}
+            </>),
+          grupoItem("Pantalla", <>
+              {botonCinta({ icon: MonitorOff, label: "Negro", onClick: () => setBlanked((b) => !b), activo: blanked, tour: "envivo-negro" })}
+              {onFijar && botonCinta({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", onClick: () => (fijada ? onSoltar() : onFijar()), activo: !!fijada, title: "Congelar la pantalla para moverte sin proyectar (tecla F)" })}
+              {botonCinta({ icon: Radio, label: "Proyección", onClick: onOpenPublicScreen, title: "Reabrir la pantalla de proyección", tour: "envivo-proyeccion" })}
+              {botonCinta({ icon: MonitorSmartphone, label: "Otro equipo", onClick: () => setShowOtroEquipo(true), title: "Abrir la proyección en un TV, tablet u otra computadora (enlace y código QR)", ancho: 70 })}
+            </>),
+          grupoItem("Secciones de la canción", currentSongSections.length > 0 ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxWidth: 560, alignContent: "center" }}>
+                {currentSongSections.map(([label, color]) => (
+                  <button key={label} onClick={() => jumpToLabel(label)} style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", background: color, border: "none", borderRadius: 14, padding: "3px 9px", cursor: "pointer" }}>{label}</button>
+                ))}
+              </div>
+            ) : <span style={{ fontSize: 11, color: "var(--wf-faint)", maxWidth: 200 }}>Aparecen cuando hay una canción al aire.</span>, true),
+        ]).filter(Boolean)}
+        />
+      )}
       {/* "Más opciones" de Estilo: menú flotante encima de las diapositivas, como los desplegables
           de Office — antes empujaba todo hacia abajo y se comía media pantalla (pedido de Eldin,
           2026-10-08). Se cierra con la X, con "Menos" o con un clic afuera. */}
@@ -9546,7 +9574,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   const lineStyleMode = liveStyle?.lineStyle || "tradicional";
   // Con letra animada el estilo ya decide cómo se ve cada línea: el "diseño de las letras" no aplica.
   const animarLetra = !!anim && slide?.type === "cancion" && Array.isArray(slide?.lines);
-  const lineasAnimadas = animarLetra ? armarLineasAnimadas(anim, slide.lines, slide.slideId) : null;
+  const lineasAnimadas = animarLetra ? armarLineasAnimadas(anim, slide.lines, slide.slideId, velocidadLetra(liveStyle)) : null;
   const cancionLineStyles =
     slide?.type === "cancion" && lineStyleMode !== "tradicional" && !animarLetra
       ? slide.lines.map((_, i) => {

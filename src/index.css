@@ -234,27 +234,31 @@ img, svg {
    anima, así AutoFitText mide bien. Las variables (--i palabra, --c letra, --li línea, --dx/--dy/--r
    azar estable, --n total de palabras) las pone armarLineasAnimadas. */
 .wfa .wfa-linea, .wfa .wfa-p, .wfa .wfa-c { display: inline-block; white-space: pre; }
-.wfa-flash { position: absolute; inset: 0; background: #fff; pointer-events: none; z-index: 2; animation: wfa-destello 1.2s linear both; }
+/* --wfv multiplica la duración de las entradas (no la de los movimientos en bucle). 0.75 = un poco más
+   rápido que el diseño original (pedido de Eldin, 2026-10-21: "a veces cantamos más rápido que el tiempo
+   que dura en aparecer una letra"); el control "Velocidad" de la consola lo cambia en línea. */
+.wfa { --wfv: .75; }
+.wfa-flash { position: absolute; inset: 0; background: #fff; pointer-events: none; z-index: 2; animation: wfa-destello calc(1.2s * var(--wfv, 1)) linear both; }
 @keyframes wfa-destello { 0% { opacity: 0 } 18% { opacity: .35 } 30% { opacity: 0 } 66% { opacity: .3 } 78%, 100% { opacity: 0 } }
 
 /* Suave */
-.wfa-suave .wfa-p { animation: wfa-subir .9s cubic-bezier(.2,.7,.2,1) calc(var(--i) * .09s) both; }
+.wfa-suave .wfa-p { animation: wfa-subir calc(.9s * var(--wfv, 1)) cubic-bezier(.2,.7,.2,1) calc(var(--i) * calc(.09s * var(--wfv, 1))) both; }
 @keyframes wfa-subir { from { opacity: 0; transform: translateY(.45em); filter: blur(.12em) } to { opacity: 1; transform: none; filter: none } }
 
 /* Luz */
-.wfa-luz .wfa-p { animation: wfa-brillo 1.4s cubic-bezier(.2,.7,.2,1) calc(var(--i) * .16s) both, wfa-resplandor 3.2s ease-in-out calc(var(--i) * .16s + 1.4s) infinite alternate; }
+.wfa-luz .wfa-p { animation: wfa-brillo calc(1.4s * var(--wfv, 1)) cubic-bezier(.2,.7,.2,1) calc(var(--i) * calc(.16s * var(--wfv, 1))) both, wfa-resplandor 3.2s ease-in-out calc(var(--i) * calc(.16s * var(--wfv, 1)) + calc(1.4s * var(--wfv, 1))) infinite alternate; }
 @keyframes wfa-brillo { from { opacity: 0; transform: scale(1.35); filter: blur(.35em) brightness(2) } to { opacity: 1; transform: none; filter: none } }
 @keyframes wfa-resplandor { from { filter: brightness(1) } to { filter: brightness(1.25) } }
 
 /* Cielo */
-.wfa-cielo .wfa-p { animation: wfa-bajar 1.6s cubic-bezier(.2,.8,.2,1) calc(var(--i) * .14s) both, wfa-flotar 4s ease-in-out calc(var(--i) * .14s + 1.6s) infinite alternate; }
+.wfa-cielo .wfa-p { animation: wfa-bajar calc(1.6s * var(--wfv, 1)) cubic-bezier(.2,.8,.2,1) calc(var(--i) * calc(.14s * var(--wfv, 1))) both, wfa-flotar 4s ease-in-out calc(var(--i) * calc(.14s * var(--wfv, 1)) + calc(1.6s * var(--wfv, 1))) infinite alternate; }
 @keyframes wfa-bajar { from { opacity: 0; transform: translate(calc(var(--dx) * .4em), -1.2em) rotate(calc(var(--r) * 12deg)); filter: blur(.15em) } to { opacity: 1; transform: none; filter: none } }
 @keyframes wfa-flotar { from { transform: translateY(0) } to { transform: translateY(-.08em) } }
 
 /* Karaoke */
-.wfa-karaoke .wfa-linea { animation: wfa-subir .5s ease-out calc(var(--li, 0) * .12s) both; }
-.wfa-karaoke > div:nth-child(2) .wfa-linea { animation-delay: .12s; }
-.wfa-karaoke .wfa-p { animation: wfa-cantar .55s ease-out calc(.6s + var(--i) * (3.6s / var(--n))) both; }
+.wfa-karaoke .wfa-linea { animation: wfa-subir calc(.5s * var(--wfv, 1)) ease-out calc(var(--li, 0) * calc(.12s * var(--wfv, 1))) both; }
+.wfa-karaoke > div:nth-child(2) .wfa-linea { animation-delay: calc(.12s * var(--wfv, 1)); }
+.wfa-karaoke .wfa-p { animation: wfa-cantar calc(.55s * var(--wfv, 1)) ease-out calc(calc(.6s * var(--wfv, 1)) + var(--i) * (calc(3.6s * var(--wfv, 1)) / var(--n))) both; }
 .wfa-karaoke .wfa-clave { --brillo: #FFB45C; }
 @keyframes wfa-cantar {
   0% { color: rgba(255,255,255,.3); transform: none; text-shadow: none }
@@ -263,7 +267,7 @@ img, svg {
 }
 
 /* Cinético */
-.wfa-cinetico .wfa-p { animation: wfa-volar .75s cubic-bezier(.2,1.4,.4,1) calc(var(--i) * .13s) both, wfa-flotar2 2.2s ease-in-out calc(var(--i) * .13s + .8s) infinite alternate; }
+.wfa-cinetico .wfa-p { animation: wfa-volar calc(.75s * var(--wfv, 1)) cubic-bezier(.2,1.4,.4,1) calc(var(--i) * calc(.13s * var(--wfv, 1))) both, wfa-flotar2 2.2s ease-in-out calc(var(--i) * calc(.13s * var(--wfv, 1)) + calc(.8s * var(--wfv, 1))) infinite alternate; }
 .wfa-cinetico .wfa-clave { color: #E8821E; font-size: 1.22em; text-shadow: 0 0 .3em rgba(232,130,30,.55); animation-name: wfa-volar-grande, wfa-flotar2; }
 @keyframes wfa-volar { 0% { opacity: 0; transform: translate(calc(var(--dx) * 3em), calc(var(--dy) * 2em)) scale(.3) rotate(calc(var(--r) * 40deg)); filter: blur(.15em) } 60% { opacity: 1; filter: none } 100% { opacity: 1; transform: none; filter: none } }
 @keyframes wfa-volar-grande { 0% { opacity: 0; transform: scale(3) rotate(calc(var(--r) * 20deg)); filter: blur(.15em) } 60% { opacity: 1; filter: none } 100% { opacity: 1; transform: none; filter: none } }
@@ -271,43 +275,43 @@ img, svg {
 
 /* Ola */
 .wfa-ola > div:nth-child(2) { color: #FFD9A8; }
-.wfa-ola .wfa-c { animation: wfa-rebote .7s cubic-bezier(.3,1.5,.5,1) calc(var(--c) * .03s) both, wfa-ondular 1.6s ease-in-out calc(var(--c) * .03s + .9s) infinite; }
+.wfa-ola .wfa-c { animation: wfa-rebote calc(.7s * var(--wfv, 1)) cubic-bezier(.3,1.5,.5,1) calc(var(--c) * calc(.03s * var(--wfv, 1))) both, wfa-ondular 1.6s ease-in-out calc(var(--c) * calc(.03s * var(--wfv, 1)) + calc(.9s * var(--wfv, 1))) infinite; }
 @keyframes wfa-rebote { 0% { opacity: 0; transform: translateY(.9em) rotate(25deg) scale(.4) } 60% { opacity: 1; transform: translateY(-.15em) rotate(-6deg) scale(1.15) } 100% { opacity: 1; transform: none } }
 @keyframes wfa-ondular { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-.12em) } }
 
 /* Impacto */
-.wfa-impacto { animation: wfa-temblor 1.4s linear .2s both; }
+.wfa-impacto { animation: wfa-temblor calc(1.4s * var(--wfv, 1)) linear calc(.2s * var(--wfv, 1)) both; }
 .wfa-impacto > div:nth-child(2) { color: #E8821E; }
-.wfa-impacto .wfa-p { animation: wfa-golpe .42s cubic-bezier(.7,0,.3,1) calc(var(--li) * .65s + var(--pi) * .06s) both; }
+.wfa-impacto .wfa-p { animation: wfa-golpe calc(.42s * var(--wfv, 1)) cubic-bezier(.7,0,.3,1) calc(var(--li) * calc(.65s * var(--wfv, 1)) + var(--pi) * calc(.06s * var(--wfv, 1))) both; }
 @keyframes wfa-golpe { 0% { opacity: 0; transform: scale(3.2); filter: blur(.08em) } 55% { opacity: 1; transform: scale(.94); filter: none } 100% { opacity: 1; transform: none } }
 @keyframes wfa-temblor { 0%, 22%, 40%, 68%, 100% { transform: none } 4% { transform: translate(-1.2%, .8%) } 9% { transform: translate(1%, -1%) } 14% { transform: translate(-.5%, .4%) } 50% { transform: translate(1.2%, .6%) } 55% { transform: translate(-1%, -.8%) } 60% { transform: translate(.5%, .4%) } }
 
 /* Fiesta */
 .wfa-fiesta .wfa-clave { color: #FFD23F; }
-.wfa-fiesta .wfa-p { animation: wfa-saltar .7s cubic-bezier(.3,1.6,.5,1) calc(var(--i) * .1s) both, wfa-bailar 1.2s ease-in-out calc(var(--i) * .1s + .8s) infinite alternate; }
+.wfa-fiesta .wfa-p { animation: wfa-saltar calc(.7s * var(--wfv, 1)) cubic-bezier(.3,1.6,.5,1) calc(var(--i) * calc(.1s * var(--wfv, 1))) both, wfa-bailar 1.2s ease-in-out calc(var(--i) * calc(.1s * var(--wfv, 1)) + calc(.8s * var(--wfv, 1))) infinite alternate; }
 @keyframes wfa-saltar { 0% { opacity: 0; transform: scale(0) rotate(calc(var(--r) * 30deg)) } 70% { opacity: 1; transform: scale(1.25) rotate(calc(var(--r) * -6deg)) } 100% { opacity: 1; transform: none } }
 @keyframes wfa-bailar { from { transform: rotate(calc(var(--r) * -3deg)) } to { transform: rotate(calc(var(--r) * 3deg)) translateY(-.04em) } }
 
 /* Neón */
-.wfa-neon > div { text-shadow: 0 0 .05em #fff, 0 0 .15em #3EE7FF, 0 0 .35em #3EE7FF, 0 0 .7em #3EE7FF; animation: wfa-zumbido 2.6s 1.8s infinite; }
+.wfa-neon > div { text-shadow: 0 0 .05em #fff, 0 0 .15em #3EE7FF, 0 0 .35em #3EE7FF, 0 0 .7em #3EE7FF; animation: wfa-zumbido 2.6s calc(1.8s * var(--wfv, 1)) infinite; }
 .wfa-neon > div:nth-child(2) { text-shadow: 0 0 .05em #fff, 0 0 .15em #FF4FD8, 0 0 .35em #FF4FD8, 0 0 .7em #FF4FD8; }
-.wfa-neon .wfa-c { animation: wfa-parpadeo .9s steps(1, end) calc(var(--fl) * .9s) both; }
-.wfa-neon > div:nth-child(2) .wfa-c { animation-delay: calc(var(--fl) * .9s + .5s); }
+.wfa-neon .wfa-c { animation: wfa-parpadeo calc(.9s * var(--wfv, 1)) steps(1, end) calc(var(--fl) * calc(.9s * var(--wfv, 1))) both; }
+.wfa-neon > div:nth-child(2) .wfa-c { animation-delay: calc(var(--fl) * calc(.9s * var(--wfv, 1)) + calc(.5s * var(--wfv, 1))); }
 @keyframes wfa-parpadeo { 0% { opacity: 0 } 10% { opacity: 1 } 20% { opacity: .1 } 32% { opacity: 1 } 45% { opacity: .3 } 60%, 100% { opacity: 1 } }
 @keyframes wfa-zumbido { 0%, 100% { filter: brightness(1) } 40% { filter: brightness(1.35) } 70% { filter: brightness(.9) } }
 
 /* Glitch */
-.wfa-glitch .wfa-p { animation: wfa-interferencia .6s steps(3, end) calc(var(--i) * .07s) both, wfa-falla 3s steps(1, end) calc(1.5s + var(--i) * .05s) infinite; }
+.wfa-glitch .wfa-p { animation: wfa-interferencia calc(.6s * var(--wfv, 1)) steps(3, end) calc(var(--i) * calc(.07s * var(--wfv, 1))) both, wfa-falla 3s steps(1, end) calc(calc(1.5s * var(--wfv, 1)) + var(--i) * calc(.05s * var(--wfv, 1))) infinite; }
 @keyframes wfa-interferencia { 0% { opacity: 0; transform: translateX(calc(var(--dx) * .4em)) skewX(30deg); clip-path: inset(40% 0 30% 0) } 35% { opacity: 1; transform: translateX(calc(var(--dx) * -.2em)); clip-path: inset(10% 0 55% 0) } 70% { transform: translateX(.05em); clip-path: inset(55% 0 5% 0) } 100% { opacity: 1; transform: none; clip-path: none } }
 @keyframes wfa-falla { 0%, 92%, 100% { transform: none; opacity: 1 } 93% { transform: translate(.06em, -.02em) skewX(-12deg); opacity: .8 } 95% { transform: translate(-.08em, .03em) } 97% { transform: translate(.03em, 0) skewX(8deg) } }
 
 /* Urbano */
-.wfa-urbano .wfa-p { animation: wfa-estampar .45s cubic-bezier(.2,1.6,.4,1) calc(var(--i) * .16s) both; }
+.wfa-urbano .wfa-p { animation: wfa-estampar calc(.45s * var(--wfv, 1)) cubic-bezier(.2,1.6,.4,1) calc(var(--i) * calc(.16s * var(--wfv, 1))) both; }
 @keyframes wfa-estampar { 0% { opacity: 0; transform: scale(2.2) rotate(calc(var(--r) * 25deg)) } 100% { opacity: 1; transform: rotate(calc(var(--r) * 4deg)) } }
 
 /* Cómic */
 .wfa-comic > div:nth-child(2) { color: #FFFFFF; }
-.wfa-comic .wfa-p { animation: wfa-pow .55s cubic-bezier(.2,1.8,.4,1) calc(var(--i) * .12s) both; }
+.wfa-comic .wfa-p { animation: wfa-pow calc(.55s * var(--wfv, 1)) cubic-bezier(.2,1.8,.4,1) calc(var(--i) * calc(.12s * var(--wfv, 1))) both; }
 @keyframes wfa-pow { 0% { opacity: 0; transform: scale(0) rotate(-20deg) } 100% { opacity: 1; transform: rotate(calc(var(--r) * 5deg - 2deg)) } }
 
 /* Retro 80 */
@@ -316,16 +320,16 @@ img, svg {
   -webkit-background-clip: text; background-clip: text; color: transparent;
   filter: drop-shadow(0 .06em 0 #2B0F4A) drop-shadow(0 0 .12em rgba(20,0,40,.9)) drop-shadow(0 0 .3em rgba(255,94,196,.5));
 }
-.wfa-retro .wfa-p { animation: wfa-deslizar .8s cubic-bezier(.2,1,.3,1) calc(var(--i) * .1s) both; }
+.wfa-retro .wfa-p { animation: wfa-deslizar calc(.8s * var(--wfv, 1)) cubic-bezier(.2,1,.3,1) calc(var(--i) * calc(.1s * var(--wfv, 1))) both; }
 @keyframes wfa-deslizar { 0% { opacity: 0; transform: translateX(-1.5em) skewX(-25deg) } 100% { opacity: 1; transform: none } }
 
 /* Pop */
-.wfa-pop .wfa-p { animation: wfa-burbuja .7s cubic-bezier(.3,1.7,.5,1) calc(var(--i) * .11s) both, wfa-gelatina 1.8s ease-in-out calc(var(--i) * .11s + .8s) infinite; }
+.wfa-pop .wfa-p { animation: wfa-burbuja calc(.7s * var(--wfv, 1)) cubic-bezier(.3,1.7,.5,1) calc(var(--i) * calc(.11s * var(--wfv, 1))) both, wfa-gelatina 1.8s ease-in-out calc(var(--i) * calc(.11s * var(--wfv, 1)) + calc(.8s * var(--wfv, 1))) infinite; }
 @keyframes wfa-burbuja { 0% { opacity: 0; transform: translateY(.8em) scale(.2, 1.6) } 60% { opacity: 1; transform: translateY(-.1em) scale(1.2, .85) } 100% { opacity: 1; transform: none } }
 @keyframes wfa-gelatina { 0%, 100% { transform: scale(1, 1) } 25% { transform: scale(1.06, .94) } 50% { transform: scale(.96, 1.04) translateY(-.05em) } }
 
 /* Máquina de escribir */
-.wfa-maquina .wfa-c { animation: wfa-tecla .01s linear calc(.3s + var(--c) * .05s) both; }
+.wfa-maquina .wfa-c { animation: wfa-tecla calc(.01s * var(--wfv, 1)) linear calc(calc(.3s * var(--wfv, 1)) + var(--c) * calc(.05s * var(--wfv, 1))) both; }
 @keyframes wfa-tecla { from { opacity: 0 } to { opacity: 1 } }
 
 /* ---------- Piezas de animación para recetas propias y elementos de diapositivas (ver src/lib/animaciones.js) ----------

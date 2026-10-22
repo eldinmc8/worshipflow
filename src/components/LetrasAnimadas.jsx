@@ -116,6 +116,20 @@ export function definicionAnimacion(liveStyle) {
   if (ES_PROPIA(k)) return { clave: k, def: definicionDeReceta(liveStyle.animReceta, liveStyle.animNombre) };
   return { clave: k, def: ANIMACIONES[k] };
 }
+// Velocidad de la letra animada (pedido de Eldin, 2026-10-21: "a veces cantamos más rápido que el
+// tiempo que dura en aparecer una letra"). liveStyle.animVelocidad: 0.5 (más lenta) – 2.5 (mucho más
+// rápida); 1 = normal. "Normal" ya es un poco más rápido que el diseño original (BASE_TIEMPO).
+export const BASE_TIEMPO = 0.75;
+export const VELOCIDADES_LETRA = [
+  { valor: 0.7, nombre: "Lenta" },
+  { valor: 1, nombre: "Normal" },
+  { valor: 1.4, nombre: "Rápida" },
+  { valor: 2, nombre: "Muy rápida" },
+];
+export function velocidadLetra(liveStyle) {
+  const v = Number(liveStyle?.animVelocidad);
+  return Number.isFinite(v) && v > 0 ? Math.min(2.5, Math.max(0.5, v)) : 1;
+}
 export function nombreAnimacion(liveStyle) {
   return definicionAnimacion(liveStyle)?.def.nombre || null;
 }
@@ -130,9 +144,12 @@ const CLAVES = /^(santo|santa|señor|dios|jesús|jesus|cristo|rey|gloria|aleluya
 
 // Arma cada línea en palabras (y letras, si el estilo lo pide) con las variables que usa la CSS.
 // Devuelve { lineas: ReactNode[], vars: estilo para el contenedor }.
-export function armarLineasAnimadas(clave, lineas, idDiapositiva) {
+// vel: velocidad elegida en la consola (ver velocidadLetra); acelera entradas y turnos, no los bucles.
+export function armarLineasAnimadas(clave, lineas, idDiapositiva, vel = 1) {
   const a = typeof clave === "string" ? ANIMACIONES[clave] : clave;
-  const r = a.receta || null;
+  const tiempo = BASE_TIEMPO / (Number(vel) > 0 ? Number(vel) : 1); // multiplica duraciones y retrasos
+  const r0 = a.receta || null;
+  const r = r0 ? { ...r0, velocidad: r0.velocidad / tiempo, separacion: r0.separacion * tiempo } : null;
   const rnd = semilla(`${idDiapositiva}|${lineas.join("/")}`);
   let iPal = 0, iLet = 0;
   const totalPal = lineas.reduce((n, l) => n + l.split(/\s+/).filter(Boolean).length, 0) || 1;
@@ -150,12 +167,12 @@ export function armarLineasAnimadas(clave, lineas, idDiapositiva) {
       if (r) {
         // Receta propia: cada palabra (o letra, o línea) lleva su propia animación, con su turno.
         if (esClave) vars.color = a.colorClave;
-        if (r.unidad === "palabra") vars.animation = cssAnimacion({ entrada: r.entrada, permanencia: r.permanencia, velocidad: r.velocidad, retraso: 0.15 + iPal * r.separacion });
+        if (r.unidad === "palabra") vars.animation = cssAnimacion({ entrada: r.entrada, permanencia: r.permanencia, velocidad: r.velocidad, retraso: 0.15 * tiempo + iPal * r.separacion });
       }
       const clases = "wfa-p" + (esClave ? " wfa-clave" : "");
       if (a.modo === "letra") {
         const letras = [...p].map((ch, ci) => <span key={ci} className="wfa-c" style={{ "--c": iLet + ci, "--ci": ci, "--fl": rnd().toFixed(3),
-          ...(r ? { "--dx": (rnd() * 2 - 1).toFixed(3), "--dy": (rnd() * 2 - 1).toFixed(3), "--r": (rnd() * 2 - 1).toFixed(3), animation: cssAnimacion({ entrada: r.entrada, permanencia: r.permanencia, velocidad: r.velocidad, retraso: 0.15 + (iLet + ci) * r.separacion * 0.35 }) } : {}) }}>{ch}</span>);
+          ...(r ? { "--dx": (rnd() * 2 - 1).toFixed(3), "--dy": (rnd() * 2 - 1).toFixed(3), "--r": (rnd() * 2 - 1).toFixed(3), animation: cssAnimacion({ entrada: r.entrada, permanencia: r.permanencia, velocidad: r.velocidad, retraso: 0.15 * tiempo + (iLet + ci) * r.separacion * 0.35 }) } : {}) }}>{ch}</span>);
         iLet += p.length + 1;
         partes.push(<span key={pi} className={clases} style={vars}>{letras}</span>);
       } else {
@@ -164,10 +181,10 @@ export function armarLineasAnimadas(clave, lineas, idDiapositiva) {
       iPal++;
       if (pi < palabras.length - 1) partes.push(" ");
     });
-    const estiloLinea = { "--li": li, ...(r && r.unidad === "linea" ? { animation: cssAnimacion({ entrada: r.entrada, permanencia: r.permanencia, velocidad: r.velocidad, retraso: 0.15 + li * (0.25 + r.separacion * 3) }) } : {}) };
+    const estiloLinea = { "--li": li, ...(r && r.unidad === "linea" ? { animation: cssAnimacion({ entrada: r.entrada, permanencia: r.permanencia, velocidad: r.velocidad, retraso: (0.15 + li * 0.25) * tiempo + li * r.separacion * 3 }) } : {}) };
     return <span key={li} className="wfa-linea" style={estiloLinea}>{partes}</span>;
   });
-  return { lineas: nodos, vars: { "--n": totalPal, "--nl": lineas.length, ...(r ? { "--m": "1em" } : {}) } };
+  return { lineas: nodos, vars: { "--n": totalPal, "--nl": lineas.length, "--wfv": +tiempo.toFixed(3), ...(r ? { "--m": "1em" } : {}) } };
 }
 
 // Clase CSS del contenedor de la letra: los de fábrica traen su propia CSS (.wfa-<clave>); las recetas

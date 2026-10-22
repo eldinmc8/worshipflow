@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, Copy, Globe2 } from "lucide-react";
-import { ANIMACIONES, GRUPOS_ANIMACION, animacionActiva, definicionDeReceta, MiniaturaAnimada, precargarFuentesAnimacion } from "./LetrasAnimadas.jsx";
+import { ANIMACIONES, GRUPOS_ANIMACION, animacionActiva, definicionDeReceta, MiniaturaAnimada, precargarFuentesAnimacion, VELOCIDADES_LETRA, velocidadLetra } from "./LetrasAnimadas.jsx";
 import EditorAnimacion from "./EditorAnimacion.jsx";
 import { listarAnimaciones, guardarAnimacion, borrarAnimacion } from "../lib/animacionesIglesia.js";
 import { confirmDialog } from "../lib/confirm.js";
@@ -79,6 +79,7 @@ export function SelectorAnimacion({ liveStyle, setLiveStyle, columnas = 3, igles
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {actual && <ControlVelocidadLetra liveStyle={liveStyle} setLiveStyle={setLiveStyle} />}
       <button type="button" onClick={() => setLiveStyle((s) => ({ ...s, animacion: null }))} style={{ ...tarjeta(!actual), flexDirection: "row", alignItems: "center", gap: 8, padding: "7px 10px" }}>
         <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--wf-text)" }}>Sin animación</span>
         <span style={{ fontSize: 11, color: "var(--wf-muted)" }}>La letra como siempre</span>
@@ -183,6 +184,30 @@ export function SelectorAnimacion({ liveStyle, setLiveStyle, columnas = 3, igles
           }}
         />
       )}
+    </div>
+  );
+}
+
+// Velocidad de la letra animada (pedido de Eldin, 2026-10-21): sirve para cualquier animación puesta,
+// de fábrica o de la iglesia, y se aplica de inmediato en la proyección (desde la siguiente diapositiva).
+export function ControlVelocidadLetra({ liveStyle, setLiveStyle, compacto = false }) {
+  const vel = velocidadLetra(liveStyle);
+  // La opción más cercana se marca aunque el valor guardado no sea exacto.
+  const marcada = VELOCIDADES_LETRA.reduce((m, o) => (Math.abs(o.valor - vel) < Math.abs(m.valor - vel) ? o : m), VELOCIDADES_LETRA[0]).valor;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      {!compacto && <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4 }}>VELOCIDAD DE LA LETRA</span>}
+      <div role="radiogroup" aria-label="Velocidad de la letra animada" style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 10, padding: 3, gap: 2, flexWrap: "wrap" }}>
+        {VELOCIDADES_LETRA.map((o) => {
+          const on = marcada === o.valor;
+          return (
+            <button type="button" key={o.valor} role="radio" aria-checked={on} onClick={() => setLiveStyle((s) => ({ ...s, animVelocidad: o.valor }))}
+              style={{ flex: 1, minWidth: 0, fontSize: 11.5, fontWeight: on ? 700 : 600, border: "none", borderRadius: 8, padding: "6px 8px", cursor: "pointer", whiteSpace: "nowrap",
+                background: on ? "var(--wf-card)" : "transparent", boxShadow: on ? "0 1px 3px rgba(22,50,79,0.15)" : "none", color: on ? "#B15EA0" : "var(--wf-text)" }}>{o.nombre}</button>
+          );
+        })}
+      </div>
+      {!compacto && <span style={{ fontSize: 10.5, color: "var(--wf-muted)", lineHeight: 1.4 }}>Si cantan más rápido de lo que aparece la letra, ponla en Rápida. Se nota desde la siguiente diapositiva.</span>}
     </div>
   );
 }
