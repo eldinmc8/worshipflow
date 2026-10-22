@@ -14,7 +14,7 @@ import {
   Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
   Star, LogOut, Settings, Download, Eye, EyeOff,
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
-  Type, MonitorSmartphone, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff, ClipboardPaste, PencilLine, FileText, Link2,
+  Type, MonitorSmartphone, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff, ClipboardPaste, PencilLine, FileText, Link2, ArrowUpDown,
 } from "lucide-react";
 import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion, letraEfectiva } from "./lib/letraEnVivo.js";
@@ -6975,8 +6975,13 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   // Reordenar estilo OnStage: se agarra el elemento desde cualquier parte (con el dedo, manteniéndolo
   // presionado un instante; con mouse, presionando y moviendo) y los demás se apartan para mostrar
   // dónde va a caer — ver useArrastreLista. Un bloque desplegado no se mueve hasta que se cierre.
+  // Modo "Ordenar" (pedido de Eldin, 2026-10-21): fuera de este modo el Setlist no se arrastra, para que
+  // nada se mueva por accidente al leer o hacer scroll. Dentro, la lista se ve compacta (todas las filas
+  // del mismo alto, también las diapositivas que el celular esconde) con flechas y "Mover a…".
+  const [ordenando, setOrdenando] = useState(false);
+  useEffect(() => { setOrdenando(false); }, [event.id]);
   const arrastre = useArrastreLista({
-    habilitado: canEditNow,
+    habilitado: canEditNow && ordenando,
     puedeArrastrar: (idx) => {
       const it = event.serviceOrder[idx];
       return !(it?.type === "seccion" && expandedSections[it.id]);
@@ -7086,8 +7091,19 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, gap: 8 }}>
           <h2 data-tour="evento-setlist" style={{ fontFamily: "'Fraunces', serif", fontSize: 20, margin: 0 }}>Setlist</h2>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <span style={{ fontSize: 12, color: "var(--wf-faint)" }}>{formatFullDate(event.date) || event.dateLabel}</span>
-            {puedeAgregarAlgo && (
+            {!isCompact && <span style={{ fontSize: 12, color: "var(--wf-faint)" }}>{formatFullDate(event.date) || event.dateLabel}</span>}
+            {canEditNow && event.serviceOrder.length > 1 && (
+              <button
+                onClick={() => { setOrdenando((v) => !v); setMenuItem(null); }}
+                className={ordenando ? undefined : "hoverable"}
+                title={ordenando ? "Terminar de ordenar" : "Cambiar el orden del culto"}
+                style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 800, padding: "7px 14px", borderRadius: 18, cursor: "pointer",
+                  border: ordenando ? "none" : "1px solid var(--wf-border)", background: ordenando ? "#1F8A73" : "var(--wf-card)", color: ordenando ? "#fff" : "var(--wf-text)" }}
+              >
+                {ordenando ? <><Check size={15} /> Listo</> : <><ArrowUpDown size={15} /> Ordenar</>}
+              </button>
+            )}
+            {puedeAgregarAlgo && !ordenando && (
               <button
                 data-tour="evento-editar-setlist"
                 onClick={() => { onDestinoAgregar?.(null); setShowAgregar(true); }}
@@ -7125,7 +7141,52 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
             ))}
           </div>
         )}
-        {visibleServiceOrder.map((item, idx) => {
+        {ordenando ? (
+          <div style={{ paddingBottom: 120 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--wf-text-2)", background: "var(--wf-active-bg)", border: "1px solid #1F8A73", borderRadius: 12, padding: "8px 12px", margin: "6px 0 10px" }}>
+              <ArrowUpDown size={15} color="#1F8A73" style={{ flexShrink: 0 }} />
+              <span>Arrastra cada elemento a su lugar, o usa las flechas y <b>Mover a…</b>. Toca <b>Listo</b> al terminar.</span>
+            </div>
+            {event.serviceOrder.map((item, idx) => {
+              const meta = TYPE_META[item.type] || TYPE_META.slide;
+              const Icon = meta.icon;
+              const total = event.serviceOrder.length;
+              const esBloque = item.type === "seccion";
+              const flecha = (dir) => {
+                const deshabilitado = dir < 0 ? idx === 0 : idx === total - 1;
+                return (
+                  <button type="button" onClick={() => onReorder(idx, idx + dir)} disabled={deshabilitado}
+                    aria-label={dir < 0 ? `Subir ${nombreDeItem(item)}` : `Bajar ${nombreDeItem(item)}`} title={dir < 0 ? "Subir un lugar" : "Bajar un lugar"}
+                    style={{ width: 32, height: 32, borderRadius: 9, border: "1px solid var(--wf-border)", background: "var(--wf-card)", color: "var(--wf-text)", cursor: deshabilitado ? "default" : "pointer", opacity: deshabilitado ? 0.3 : 1, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    {dir < 0 ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                );
+              };
+              return (
+                <div key={item.id} {...arrastre.filaProps(idx)} data-item-id={item.id}
+                  style={{ display: "flex", alignItems: "center", gap: 8, height: 50, boxSizing: "border-box", padding: "0 8px 0 10px", marginBottom: 6, borderRadius: 12,
+                    background: esBloque ? "rgba(124,140,216,0.16)" : "var(--wf-card)", border: esBloque ? "1px solid #5661B3" : "1px solid var(--wf-border)",
+                    ...arrastre.estiloFila(idx) }}>
+                  <GripVertical size={16} color={esBloque ? "#5661B3" : "var(--wf-faint)"} style={{ flexShrink: 0 }} />
+                  <span style={{ width: 22, fontSize: 11.5, fontWeight: 700, color: "var(--wf-faint)", textAlign: "right", flexShrink: 0 }}>{idx + 1}</span>
+                  <Icon size={15} color={meta.color} style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: esBloque ? 800 : 600, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nombreDeItem(item)}</span>
+                  {flecha(-1)}
+                  {flecha(1)}
+                  <select aria-label={`Mover ${nombreDeItem(item)} a otro lugar`} value="" onChange={(e) => { const h = Number(e.target.value); if (Number.isFinite(h) && h !== idx) onReorder(idx, h); }}
+                    style={{ width: isCompact ? 34 : 104, height: 32, borderRadius: 9, border: "1px solid var(--wf-border)", background: "var(--wf-card)", color: "var(--wf-text)", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0, padding: isCompact ? 0 : "0 6px", fontFamily: "inherit" }}>
+                    <option value="" disabled>{isCompact ? "⋯" : "Mover a…"}</option>
+                    {idx !== 0 && <option value={0}>Al principio</option>}
+                    {event.serviceOrder.map((otro, j) => (j === idx || j === idx - 1 || j === total - 1 ? null : (
+                      <option key={otro.id} value={j > idx ? j : j + 1}>Después de {j + 1}. {nombreDeItem(otro)}</option>
+                    )))}
+                    {idx !== total - 1 && <option value={total - 1}>Al final</option>}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+        ) : visibleServiceOrder.map((item, idx) => {
           const meta = TYPE_META[item.type];
           const filaArrastre = arrastre.filaProps(idx);
           if (item.type === "seccion") {
@@ -7152,7 +7213,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                 }}
               >
                 <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                  {canEditNow && <GripVertical size={14} color="#5661B3" style={{ flexShrink: 0, marginTop: 3, opacity: isExpanded ? 0.35 : 1 }} />}
+
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <input
                       value={item.title} onChange={(e) => onUpdateSeccionText(item.id, "title", e.target.value)} readOnly={!canEdit}
@@ -7299,7 +7360,6 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                   ...arrastre.estiloFila(idx),
                 }}
               >
-                {canEditNow && <GripVertical size={14} color="var(--wf-border-soft)" style={{ flexShrink: 0 }} />}
                 {item.type === "cancion" && song ? (
                   <>
                     {canEdit ? (
@@ -7406,7 +7466,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
               </button>
             ))}
           </div>
-          <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginTop: 10 }}>Luego lo puedes mover con ⋯ → Subir/Bajar, o arrastrándolo.</div>
+          <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginTop: 10 }}>Luego lo puedes mover con ⋯ → Subir/Bajar, o con el botón Ordenar.</div>
         </ModalShell>
       )}
       {/* Buscar y agregar canciones (en el celular es la forma de agregarlas; en computadora también

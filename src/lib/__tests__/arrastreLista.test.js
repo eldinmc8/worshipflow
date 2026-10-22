@@ -21,9 +21,19 @@ describe("indiceDestino", () => {
   it("es estable alrededor del punto de partida (no parpadea entre vecinas)", () => {
     for (let y = 60; y <= 138; y += 2) expect(indiceDestino(filas, 1, y)).toBe(1);
   });
-  it("tolera huecos en la foto de filas", () => {
+  it("con filas escondidas cae donde se ve, contando las escondidas", () => {
+    // La fila 1 no se dibuja (diapositiva escondida en el celular). Pasar la fila 2 = quedar después de
+    // ella en la lista real: [1, 2, X, 3] → índice 2 (antes daba 1 y caía un lugar antes).
     const conHueco = [filas[0], undefined, filas[2], filas[3]];
-    expect(indiceDestino(conHueco, 0, 150)).toBe(1);
+    expect(indiceDestino(conHueco, 0, 150)).toBe(2);
+  });
+  it("con varias escondidas en medio, sí se llega al último lugar (pedido de Eldin, 2026-10-21)", () => {
+    // Real: 0 canción, 1-4 diapositivas escondidas, 5 canción, 6 canción. Solo se ven 0, 5 y 6.
+    const f = [{ top: 0, height: 50 }, undefined, undefined, undefined, undefined, { top: 58, height: 50 }, { top: 116, height: 50 }];
+    expect(indiceDestino(f, 0, 500)).toBe(6); // al final de todo
+    expect(indiceDestino(f, 0, 90)).toBe(5); // justo después de la fila 5
+    expect(indiceDestino(f, 6, -50)).toBe(0); // subir hasta el principio
+    expect(indiceDestino(f, 6, 30)).toBe(1); // después de la primera, antes de las escondidas
   });
 });
 

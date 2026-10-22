@@ -25,12 +25,22 @@ const CAMPOS_TEXTO = "input, textarea";
 // Índice FINAL donde quedaría la fila arrastrada: cuántas de las otras filas tienen su centro por
 // encima del centro actual de la arrastrada. Usa las posiciones fotografiadas al empezar (no las de
 // ahora, que ya están desplazadas por la animación), así el resultado no parpadea.
+//
+// Las filas que no se dibujan (en el celular el Setlist esconde las diapositivas) no tienen posición:
+// el resultado se traduce a la posición REAL en la lista completa, contando también las escondidas.
+// Antes se contaban solo las visibles, y con 4 diapositivas escondidas todo caía 4 puestos antes y el
+// último lugar era imposible de alcanzar (pedido de Eldin, 2026-10-21).
 export function indiceDestino(filas, desde, centroY) {
-  let destino = 0;
-  filas.forEach((f, i) => {
-    if (i !== desde && f && f.top + f.height / 2 < centroY) destino++;
-  });
-  return destino;
+  const visibles = [];
+  filas.forEach((f, i) => { if (i !== desde && f) visibles.push(i); });
+  let k = 0; // cuántas filas visibles quedan arriba
+  visibles.forEach((i) => { const f = filas[i]; if (f.top + f.height / 2 < centroY) k++; });
+  if (visibles.length === 0) return desde;
+  // Se inserta justo después de la k-ésima fila visible (o antes de la primera, si k = 0). El índice
+  // final es cuántos elementos quedan antes, sin contar el que se mueve.
+  if (k === 0) return visibles[0] - (desde < visibles[0] ? 1 : 0);
+  const r = visibles[k - 1];
+  return r + 1 - (desde < r ? 1 : 0);
 }
 
 // Cuánto se aparta cada fila (que no es la arrastrada) para dejar el hueco en el destino.
@@ -52,10 +62,18 @@ function contenedorConScroll(el) {
 }
 
 const scrollDe = (cont) => (cont ? cont.scrollTop : window.scrollY);
+// El borde de abajo útil termina donde empieza la barra de navegación flotante: si no, la zona que
+// hace bajar la lista sola queda debajo de la barra y el dedo nunca llega a ella.
+const topeBarra = () => {
+  const barra = document.querySelector('[data-tour="nav"]');
+  const t = barra?.getBoundingClientRect().top;
+  return t && t > 0 ? t : window.innerHeight;
+};
 const limitesDe = (cont) => {
-  if (!cont) return { top: 0, bottom: window.innerHeight };
+  const tope = Math.min(window.innerHeight, topeBarra());
+  if (!cont) return { top: 0, bottom: tope };
   const r = cont.getBoundingClientRect();
-  return { top: Math.max(r.top, 0), bottom: Math.min(r.bottom, window.innerHeight) };
+  return { top: Math.max(r.top, 0), bottom: Math.min(r.bottom, tope) };
 };
 
 export function useArrastreLista({ habilitado, puedeArrastrar, onReorder }) {
