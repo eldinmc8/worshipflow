@@ -49,8 +49,11 @@ registerRoute(
 //  - cuando se cierran todas las ventanas de la app y se vuelve a abrir (comportamiento normal).
 // Las versiones viejas mandan { type: "SKIP_WAITING" } sin "manual" apenas detectan una versión nueva:
 // eso se ignora, así una consola en pleno culto no se recarga sola.
+// Celulares y tablets sí se actualizan solos aunque tengan la versión vieja abierta (nunca son la consola
+// ni la proyección): así quien quiere ver lo nuevo en su teléfono no tiene que cerrar la app del todo.
+const ES_CELULAR = /Android|iPhone|iPad|iPod|Mobile/i.test(self.navigator?.userAgent || "");
 self.addEventListener("message", (event) => {
-  if (event.data && event.data.type === "SKIP_WAITING" && event.data.manual) self.skipWaiting();
+  if (event.data && event.data.type === "SKIP_WAITING" && (event.data.manual || ES_CELULAR)) self.skipWaiting();
 });
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
