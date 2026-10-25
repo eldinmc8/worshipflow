@@ -7481,17 +7481,22 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
       {/* Buscar y agregar canciones (en el celular es la forma de agregarlas; en computadora también
           está la biblioteca a la izquierda). Se queda abierto para agregar varias seguidas. */}
       {pickerCancion && (
-        <ModalShell title="Agregar canciones" icon={Music} color="#1F8A73" onClose={() => { setPickerCancion(false); onDestinoAgregar?.(null); }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
+        <ModalShell alto title="Agregar canciones" icon={Music} color="#1F8A73" onClose={() => { setPickerCancion(false); onDestinoAgregar?.(null); }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10, flexShrink: 0 }}>
               <Search size={13} color="var(--wf-faint)" />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 13, width: "100%" }} />
             </div>
-          <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
+          <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginBottom: 10, flexShrink: 0 }}>
             {[["todos", "Todos"], ...clasificacionesActuales.map((c) => [c.clave, c.nombre])].map(([key, label]) => (
               <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 20, border: "none", background: libraryCategoryFilter === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: libraryCategoryFilter === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
             ))}
           </div>
-          <div style={{ maxHeight: "50vh", overflowY: "auto", margin: "0 -4px", padding: "0 4px" }}>
+          {/* Antes la lista medía media pantalla y en el celular solo se veían ~7 canciones, sin notarse que
+              había más (pedido de Eldin, 2026-10-25). Ahora usa casi todo el alto y dice cuántas hay. */}
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", margin: "0 2px 6px", flexShrink: 0 }}>
+            {filtered.length} {filtered.length === 1 ? "canción" : "canciones"}{libraryCategoryFilter !== "todos" ? ` en ${clasificacionesActuales.find((c) => c.clave === libraryCategoryFilter)?.nombre || "esta sección"}` : ""}{filtered.length > 6 ? " · desliza para ver todas" : ""}
+          </div>
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", margin: "0 -4px", padding: "0 4px" }}>
             {filtered.map((s) => {
               const veces = event.serviceOrder.filter((i) => i.type === "cancion" && i.songId === s.id).length;
               const numeros = numerosElegida(s.id);
@@ -7507,7 +7512,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
             })}
             {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, padding: "6px 0" }}>Ninguna canción coincide.</div>}
           </div>
-          <button onClick={() => { setPickerCancion(false); onDestinoAgregar?.(null); }} style={{ ...primaryBtn, marginTop: 10 }}>{elegidasPicker.length ? `Listo · ${elegidasPicker.length} ${elegidasPicker.length === 1 ? "canción agregada" : "canciones agregadas"}` : "Listo"}</button>
+          <button onClick={() => { setPickerCancion(false); onDestinoAgregar?.(null); }} style={{ ...primaryBtn, marginTop: 10, flexShrink: 0 }}>{elegidasPicker.length ? `Listo · ${elegidasPicker.length} ${elegidasPicker.length === 1 ? "canción agregada" : "canciones agregadas"}` : "Listo"}</button>
         </ModalShell>
       )}
       {showImportar && (
@@ -8058,7 +8063,7 @@ function AdHocVideoModal({ onClose, onPlay }) {
     </ModalShell>
   );
 }
-function ModalShell({ title, icon: Icon, color, onClose, children }) {
+function ModalShell({ title, icon: Icon, color, onClose, children, alto = false }) {
   // Portal a document.body (no un <div> normal en el sitio donde se usa <ModalShell>) — "position:
   // fixed" por sí solo no basta: si algún ancestro tiene un transform activo (ej. SongView, que anima
   // transform al deslizar entre canciones del Setlist), ese ancestro se vuelve el "contenedor" del
@@ -8067,7 +8072,10 @@ function ModalShell({ title, icon: Icon, color, onClose, children }) {
   // siempre se ve completo y centrado en la pantalla real, sin importar desde dónde se abra.
   return createPortal(
     <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
-      <div style={{ background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 16, padding: 20, width: 360, maxHeight: "80vh", overflowY: "auto" }}>
+      {/* alto: usa casi toda la pantalla y deja que una lista de adentro (flex: 1) llene el espacio. */}
+      <div style={alto
+        ? { background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 16, padding: 18, width: "min(440px, calc(100vw - 20px))", height: "calc(100dvh - 24px)", maxHeight: "calc(100vh - 24px)", boxSizing: "border-box", display: "flex", flexDirection: "column", overflow: "hidden" }
+        : { background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 16, padding: 20, width: 360, maxHeight: "80vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Icon size={16} color={color} /><span style={{ fontWeight: 700, fontSize: 14 }}>{title}</span></div>
           <button onClick={onClose} style={iconGhost}><X size={16} /></button>
