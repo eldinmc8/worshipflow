@@ -6761,8 +6761,8 @@ function EventDetail({
         </div>
       )}
       <SetlistPane
-        onAbrirEditor={isCompact ? undefined : onAbrirEditor}
-        onDisenarNueva={isCompact ? undefined : onDisenarNueva}
+        onAbrirEditor={onAbrirEditor}
+        onDisenarNueva={onDisenarNueva}
         myIglesiaId={myIglesiaId}
         event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer || puedeEditarSetlist} userId={userId} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onAddSeccion={onAddSeccion}
@@ -7352,7 +7352,9 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
           }
           // En el celular las diapositivas no se muestran (pedido de Eldin, 2026-10-10): ahí solo sirven
           // los cantos y el orden; las diapositivas se preparan y proyectan desde la computadora.
-          if (isCompact && item.type === "slide" && !item.isSermonPoint) return null;
+          // Excepción (2026-10-25, diseñador en el celular): las diapositivas DISEÑADAS sí se ven, para poder
+          // abrir y retocar desde el teléfono los anuncios que se hicieron ahí.
+          if (isCompact && item.type === "slide" && !item.isSermonPoint && !esGrupoDiapositivas(item)) return null;
           const song = item.type === "cancion" ? library.find((s) => s.id === item.songId) : null;
           const effectiveKey = song ? item.keyOverride || song.key : null;
           const Icon = meta.icon;

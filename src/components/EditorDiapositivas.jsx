@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Undo2, Redo2, Type, ImagePlus, PaintBucket, AlignLeft, AlignCenter, AlignRight, AlignStartVertical, AlignCenterVertical, AlignEndVertical,
-  Copy, BringToFront, SendToBack, Trash2, LayoutTemplate, Plus, Bold, Italic, Loader2, ClipboardPaste, CopyPlus, Shapes, Smile, Search, BookmarkPlus, RotateCcw, X as XIcon, Play, Sparkles,
+  Copy, BringToFront, SendToBack, Trash2, LayoutTemplate, Plus, Bold, Italic, Loader2, ClipboardPaste, CopyPlus, Shapes, Smile, Search, BookmarkPlus, RotateCcw, X as XIcon, Play, Sparkles, SlidersHorizontal, Layers,
 } from "lucide-react";
 import { listarPlantillasIglesia, guardarPlantillaIglesia, borrarPlantillaIglesia } from "../lib/plantillasIglesia.js";
 import { ICONOS_DISENO } from "./iconosDiseno.js";
@@ -17,10 +17,13 @@ import { useArrastreLista } from "../lib/arrastreLista.js";
 import { confirmDialog, promptDialog } from "../lib/confirm.js";
 import { notifyError, showToast } from "../lib/toast.js";
 
-// Editor de diapositivas (pedido de Eldin, 2026-10-10) — SOLO escritorio, tipo PowerPoint:
+// Editor de diapositivas (pedido de Eldin, 2026-10-10) — en computadora, tipo PowerPoint:
 // a la izquierda las diapositivas del grupo (reordenar arrastrando, duplicar, copiar/pegar), al centro
 // el lienzo 16:9 (arrastrar, estirar desde las esquinas, guías al centrar, doble clic para escribir) y
 // a la derecha las opciones de lo seleccionado. Nada se guarda ni sale en pantalla hasta "Listo".
+// En el celular (pedido de Eldin, 2026-10-25: "una versión móvil como en Canva, para hacer anuncios"):
+// el lienzo arriba, las diapositivas en una tira y las herramientas en una barra abajo que abre hojas
+// (Plantillas, Texto, Imagen, Forma, Ícono, Fondo, Editar). Mismas funciones, solo otro acomodo.
 
 // Portapapeles compartido entre aperturas del editor: copiar en un grupo y pegar en otro.
 let portapapeles = null; // { tipo: "capa", capa } | { tipo: "diapositiva", diapositiva }
@@ -106,7 +109,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
   const [editandoTexto, setEditandoTexto] = useState(null);
   const [guias, setGuias] = useState({ x: null, y: null });
   const [menu, setMenu] = useState(null); // { x, y, indice } — clic derecho en una miniatura
-  const [plantillasAbiertas, setPlantillasAbiertas] = useState(nueva); // una diapositiva nueva abre con las plantillas a la vista
+  const [plantillasAbiertas, setPlantillasAbiertas] = useState(nueva && !(typeof window !== "undefined" && window.innerWidth < 768)); // una diapositiva nueva abre con las plantillas a la vista
   const [panelInsertar, setPanelInsertar] = useState(null); // null | "formas" | "iconos"
   const [buscarIcono, setBuscarIcono] = useState("");
   // Plantillas propias de la iglesia (null = todavía no se cargan, o la tabla no existe aún).
@@ -122,6 +125,15 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
   const [subiendo, setSubiendo] = useState(false);
   const [zona, setZona] = useState("lienzo"); // dónde fue el último clic: "lienzo" | "lista" (para Supr)
   const [lienzoPx, setLienzoPx] = useState({ w: 960, h: 540 });
+  const [movil, setMovil] = useState(() => typeof window !== "undefined" && window.innerWidth < 768);
+  useEffect(() => {
+    const f = () => setMovil(window.innerWidth < 768);
+    window.addEventListener("resize", f);
+    return () => window.removeEventListener("resize", f);
+  }, []);
+  const movilRef = useRef(movil);
+  movilRef.current = movil;
+  const [hoja, setHoja] = useState(nueva && typeof window !== "undefined" && window.innerWidth < 768 ? "plantillas" : null); // celular: qué hoja de herramientas está abierta
   const areaRef = useRef(null);
   const lienzoRef = useRef(null);
   const gestoRef = useRef(null);
@@ -157,14 +169,15 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
     if (!el) return;
     const medir = () => {
       const r = el.getBoundingClientRect();
-      const w = Math.max(320, Math.min(r.width - 64, ((r.height - 64) * 16) / 9));
+      const m = movilRef.current ? 16 : 64;
+      const w = Math.max(movilRef.current ? 160 : 320, Math.min(r.width - m, ((r.height - m) * 16) / 9));
       setLienzoPx({ w, h: (w * 9) / 16 });
     };
     medir();
     const ro = new ResizeObserver(medir);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [movil]);
 
   // ---- Arrastrar / estirar capas ----
   const iniciarGesto = (e, c, modo) => {
@@ -220,11 +233,13 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
     const c = nuevaCapaTexto();
     cambiarDiap((d) => ({ ...d, capas: [...d.capas, c] }));
     setCapaSel(c.id);
+    if (movilRef.current) { setHoja("editar"); return; }
     setTimeout(() => { setEditandoTexto(c.id); }, 0);
   };
   const agregarCapa = (c) => {
     cambiarDiap((d) => ({ ...d, capas: [...d.capas, c] }));
     setCapaSel(c.id); setEditandoTexto(null); setPanelInsertar(null); setZona("lienzo");
+    if (movilRef.current) setHoja(null);
   };
   const elegirImagen = async (file, destino) => {
     if (!file) return;
@@ -389,34 +404,9 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
   const cursorAsa = { nw: "nwse-resize", se: "nwse-resize", ne: "nesw-resize", sw: "nesw-resize", n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize" };
   const fondo = diap?.fondo || {};
 
-  return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: C.fondo, color: C.texto, display: "flex", flexDirection: "column", fontFamily: "'Poppins', sans-serif" }} onPointerDown={() => { if (menu) setMenu(null); if (plantillasAbiertas) setPlantillasAbiertas(false); if (panelInsertar) setPanelInsertar(null); }}>
-      {/* Barra superior */}
-      <div style={{ height: 54, background: C.marino, display: "flex", alignItems: "center", gap: 12, padding: "0 16px", flexShrink: 0 }}>
-        <span style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, whiteSpace: "nowrap" }}>Diseño de diapositivas</span>
-        <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Nombre del grupo" aria-label="Nombre del grupo" style={{ ...estiloCampo, width: 280, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)" }} />
-        <span style={{ fontSize: 12, color: "#C9D1DC" }}>{diaps.length} diapositiva{diaps.length === 1 ? "" : "s"}</span>
-        <div style={{ flex: 1 }} />
-        {subiendo && <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#C9D1DC" }}><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Subiendo imagen…</span>}
-        <button onClick={cerrar} style={{ background: "transparent", color: "#fff", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 10, padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Cancelar</button>
-        <button onClick={listo} disabled={subiendo} style={{ background: C.naranja, color: C.marino, border: "none", borderRadius: 10, padding: "8px 16px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>{alAire ? "Listo y actualizar pantalla" : "Listo"}</button>
-      </div>
-
-      {/* Cinta */}
-      <div style={{ display: "flex", alignItems: "stretch", padding: "8px 8px 6px", background: C.cinta, borderBottom: `1px solid ${C.borde}`, flexShrink: 0, position: "relative", zIndex: 3 }}>
-        <GrupoCinta label="Edición">
-          <BotonCinta icon={Undo2} label="Deshacer" onClick={deshacer} deshabilitado={!hist.pasado.length} titulo="Deshacer (Ctrl+Z)" />
-          <BotonCinta icon={Redo2} label="Rehacer" onClick={rehacer} deshabilitado={!hist.futuro.length} titulo="Rehacer (Ctrl+Y)" />
-        </GrupoCinta>
-        <GrupoCinta label="Insertar">
-          <BotonCinta icon={Type} label="Texto" onClick={agregarTexto} />
-          <BotonCinta icon={ImagePlus} label="Imagen" onClick={() => inputImagenRef.current?.click()} />
-          <div style={{ position: "relative" }} onPointerDown={(e) => e.stopPropagation()}>
-            <BotonCinta icon={Shapes} label="Forma" onClick={() => setPanelInsertar((p) => (p === "formas" ? null : "formas"))} activo={panelInsertar === "formas"} titulo="Rectángulo, círculo, línea, franja, marco" />
-            {panelInsertar === "formas" && (
-              <div style={{ position: "absolute", top: 58, left: 0, zIndex: 5, background: C.panel, border: `1px solid ${C.bordeCampo}`, borderRadius: 12, padding: 10, width: 300, boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>
-                <div style={{ ...etiqueta, marginBottom: 8 }}>Formas</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+  // Piezas compartidas entre la versión de computadora y la del celular.
+  const gridFormas = (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                   {FORMAS.map((f) => {
                     const ej = nuevaCapaForma(f.clave);
                     return (
@@ -430,18 +420,10 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
                     );
                   })}
                 </div>
-              </div>
-            )}
-          </div>
-          <div style={{ position: "relative" }} onPointerDown={(e) => e.stopPropagation()}>
-            <BotonCinta icon={Smile} label="Ícono" onClick={() => setPanelInsertar((p) => (p === "iconos" ? null : "iconos"))} activo={panelInsertar === "iconos"} titulo="Cruz, paloma, Biblia, corazón, micrófono…" />
-            {panelInsertar === "iconos" && (
-              <div style={{ position: "absolute", top: 58, left: 0, zIndex: 5, background: C.panel, border: `1px solid ${C.bordeCampo}`, borderRadius: 12, padding: 10, width: 380, maxHeight: "62vh", overflowY: "auto", boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, ...estiloCampo, marginBottom: 10 }}>
-                  <Search size={14} color={C.suave} />
-                  <input autoFocus value={buscarIcono} onChange={(e) => setBuscarIcono(e.target.value)} placeholder="Buscar: cruz, música, fecha…" style={{ background: "transparent", border: "none", outline: "none", color: C.texto, fontSize: 12.5, flex: 1, fontFamily: "inherit" }} />
-                </div>
-                {[...new Set(ICONOS_DISENO.map((i) => i.grupo))].map((grupo) => {
+  );
+  const listaIconos = (
+    <>
+    {[...new Set(ICONOS_DISENO.map((i) => i.grupo))].map((grupo) => {
                   const q = buscarIcono.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                   const lista = ICONOS_DISENO.filter((i) => i.grupo === grupo && (!q || `${i.nombre} ${i.clave}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(q)));
                   if (!lista.length) return null;
@@ -460,35 +442,11 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
                     </div>
                   );
                 })}
-              </div>
-            )}
-          </div>
-          <BotonCinta icon={PaintBucket} label="Fondo" onClick={() => { setCapaSel(null); setEditandoTexto(null); }} activo={!capa} titulo="Opciones del fondo (a la derecha)" />
-        </GrupoCinta>
-        <GrupoCinta label="Alinear en la diapositiva">
-          <BotonCinta icon={AlignLeft} label="Izquierda" onClick={() => alinearCapa("x", 0)} deshabilitado={!capa} />
-          <BotonCinta icon={AlignCenter} label="Centrar" onClick={() => alinearCapa("x", 1)} deshabilitado={!capa} />
-          <BotonCinta icon={AlignRight} label="Derecha" onClick={() => alinearCapa("x", 2)} deshabilitado={!capa} />
-          <BotonCinta icon={AlignStartVertical} label="Arriba" onClick={() => alinearCapa("y", 0)} deshabilitado={!capa} />
-          <BotonCinta icon={AlignCenterVertical} label="Medio" onClick={() => alinearCapa("y", 1)} deshabilitado={!capa} />
-          <BotonCinta icon={AlignEndVertical} label="Abajo" onClick={() => alinearCapa("y", 2)} deshabilitado={!capa} />
-        </GrupoCinta>
-        <GrupoCinta label="Objeto">
-          <BotonCinta icon={Copy} label="Duplicar" onClick={duplicarCapa} deshabilitado={!capa} titulo="Duplicar (Ctrl+D)" />
-          <BotonCinta icon={BringToFront} label="Al frente" onClick={() => ordenCapa(true)} deshabilitado={!capa} />
-          <BotonCinta icon={SendToBack} label="Atrás" onClick={() => ordenCapa(false)} deshabilitado={!capa} />
-          <BotonCinta icon={Trash2} label="Eliminar" onClick={borrarCapa} deshabilitado={!capa} titulo="Eliminar (Supr)" />
-        </GrupoCinta>
-        <GrupoCinta label="Animación">
-          <BotonCinta icon={Play} label="Reproducir" onClick={() => setVistaPrevia({ paso: 0, vuelta: Date.now() })} titulo="Ver las animaciones de esta diapositiva como en la proyección" />
-        </GrupoCinta>
-        <GrupoCinta label="Diseños" ultimo>
-          <BotonCinta icon={BookmarkPlus} label="Guardar plantilla" onClick={guardarComoPlantilla} titulo="Guardar esta diapositiva como plantilla de tu iglesia, para reusarla" />
-          <div style={{ position: "relative" }} onPointerDown={(e) => e.stopPropagation()}>
-            <BotonCinta icon={LayoutTemplate} label="Plantillas" onClick={() => setPlantillasAbiertas((v) => !v)} activo={plantillasAbiertas} />
-            {plantillasAbiertas && (
-              <div style={{ position: "absolute", top: 58, right: 0, zIndex: 5, background: C.panel, border: `1px solid ${C.bordeCampo}`, borderRadius: 12, padding: 10, width: 560, maxHeight: "70vh", overflowY: "auto", boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>
-                {misPlantillas?.length > 0 && (
+    </>
+  );
+  const contenidoPlantillas = (
+    <>
+    {misPlantillas?.length > 0 && (
                   <>
                     <div style={{ ...etiqueta, marginBottom: 8 }}>De mi iglesia</div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
@@ -516,97 +474,10 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
                     );
                   })}
                 </div>
-              </div>
-            )}
-          </div>
-        </GrupoCinta>
-      </div>
-
-      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-        {/* Diapositivas del grupo */}
-        <div style={{ width: 220, flexShrink: 0, background: C.panel, borderRight: `1px solid ${C.borde}`, overflowY: "auto", padding: 12 }} onPointerDown={() => setZona("lista")}>
-          <div style={{ ...etiqueta }}>Diapositivas</div>
-          {diaps.map((d, i) => (
-            <div
-              key={d.id} {...arrastre.filaProps(i)}
-              onClick={() => { setSel(i); setCapaSel(null); setEditandoTexto(null); setZona("lista"); }}
-              onContextMenu={(e) => { e.preventDefault(); setSel(i); setZona("lista"); setMenu({ x: e.clientX, y: e.clientY, indice: i }); }}
-              style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 10, cursor: "pointer", ...arrastre.estiloFila(i) }}
-            >
-              <span style={{ fontSize: 11, color: C.suave, width: 14, textAlign: "right", paddingTop: 4 }}>{i + 1}</span>
-              <div style={{ position: "relative", flex: 1, aspectRatio: "16/9", borderRadius: 8, overflow: "hidden", outline: i === sel ? `2px solid ${C.naranja}` : `1px solid ${C.bordeCampo}`, outlineOffset: i === sel ? 1 : 0 }}>
-                <DiapositivaDisenada diapositiva={d} />
-              </div>
-            </div>
-          ))}
-          <button onClick={() => insertarDiapositiva(nuevaDiapositiva(), diaps.length - 1)} style={{ width: "100%", aspectRatio: "16/9", marginLeft: 22, maxWidth: "calc(100% - 22px)", borderRadius: 8, border: `2px dashed ${C.bordeCampo}`, background: "transparent", color: C.tenue, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, fontSize: 12 }}>
-            <Plus size={16} /> Nueva diapositiva
-          </button>
-          <div style={{ fontSize: 10.5, color: C.tenue, marginTop: 10, lineHeight: 1.5 }}>Arrastra para cambiar el orden. Clic derecho para duplicar, copiar o borrar.</div>
-        </div>
-
-        {/* Lienzo */}
-        <div ref={areaRef} style={{ flex: 1, minWidth: 0, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", background: "#0B1017" }}
-          onPointerDown={() => { setZona("lienzo"); setCapaSel(null); setEditandoTexto(null); }}>
-          <div style={{ position: "relative", width: lienzoPx.w, height: lienzoPx.h, boxShadow: "0 10px 40px rgba(0,0,0,0.55)" }} onPointerDown={(e) => e.stopPropagation()}>
-            <DiapositivaDisenada diapositiva={diap ? { ...diap, capas: diap.capas.filter((c) => c.id !== editandoTexto) } : null} lienzoRef={lienzoRef} onPointerDownLienzo={() => { setZona("lienzo"); setCapaSel(null); setEditandoTexto(null); }}>
-              {guias.x !== null && <div style={{ position: "absolute", left: `${guias.x}%`, top: 0, bottom: 0, width: 1, background: "#FF4FA3", pointerEvents: "none" }} />}
-              {guias.y !== null && <div style={{ position: "absolute", top: `${guias.y}%`, left: 0, right: 0, height: 1, background: "#FF4FA3", pointerEvents: "none" }} />}
-              {(diap?.capas || []).map((c) => {
-                const seleccionada = c.id === capaSel;
-                if (c.id === editandoTexto) {
-                  return (
-                    <textarea
-                      key={c.id} ref={textareaRef} value={c.texto}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onFocus={marcarHistoria}
-                      onChange={(e) => cambiarCapa({ texto: e.target.value }, { guardarHistoria: false })}
-                      onBlur={() => setEditandoTexto(null)}
-                      style={{
-                        position: "absolute", left: `${c.x}%`, top: `${c.y}%`, width: `${c.w}%`, height: `${c.h}%`, boxSizing: "border-box", resize: "none",
-                        background: c.caja || "rgba(0,0,0,0.25)", border: `2px solid ${C.azul}`, borderRadius: (c.radio || 0) * escala, outline: "none",
-                        padding: c.caja ? `${18 * escala}px ${32 * escala}px` : 0, margin: 0, overflow: "hidden",
-                        fontFamily: familiaDe(c.fuente), fontSize: (c.tamano || 64) * escala, color: c.color, fontWeight: c.negrita ? 700 : 400, fontStyle: c.cursiva ? "italic" : "normal",
-                        textAlign: c.alinear || "center", lineHeight: 1.2, transform: c.rotacion ? `rotate(${c.rotacion}deg)` : undefined,
-                      }}
-                    />
-                  );
-                }
-                return (
-                  <div
-                    key={c.id}
-                    onPointerDown={(e) => iniciarGesto(e, c, "mover")} onPointerMove={moverGesto} onPointerUp={terminarGesto} onPointerCancel={terminarGesto}
-                    onDoubleClick={() => { if (c.tipo === "texto") setEditandoTexto(c.id); else setCapaSel(c.id); }}
-                    title={c.tipo === "texto" ? "Doble clic para escribir" : undefined}
-                    style={{ position: "absolute", left: `${c.x}%`, top: `${c.y}%`, width: `${c.w}%`, height: `${c.h}%`, boxSizing: "border-box", cursor: "move", outline: seleccionada ? `2px solid ${C.azul}` : "1px dashed transparent", touchAction: "none", transform: c.rotacion ? `rotate(${c.rotacion}deg)` : undefined }}
-                    onMouseEnter={(e) => { if (!seleccionada) e.currentTarget.style.outline = "1px dashed rgba(255,255,255,0.6)"; }}
-                    onMouseLeave={(e) => { if (!seleccionada) e.currentTarget.style.outline = "1px dashed transparent"; }}
-                  >
-                    {c.anim && (
-                      <span title={c.anim.paso > 0 ? `Aparece con el clic ${c.anim.paso}` : "Tiene animación"} style={{ position: "absolute", top: -9, right: 14, minWidth: 18, height: 18, padding: "0 4px", borderRadius: 9, background: C.naranja, color: C.marino, fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 2, pointerEvents: "none", boxSizing: "border-box" }}>
-                        {c.anim.paso > 0 ? c.anim.paso : <Sparkles size={10} />}
-                      </span>
-                    )}
-                    {seleccionada && asas.map((a) => (
-                      <span
-                        key={a}
-                        onPointerDown={(e) => iniciarGesto(e, c, a)} onPointerMove={moverGesto} onPointerUp={terminarGesto} onPointerCancel={terminarGesto}
-                        style={{ position: "absolute", left: `${posAsa[a][0]}%`, top: `${posAsa[a][1]}%`, width: 11, height: 11, marginLeft: -6, marginTop: -6, background: "#fff", border: `2px solid ${C.azul}`, borderRadius: 3, cursor: cursorAsa[a], boxSizing: "border-box", touchAction: "none" }}
-                      />
-                    ))}
-                  </div>
-                );
-              })}
-            </DiapositivaDisenada>
-          </div>
-          <div style={{ position: "absolute", left: 16, bottom: 12, fontSize: 11.5, color: C.tenue }}>
-            {capa ? (capa.tipo === "texto" ? "Texto seleccionado · Doble clic para escribir · Flechas para mover · Alt = sin guías" : `${capa.tipo === "forma" ? "Forma seleccionada" : capa.tipo === "icono" ? "Ícono seleccionado" : "Imagen seleccionada"} · Arrastra las esquinas para cambiar el tamaño · Shift = libre`) : "Clic en un elemento para seleccionarlo"}
-          </div>
-          <div style={{ position: "absolute", right: 16, bottom: 12, fontSize: 11.5, color: C.tenue }}>Diapositiva {sel + 1} de {diaps.length} · 16:9</div>
-        </div>
-
-        {/* Propiedades */}
-        <div style={{ width: 290, flexShrink: 0, background: C.panel, borderLeft: `1px solid ${C.borde}`, overflowY: "auto", padding: 16, fontSize: 12.5 }}>
+    </>
+  );
+  const panelPropiedades = (
+    <>
           {capa?.tipo === "texto" ? (
             <>
               <div style={{ ...etiqueta, fontSize: 12, color: C.texto }}>Texto</div>
@@ -687,7 +558,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
             </>
           ) : (
             <>
-              <div style={{ ...etiqueta, fontSize: 12, color: C.texto }}>Fondo de la diapositiva</div>
+              {!movil && <div style={{ ...etiqueta, fontSize: 12, color: C.texto }}>Fondo de la diapositiva</div>}
               <div style={{ marginBottom: 14 }}><div style={etiqueta}>Color</div><Muestras valor={fondo.tipo === "degradado" ? null : fondo.color} onCambiar={(v) => cambiarDiap((d) => ({ ...d, fondo: { ...d.fondo, color: v, ...(d.fondo?.tipo === "imagen" || d.fondo?.tipo === "video" ? {} : { tipo: "color" }) } }))} /></div>
               <div style={{ marginBottom: 14 }}>
                 <div style={etiqueta}>Degradado</div>
@@ -724,7 +595,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
                   <button onClick={() => inputFondoRef.current?.click()} style={{ ...estiloCampo, cursor: "pointer" }}>Subir imagen…</button>
                 )}
               </div>
-              <div style={{ fontSize: 11.5, color: C.tenue, lineHeight: 1.6 }}>Usa <b>Texto</b>, <b>Imagen</b>, <b>Forma</b> o <b>Ícono</b> arriba para agregar algo encima. Las páginas de un PDF quedan como fondo: puedes ponerles texto o un logo encima sin rehacer el archivo.</div>
+              <div style={{ fontSize: 11.5, color: C.tenue, lineHeight: 1.6 }}>Usa <b>Texto</b>, <b>Imagen</b>, <b>Forma</b> o <b>Ícono</b> {movil ? "abajo" : "arriba"} para agregar algo encima. Las páginas de un PDF quedan como fondo: puedes ponerles texto o un logo encima sin rehacer el archivo.</div>
             </>
           )}
           {capa && (
@@ -801,13 +672,64 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
               </div>
             </div>
           )}
-          <div style={{ marginTop: 18, padding: 10, borderRadius: 10, background: C.campo, color: C.suave, fontSize: 11, lineHeight: 1.6 }}>
-            Ctrl+C / Ctrl+V copia y pega (también entre grupos) · Ctrl+D duplica · Supr elimina · Ctrl+Z deshace · Flechas mueven lo seleccionado
-          </div>
-        </div>
-      </div>
+    </>
+  );
 
-      {vistaPrevia && (
+  const lienzoJSX = (
+          <div style={{ position: "relative", width: lienzoPx.w, height: lienzoPx.h, boxShadow: "0 10px 40px rgba(0,0,0,0.55)" }} onPointerDown={(e) => e.stopPropagation()}>
+            <DiapositivaDisenada diapositiva={diap ? { ...diap, capas: diap.capas.filter((c) => c.id !== editandoTexto) } : null} lienzoRef={lienzoRef} onPointerDownLienzo={() => { setZona("lienzo"); setCapaSel(null); setEditandoTexto(null); }}>
+              {guias.x !== null && <div style={{ position: "absolute", left: `${guias.x}%`, top: 0, bottom: 0, width: 1, background: "#FF4FA3", pointerEvents: "none" }} />}
+              {guias.y !== null && <div style={{ position: "absolute", top: `${guias.y}%`, left: 0, right: 0, height: 1, background: "#FF4FA3", pointerEvents: "none" }} />}
+              {(diap?.capas || []).map((c) => {
+                const seleccionada = c.id === capaSel;
+                if (c.id === editandoTexto) {
+                  return (
+                    <textarea
+                      key={c.id} ref={textareaRef} value={c.texto}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onFocus={marcarHistoria}
+                      onChange={(e) => cambiarCapa({ texto: e.target.value }, { guardarHistoria: false })}
+                      onBlur={() => setEditandoTexto(null)}
+                      style={{
+                        position: "absolute", left: `${c.x}%`, top: `${c.y}%`, width: `${c.w}%`, height: `${c.h}%`, boxSizing: "border-box", resize: "none",
+                        background: c.caja || "rgba(0,0,0,0.25)", border: `2px solid ${C.azul}`, borderRadius: (c.radio || 0) * escala, outline: "none",
+                        padding: c.caja ? `${18 * escala}px ${32 * escala}px` : 0, margin: 0, overflow: "hidden",
+                        fontFamily: familiaDe(c.fuente), fontSize: (c.tamano || 64) * escala, color: c.color, fontWeight: c.negrita ? 700 : 400, fontStyle: c.cursiva ? "italic" : "normal",
+                        textAlign: c.alinear || "center", lineHeight: 1.2, transform: c.rotacion ? `rotate(${c.rotacion}deg)` : undefined,
+                      }}
+                    />
+                  );
+                }
+                return (
+                  <div
+                    key={c.id}
+                    onPointerDown={(e) => iniciarGesto(e, c, "mover")} onPointerMove={moverGesto} onPointerUp={terminarGesto} onPointerCancel={terminarGesto}
+                    onDoubleClick={() => { if (movil) { setCapaSel(c.id); setHoja("editar"); return; } if (c.tipo === "texto") setEditandoTexto(c.id); else setCapaSel(c.id); }}
+                    title={c.tipo === "texto" ? "Doble clic para escribir" : undefined}
+                    style={{ position: "absolute", left: `${c.x}%`, top: `${c.y}%`, width: `${c.w}%`, height: `${c.h}%`, boxSizing: "border-box", cursor: "move", outline: seleccionada ? `2px solid ${C.azul}` : "1px dashed transparent", touchAction: "none", transform: c.rotacion ? `rotate(${c.rotacion}deg)` : undefined }}
+                    onMouseEnter={(e) => { if (!seleccionada) e.currentTarget.style.outline = "1px dashed rgba(255,255,255,0.6)"; }}
+                    onMouseLeave={(e) => { if (!seleccionada) e.currentTarget.style.outline = "1px dashed transparent"; }}
+                  >
+                    {c.anim && (
+                      <span title={c.anim.paso > 0 ? `Aparece con el clic ${c.anim.paso}` : "Tiene animación"} style={{ position: "absolute", top: -9, right: 14, minWidth: 18, height: 18, padding: "0 4px", borderRadius: 9, background: C.naranja, color: C.marino, fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 2, pointerEvents: "none", boxSizing: "border-box" }}>
+                        {c.anim.paso > 0 ? c.anim.paso : <Sparkles size={10} />}
+                      </span>
+                    )}
+                    {seleccionada && asas.filter((a) => !movil || a.length === 2).map((a) => (
+                      <span
+                        key={a}
+                        onPointerDown={(e) => iniciarGesto(e, c, a)} onPointerMove={moverGesto} onPointerUp={terminarGesto} onPointerCancel={terminarGesto}
+                        style={{ position: "absolute", left: `${posAsa[a][0]}%`, top: `${posAsa[a][1]}%`, width: movil ? 20 : 11, height: movil ? 20 : 11, marginLeft: movil ? -10 : -6, marginTop: movil ? -10 : -6, background: "#fff", border: `2px solid ${C.azul}`, borderRadius: 3, cursor: cursorAsa[a], boxSizing: "border-box", touchAction: "none" }}
+                      />
+                    ))}
+                  </div>
+                );
+              })}
+            </DiapositivaDisenada>
+          </div>
+  );
+  const vistaPreviaJSX = vistaPrevia ? (
+
         <div onPointerDown={(e) => e.stopPropagation()} onClick={() => setVistaPrevia((v) => (v.paso < pasosDiap ? { ...v, paso: v.paso + 1 } : null))}
           style={{ position: "fixed", inset: 0, zIndex: 9200, background: "#000", cursor: "pointer" }}>
           <DiapositivaDisenada key={vistaPrevia.vuelta} diapositiva={diap} animar paso={vistaPrevia.paso} />
@@ -819,7 +741,247 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
           <button onClick={(e) => { e.stopPropagation(); setVistaPrevia({ paso: 0, vuelta: Date.now() }); }} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,.15)", color: "#fff", border: "none", borderRadius: 999, padding: "7px 12px", fontSize: 12.5, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}><RotateCcw size={14} /> Repetir</button>
           <button onClick={(e) => { e.stopPropagation(); setVistaPrevia(null); }} aria-label="Cerrar vista previa" style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,.15)", color: "#fff", border: "none", borderRadius: 999, width: 34, height: 34, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XIcon size={16} /></button>
         </div>
-      )}
+  ) : null;
+  const inputsJSX = (
+    <>
+      <input ref={inputImagenRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: "none" }}
+        onChange={(e) => { const f = e.target.files?.[0]; const destino = e.target.dataset.destino || "capa"; e.target.value = ""; e.target.dataset.destino = ""; elegirImagen(f, destino); }} />
+      <input ref={inputFondoRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: "none" }}
+        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; elegirImagen(f, "fondo"); }} />
+    </>
+  );
+
+  // ---------------- Celular ----------------
+  if (movil) {
+    const herramientas = [
+      ["plantillas", LayoutTemplate, "Plantillas", () => setHoja((h) => (h === "plantillas" ? null : "plantillas"))],
+      ["texto", Type, "Texto", () => agregarTexto()],
+      ["imagen", ImagePlus, "Imagen", () => inputImagenRef.current?.click()],
+      ["formas", Shapes, "Forma", () => setHoja((h) => (h === "formas" ? null : "formas"))],
+      ["iconos", Smile, "Ícono", () => setHoja((h) => (h === "iconos" ? null : "iconos"))],
+      ["fondo", PaintBucket, "Fondo", () => { setCapaSel(null); setHoja((h) => (h === "fondo" ? null : "fondo")); }],
+      ["diapos", Layers, "Diapositiva", () => setHoja((h) => (h === "diapos" ? null : "diapos"))],
+    ];
+    const tituloHoja = { plantillas: "Plantillas", formas: "Formas", iconos: "Íconos", fondo: "Fondo de la diapositiva", editar: capa ? ({ texto: "Texto", imagen: "Imagen", forma: "Forma", icono: "Ícono" }[capa.tipo] || "Editar") : "Editar", diapos: `Diapositiva ${sel + 1} de ${diaps.length}` }[hoja];
+    const botonAccion = (Icon, label, onClick, peligro) => (
+      <button onClick={onClick} style={{ flex: 1, minWidth: 64, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "8px 4px", borderRadius: 10, border: `1px solid ${C.bordeCampo}`, background: C.campo, color: peligro ? "#FF8A80" : C.texto, fontSize: 11, cursor: "pointer" }}>
+        <Icon size={18} />{label}
+      </button>
+    );
+    return createPortal(
+      <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: C.fondo, color: C.texto, display: "flex", flexDirection: "column", fontFamily: "'Poppins', sans-serif" }}>
+        {/* Barra superior */}
+        <div style={{ height: 52, background: C.marino, display: "flex", alignItems: "center", gap: 6, padding: "0 8px", flexShrink: 0 }}>
+          <button onClick={cerrar} aria-label="Cancelar" style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: "transparent", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><XIcon size={20} /></button>
+          <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Nombre" aria-label="Nombre del grupo" style={{ ...estiloCampo, flex: 1, minWidth: 0, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)", fontSize: 14 }} />
+          <button onClick={deshacer} disabled={!hist.pasado.length} aria-label="Deshacer" style={{ width: 34, height: 36, border: "none", background: "transparent", color: hist.pasado.length ? "#fff" : "#5A6578", display: "flex", alignItems: "center", justifyContent: "center" }}><Undo2 size={18} /></button>
+          <button onClick={rehacer} disabled={!hist.futuro.length} aria-label="Rehacer" style={{ width: 34, height: 36, border: "none", background: "transparent", color: hist.futuro.length ? "#fff" : "#5A6578", display: "flex", alignItems: "center", justifyContent: "center" }}><Redo2 size={18} /></button>
+          <button onClick={listo} disabled={subiendo} style={{ background: C.naranja, color: C.marino, border: "none", borderRadius: 10, padding: "8px 12px", fontSize: 13, fontWeight: 800, cursor: "pointer", flexShrink: 0 }}>{subiendo ? "Subiendo…" : "Listo"}</button>
+        </div>
+
+        {/* Lienzo */}
+        <div ref={areaRef} style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", background: "#0B1017" }}
+          onPointerDown={() => { setCapaSel(null); setEditandoTexto(null); if (hoja === "editar") setHoja(null); }}>
+{lienzoJSX}
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: 6, textAlign: "center", fontSize: 11, color: C.tenue, pointerEvents: "none" }}>
+            {capa ? "Arrastra para mover · esquinas para el tamaño · toca dos veces para editar" : "Toca un elemento para moverlo"}
+          </div>
+        </div>
+
+        {/* Tira de diapositivas */}
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "8px 10px", background: C.panel, borderTop: `1px solid ${C.borde}`, flexShrink: 0 }}>
+          {diaps.map((d, i) => (
+            <button key={d.id} onClick={() => { setSel(i); setCapaSel(null); setEditandoTexto(null); }} aria-label={`Diapositiva ${i + 1}`}
+              style={{ position: "relative", flexShrink: 0, width: 88, aspectRatio: "16/9", borderRadius: 7, overflow: "hidden", padding: 0, border: "none", outline: i === sel ? `2px solid ${C.naranja}` : `1px solid ${C.bordeCampo}`, outlineOffset: i === sel ? 1 : 0, background: "#000", cursor: "pointer" }}>
+              <DiapositivaDisenada diapositiva={d} />
+              <span style={{ position: "absolute", left: 3, top: 2, fontSize: 9.5, fontWeight: 700, color: "#fff", textShadow: "0 1px 2px #000" }}>{i + 1}</span>
+            </button>
+          ))}
+          <button onClick={() => insertarDiapositiva(nuevaDiapositiva(), diaps.length - 1)} aria-label="Nueva diapositiva" style={{ flexShrink: 0, width: 60, aspectRatio: "16/12", borderRadius: 7, border: `2px dashed ${C.bordeCampo}`, background: "transparent", color: C.suave, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><Plus size={18} /></button>
+        </div>
+
+        {/* Hoja de herramientas */}
+        {hoja && (
+          <div style={{ maxHeight: "46vh", display: "flex", flexDirection: "column", background: C.panel, borderTop: `1px solid ${C.bordeCampo}`, borderRadius: "14px 14px 0 0", boxShadow: "0 -10px 30px rgba(0,0,0,0.45)", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", padding: "10px 14px 6px", flexShrink: 0 }}>
+              <span style={{ flex: 1, fontSize: 13.5, fontWeight: 700 }}>{tituloHoja}</span>
+              <button onClick={() => setHoja(null)} aria-label="Cerrar" style={{ width: 30, height: 30, borderRadius: 8, border: "none", background: C.campo, color: C.texto, display: "flex", alignItems: "center", justifyContent: "center" }}><XIcon size={16} /></button>
+            </div>
+            <div style={{ overflowY: "auto", padding: "4px 14px 14px", fontSize: 12.5 }}>
+              {hoja === "plantillas" && <div onClick={(e) => { if (e.target.closest("button")) setHoja(null); }}>{contenidoPlantillas}</div>}
+              {hoja === "formas" && gridFormas}
+              {hoja === "iconos" && (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, ...estiloCampo, marginBottom: 10 }}>
+                    <Search size={14} color={C.suave} />
+                    <input value={buscarIcono} onChange={(e) => setBuscarIcono(e.target.value)} placeholder="Buscar: cruz, música, fecha…" style={{ background: "transparent", border: "none", outline: "none", color: C.texto, fontSize: 13, flex: 1, fontFamily: "inherit" }} />
+                  </div>
+                  {listaIconos}
+                </>
+              )}
+              {hoja === "fondo" && panelPropiedades}
+              {hoja === "editar" && capa && (
+                <>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto" }}>
+                    {botonAccion(AlignCenter, "Centrar", () => { alinearCapa("x", 1); alinearCapa("y", 1); })}
+                    {botonAccion(Copy, "Duplicar", duplicarCapa)}
+                    {botonAccion(BringToFront, "Al frente", () => ordenCapa(true))}
+                    {botonAccion(SendToBack, "Atrás", () => ordenCapa(false))}
+                    {botonAccion(Trash2, "Eliminar", () => { borrarCapa(); setHoja(null); }, true)}
+                  </div>
+                  {panelPropiedades}
+                </>
+              )}
+              {hoja === "diapos" && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {botonAccion(Play, "Ver animación", () => setVistaPrevia({ paso: 0, vuelta: Date.now() }))}
+                  {botonAccion(CopyPlus, "Duplicar", () => duplicarDiapositiva())}
+                  {botonAccion(BookmarkPlus, "Guardar plantilla", guardarComoPlantilla)}
+                  {botonAccion(Trash2, "Eliminar", () => borrarDiapositiva(), true)}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Barra de herramientas */}
+        <div style={{ display: "flex", overflowX: "auto", gap: 2, padding: "6px 6px calc(6px + env(safe-area-inset-bottom))", background: C.cinta, borderTop: `1px solid ${C.borde}`, flexShrink: 0 }}>
+          {capa && (
+            <button onClick={() => setHoja((h) => (h === "editar" ? null : "editar"))} style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 62, padding: "6px 4px", borderRadius: 10, border: "none", background: hoja === "editar" ? C.naranja : C.azul, color: hoja === "editar" ? C.marino : "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+              <SlidersHorizontal size={19} />Editar
+            </button>
+          )}
+          {herramientas.map(([clave, Icon, label, accion]) => (
+            <button key={clave} onClick={accion} style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 58, padding: "6px 4px", borderRadius: 10, border: "none", background: hoja === clave ? C.naranja : "transparent", color: hoja === clave ? C.marino : "#C9D1DC", fontSize: 11, fontWeight: hoja === clave ? 700 : 500, cursor: "pointer" }}>
+              <Icon size={19} />{label}
+            </button>
+          ))}
+        </div>
+
+        {vistaPreviaJSX}
+        {inputsJSX}
+      </div>,
+      document.body,
+    );
+  }
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: C.fondo, color: C.texto, display: "flex", flexDirection: "column", fontFamily: "'Poppins', sans-serif" }} onPointerDown={() => { if (menu) setMenu(null); if (plantillasAbiertas) setPlantillasAbiertas(false); if (panelInsertar) setPanelInsertar(null); }}>
+      {/* Barra superior */}
+      <div style={{ height: 54, background: C.marino, display: "flex", alignItems: "center", gap: 12, padding: "0 16px", flexShrink: 0 }}>
+        <span style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, whiteSpace: "nowrap" }}>Diseño de diapositivas</span>
+        <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Nombre del grupo" aria-label="Nombre del grupo" style={{ ...estiloCampo, width: 280, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)" }} />
+        <span style={{ fontSize: 12, color: "#C9D1DC" }}>{diaps.length} diapositiva{diaps.length === 1 ? "" : "s"}</span>
+        <div style={{ flex: 1 }} />
+        {subiendo && <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#C9D1DC" }}><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Subiendo imagen…</span>}
+        <button onClick={cerrar} style={{ background: "transparent", color: "#fff", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 10, padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Cancelar</button>
+        <button onClick={listo} disabled={subiendo} style={{ background: C.naranja, color: C.marino, border: "none", borderRadius: 10, padding: "8px 16px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>{alAire ? "Listo y actualizar pantalla" : "Listo"}</button>
+      </div>
+
+      {/* Cinta */}
+      <div style={{ display: "flex", alignItems: "stretch", padding: "8px 8px 6px", background: C.cinta, borderBottom: `1px solid ${C.borde}`, flexShrink: 0, position: "relative", zIndex: 3 }}>
+        <GrupoCinta label="Edición">
+          <BotonCinta icon={Undo2} label="Deshacer" onClick={deshacer} deshabilitado={!hist.pasado.length} titulo="Deshacer (Ctrl+Z)" />
+          <BotonCinta icon={Redo2} label="Rehacer" onClick={rehacer} deshabilitado={!hist.futuro.length} titulo="Rehacer (Ctrl+Y)" />
+        </GrupoCinta>
+        <GrupoCinta label="Insertar">
+          <BotonCinta icon={Type} label="Texto" onClick={agregarTexto} />
+          <BotonCinta icon={ImagePlus} label="Imagen" onClick={() => inputImagenRef.current?.click()} />
+          <div style={{ position: "relative" }} onPointerDown={(e) => e.stopPropagation()}>
+            <BotonCinta icon={Shapes} label="Forma" onClick={() => setPanelInsertar((p) => (p === "formas" ? null : "formas"))} activo={panelInsertar === "formas"} titulo="Rectángulo, círculo, línea, franja, marco" />
+            {panelInsertar === "formas" && (
+              <div style={{ position: "absolute", top: 58, left: 0, zIndex: 5, background: C.panel, border: `1px solid ${C.bordeCampo}`, borderRadius: 12, padding: 10, width: 300, boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>
+                <div style={{ ...etiqueta, marginBottom: 8 }}>Formas</div>
+                {gridFormas}
+              </div>
+            )}
+          </div>
+          <div style={{ position: "relative" }} onPointerDown={(e) => e.stopPropagation()}>
+            <BotonCinta icon={Smile} label="Ícono" onClick={() => setPanelInsertar((p) => (p === "iconos" ? null : "iconos"))} activo={panelInsertar === "iconos"} titulo="Cruz, paloma, Biblia, corazón, micrófono…" />
+            {panelInsertar === "iconos" && (
+              <div style={{ position: "absolute", top: 58, left: 0, zIndex: 5, background: C.panel, border: `1px solid ${C.bordeCampo}`, borderRadius: 12, padding: 10, width: 380, maxHeight: "62vh", overflowY: "auto", boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, ...estiloCampo, marginBottom: 10 }}>
+                  <Search size={14} color={C.suave} />
+                  <input autoFocus value={buscarIcono} onChange={(e) => setBuscarIcono(e.target.value)} placeholder="Buscar: cruz, música, fecha…" style={{ background: "transparent", border: "none", outline: "none", color: C.texto, fontSize: 12.5, flex: 1, fontFamily: "inherit" }} />
+                </div>
+                {listaIconos}
+              </div>
+            )}
+          </div>
+          <BotonCinta icon={PaintBucket} label="Fondo" onClick={() => { setCapaSel(null); setEditandoTexto(null); }} activo={!capa} titulo="Opciones del fondo (a la derecha)" />
+        </GrupoCinta>
+        <GrupoCinta label="Alinear en la diapositiva">
+          <BotonCinta icon={AlignLeft} label="Izquierda" onClick={() => alinearCapa("x", 0)} deshabilitado={!capa} />
+          <BotonCinta icon={AlignCenter} label="Centrar" onClick={() => alinearCapa("x", 1)} deshabilitado={!capa} />
+          <BotonCinta icon={AlignRight} label="Derecha" onClick={() => alinearCapa("x", 2)} deshabilitado={!capa} />
+          <BotonCinta icon={AlignStartVertical} label="Arriba" onClick={() => alinearCapa("y", 0)} deshabilitado={!capa} />
+          <BotonCinta icon={AlignCenterVertical} label="Medio" onClick={() => alinearCapa("y", 1)} deshabilitado={!capa} />
+          <BotonCinta icon={AlignEndVertical} label="Abajo" onClick={() => alinearCapa("y", 2)} deshabilitado={!capa} />
+        </GrupoCinta>
+        <GrupoCinta label="Objeto">
+          <BotonCinta icon={Copy} label="Duplicar" onClick={duplicarCapa} deshabilitado={!capa} titulo="Duplicar (Ctrl+D)" />
+          <BotonCinta icon={BringToFront} label="Al frente" onClick={() => ordenCapa(true)} deshabilitado={!capa} />
+          <BotonCinta icon={SendToBack} label="Atrás" onClick={() => ordenCapa(false)} deshabilitado={!capa} />
+          <BotonCinta icon={Trash2} label="Eliminar" onClick={borrarCapa} deshabilitado={!capa} titulo="Eliminar (Supr)" />
+        </GrupoCinta>
+        <GrupoCinta label="Animación">
+          <BotonCinta icon={Play} label="Reproducir" onClick={() => setVistaPrevia({ paso: 0, vuelta: Date.now() })} titulo="Ver las animaciones de esta diapositiva como en la proyección" />
+        </GrupoCinta>
+        <GrupoCinta label="Diseños" ultimo>
+          <BotonCinta icon={BookmarkPlus} label="Guardar plantilla" onClick={guardarComoPlantilla} titulo="Guardar esta diapositiva como plantilla de tu iglesia, para reusarla" />
+          <div style={{ position: "relative" }} onPointerDown={(e) => e.stopPropagation()}>
+            <BotonCinta icon={LayoutTemplate} label="Plantillas" onClick={() => setPlantillasAbiertas((v) => !v)} activo={plantillasAbiertas} />
+            {plantillasAbiertas && (
+              <div style={{ position: "absolute", top: 58, right: 0, zIndex: 5, background: C.panel, border: `1px solid ${C.bordeCampo}`, borderRadius: 12, padding: 10, width: 560, maxHeight: "70vh", overflowY: "auto", boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>
+                {contenidoPlantillas}
+              </div>
+            )}
+          </div>
+        </GrupoCinta>
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+        {/* Diapositivas del grupo */}
+        <div style={{ width: 220, flexShrink: 0, background: C.panel, borderRight: `1px solid ${C.borde}`, overflowY: "auto", padding: 12 }} onPointerDown={() => setZona("lista")}>
+          <div style={{ ...etiqueta }}>Diapositivas</div>
+          {diaps.map((d, i) => (
+            <div
+              key={d.id} {...arrastre.filaProps(i)}
+              onClick={() => { setSel(i); setCapaSel(null); setEditandoTexto(null); setZona("lista"); }}
+              onContextMenu={(e) => { e.preventDefault(); setSel(i); setZona("lista"); setMenu({ x: e.clientX, y: e.clientY, indice: i }); }}
+              style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 10, cursor: "pointer", ...arrastre.estiloFila(i) }}
+            >
+              <span style={{ fontSize: 11, color: C.suave, width: 14, textAlign: "right", paddingTop: 4 }}>{i + 1}</span>
+              <div style={{ position: "relative", flex: 1, aspectRatio: "16/9", borderRadius: 8, overflow: "hidden", outline: i === sel ? `2px solid ${C.naranja}` : `1px solid ${C.bordeCampo}`, outlineOffset: i === sel ? 1 : 0 }}>
+                <DiapositivaDisenada diapositiva={d} />
+              </div>
+            </div>
+          ))}
+          <button onClick={() => insertarDiapositiva(nuevaDiapositiva(), diaps.length - 1)} style={{ width: "100%", aspectRatio: "16/9", marginLeft: 22, maxWidth: "calc(100% - 22px)", borderRadius: 8, border: `2px dashed ${C.bordeCampo}`, background: "transparent", color: C.tenue, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, fontSize: 12 }}>
+            <Plus size={16} /> Nueva diapositiva
+          </button>
+          <div style={{ fontSize: 10.5, color: C.tenue, marginTop: 10, lineHeight: 1.5 }}>Arrastra para cambiar el orden. Clic derecho para duplicar, copiar o borrar.</div>
+        </div>
+
+        {/* Lienzo */}
+        <div ref={areaRef} style={{ flex: 1, minWidth: 0, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", background: "#0B1017" }}
+          onPointerDown={() => { setZona("lienzo"); setCapaSel(null); setEditandoTexto(null); }}>
+          {lienzoJSX}
+          <div style={{ position: "absolute", left: 16, bottom: 12, fontSize: 11.5, color: C.tenue }}>
+            {capa ? (capa.tipo === "texto" ? "Texto seleccionado · Doble clic para escribir · Flechas para mover · Alt = sin guías" : `${capa.tipo === "forma" ? "Forma seleccionada" : capa.tipo === "icono" ? "Ícono seleccionado" : "Imagen seleccionada"} · Arrastra las esquinas para cambiar el tamaño · Shift = libre`) : "Clic en un elemento para seleccionarlo"}
+          </div>
+          <div style={{ position: "absolute", right: 16, bottom: 12, fontSize: 11.5, color: C.tenue }}>Diapositiva {sel + 1} de {diaps.length} · 16:9</div>
+        </div>
+
+        {/* Propiedades */}
+        <div style={{ width: 290, flexShrink: 0, background: C.panel, borderLeft: `1px solid ${C.borde}`, overflowY: "auto", padding: 16, fontSize: 12.5 }}>
+          {panelPropiedades}
+          <div style={{ marginTop: 18, padding: 10, borderRadius: 10, background: C.campo, color: C.suave, fontSize: 11, lineHeight: 1.6 }}>
+            Ctrl+C / Ctrl+V copia y pega (también entre grupos) · Ctrl+D duplica · Supr elimina · Ctrl+Z deshace · Flechas mueven lo seleccionado
+          </div>
+        </div>
+      </div>
+
+      {vistaPreviaJSX}
       {menu && (
         <div onPointerDown={(e) => e.stopPropagation()} style={{ position: "fixed", left: menu.x, top: menu.y, zIndex: 9100, background: C.panel, border: `1px solid ${C.bordeCampo}`, borderRadius: 10, padding: 4, minWidth: 190, boxShadow: "0 12px 30px rgba(0,0,0,0.5)" }}>
           {[
@@ -836,10 +998,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
         </div>
       )}
 
-      <input ref={inputImagenRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: "none" }}
-        onChange={(e) => { const f = e.target.files?.[0]; const destino = e.target.dataset.destino || "capa"; e.target.value = ""; e.target.dataset.destino = ""; elegirImagen(f, destino); }} />
-      <input ref={inputFondoRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: "none" }}
-        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; elegirImagen(f, "fondo"); }} />
+      {inputsJSX}
     </div>,
     document.body,
   );
