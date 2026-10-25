@@ -32,6 +32,12 @@ let registration = null;
 // genuinamente esperando hasta que la persona toque "Actualizar" en el aviso visible.
 let updateServiceWorker = null;
 let refreshNeeded = false;
+// Le pide a la versión nueva (en espera) que tome el control — con "manual", que es lo único que acepta
+// (ver sw.js). Al tomar control, "controllerchange" recarga la página.
+function pedirActivacion() {
+  const esperando = registration?.waiting;
+  if (esperando) esperando.postMessage({ type: "SKIP_WAITING", manual: true });
+}
 
 // Que el service worker se ACTIVE apenas hay uno nuevo no basta: el navegador solo lo busca por su
 // cuenta al cargar la página o, en el mejor de los casos, una vez cada tanto (en instalado de iPhone
@@ -68,10 +74,9 @@ export function iniciarActualizacionAutomatica(onUpdateAvailable) {
       registration = reg || null;
     },
     onNeedRefresh() {
-      // Ya no se espera a que alguien toque "Actualizar": si por algo quedó una versión esperando, se
-      // aplica sola (la página se recarga sola por el listener de "controllerchange" de arriba).
+      // Se aplica sola, como siempre (la página se recarga por "controllerchange").
       refreshNeeded = true;
-      updateServiceWorker?.(true);
+      pedirActivacion();
     },
   });
 
@@ -87,7 +92,8 @@ export function iniciarActualizacionAutomatica(onUpdateAvailable) {
 // en Ajustes): le manda al service worker en espera el mensaje SKIP_WAITING (ver sw.js) y, apenas toma
 // control, recarga la página sola.
 export function aplicarActualizacion() {
-  return updateServiceWorker?.(true);
+  pedirActivacion();
+  return Promise.resolve();
 }
 
 // Para el botón "Buscar actualizaciones" en Ajustes: dispara la misma revisión que ya corre sola en

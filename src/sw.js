@@ -41,9 +41,16 @@ registerRoute(
 // instala, sin esperar a que alguien toque "Actualizar". Al tomar control, la página se recarga sola
 // (listener "controllerchange" de swUpdate.js — que ya estaba en las versiones anteriores, así que
 // también los equipos que todavía tienen la versión vieja abierta se actualizan solos).
-self.addEventListener("install", () => self.skipWaiting());
+// Cambio (pedido de Eldin, 2026-10-25: "publícalo solo para los dispositivos que den actualizar, así no
+// se altera la computadora que está transmitiendo"): la versión nueva ya NO se activa sola al instalarse.
+// Queda esperando y solo toma el control:
+//  - cuando la propia app lo pide con { manual: true } (desde esta versión la app lo pide sola apenas
+//    detecta una versión nueva, así que de aquí en adelante todo vuelve a actualizarse solo), o
+//  - cuando se cierran todas las ventanas de la app y se vuelve a abrir (comportamiento normal).
+// Las versiones viejas mandan { type: "SKIP_WAITING" } sin "manual" apenas detectan una versión nueva:
+// eso se ignora, así una consola en pleno culto no se recarga sola.
 self.addEventListener("message", (event) => {
-  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
+  if (event.data && event.data.type === "SKIP_WAITING" && event.data.manual) self.skipWaiting();
 });
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
