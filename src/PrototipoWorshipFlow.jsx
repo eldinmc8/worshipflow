@@ -1173,6 +1173,13 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // Se usa para lo que se agregue mientras esa elección está abierta (ver SetlistPane).
   const [destinoSetlist, setDestinoSetlist] = useState(null);
   const colocar = (o, items) => insertarEnBloque(o, items, destinoSetlist);
+  // Un bloque de alabanza nuevo queda vinculado solo al grupo de Alabanza (pedido de Eldin,
+  // 2026-10-30), si la iglesia tiene exactamente un grupo con "alabanza"/"adoración" en el nombre.
+  const ministerioParaBloque = (title) => {
+    if (!isWorshipBlock({ type: "seccion", title })) return null;
+    const candidatos = ministries.filter((m) => /alabanza|adoraci/i.test(m.name || ""));
+    return candidatos.length === 1 ? candidatos[0].id : null;
+  };
   const addSong = (songId) => {
     const song = library.find((s) => s.id === songId);
     const newItem = { id: nextId(), type: "cancion", songId, structure: song.defaultStructure };
@@ -1183,7 +1190,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       let blockIdx = -1;
       o.forEach((item, i) => { if (item.type === "seccion" && item.title.toLowerCase().includes(targetBlock.toLowerCase())) blockIdx = i; });
       if (blockIdx === -1) {
-        return [...o, { id: nextId(), type: "seccion", title: `Bloque de ${targetBlock}`, description: `Bloque de ${targetBlock.toLowerCase()}.`, ministryId: null }, newItem];
+        return [...o, { id: nextId(), type: "seccion", title: `Bloque de ${targetBlock}`, description: `Bloque de ${targetBlock.toLowerCase()}.`, ministryId: ministerioParaBloque(`Bloque de ${targetBlock}`) }, newItem];
       }
       let insertAt = o.length;
       for (let i = blockIdx + 1; i < o.length; i++) { if (o[i].type === "seccion") { insertAt = i; break; } }
@@ -1197,7 +1204,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     setSlideDraft({ title: "", subtitle: "", name: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" });
     setShowSlideForm(false);
   };
-  const addSeccion = (title, description) => updateOrder((o) => [...o, { id: nextId(), type: "seccion", title: title.trim() || "Nuevo bloque", description: description.trim(), ministryId: null }]);
+  const addSeccion = (title, description) => updateOrder((o) => [...o, { id: nextId(), type: "seccion", title: title.trim() || "Nuevo bloque", description: description.trim(), ministryId: ministerioParaBloque(title.trim()) }]);
   // Punto del bosquejo del predicador: se guarda como una "slide" más (así Multimedia la proyecta igual que
   // cualquier otra), marcada con isSermonPoint para distinguirla visualmente en el Setlist y en el grid en vivo.
   const addSermonPoint = () => {
