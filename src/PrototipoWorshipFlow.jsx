@@ -3639,8 +3639,9 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
       {showOtroEquipoAjustes && <PantallaOtroEquipo iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipoAjustes(false)} />}
       {realIsAdmin && (
         <>
-          <NavRow icon={Users} label="Personas y permisos" onClick={onGoToUsuarios} right={chevron} />
-          <NavRow icon={Settings} label="Roles del equipo" onClick={onGoToRoles} right={chevron} />
+          {/* Una sola entrada para todo lo de las personas (2026-10-30): invitar, rol, estado, y Roles y
+              permisos adentro. */}
+          <NavRow icon={Users} label="Miembros" onClick={onGoToUsuarios} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{usuariosReales.length} {chevron}</span>} />
           <NavRow icon={Palette} label="Identidad de la iglesia" onClick={() => setShowIdentidad(true)} right={chevron} />
           {showIdentidad && <IdentidadIglesiaModal iglesiaId={myIglesiaId} onClose={() => setShowIdentidad(false)} />}
           <NavRow icon={Radio} label="Pantalla de proyección" onClick={() => setShowPantalla(true)} right={chevron} />

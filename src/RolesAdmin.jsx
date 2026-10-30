@@ -142,7 +142,7 @@ function RoleEditor({ role, onBack, onSaved, onDeleted }) {
   );
 }
 
-export default function RolesAdmin({ onExit }) {
+export default function RolesAdmin({ onExit, textoVolver = "← Volver a la app" }) {
   const [roles, setRoles] = useState(null);
   const [error, setError] = useState("");
   const [editingRole, setEditingRole] = useState(undefined); // undefined = lista · null = crear nuevo · objeto = editar
@@ -172,8 +172,8 @@ export default function RolesAdmin({ onExit }) {
       <div style={{ maxWidth: 780, margin: "0 auto" }}>
         <div className="screen-enter">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, color: "var(--wf-heading)", margin: 0 }}>Roles</h1>
-            <button onClick={onExit} style={ghostBtn}>← Volver a la app</button>
+            <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, color: "var(--wf-heading)", margin: 0 }}>Roles y permisos</h1>
+            <button onClick={onExit} style={ghostBtn}>{textoVolver}</button>
           </div>
           <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>Cada rol decide qué puede hacer una persona en la app. Toca uno para cambiarlo, o crea uno nuevo.</div>
 

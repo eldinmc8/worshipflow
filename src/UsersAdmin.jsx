@@ -4,6 +4,7 @@ import { showToast } from "./lib/toast.js";
 import { confirmDialog, promptDialog } from "./lib/confirm.js";
 import { parseIsoDateLocal, todayLocal, buildMonthWeeks, MONTH_NAMES_FULL, DOW_LABELS, formatFullDate } from "./lib/dates.js";
 import { validarPassword } from "./lib/passwordSegura.js";
+import RolesAdmin from "./RolesAdmin.jsx";
 
 const ROLES = [
   { value: "admin", label: "Administrador" },
@@ -13,6 +14,34 @@ const ROLES = [
   { value: "supervisor", label: "Supervisor" },
 ];
 const roleLabel = (v) => ROLES.find((r) => r.value === v)?.label || v;
+
+// Roles personalizados (Roles y permisos) que no son copia de los 5 de fábrica.
+const soloPersonalizados = (rolesApp) => (rolesApp || []).filter((r) => !ROLES.some((legacy) => legacy.label === r.nombre));
+// Valor del selector de rol para una persona: "legacy:<rol>" o "custom:<rol_id>".
+const valorRolDe = (user, rolesApp) => (user.rol_id && soloPersonalizados(rolesApp).some((r) => r.id === user.rol_id) ? `custom:${user.rol_id}` : `legacy:${user.rol}`);
+// Un rol personalizado no tiene equivalente en el texto viejo (usuarios.rol) — se deja en "miembro"
+// como base segura, y todo lo que ese rol sí permite viene de rol_id (ver tienePermiso en
+// PrototipoWorshipFlow.jsx).
+const patchDeValorRol = (valor) => {
+  const [tipo, v] = valor.split(":");
+  return tipo === "custom" ? { rol: "miembro", rol_id: v } : { rol: v, rol_id: null };
+};
+// Mismo selector en la lista, en el perfil y al invitar — de fábrica y personalizados juntos.
+function OpcionesRol({ rolesApp }) {
+  const personalizados = soloPersonalizados(rolesApp);
+  return (
+    <>
+      <optgroup label="Roles de fábrica">
+        {ROLES.map((r) => <option key={r.value} value={`legacy:${r.value}`}>{r.label}</option>)}
+      </optgroup>
+      {personalizados.length > 0 && (
+        <optgroup label="Roles personalizados">
+          {personalizados.map((r) => <option key={r.id} value={`custom:${r.id}`}>{r.nombre}</option>)}
+        </optgroup>
+      )}
+    </>
+  );
+}
 
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "9px 10px", fontSize: 13, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
 const primaryBtn = { background: "var(--wf-brand-accent)", border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: "var(--wf-brand-primary)", cursor: "pointer" };
@@ -50,8 +79,8 @@ function UserProfile({ user, myEmail, busy, rolesApp, onUpdateField, onChangeRol
   const [showRoleSelect, setShowRoleSelect] = useState(false);
   // Roles personalizados que un administrador haya creado en Ajustes → Roles, aparte de los 5 de
   // fábrica (esos siguen viniendo de ROLES arriba, con su propio valor de texto en usuarios.rol).
-  const rolesPersonalizados = (rolesApp || []).filter((r) => !ROLES.some((legacy) => legacy.label === r.nombre));
-  const currentRoleValue = user.rol_id && rolesPersonalizados.some((r) => r.id === user.rol_id) ? `custom:${user.rol_id}` : `legacy:${user.rol}`;
+  const rolesPersonalizados = soloPersonalizados(rolesApp);
+  const currentRoleValue = valorRolDe(user, rolesApp);
   const currentRoleLabel = user.rol_id && rolesPersonalizados.find((r) => r.id === user.rol_id)?.nombre || roleLabel(user.rol);
   const [schedule, setSchedule] = useState(null); // null = cargando
   const today = todayLocal();
@@ -84,7 +113,7 @@ function UserProfile({ user, myEmail, busy, rolesApp, onUpdateField, onChangeRol
 
   return (
     <div className="screen-enter" style={{ maxWidth: 480, margin: "0 auto" }}>
-      <button onClick={onBack} style={{ ...ghostBtn, marginBottom: 14 }}>← Volver a Usuarios</button>
+      <button onClick={onBack} style={{ ...ghostBtn, marginBottom: 14 }}>← Volver a Miembros</button>
 
       <div style={{ textAlign: "center", marginBottom: 18 }}>
         {user.foto_url ? (
@@ -119,32 +148,17 @@ function UserProfile({ user, myEmail, busy, rolesApp, onUpdateField, onChangeRol
             <div style={{ ...cardStyle, marginTop: -4 }}>
               <select
                 value={currentRoleValue}
-                onChange={(e) => {
-                  const [tipo, valor] = e.target.value.split(":");
-                  // Un rol personalizado no tiene equivalente en el texto viejo (usuarios.rol) — se deja
-                  // en "miembro" como base segura (sin ningún acceso especial de los 5 roles de fábrica),
-                  // y todo lo que ese rol personalizado sí permite viene de rol_id (ver tienePermiso en
-                  // PrototipoWorshipFlow.jsx).
-                  if (tipo === "custom") onChangeRole(user.id, { rol: "miembro", rol_id: valor });
-                  else onChangeRole(user.id, { rol: valor, rol_id: null });
-                }}
+                onChange={(e) => onChangeRole(user.id, patchDeValorRol(e.target.value))}
                 style={inputStyle}
               >
-                <optgroup label="Roles de fábrica">
-                  {ROLES.map((r) => <option key={r.value} value={`legacy:${r.value}`}>{r.label}</option>)}
-                </optgroup>
-                {rolesPersonalizados.length > 0 && (
-                  <optgroup label="Roles personalizados">
-                    {rolesPersonalizados.map((r) => <option key={r.id} value={`custom:${r.id}`}>{r.nombre}</option>)}
-                  </optgroup>
-                )}
+                <OpcionesRol rolesApp={rolesApp} />
               </select>
             </div>
           )}
 
           <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>Estado de la cuenta</div>
-            <button onClick={() => onUpdateField(user.id, "estado", user.estado === "activo" ? "inactivo" : "activo")} style={{ ...ghostBtn, background: user.estado === "activo" ? "#E9F7EF" : "#FDECEA", color: user.estado === "activo" ? "#1F8A73" : "#C23B32", border: "none" }}>
+            <button onClick={() => onUpdateField(user.id, "estado", user.estado === "activo" ? "inactivo" : "activo")} disabled={isSelf} title={isSelf ? "No puedes desactivar tu propia cuenta" : undefined} style={{ opacity: isSelf ? 0.5 : 1, ...ghostBtn, background: user.estado === "activo" ? "#E9F7EF" : "#FDECEA", color: user.estado === "activo" ? "#1F8A73" : "#C23B32", border: "none" }}>
               {user.estado === "activo" ? "Activo" : "Inactivo"}
             </button>
           </div>
@@ -228,12 +242,17 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [draft, setDraft] = useState({ email: "", rol: "miembro" });
+  const [draft, setDraft] = useState({ email: "", rol: "legacy:miembro" });
   const [selectedUserId, setSelectedUserId] = useState(null);
+  // Roles y permisos vive DENTRO de Miembros (pedido de Eldin, 2026-10-30: una sola lista en Ajustes
+  // para todo lo de las personas) — se abre como subpantalla con su propia entrada del historial.
+  const [verRoles, setVerRoles] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
   // Roles personalizados (Ajustes → Roles) para poder asignárselos a alguien desde su perfil, además
   // de los 5 de fábrica de arriba.
   const [rolesApp, setRolesApp] = useState([]);
-  useEffect(() => { supabase.from("roles_app").select("id, nombre").order("orden").then(({ data }) => setRolesApp(data || [])); }, []);
+  const cargarRoles = () => supabase.from("roles_app").select("id, nombre").order("orden").then(({ data }) => setRolesApp(data || []));
+  useEffect(() => { cargarRoles(); }, []);
   // Quién SÍ tiene notificaciones push activadas en al menos un dispositivo — push_subscriptions solo
   // deja leer la propia fila por RLS (correcto, no se toca), así que esto pasa por una función aparte
   // (usuarios_con_push, ver migración 20261003000200) que solo devuelve usuario_id, nunca el endpoint/
@@ -248,12 +267,18 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
   // botón/gesto "atrás" regresa a la lista de Usuarios en vez de salir de la app de un salto.
   useEffect(() => {
     const onPopState = (e) => {
-      if (e.state?.screen !== "usuarios-profile" && e.state?.screen !== "usuarios-root") return;
+      if (!["usuarios-profile", "usuarios-root", "usuarios-roles"].includes(e.state?.screen)) return;
       setSelectedUserId(e.state.screen === "usuarios-profile" ? e.state.selectedUserId : null);
+      setVerRoles(e.state.screen === "usuarios-roles");
+      if (e.state.screen === "usuarios-root") cargarRoles(); // por si se creó o renombró un rol
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+  const abrirRoles = () => {
+    window.history.pushState({ screen: "usuarios-roles" }, "");
+    setVerRoles(true);
+  };
   const openUserProfile = (id) => {
     window.history.pushState({ screen: "usuarios-profile", selectedUserId: id }, "");
     setSelectedUserId(id);
@@ -274,8 +299,16 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
     e.preventDefault();
     setBusy(true); setError("");
     try {
-      await callUsersFunction("crear-usuario", draft);
-      setDraft({ email: "", rol: "miembro" });
+      const email = draft.email.trim().toLowerCase();
+      const patch = patchDeValorRol(draft.rol);
+      await callUsersFunction("crear-usuario", { email, rol: patch.rol });
+      // crear-usuario solo conoce los roles de fábrica: un rol personalizado se asigna justo después.
+      if (patch.rol_id) {
+        const { error: rolErr } = await supabase.from("usuarios").update({ rol_id: patch.rol_id }).eq("email", email).eq("iglesia_id", iglesiaId);
+        if (rolErr) showToast("Se envió la invitación, pero no se pudo asignar el rol. Cámbialo en la lista.", "error");
+      }
+      setDraft({ email: "", rol: draft.rol });
+      showToast(`Invitación enviada a ${email}.`, "info");
       await load();
     } catch (err) {
       setError(err.message);
@@ -293,6 +326,11 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
 
   const changeRole = async (id, patch) => {
     setError("");
+    const fila = rows?.find((r) => r.id === id);
+    if (fila?.email === myEmail && fila.rol === "admin" && patch.rol !== "admin") {
+      const ok = await confirmDialog("Vas a quitarte el rol de Administrador. Ya no podrás entrar a Miembros ni cambiarlo de vuelta. ¿Seguro?", { danger: true, textoConfirmar: "Sí, quitármelo" });
+      if (!ok) return;
+    }
     const { error } = await supabase.from("usuarios").update(patch).eq("id", id);
     if (error) setError(error.message);
     else load();
@@ -329,6 +367,11 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
   };
 
   const selectedUser = rows?.find((r) => r.id === selectedUserId) || null;
+  const q = busqueda.trim().toLowerCase();
+  const filasVisibles = (rows || []).filter((r) => !q || (r.nombre || "").toLowerCase().includes(q) || (r.email || "").toLowerCase().includes(q));
+  const activos = (rows || []).filter((r) => r.estado === "activo").length;
+
+  if (verRoles) return <RolesAdmin onExit={() => window.history.back()} textoVolver="← Volver a Miembros" />;
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--wf-bg)", fontFamily: "'Poppins', sans-serif", padding: 20 }}>
@@ -344,9 +387,10 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
         ) : (
           <div className="screen-enter">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, color: "var(--wf-heading)", margin: 0 }}>Usuarios</h1>
+              <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, color: "var(--wf-heading)", margin: 0 }}>Miembros</h1>
               <button onClick={onExit} style={ghostBtn}>← Volver a la app</button>
             </div>
+            <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 14 }}>Todo lo de las personas en un solo lugar: invitar por correo, cambiar su rol y su estado aquí mismo. Toca a alguien para ver su horario, reiniciar su contraseña o eliminarlo.</div>
 
             {error && <div style={{ background: "#FDECEA", border: "1px solid #C23B32", color: "#8A2A24", borderRadius: 12, padding: "8px 12px", fontSize: 13, marginBottom: 14 }}>{error}</div>}
 
@@ -358,37 +402,68 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
               <div style={{ flex: "1 1 150px" }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)" }}>Rol</label>
                 <select value={draft.rol} onChange={(e) => setDraft({ ...draft, rol: e.target.value })} style={inputStyle}>
-                  {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  <OpcionesRol rolesApp={rolesApp} />
                 </select>
               </div>
               <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Enviando…" : "✉ Invitar por correo"}</button>
             </form>
             <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: -12, marginBottom: 20 }}>Le llegará un correo para crear su propia contraseña y elegir su nombre (y foto, si entra con Google) al aceptar.</div>
 
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por nombre o correo" style={{ ...inputStyle, flex: 1 }} />
+              <button onClick={abrirRoles} style={{ ...ghostBtn, padding: "9px 12px", flexShrink: 0 }}>Roles y permisos</button>
+            </div>
+            {rows && <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "0 4px 8px" }}>{rows.length} {rows.length === 1 ? "persona" : "personas"} · {activos} {activos === 1 ? "activa" : "activas"}</div>}
+
             <div style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", overflow: "hidden" }}>
               {rows === null && <div style={{ padding: 20, color: "var(--wf-faint)", fontSize: 13 }}>Cargando…</div>}
-              {rows?.length === 0 && <div style={{ padding: 20, color: "var(--wf-faint)", fontSize: 13 }}>Todavía no hay usuarios.</div>}
-              {rows?.map((row) => (
-                <button key={row.id} onClick={() => openUserProfile(row.id)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "none", border: "none", padding: "12px 16px", borderBottom: "1px solid var(--wf-hover)", cursor: "pointer" }}>
-                  {row.foto_url ? (
-                    <img src={row.foto_url} alt="" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-                  ) : (
-                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
-                      {row.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+              {rows?.length === 0 && <div style={{ padding: 20, color: "var(--wf-faint)", fontSize: 13 }}>Todavía no hay miembros — invita al primero con su correo.</div>}
+              {rows?.length > 0 && filasVisibles.length === 0 && <div style={{ padding: 20, color: "var(--wf-faint)", fontSize: 13 }}>Nadie coincide con "{busqueda}".</div>}
+              {filasVisibles.map((row) => {
+                const esYo = row.email === myEmail;
+                const activo = row.estado === "activo";
+                return (
+                  <div key={row.id} style={{ padding: "12px 14px", borderBottom: "1px solid var(--wf-hover)", opacity: activo ? 1 : 0.7 }}>
+                    <button onClick={() => openUserProfile(row.id)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer", borderRadius: 12 }}>
+                      {row.foto_url ? (
+                        <img src={row.foto_url} alt="" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                      ) : (
+                        <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+                          {(row.nombre || "?").split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+                        </div>
+                      )}
+                      <div style={{ flex: "1 1 auto", minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>
+                          {row.nombre} {esYo && <span style={{ fontSize: 10, color: "var(--wf-faint)" }}>(tú)</span>}
+                          {!row.perfil_completo && <span title="Todavía no aceptó la invitación ni completó su perfil" style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-active-text)", background: "var(--wf-active-bg)", border: "1px solid var(--wf-brand-accent)", borderRadius: 14, padding: "1px 6px", marginLeft: 6 }}>PENDIENTE</span>}
+                          {usuariosConPush && !usuariosConPush.has(row.id) && <span title="No tiene notificaciones push activadas en ningún dispositivo — no le llegan avisos de asignaciones ni recordatorios" style={{ fontSize: 9, fontWeight: 700, color: "#C23B32", background: "#FBEAE8", border: "1px solid #C23B32", borderRadius: 14, padding: "1px 6px", marginLeft: 6 }}>SIN PUSH</span>}
+                        </div>
+                        <div style={{ fontSize: 12, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.email}</div>
+                      </div>
+                      <span style={{ fontSize: 16, color: "var(--wf-faint)", flexShrink: 0 }}>›</span>
+                    </button>
+                    {/* Rol y estado se cambian aquí mismo, sin entrar al perfil. */}
+                    <div style={{ display: "flex", gap: 8, marginTop: 8, paddingLeft: 44 }}>
+                      <select
+                        aria-label={`Rol de ${row.nombre}`}
+                        value={valorRolDe(row, rolesApp)}
+                        onChange={(e) => changeRole(row.id, patchDeValorRol(e.target.value))}
+                        style={{ ...inputStyle, flex: 1, minWidth: 0, padding: "6px 8px", fontSize: 12 }}
+                      >
+                        <OpcionesRol rolesApp={rolesApp} />
+                      </select>
+                      <button
+                        onClick={() => updateField(row.id, "estado", activo ? "inactivo" : "activo")}
+                        disabled={esYo}
+                        title={esYo ? "No puedes desactivar tu propia cuenta" : activo ? "Toca para desactivar (no podrá entrar)" : "Toca para activar"}
+                        style={{ ...ghostBtn, flexShrink: 0, border: "none", minWidth: 78, background: activo ? "#E9F7EF" : "#FDECEA", color: activo ? "#1F8A73" : "#C23B32", fontWeight: 700, opacity: esYo ? 0.5 : 1, cursor: esYo ? "not-allowed" : "pointer" }}
+                      >
+                        {activo ? "Activo" : "Inactivo"}
+                      </button>
                     </div>
-                  )}
-                  <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>
-                      {row.nombre} {row.email === myEmail && <span style={{ fontSize: 10, color: "var(--wf-faint)" }}>(tú)</span>}
-                      {!row.perfil_completo && <span title="Todavía no completó su perfil" style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-active-text)", background: "var(--wf-active-bg)", border: "1px solid var(--wf-brand-accent)", borderRadius: 14, padding: "1px 6px", marginLeft: 6 }}>PENDIENTE</span>}
-                      {usuariosConPush && !usuariosConPush.has(row.id) && <span title="No tiene notificaciones push activadas en ningún dispositivo — no le llegan avisos de asignaciones ni recordatorios" style={{ fontSize: 9, fontWeight: 700, color: "#C23B32", background: "#FBEAE8", border: "1px solid #C23B32", borderRadius: 14, padding: "1px 6px", marginLeft: 6 }}>SIN PUSH</span>}
-                    </div>
-                    <div style={{ fontSize: 12, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis" }}>{row.email}</div>
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#2F5FA8", background: "#E8F1FB", border: "1px solid #2F5FA8", borderRadius: 20, padding: "2px 10px", flexShrink: 0 }}>{row.rol_id && rolesApp.find((r) => r.id === row.rol_id && !ROLES.some((legacy) => legacy.label === r.nombre))?.nombre || roleLabel(row.rol)}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, flexShrink: 0, color: row.estado === "activo" ? "#1F8A73" : "#C23B32" }}>{row.estado === "activo" ? "Activo" : "Inactivo"}</span>
-                </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
