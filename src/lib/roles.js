@@ -23,7 +23,7 @@ export const PERMISOS_APP = [
   { clave: "gestionar_eventos", grupo: "Eventos", etiqueta: "Organizar eventos", detalle: "Crear eventos y plantillas, cambiar fecha y hora, recordatorios, publicar y eliminar.", incluye: ["ver_todos_eventos", "editar_setlist"] },
   { clave: "ver_canciones", grupo: "Canciones", etiqueta: "Ver el cancionero", detalle: "La pestaña Canciones con letras y acordes." },
   { clave: "gestionar_canciones", grupo: "Canciones", etiqueta: "Gestionar canciones", detalle: "Crear, editar, cambiar la tonalidad original y borrar canciones.", incluye: ["ver_canciones"] },
-  { clave: "gestionar_ministerios", grupo: "Ministerios", etiqueta: "Gestionar ministerios", detalle: "Crear ministerios, su planificación, recursos y líder." },
+  { clave: "gestionar_ministerios", grupo: "Ministerios", etiqueta: "Gestionar ministerios", detalle: "Todos los grupos: crearlos, su planificación, recursos y líder. Para un solo grupo, asígnalo como líder dentro del grupo." },
   { clave: "iniciar_finalizar_vivo", grupo: "En vivo", etiqueta: "Iniciar y finalizar el culto en vivo", detalle: "Desde una computadora." },
   { clave: "controlar_estilo_vivo", grupo: "En vivo", etiqueta: "Cambiar el estilo de la proyección", detalle: "Fondo, letra y tamaño mientras se transmite." },
 ];
@@ -38,7 +38,9 @@ export function permisoIncluidoPor(clave, permisos) {
 export const PLANTILLAS_ROL = [
   { nombre: "Líder de alabanza", permisos: { gestionar_canciones: true, editar_setlist: true } },
   { nombre: "Coordinador de eventos", permisos: { gestionar_eventos: true } },
-  { nombre: "Líder de ministerio", permisos: { gestionar_ministerios: true } },
+  // "Coordinador de ministerios" (antes "Líder de ministerio"): maneja TODOS los grupos. Para que alguien
+  // lidere UN solo grupo no hace falta ningún rol — se le asigna como líder dentro de ese grupo.
+  { nombre: "Coordinador de ministerios", permisos: { gestionar_ministerios: true } },
   { nombre: "Equipo de proyección", permisos: { iniciar_finalizar_vivo: true, controlar_estilo_vivo: true } },
   { nombre: "Pastor / Supervisor", permisos: { ver_todos_eventos: true, ver_canciones: true } },
 ];

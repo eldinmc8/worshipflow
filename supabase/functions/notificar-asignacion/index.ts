@@ -59,8 +59,9 @@ Deno.serve(async (req: Request) => {
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-    // Solo administradores pueden generar una notificación de asignación — coincide con que solo
-    // ellos pueden asignar encargados/roles de alabanza/líderes de ministerio en la app.
+    // Pueden generar una notificación de asignación quienes pueden asignar gente en la app: el
+    // administrador, un rol con permisos de Setlist/eventos/ministerios, o el líder de un grupo
+    // (asigna encargados en los bloques vinculados a su grupo — 2026-10-30).
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "No autorizado." }, 401);
     const callerClient = createClient(SUPABASE_URL, ANON_KEY, {
@@ -68,10 +69,20 @@ Deno.serve(async (req: Request) => {
     });
     const { data: { user: caller }, error: callerError } = await callerClient.auth.getUser();
     if (callerError || !caller) return json({ error: "Sesión inválida." }, 401);
-    const { data: callerRow } = await admin.from("usuarios").select("rol, iglesia_id").eq("id", caller.id).single();
-    if (!callerRow || callerRow.rol !== "admin") {
-      return json({ error: "Solo un administrador puede hacer esto." }, 403);
+    const { data: callerRow } = await admin.from("usuarios").select("rol, rol_id, iglesia_id").eq("id", caller.id).single();
+    if (!callerRow) return json({ error: "No autorizado." }, 403);
+    let puedeAsignar = callerRow.rol === "admin";
+    if (!puedeAsignar && callerRow.rol_id) {
+      const { data: rolApp } = await admin.from("roles_app").select("permisos, protegido").eq("id", callerRow.rol_id).single();
+      const p = rolApp?.permisos || {};
+      puedeAsignar = !!(rolApp?.protegido || p.editar_eventos_setlist || p.editar_setlist || p.gestionar_eventos || p.gestionar_ministerios);
     }
+    if (!puedeAsignar) {
+      const { count } = await admin.from("ministerios").select("id", { count: "exact", head: true })
+        .eq("lider_id", caller.id).eq("iglesia_id", callerRow.iglesia_id);
+      puedeAsignar = (count ?? 0) > 0;
+    }
+    if (!puedeAsignar) return json({ error: "No tienes permiso para avisar asignaciones." }, 403);
 
     const body = await req.json();
     const usuario_id = String(body.usuario_id || "");
