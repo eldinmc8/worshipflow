@@ -5,6 +5,7 @@ import { confirmDialog, promptDialog } from "./lib/confirm.js";
 import { parseIsoDateLocal, todayLocal, buildMonthWeeks, MONTH_NAMES_FULL, DOW_LABELS, formatFullDate } from "./lib/dates.js";
 import { validarPassword } from "./lib/passwordSegura.js";
 import RolesAdmin from "./RolesAdmin.jsx";
+import { ordenarPor } from "./lib/orden.js";
 
 const ROLES = [
   { value: "admin", label: "Administrador" },
@@ -289,7 +290,7 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
     // Solo los de esta iglesia: un super administrador también puede leer los de otras (Consola general).
     const { data, error } = await supabase.from("usuarios").select("*").eq("iglesia_id", iglesiaId).order("created_at", { ascending: true });
     if (error) setError(error.message);
-    else setRows(data);
+    else setRows(ordenarPor(data, (r) => r.nombre)); // alfabético (2026-10-30)
   };
   useEffect(() => { load(); }, []);
 

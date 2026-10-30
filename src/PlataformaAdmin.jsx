@@ -4,6 +4,7 @@ import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { showToast } from "./lib/toast.js";
 import { confirmDialog, promptDialog } from "./lib/confirm.js";
 import { validarPassword } from "./lib/passwordSegura.js";
+import { ordenarPor } from "./lib/orden.js";
 
 const cardStyle = { background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: "14px 16px", marginBottom: 10 };
 const ghostBtn = { background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 };
@@ -37,8 +38,8 @@ export default function PlataformaAdmin({ onExit }) {
       supabase.from("usuarios").select("id, nombre, email, rol, iglesia_id"),
       supabase.from("plataforma_config").select("codigo_invitacion").eq("id", "default").maybeSingle(),
     ]).then(([igl, usr, conf]) => {
-      setIglesias(igl.data || []);
-      setUsuarios(usr.data || []);
+      setIglesias(ordenarPor(igl.data, (i) => i.nombre)); // alfabético (2026-10-30)
+      setUsuarios(ordenarPor(usr.data, (u) => u.nombre));
       setCodigo(conf.data?.codigo_invitacion || "");
       setCargando(false);
     });

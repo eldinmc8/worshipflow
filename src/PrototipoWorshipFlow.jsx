@@ -36,6 +36,7 @@ import { expandirVersiculosLargos, reorganizarLetra, FORMATOS_LETRA, palabrasPor
 import {
   listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
 } from "./lib/eventos.js";
+import { ordenarPor } from "./lib/orden.js";
 import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos, getResumenMensual, guardarResumenMensual, subirArchivoRecurso } from "./lib/ministerios.js";
 import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession, escucharProyeccion, responderPedidosDeEstado } from "./lib/liveSession.js";
 import { getMusicoLive, updateMusicoLive, clearMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
@@ -716,7 +717,10 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   }, [isCompact]);
   // Canciones y Eventos arrancan vacíos y se cargan de verdad desde Supabase — ya no hay datos de
   // ejemplo del prototipo. Ministerios sigue siendo local por ahora (todavía no tiene tabla real).
-  const [library, setLibrary] = useState([]);
+  const [librarySinOrden, setLibrary] = useState([]);
+  // Siempre en orden alfabético (2026-10-30) — también las que se crean o renombran en este dispositivo,
+  // que antes quedaban al final hasta recargar.
+  const library = useMemo(() => ordenarPor(librarySinOrden, (s) => s.title), [librarySinOrden]);
   // El guardado automático por atrás físico/gesto (más abajo, junto al listener de popstate) vive
   // dentro de un efecto que se monta una sola vez, así que no puede leer `library`/`userId` del render
   // actual sin quedarse con el valor viejo del primer render (cuando `library` todavía estaba vacío) —
@@ -1635,7 +1639,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // pantallas. AuthGate SÍ se queda montado siempre que haya sesión, sin importar la vista.
   const [roleOverride, setRoleOverride] = useState(null); // solo un admin lo puede poner (ver Ajustes)
   const [nameOverride, setNameOverride] = useState(null);
-  const [usuariosReales, setUsuariosReales] = useState([]); // miembros de ESTA iglesia
+  const [usuariosRealesSinOrden, setUsuariosReales] = useState([]); // miembros de ESTA iglesia
+  const usuariosReales = useMemo(() => ordenarPor(usuariosRealesSinOrden, (u) => u.nombre), [usuariosRealesSinOrden]); // alfabético
   // Filtro explícito por iglesia: la RLS ya limita a la propia iglesia a casi todos, pero un super
   // administrador de la plataforma (Consola general) tiene además permiso de ver usuarios de TODAS
   // las iglesias, y sin este filtro le aparecían mezclados con los suyos en toda la app.
@@ -1723,7 +1728,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const notasCtx = useMemo(() => ({ usuarioId: myUserId, nombre: myName, puedeEquipo: puedeEditarSetlist || puedeGestionarCanciones }), [myUserId, myName, puedeEditarSetlist, puedeGestionarCanciones]);
   // Un evento está "asignado a mí" si me pusieron como encargado de algún bloque/canción/versículo del
   // Setlist, o si estoy en el roster del equipo de alabanza de ese evento (ej. "Guitarra").
-  const [ministries, setMinistries] = useState([]);
+  const [ministriesSinOrden, setMinistries] = useState([]);
+  const ministries = useMemo(() => ordenarPor(ministriesSinOrden, (m) => m.name), [ministriesSinOrden]); // alfabético
   // Grupos que lidero — el líder de un grupo ve los eventos donde ese grupo está vinculado a un bloque.
   const gruposQueLideroYo = useMemo(() => new Set(ministries.filter((m) => m.leaderId === myUserId).map((m) => m.id)), [ministries, myUserId]);
   const isEventAssignedToMe = (event, uid) =>
