@@ -1731,6 +1731,10 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // identidad, asistente, etc.). Usuarios, roles e identidad de la iglesia son solo del
   // Administrador real (además lo exige la RLS de usuarios/roles_app/iglesias).
   // "Organizar eventos" incluye ver todos los eventos y editar su Setlist (ver PERMISOS_APP.incluye).
+  // OJO: myUserId tiene que ir ANTES de lideroGrupoCon/puedeGestionarCanciones, que lo usan al
+  // renderizar — declarado más abajo dejaba la app en blanco para todo el que no es administrador
+  // (bug 2026-10-31: "Cannot access before initialization").
+  const myUserId = realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride)?.id : userId;
   const [ministriesSinOrden, setMinistries] = useState([]);
   const ministries = useMemo(() => ordenarPor(ministriesSinOrden, (m) => m.name), [ministriesSinOrden]); // alfabético
   // ¿Lidero algún grupo que le da a su líder este permiso? (permisos por grupo, ver PERMISOS_LIDER)
@@ -1742,7 +1746,6 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // Al simular otra identidad (ver "Simular identidad" en Ajustes) los eventos visibles también deben
   // ser los de ESA persona, no los del admin real — si no, probar "¿ve Miembro X solo lo suyo?" no
   // serviría de nada.
-  const myUserId = realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride)?.id : userId;
   // Notas por parte de la canción: las "del líder" las escriben quienes arman el setlist o las canciones.
   // El clip de una canción se enciende/apaga al momento al agregar/quitar su último adjunto.
   const marcarAdjuntos = (songId, tiene) => setLibrary((prev) => prev.map((s) => (s.id === songId && s.hasAttachment !== tiene ? { ...s, hasAttachment: tiene } : s)));

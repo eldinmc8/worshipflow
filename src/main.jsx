@@ -11,6 +11,7 @@ import { leerPantallaDeUrl } from './lib/enlacePantalla.js'
 import CrearIglesia from './CrearIglesia.jsx'
 import ToastHost from './ToastHost.jsx'
 import ConfirmDialogHost from './ConfirmDialogHost.jsx'
+import ErrorPantalla from './ErrorPantalla.jsx'
 
 // La pantalla pública vive en su propia URL (?screen=publico) para poder instalarse
 // como PWA independiente del panel de control del operador (útil para un dispositivo fijo junto
@@ -58,7 +59,7 @@ function App() {
           </button>
         </div>
       )}
-      {isPublicScreen ? <PublicScreen /> : isCrearIglesia ? <CrearIglesia /> : <AuthGate />}
+      <ErrorPantalla>{isPublicScreen ? <PublicScreen /> : isCrearIglesia ? <CrearIglesia /> : <AuthGate />}</ErrorPantalla>
       <ToastHost />
       <ConfirmDialogHost />
     </>
