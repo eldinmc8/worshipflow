@@ -1,3 +1,4 @@
+import { reportarError } from "./monitoreo.js";
 // Aviso flotante y bonito para errores/mensajes de la app — reemplaza los window.alert() nativos
 // (feos, bloquean todo, y antes mostraban el mensaje técnico crudo de Supabase/JS tal cual, como si
 // la app estuviera rota). Un solo suscriptor real (ToastHost.jsx, montado una vez en main.jsx)
@@ -33,5 +34,7 @@ export function notifyError(prefix, err) {
     showToast(`${prefix} — no hay conexión a internet ahora mismo.`, "offline");
   } else {
     showToast(`${prefix}. Inténtalo de nuevo.`, "error");
+    // Un guardado o una carga que falló (y no por falta de internet) también llega al monitoreo.
+    reportarError(err instanceof Error ? err : new Error(`${prefix}: ${err?.message || err?.code || JSON.stringify(err)}`), { donde: prefix });
   }
 }

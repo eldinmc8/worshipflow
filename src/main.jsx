@@ -12,6 +12,9 @@ import CrearIglesia from './CrearIglesia.jsx'
 import ToastHost from './ToastHost.jsx'
 import ConfirmDialogHost from './ConfirmDialogHost.jsx'
 import ErrorPantalla from './ErrorPantalla.jsx'
+import { iniciarMonitoreo } from './lib/monitoreo.js'
+
+iniciarMonitoreo()
 
 // La pantalla pública vive en su propia URL (?screen=publico) para poder instalarse
 // como PWA independiente del panel de control del operador (útil para un dispositivo fijo junto

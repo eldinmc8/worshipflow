@@ -1,4 +1,5 @@
 import { Component } from "react";
+import { reportarError } from "./lib/monitoreo.js";
 
 // Red de seguridad (2026-10-31): si una pantalla falla al dibujarse, React la deja en blanco y la
 // persona cree que "la app no carga". Con esto se ve un aviso claro con un botón para recargar, y el
@@ -13,6 +14,7 @@ export default class ErrorPantalla extends Component {
   }
   componentDidCatch(error, info) {
     console.error("[WorshipFlow] Error al mostrar la pantalla:", error, info?.componentStack);
+    reportarError(error, { componentStack: info?.componentStack });
   }
   render() {
     if (!this.state.error) return this.props.children;

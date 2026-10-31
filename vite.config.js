@@ -14,6 +14,9 @@ const publicarVersionCelular = {
 }
 
 // https://vite.dev/config/
+// Versión que se ve en el monitoreo de errores (Sentry): el commit que Vercel está publicando.
+process.env.VITE_VERSION_APP ||= (process.env.VERCEL_GIT_COMMIT_SHA || 'local').slice(0, 7)
+
 export default defineConfig({
   plugins: [
     react(),

@@ -13,6 +13,7 @@ import PlataformaAdmin from "./PlataformaAdmin.jsx";
 import PrototipoWorshipFlow from "./PrototipoWorshipFlow.jsx";
 import GenericMark from "./GenericMark.jsx";
 import MarkCircle from "./MarkCircle.jsx";
+import { identificarUsuario } from "./lib/monitoreo.js";
 
 // Puerta de acceso real: exige sesión de Supabase antes de mostrar la app. La app en sí ya es el
 // prototipo completo (Canciones, Eventos, En vivo, Ministerios...), pero ahora leyendo y guardando
@@ -53,6 +54,7 @@ export default function AuthGate() {
   // leer directamente (super_admins); esto es solo para decidir si mostrar la entrada en Ajustes,
   // la seguridad real vive en las políticas RLS que usan esa misma función, no acá.
   const [esSuperAdmin, setEsSuperAdmin] = useState(false);
+  useEffect(() => { identificarUsuario(perfil); }, [perfil]); // monitoreo de errores: de quién viene
   useEffect(() => {
     if (!perfil) { setEsSuperAdmin(false); return; }
     supabase.rpc("soy_super_admin").then(({ data }) => setEsSuperAdmin(!!data));
