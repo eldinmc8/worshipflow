@@ -36,8 +36,9 @@ import { expandirVersiculosLargos, reorganizarLetra, FORMATOS_LETRA, palabrasPor
 import {
   listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
 } from "./lib/eventos.js";
+import { PERMISOS_LIDER } from "./lib/roles.js";
 import { ordenarPor } from "./lib/orden.js";
-import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, eliminarMinisterio, sincronizarPlan, sincronizarRecursos, getResumenMensual, guardarResumenMensual, subirArchivoRecurso } from "./lib/ministerios.js";
+import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, actualizarPermisosLider, eliminarMinisterio, sincronizarPlan, sincronizarRecursos, getResumenMensual, guardarResumenMensual, subirArchivoRecurso } from "./lib/ministerios.js";
 import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession, escucharProyeccion, responderPedidosDeEstado } from "./lib/liveSession.js";
 import { getMusicoLive, updateMusicoLive, clearMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
@@ -565,7 +566,7 @@ function decidirVisibilidadSetlist(event, isAdminViewer, userId, esSupervisor, g
   // "bloque-propio" se evaluaba primero y ganaba SIEMPRE que hubiera algún bloque propio, así que
   // alguien de Alabanza con un bloque organizativo de más se quedaba viendo SOLO ese bloque — sin
   // canciones, sin nada de lo que de verdad necesitaba para tocar (bug real: 2026-09, Pavel).
-  const soyDeAlabanzaOMultimedia = esMiembroAlabanza(event, userId) || misBloquesPropios.some(isMultimediaBlock);
+  const soyDeAlabanzaOMultimedia = esMiembroAlabanza(event, userId) || misBloquesPropios.some(isMultimediaBlock) || misBloquesPropios.some(isWorshipBlock);
   if (soyDeAlabanzaOMultimedia) {
     // Ven el Setlist COMPLETO (canciones, versículos, slides — lo que de verdad necesitan para tocar
     // o proyectar) + su propio bloque de Multimedia/Alabanza + cualquier otro bloque organizativo del
@@ -577,11 +578,20 @@ function decidirVisibilidadSetlist(event, isAdminViewer, userId, esSupervisor, g
   if (misOtrosBloques.length > 0) return { modo: "bloque-propio", blocks: misOtrosBloques };
   return { modo: "todo" };
 }
-// ¿Este bloque del Setlist está vinculado a un grupo (ministerio) que esta persona lidera? Alabanza
-// queda fuera a propósito: su equipo se maneja aparte (worshipRoles) y es del administrador.
+// ¿Este bloque del Setlist está vinculado a un grupo (ministerio) que esta persona lidera?
 // gruposQueLidero: Set con los ids de los ministerios donde la persona es líder.
 function lideraBloque(item, gruposQueLidero) {
-  return !!(gruposQueLidero && item?.type === "seccion" && item.ministryId && !isWorshipBlock(item) && gruposQueLidero.has(item.ministryId));
+  return !!(gruposQueLidero && item?.type === "seccion" && item.ministryId && gruposQueLidero.has(item.ministryId));
+}
+// ¿Tiene esta persona el permiso de líder `clave` (ver PERMISOS_LIDER) en este evento? Es decir: el
+// evento tiene un bloque vinculado a un grupo que ella lidera y ese grupo le da ese permiso a su líder.
+function permisoLiderEnEvento(event, ministries, userId, clave) {
+  if (!event || !userId) return false;
+  return (event.serviceOrder || []).some((it) => {
+    if (it.type !== "seccion" || !it.ministryId) return false;
+    const m = (ministries || []).find((x) => x.id === it.ministryId);
+    return !!(m && m.leaderId === userId && m.permisosLider?.[clave]);
+  });
 }
 // Ítems del Setlist que un usuario puede ver, aplicando decidirVisibilidadSetlist — se usa en el
 // resumen en PDF, que de otro modo mostraría el Setlist completo a cualquiera sin pasar por SetlistPane.
@@ -1721,9 +1731,13 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // identidad, asistente, etc.). Usuarios, roles e identidad de la iglesia son solo del
   // Administrador real (además lo exige la RLS de usuarios/roles_app/iglesias).
   // "Organizar eventos" incluye ver todos los eventos y editar su Setlist (ver PERMISOS_APP.incluye).
+  const [ministriesSinOrden, setMinistries] = useState([]);
+  const ministries = useMemo(() => ordenarPor(ministriesSinOrden, (m) => m.name), [ministriesSinOrden]); // alfabético
+  // ¿Lidero algún grupo que le da a su líder este permiso? (permisos por grupo, ver PERMISOS_LIDER)
+  const lideroGrupoCon = (clave) => ministries.some((m) => m.leaderId === myUserId && m.permisosLider?.[clave]);
   const puedeGestionarEventos = isAdminViewer || tienePermiso("gestionar_eventos"); // Crear eventos y plantillas, ajustes del evento, recordatorios, publicar y eliminar
   const puedeEditarSetlist = puedeGestionarEventos || tienePermiso("editar_setlist"); // Setlist de un evento: agregar/quitar/reordenar, versículos, slides, tonalidades por evento, encargados y equipo de alabanza
-  const puedeGestionarCanciones = isAdminViewer || tienePermiso("gestionar_canciones"); // Biblioteca: crear/editar/transportar/borrar canciones
+  const puedeGestionarCanciones = isAdminViewer || tienePermiso("gestionar_canciones") || lideroGrupoCon("gestionar_canciones"); // Biblioteca: crear/editar/transportar/borrar canciones
   const puedeGestionarMinisterios = isAdminViewer || tienePermiso("gestionar_ministerios"); // Crear ministerios, su planificación, recursos y líder
   // Al simular otra identidad (ver "Simular identidad" en Ajustes) los eventos visibles también deben
   // ser los de ESA persona, no los del admin real — si no, probar "¿ve Miembro X solo lo suyo?" no
@@ -1735,8 +1749,6 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const notasCtx = useMemo(() => ({ usuarioId: myUserId, nombre: myName, puedeEquipo: puedeEditarSetlist || puedeGestionarCanciones }), [myUserId, myName, puedeEditarSetlist, puedeGestionarCanciones]);
   // Un evento está "asignado a mí" si me pusieron como encargado de algún bloque/canción/versículo del
   // Setlist, o si estoy en el roster del equipo de alabanza de ese evento (ej. "Guitarra").
-  const [ministriesSinOrden, setMinistries] = useState([]);
-  const ministries = useMemo(() => ordenarPor(ministriesSinOrden, (m) => m.name), [ministriesSinOrden]); // alfabético
   // Grupos que lidero — el líder de un grupo ve los eventos donde ese grupo está vinculado a un bloque.
   const gruposQueLideroYo = useMemo(() => new Set(ministries.filter((m) => m.leaderId === myUserId).map((m) => m.id)), [ministries, myUserId]);
   const isEventAssignedToMe = (event, uid) =>
@@ -1757,10 +1769,13 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // Agregar versículos al Setlist es de administradores, con una sola excepción: quien esté asignado
   // como encargado de un bloque de Lectura bíblica/Oración EN ESTE EVENTO puede agregar su propio
   // versículo para esa lectura, aunque no sea administrador.
-  const canAddBibleReading = () => puedeEditarSetlist || !!(selectedEvent?.serviceOrder || []).find(
+  // Setlist del evento abierto: además del permiso general (rol), el líder de un grupo vinculado a este
+  // evento si su grupo le da "Editar el Setlist".
+  const puedeEditarSetlistEvento = puedeEditarSetlist || permisoLiderEnEvento(selectedEvent, ministries, myUserId, "editar_setlist");
+  const canAddBibleReading = () => puedeEditarSetlistEvento || !!(selectedEvent?.serviceOrder || []).find(
     (it) => isBibleReadingBlock(it) && (it.encargados || []).some((m) => m.usuarioId === myUserId)
   );
-  const canAddSermonPoints = () => puedeEditarSetlist;
+  const canAddSermonPoints = () => puedeEditarSetlistEvento;
 
   // ---- Estilo en vivo de la proyección: declarado más arriba (antes de `slides`), porque el tamaño de
   // letra decide en cuántas partes se dividen los versículos largos ----
@@ -1918,6 +1933,14 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const setMinistryName = (id, name) => {
     setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, name } : m)));
     actualizarNombreMinisterio(id, name).catch((e) => notifyError("No se pudo actualizar el nombre", e));
+  };
+  const setMinistryPermisosLider = (id, permisosLider) => {
+    const anteriores = ministries.find((m) => m.id === id)?.permisosLider || {};
+    setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, permisosLider } : m)));
+    actualizarPermisosLider(id, permisosLider).catch((e) => {
+      setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, permisosLider: anteriores } : m)));
+      notifyError("No se pudo guardar lo que puede hacer el líder", e);
+    });
   };
   const setMinistryColor = (id, color) => {
     setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, color } : m)));
@@ -2461,6 +2484,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onSetLeader={(leaderId) => setMinistryLeader(selectedMinistryId, leaderId)}
           onSetName={(name) => setMinistryName(selectedMinistryId, name)}
           onSetColor={(color) => setMinistryColor(selectedMinistryId, color)}
+          onSetPermisosLider={(permisos) => setMinistryPermisosLider(selectedMinistryId, permisos)}
           onDelete={() => deleteMinistry(ministries.find((m) => m.id === selectedMinistryId))}
         />
       )}
@@ -2524,7 +2548,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           myIglesiaId={myIglesiaId}
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
           isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={puedeGestionarEventos}
-          puedeEditarSetlist={puedeEditarSetlist}
+          puedeEditarSetlist={puedeEditarSetlistEvento}
           userId={myUserId} usuariosReales={usuariosReales}
           onBack={() => window.history.back()}
           isDraftFromTemplate={selectedEvent.id === draftFromTemplateId}
@@ -4287,7 +4311,7 @@ function MinistriesList({ ministries, usuariosReales, isAdminViewer, onSelect, o
   );
 }
 
-function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, canEdit, onBack, onSavePlan, onAddResource, onEditResource, onRemoveResource, onSetLeader, onSetName, onSetColor, onDelete }) {
+function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, canEdit, onBack, onSavePlan, onAddResource, onEditResource, onRemoveResource, onSetLeader, onSetName, onSetColor, onSetPermisosLider, onDelete }) {
   const [showResourceForm, setShowResourceForm] = useState(false);
   const [resourceDraft, setResourceDraft] = useState({ title: "", link: "" });
   // null = agregando uno nuevo; con valor = editando ese recurso ya existente (mismo modal para los dos).
@@ -4450,9 +4474,30 @@ function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, 
             <span style={{ fontWeight: 700 }}>{ministry.leaderName || "Sin asignar"}</span>
           )}
         </div>
-        {/* Qué puede hacer el líder (2026-10-30) — así el administrador sabe que no necesita un rol aparte. */}
+        {/* Qué puede hacer el líder (permisos por grupo, 2026-10-30) — así no hace falta darle un rol aparte. */}
         {isAdminViewer && (
-          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 10, lineHeight: 1.4 }}>El líder edita este grupo y, en cada evento, el título y los encargados de los bloques del Setlist vinculados a él.</div>
+          <div style={{ background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: "10px 14px", marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4 }}>QUÉ PUEDE HACER EL LÍDER</div>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "3px 0 4px", lineHeight: 1.4 }}>Siempre: editar este grupo y, en cada evento, el título y los encargados de los bloques vinculados a él. Además:</div>
+            {PERMISOS_LIDER.map((p) => {
+              const activo = !!ministry.permisosLider?.[p.clave];
+              return (
+                <div key={p.clave} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "7px 0", borderTop: "1px solid var(--wf-divider)" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>{p.etiqueta}</div>
+                    <div style={{ fontSize: 11, color: "var(--wf-muted)", marginTop: 1 }}>{p.detalle}</div>
+                  </div>
+                  <button
+                    type="button" role="switch" aria-checked={activo} aria-label={p.etiqueta}
+                    onClick={() => onSetPermisosLider({ ...(ministry.permisosLider || {}), [p.clave]: !activo })}
+                    style={{ flexShrink: 0, width: 42, height: 24, borderRadius: 14, border: "none", position: "relative", cursor: "pointer", background: activo ? "var(--wf-brand-accent)" : "var(--wf-border)" }}
+                  >
+                    <span style={{ position: "absolute", top: 3, left: activo ? 21 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         )}
         {isAdminViewer && (
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -6736,7 +6781,7 @@ function EventDetail({
             {(formatFullDate(event.date) || event.dateLabel || "")}{event.hora ? ` · ${event.hora}` : ""}
           </div>
           <ol style={{ paddingLeft: 20, margin: 0 }}>
-            {serviceOrderVisiblePara(event, isAdminViewer, userId, usuariosReales.find((u) => u.id === userId)?.rol === "supervisor", new Set((ministries || []).filter((m) => m.leaderId === userId).map((m) => m.id))).map((item) => {
+            {serviceOrderVisiblePara(event, isAdminViewer || puedeEditarSetlist, userId, usuariosReales.find((u) => u.id === userId)?.rol === "supervisor", new Set((ministries || []).filter((m) => m.leaderId === userId).map((m) => m.id))).map((item) => {
               if (item.type === "seccion") {
                 const names = isWorshipBlock(item)
                   ? (event.worshipRoles || []).flatMap((r) => r.members.map((m) => `${m.n} (${r.name})`)).join(", ")
@@ -7357,7 +7402,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>EQUIPO DE ALABANZA (compartido con Alabanza/Adoración)</div>
                         <WorshipRolesEditor
                           roles={event.worshipRoles || []}
-                          canEdit={canEditNow}
+                          canEdit={canEditNow || (lideraBloque(item, gruposQueLidero) && !!linkedMinistry?.permisosLider?.equipo)}
                           allUsuarios={usuariosReales}
                           onAddRole={onAddWorshipRole}
                           onRemoveRole={onRemoveWorshipRole}

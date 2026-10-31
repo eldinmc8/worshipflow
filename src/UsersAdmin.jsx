@@ -252,6 +252,16 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
   // Roles personalizados (Ajustes → Roles) para poder asignárselos a alguien desde su perfil, además
   // de los 5 de fábrica de arriba.
   const [rolesApp, setRolesApp] = useState([]);
+  // Grupos que lidera cada persona — se muestra en la lista ("Líder de: Alabanza"), porque lo que puede
+  // hacer alguien sale de su rol MÁS lo que le dan los grupos que lidera (permisos por grupo).
+  const [gruposPorLider, setGruposPorLider] = useState({});
+  useEffect(() => {
+    supabase.from("ministerios").select("nombre, lider_id").eq("iglesia_id", iglesiaId).not("lider_id", "is", null).then(({ data }) => {
+      const mapa = {};
+      ordenarPor(data, (m) => m.nombre).forEach((m) => { (mapa[m.lider_id] ||= []).push(m.nombre.trim()); });
+      setGruposPorLider(mapa);
+    });
+  }, [iglesiaId]);
   const cargarRoles = () => supabase.from("roles_app").select("id, nombre").order("orden").then(({ data }) => setRolesApp(data || []));
   useEffect(() => { cargarRoles(); }, []);
   // Quién SÍ tiene notificaciones push activadas en al menos un dispositivo — push_subscriptions solo
@@ -391,7 +401,7 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
               <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, color: "var(--wf-heading)", margin: 0 }}>Miembros</h1>
               <button onClick={onExit} style={ghostBtn}>← Volver a la app</button>
             </div>
-            <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 14 }}>Todo lo de las personas en un solo lugar: invitar por correo, cambiar su rol y su estado aquí mismo. Toca a alguien para ver su horario, reiniciar su contraseña o eliminarlo.</div>
+            <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 14 }}>Todo lo de las personas en un solo lugar: invitar por correo, cambiar su rol y su estado aquí mismo. Toca a alguien para ver su horario, reiniciar su contraseña o eliminarlo. Lo que puede hacer el líder de un grupo se decide dentro de cada grupo.</div>
 
             {error && <div style={{ background: "#FDECEA", border: "1px solid #C23B32", color: "#8A2A24", borderRadius: 12, padding: "8px 12px", fontSize: 13, marginBottom: 14 }}>{error}</div>}
 
@@ -440,6 +450,7 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
                           {usuariosConPush && !usuariosConPush.has(row.id) && <span title="No tiene notificaciones push activadas en ningún dispositivo — no le llegan avisos de asignaciones ni recordatorios" style={{ fontSize: 9, fontWeight: 700, color: "#C23B32", background: "#FBEAE8", border: "1px solid #C23B32", borderRadius: 14, padding: "1px 6px", marginLeft: 6 }}>SIN PUSH</span>}
                         </div>
                         <div style={{ fontSize: 12, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.email}</div>
+                        {gruposPorLider[row.id] && <div style={{ fontSize: 11, fontWeight: 600, color: "#5661B3", marginTop: 1 }}>Líder de: {gruposPorLider[row.id].join(", ")}</div>}
                       </div>
                       <span style={{ fontSize: 16, color: "var(--wf-faint)", flexShrink: 0 }}>›</span>
                     </button>

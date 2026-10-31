@@ -28,6 +28,17 @@ export const PERMISOS_APP = [
   { clave: "controlar_estilo_vivo", grupo: "En vivo", etiqueta: "Cambiar el estilo de la proyección", detalle: "Fondo, letra y tamaño mientras se transmite." },
 ];
 
+// Permisos por grupo (2026-10-30): cada grupo decide qué puede hacer SU líder, así para darle poder a
+// alguien sobre su ministerio basta con ponerlo de líder — sin tocar su rol. Lo básico (siempre, sin
+// interruptor): editar el grupo (planificación y recursos) y, en cada evento, el título y los
+// encargados de los bloques vinculados al grupo. Estos son los extras, y valen SOLO en los eventos
+// que tienen un bloque vinculado a ese grupo (menos el cancionero, que es de toda la iglesia).
+export const PERMISOS_LIDER = [
+  { clave: "editar_setlist", etiqueta: "Editar el Setlist de esos eventos", detalle: "Canciones, versículos, slides, orden, tonalidades y encargados — en los eventos donde está este grupo." },
+  { clave: "equipo", etiqueta: "Armar el equipo de alabanza", detalle: "Quién toca y canta (piano, voz, batería…) en esos eventos." },
+  { clave: "gestionar_canciones", etiqueta: "Gestionar el cancionero", detalle: "Crear, editar, cambiar la tonalidad original y borrar canciones." },
+];
+
 // ¿Este permiso está encendido porque otro activo ya lo incluye?
 export function permisoIncluidoPor(clave, permisos) {
   return PERMISOS_APP.find((p) => permisos?.[p.clave] && p.incluye?.includes(clave)) || null;

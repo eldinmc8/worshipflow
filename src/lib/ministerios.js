@@ -32,6 +32,9 @@ function ministerioCompletoAFormatoEditor({ ministerio, plan, recursos }) {
   return {
     id: ministerio.id, name: ministerio.nombre, color: ministerio.color,
     leaderId: ministerio.lider_id || null, leaderName: ministerio.lider?.nombre || "", memberCount: 0,
+    // Qué puede hacer el líder de este grupo, además de lo básico (ver PERMISOS_LIDER en lib/roles.js).
+    // Si la columna todavía no existe en la base, llega undefined y queda en {} (solo lo básico).
+    permisosLider: ministerio.permisos_lider || {},
     plan: plan.map((p) => ({ id: p.id, date: p.fecha || "", title: p.titulo || "", detail: p.detalle || "" })),
     resources: recursos.map((r) => ({ id: r.id, title: r.titulo, link: r.enlace || "", month: r.mes })),
   };
@@ -113,6 +116,11 @@ export async function actualizarLiderMinisterio(id, leaderId) {
 
 export async function actualizarNombreMinisterio(id, nombre) {
   const { error } = await supabase.from("ministerios").update({ nombre }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function actualizarPermisosLider(id, permisos) {
+  const { error } = await supabase.from("ministerios").update({ permisos_lider: permisos || {} }).eq("id", id);
   if (error) throw error;
 }
 
