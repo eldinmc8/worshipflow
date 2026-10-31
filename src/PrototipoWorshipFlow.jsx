@@ -583,6 +583,12 @@ function decidirVisibilidadSetlist(event, isAdminViewer, userId, esSupervisor, g
 function lideraBloque(item, gruposQueLidero) {
   return !!(gruposQueLidero && item?.type === "seccion" && item.ministryId && !isWorshipBlock(item) && gruposQueLidero.has(item.ministryId));
 }
+// ¿Lidera esta persona el grupo vinculado al bloque de Alabanza de este evento? (2026-10-30) Si es así,
+// en ESE evento tiene lo mismo que el permiso "Editar el Setlist": canciones, versículos, slides,
+// orden, tonalidades, encargados y equipo de alabanza. No toca la fecha, ni publica ni borra el evento.
+function lideraAlabanzaDe(event, gruposQueLidero) {
+  return !!(gruposQueLidero?.size && (event?.serviceOrder || []).some((it) => it.type === "seccion" && it.ministryId && isWorshipBlock(it) && gruposQueLidero.has(it.ministryId)));
+}
 // Ítems del Setlist que un usuario puede ver, aplicando decidirVisibilidadSetlist — se usa en el
 // resumen en PDF, que de otro modo mostraría el Setlist completo a cualquiera sin pasar por SetlistPane.
 function serviceOrderVisiblePara(event, isAdminViewer, userId, esSupervisor, gruposQueLidero = null) {
@@ -1752,15 +1758,17 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // decidirVisibilidadSetlist lo dejara ver todo POR DENTRO del evento, si la lista de Eventos ya lo
   // filtraba afuera antes de poder entrar.
   const esSupervisorViewer = usuariosReales.find((u) => u.id === myUserId)?.rol === "supervisor" || tienePermiso("ver_todos_eventos");
-  const realEvents = events.filter((e) => !e.esPlantilla && (puedeEditarSetlist || esSupervisorViewer || isEventAssignedToMe(e, myUserId) || (e.serviceOrder || []).some((it) => lideraBloque(it, gruposQueLideroYo))));
+  const realEvents = events.filter((e) => !e.esPlantilla && (puedeEditarSetlist || esSupervisorViewer || isEventAssignedToMe(e, myUserId) || (e.serviceOrder || []).some((it) => lideraBloque(it, gruposQueLideroYo)) || lideraAlabanzaDe(e, gruposQueLideroYo)));
+  // Setlist del evento abierto: además del permiso general, el líder del grupo de Alabanza vinculado.
+  const puedeEditarSetlistEvento = puedeEditarSetlist || lideraAlabanzaDe(selectedEvent, gruposQueLideroYo);
   const plantillas = events.filter((e) => e.esPlantilla);
   // Agregar versículos al Setlist es de administradores, con una sola excepción: quien esté asignado
   // como encargado de un bloque de Lectura bíblica/Oración EN ESTE EVENTO puede agregar su propio
   // versículo para esa lectura, aunque no sea administrador.
-  const canAddBibleReading = () => puedeEditarSetlist || !!(selectedEvent?.serviceOrder || []).find(
+  const canAddBibleReading = () => puedeEditarSetlistEvento || !!(selectedEvent?.serviceOrder || []).find(
     (it) => isBibleReadingBlock(it) && (it.encargados || []).some((m) => m.usuarioId === myUserId)
   );
-  const canAddSermonPoints = () => puedeEditarSetlist;
+  const canAddSermonPoints = () => puedeEditarSetlistEvento;
 
   // ---- Estilo en vivo de la proyección: declarado más arriba (antes de `slides`), porque el tamaño de
   // letra decide en cuántas partes se dividen los versículos largos ----
@@ -2524,7 +2532,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           myIglesiaId={myIglesiaId}
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
           isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={puedeGestionarEventos}
-          puedeEditarSetlist={puedeEditarSetlist}
+          puedeEditarSetlist={puedeEditarSetlistEvento}
           userId={myUserId} usuariosReales={usuariosReales}
           onBack={() => window.history.back()}
           isDraftFromTemplate={selectedEvent.id === draftFromTemplateId}
@@ -4452,7 +4460,7 @@ function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, 
         </div>
         {/* Qué puede hacer el líder (2026-10-30) — así el administrador sabe que no necesita un rol aparte. */}
         {isAdminViewer && (
-          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 10, lineHeight: 1.4 }}>El líder edita este grupo y, en cada evento, el título y los encargados de los bloques del Setlist vinculados a él.</div>
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 10, lineHeight: 1.4 }}>El líder edita este grupo y, en cada evento, el título y los encargados de los bloques del Setlist vinculados a él. Si es el grupo de Alabanza, edita el Setlist completo de esos eventos (canciones, orden, tonalidades y equipo).</div>
         )}
         {isAdminViewer && (
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -6736,7 +6744,7 @@ function EventDetail({
             {(formatFullDate(event.date) || event.dateLabel || "")}{event.hora ? ` · ${event.hora}` : ""}
           </div>
           <ol style={{ paddingLeft: 20, margin: 0 }}>
-            {serviceOrderVisiblePara(event, isAdminViewer, userId, usuariosReales.find((u) => u.id === userId)?.rol === "supervisor", new Set((ministries || []).filter((m) => m.leaderId === userId).map((m) => m.id))).map((item) => {
+            {serviceOrderVisiblePara(event, isAdminViewer || puedeEditarSetlist, userId, usuariosReales.find((u) => u.id === userId)?.rol === "supervisor", new Set((ministries || []).filter((m) => m.leaderId === userId).map((m) => m.id))).map((item) => {
               if (item.type === "seccion") {
                 const names = isWorshipBlock(item)
                   ? (event.worshipRoles || []).flatMap((r) => r.members.map((m) => `${m.n} (${r.name})`)).join(", ")
