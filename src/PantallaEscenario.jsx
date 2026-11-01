@@ -169,7 +169,7 @@ export default function PantallaEscenario() {
               </div>
             </div>
             <div style={{ height: vertical ? "22%" : "27%", minHeight: 0, display: "flex", flexDirection: "column", borderTop: "2px solid rgba(255,255,255,0.08)", paddingTop: "1.2vh" }}>
-              <Etiqueta>{sig ? `Sigue${sig.etiqueta ? ` · ${sig.etiqueta}` : ""}${esc?.siguienteEsOtro && sig.titulo ? ` · ${sig.titulo}` : ""}` : "Sigue"}</Etiqueta>
+              <Etiqueta>{sig ? `Sigue${sig.etiqueta ? ` · ${sig.etiqueta}` : ""}${esc?.siguienteEsOtro && sig.titulo && sig.titulo !== sig.etiqueta ? ` · ${sig.titulo}` : ""}` : "Sigue"}</Etiqueta>
               <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
                 {sig ? (
                   <AutoFitText
