@@ -32,6 +32,10 @@ export function notifyError(prefix, err) {
   console.error(prefix, err);
   if (esFalloDeConexion(err)) {
     showToast(`${prefix} — no hay conexión a internet ahora mismo.`, "offline");
+  } else if (err?.code === "42501" && /permiso/i.test(err?.message || "")) {
+    // La base rechazó el cambio porque esta persona no tiene permiso (ver migración permisos_en_la_base).
+    showToast(`${prefix}: ${err.message}.`, "error");
+    reportarError(new Error(`Sin permiso: ${prefix} — ${err.message}`), { donde: prefix });
   } else {
     showToast(`${prefix}. Inténtalo de nuevo.`, "error");
     // Un guardado o una carga que falló (y no por falta de internet) también llega al monitoreo.
