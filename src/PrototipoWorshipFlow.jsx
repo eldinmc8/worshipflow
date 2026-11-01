@@ -8,7 +8,7 @@ import { esPaginaPresentacion } from "./lib/importarPresentacion.js";
 import { esGrupoDiapositivas, slidesDeGrupo, diapositivasDeItem, itemConDiapositivas, moverDiapositiva, quitarDiapositiva as quitarDiapositivaDeGrupo, reordenarEnGrupo, tituloBase, nuevaDiapositiva } from "./lib/diapositivas.js";
 import DiapositivaDisenada from "./components/DiapositivaDisenada.jsx";
 import {
-  Music, Mic2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus,
+  Music, Mic2, MessageSquare, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus,
   Radio, ListMusic, BookOpen, Image as ImgIcon, Trash2, GripVertical,
   MonitorOff, X, Search, Sparkles, Calendar, MapPin, Users, Check,
   Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
@@ -58,6 +58,8 @@ import { validarPassword } from "./lib/passwordSegura.js";
 import MedidorPassword from "./MedidorPassword.jsx";
 import Tour from "./components/Tour.jsx";
 import BosquejoWizard from "./components/BosquejoWizard.jsx";
+import PanelEscenario from "./components/PanelEscenario.jsx";
+import { armarEscenario } from "./lib/escenario.js";
 import { esBloquePredicacion, guardarBosquejo, bosquejoAItems, aplicarBosquejoAlOrden, bosquejoTieneCambiosSinEnviar } from "./lib/bosquejos.js";
 import { CLAVES_TUTORIAL, pasosBienvenida, pasosEventos, pasosEvento, pasosCanciones, pasosEditorCancion, pasosEnVivo, marcarTutorialVisto, reiniciarTutoriales } from "./lib/tutoriales.js";
 import {
@@ -1877,9 +1879,33 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // proyección pueden estar en computadoras distintas de verdad. Solo transmite mientras hay un
   // evento en vivo Y este dispositivo es quien lo está llevando (si no, un músico que solo está
   // observando "En vivo" encendido en su teléfono pisaría por accidente lo que Multimedia proyecta).
+  // ---- Pantalla de escenario (stage display, 2026-11-01): lo que sigue, la parte de la canción, la
+  // siguiente canción, el mensaje de Multimedia y la hora de inicio viajan junto con la diapositiva al
+  // aire (slide_actual.escenario) — ver lib/escenario.js y PantallaEscenario.jsx. ----
+  const [mensajeEscenario, setMensajeEscenario] = useState("");
+  const [inicioVivo, setInicioVivo] = useState(null);
+  const llevoLaTransmision = !practica && !!(liveEventId || liveLibre) && userId === liveOwnerId;
+  useEffect(() => {
+    if (!llevoLaTransmision) { setInicioVivo(null); setMensajeEscenario(""); return; }
+    // Si la consola se recarga a mitad del culto, el tiempo sigue contando desde el inicio real.
+    const clave = liveEventId || "libre";
+    const guardado = loadCache("escenario_inicio");
+    const inicio = guardado?.clave === clave && guardado?.inicio ? guardado.inicio : new Date().toISOString();
+    saveCache("escenario_inicio", { clave, inicio });
+    setInicioVivo(inicio);
+  }, [llevoLaTransmision, liveEventId]);
+  const escenario = useMemo(() => {
+    if (!llevoLaTransmision) return null;
+    const alAire = fijada || current || null;
+    const indice = adHoc ? -1 : fijada ? slides.findIndex((x) => x.slideId === fijada.slideId) : activeIdx;
+    return armarEscenario({ slides, indice, alAire, serviceOrder: liveEvent?.serviceOrder || [], library, mensaje: mensajeEscenario, inicio: inicioVivo });
+  }, [llevoLaTransmision, fijada, current, adHoc, slides, activeIdx, liveEvent, library, mensajeEscenario, inicioVivo]);
+  const escenarioClave = escenario ? JSON.stringify(escenario) : "";
+
   useEffect(() => {
     if (practica || (!liveEventId && !liveLibre) || userId !== liveOwnerId) return;
-    const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: (fijada || current) || null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null, libre: liveLibre };
+    const alAire = (fijada || current) || null;
+    const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: alAire ? (escenario ? { ...alAire, escenario } : alAire) : null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null, libre: liveLibre };
     // Se manda por las dos vías a la vez: BroadcastChannel llega al instante si la pantalla de
     // proyección está en la MISMA computadora (caso típico: TV por HDMI como segunda pantalla) — así el
     // cambio de diapositiva no depende del internet del lugar, igual que un presentador local. Supabase
@@ -1893,7 +1919,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     updateLiveSession(myIglesiaId, fila)
       .then(() => { sincroPendienteRef.current = false; })
       .catch((e) => { if (esFalloDeConexion(e)) sincroPendienteRef.current = true; else notifyError("No se pudo actualizar la proyección", e); });
-  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId, practica, fijada]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId, practica, fijada, escenarioClave]);
   // Lo que está al aire ahora: para responderle a una pantalla de proyección que se abre o se recarga
   // sin internet, y para mandarlo a Supabase cuando vuelve la señal.
   useEffect(() => {
@@ -2763,6 +2790,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             fijada={fijada} onFijar={() => setFijada(current ? { ...current } : null)} onSoltar={() => setFijada(null)} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
             adHoc={adHocVista} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
             onOpenPublicScreen={enPractica ? () => avisoPractica("abre el proyector") : startPresentation}
+            mensajeEscenario={mensajeEscenario} onMensajeEscenario={setMensajeEscenario} iglesiaSlug={myIglesia?.slug || null}
             onNavigateBibleVerse={navigateBibleVerse}
             onAddLiveSlide={addLiveSlide} onEditLiveSlide={editLiveSlide} onRemoveLiveSlide={removeLiveSlide}
             onEditSongSlide={enPractica ? () => avisoPractica("cambian las canciones") : editSongSlideLive}
@@ -8532,7 +8560,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {}, onEditarLetraCompleta }) {
+function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {}, onEditarLetraCompleta, mensajeEscenario = "", onMensajeEscenario = null, iglesiaSlug = null }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -8572,6 +8600,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   const [animMenu, setAnimMenu] = useState(false);
   // "Pantalla en otro equipo": enlace corto + QR para abrir la proyección en un TV/tablet/otra computadora.
   const [showOtroEquipo, setShowOtroEquipo] = useState(false);
+  const [showEscenario, setShowEscenario] = useState(false); // Pantalla de escenario: mensaje + enlace (ver PanelEscenario)
   // Letra completa de la canción del centro, para corregirla toda de una vez: { songId, titulo, texto }.
   const [letraCompleta, setLetraCompleta] = useState(null);
   const abrirLetraCompleta = (songId) => {
@@ -9017,6 +9046,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
     <>
       {enPractica && franja("#1F8A73", "#fff", <GraduationCap size={17} />, <>MODO PRÁCTICA · nada de esto sale en la pantalla de la iglesia. Toca, avanza y equivócate tranquilo.</>, botonFranja("Salir de la práctica", onEnd))}
       {fijada && franja("#7B3FA0", "#fff", <Pin size={17} />, <>Pantalla FIJADA en "{fijada.type === "cancion" ? `${fijada.songTitle} · ${fijada.blockLabel}` : fijada.type === "biblia" ? fijada.reference : fijada.nombre || fijada.title || "Diapositiva"}" · puedes tocar y moverte, nada sale en la pantalla</>, botonFranja("Soltar y proyectar lo que veo", onSoltar))}
+      {mensajeEscenario && onMensajeEscenario && franja("#E8821E", "#16233A", <MessageSquare size={17} />, <>En el ESCENARIO: «{mensajeEscenario}» · el público no lo ve</>, botonFranja("Quitar", () => onMensajeEscenario("")))}
       {blanked && franja("#C23B32", "#fff", <MonitorOff size={17} />, <>La pantalla está en NEGRO · la iglesia no ve nada</>, botonFranja("Volver a mostrar", () => setBlanked(false)))}
       {mostrarAvisoProyeccion && franja("#F6C344", "#16324F", <AlertTriangle size={17} />, <>La pantalla de proyección no está abierta · lo que pases aquí no se ve en el proyector</>, <>
         {botonFranja("Abrir proyección", onOpenPublicScreen, { background: "#16324F", color: "#fff" })}
@@ -9077,6 +9107,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       {/* Barra de herramientas: pantalla 2, negro */}
       <div style={{ display: "flex", gap: 8, padding: "8px 16px 10px", flexWrap: "wrap" }}>
         <button data-tour="envivo-proyeccion" onClick={onOpenPublicScreen} style={{ ...ctrlBtn, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)" }}><Radio size={14} /> Reabrir proyección</button>
+        {onMensajeEscenario && <button onClick={() => setShowEscenario(true)} style={{ ...ctrlBtn, ...(mensajeEscenario ? { background: "#E8821E", color: "#16233A", border: "none" } : {}) }}><MessageSquare size={14} /> Escenario</button>}
         <button data-tour="envivo-negro" onClick={() => setBlanked((b) => !b)} style={{ ...ctrlBtn, background: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)" }}><MonitorOff size={14} /> {blanked ? "Reanudar" : "Pantalla en negro"}</button>
         <div style={{ flex: 1 }} />
         {botonAgregarConsola({ tour: "envivo-agregar" })}
@@ -9495,6 +9526,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
               {botonCinta({ icon: MonitorOff, label: "Negro", onClick: () => setBlanked((b) => !b), activo: blanked, tour: "envivo-negro" })}
               {onFijar && botonCinta({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", onClick: () => (fijada ? onSoltar() : onFijar()), activo: !!fijada, title: "Congelar la pantalla para moverte sin proyectar (tecla F)" })}
               {botonCinta({ icon: Radio, label: "Proyección", onClick: onOpenPublicScreen, title: "Reabrir la pantalla de proyección", tour: "envivo-proyeccion" })}
+              {onMensajeEscenario && botonCinta({ icon: MessageSquare, label: "Escenario", onClick: () => setShowEscenario(true), activo: !!mensajeEscenario, title: "Pantalla de escenario: mensaje para quienes están en la plataforma y enlace del monitor" })}
               {botonCinta({ icon: MonitorSmartphone, label: "Otro equipo", onClick: () => setShowOtroEquipo(true), title: "Abrir la proyección en un TV, tablet u otra computadora (enlace y código QR)", ancho: 70 })}
             </>),
           grupoItem("Proyectar", botonCinta({ icon: Music, label: "Desde biblioteca", onClick: () => setShowAdHocSong("proyectar"), title: "Buscar una canción de la biblioteca y ponerla en pantalla de una vez", ancho: 96 })),
@@ -9528,6 +9560,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         </ModalShell>
       )}
       {showOtroEquipo && <PantallaOtroEquipo iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipo(false)} />}
+      {showEscenario && onMensajeEscenario && <PanelEscenario mensaje={mensajeEscenario} onMensaje={onMensajeEscenario} iglesiaId={myIglesiaId} slug={iglesiaSlug} onCerrar={() => setShowEscenario(false)} />}
       {mmPanel === "estilo" && animMenu && (
         <div style={{ position: "relative", height: 0, zIndex: 36 }}>
           <div onClick={() => setAnimMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />

@@ -7,7 +7,8 @@ import { iniciarTema } from './lib/theme.js'
 import { iniciarPreferencias } from './lib/preferencias.js'
 import AuthGate from './AuthGate.jsx'
 import PublicScreen from './PublicScreen.jsx'
-import { leerPantallaDeUrl } from './lib/enlacePantalla.js'
+import PantallaEscenario from './PantallaEscenario.jsx'
+import { leerPantallaDeUrl, leerEscenarioDeUrl } from './lib/enlacePantalla.js'
 import CrearIglesia from './CrearIglesia.jsx'
 import ToastHost from './ToastHost.jsx'
 import ConfirmDialogHost from './ConfirmDialogHost.jsx'
@@ -23,10 +24,12 @@ iniciarMonitoreo()
 // que "Instalar app" abra la pantalla correcta según desde dónde se instaló.
 // También el enlace corto /p/<iglesia> (ver lib/enlacePantalla.js) para abrirla en otro equipo.
 const isPublicScreen = !!leerPantallaDeUrl(window.location.pathname, window.location.search)
+// Pantalla de escenario (stage display) para quienes están en la plataforma: /e/<iglesia>.
+const isEscenario = !isPublicScreen && !!leerEscenarioDeUrl(window.location.pathname, window.location.search)
 // Alta de una iglesia nueva (Fase 4) — su propia URL (?crear-iglesia), sin ningún enlace visible
 // hacia ella desde el resto de la app (ver CrearIglesia.jsx para el porqué).
 const isCrearIglesia = new URLSearchParams(window.location.search).has('crear-iglesia')
-if (isPublicScreen) {
+if (isPublicScreen || isEscenario) {
   const link = document.querySelector('link[rel="manifest"]')
   if (link) link.setAttribute('href', '/manifest-pantalla.webmanifest')
 } else {
@@ -62,7 +65,7 @@ function App() {
           </button>
         </div>
       )}
-      <ErrorPantalla>{isPublicScreen ? <PublicScreen /> : isCrearIglesia ? <CrearIglesia /> : <AuthGate />}</ErrorPantalla>
+      <ErrorPantalla>{isPublicScreen ? <PublicScreen /> : isEscenario ? <PantallaEscenario /> : isCrearIglesia ? <CrearIglesia /> : <AuthGate />}</ErrorPantalla>
       <ToastHost />
       <ConfirmDialogHost />
     </>
