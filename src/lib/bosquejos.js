@@ -1,0 +1,118 @@
+import { supabase } from "./supabaseClient.js";
+import { finDeBloque } from "./ordenCulto.js";
+
+// Bosquejo del predicador (pedido de Eldin, 2026-11-01). Quien está ASIGNADO a un bloque de Predicación
+// arma su bosquejo paso a paso: título del sermón → cita base → introducción/idea central → puntos con
+// versículos. Se guarda como borrador en la tabla bosquejos (aparte del Setlist, así el guardado del
+// Setlist completo nunca lo pisa) y, al "Enviar a Multimedia", se convierte en diapositivas reales del
+// Setlist justo después del bloque, marcadas con bosquejoDe = id del bloque (la base solo deja al
+// predicador tocar las diapositivas con SU marca — ver migración 20261103000000_bosquejo_predicador.sql).
+
+// Mismo criterio (por título) que wf_es_titulo_predicacion en la base.
+export const REGEX_PREDICACION = /pr[eé]dic|serm[oó]n|mensaje/i;
+export function esBloquePredicacion(item) {
+  return !!item && item.type === "seccion" && REGEX_PREDICACION.test(item.title || "");
+}
+
+export function bosquejoVacio() {
+  return { titulo: "", citaBase: null, ideaCentral: "", mostrarIdea: false, puntos: [], enviadoAt: null, updatedAt: null };
+}
+
+export function nuevoPunto(id = crypto.randomUUID()) {
+  return { id, titulo: "", nota: "", versiculos: [] };
+}
+
+// Lo mínimo para enviarlo: un título.
+export function bosquejoListoParaEnviar(b) {
+  return !!(b && b.titulo && b.titulo.trim());
+}
+
+// ¿Cambió algo desde la última vez que se mandó a Multimedia?
+export function bosquejoTieneCambiosSinEnviar(b) {
+  if (!b || !b.enviadoAt) return false;
+  return !!b.updatedAt && new Date(b.updatedAt).getTime() > new Date(b.enviadoAt).getTime() + 1000;
+}
+
+function filaABosquejo(row) {
+  return {
+    titulo: row.titulo || "",
+    citaBase: row.cita_base || null,
+    ideaCentral: row.idea_central || "",
+    mostrarIdea: !!row.mostrar_idea,
+    puntos: Array.isArray(row.puntos) ? row.puntos : [],
+    enviadoAt: row.enviado_at || null,
+    updatedAt: row.updated_at || null,
+  };
+}
+
+// Todos los bosquejos de la iglesia (RLS ya limita a esta iglesia), agrupados por evento y bloque:
+// { [eventoId]: { [bloqueId]: bosquejo } }. Si la tabla todavía no existe (la app se publicó antes de
+// correr la migración), no tumba la carga de eventos: simplemente no hay bosquejos.
+export async function listBosquejosPorEvento() {
+  try {
+    const { data, error } = await supabase.from("bosquejos").select("*");
+    if (error) return {};
+    const out = {};
+    (data || []).forEach((row) => { (out[row.evento_id] ||= {})[row.item_servicio_id] = filaABosquejo(row); });
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export async function guardarBosquejo(eventoId, bloqueId, bosquejo, { enviado = false } = {}) {
+  const ahora = new Date().toISOString();
+  const fila = {
+    item_servicio_id: bloqueId,
+    evento_id: eventoId,
+    titulo: (bosquejo.titulo || "").trim(),
+    cita_base: bosquejo.citaBase || null,
+    idea_central: bosquejo.ideaCentral || "",
+    mostrar_idea: !!bosquejo.mostrarIdea,
+    puntos: bosquejo.puntos || [],
+    updated_at: ahora,
+    ...(enviado ? { enviado_at: ahora } : {}),
+  };
+  const { data, error } = await supabase.from("bosquejos").upsert(fila).select().single();
+  if (error) throw error;
+  return filaABosquejo(data);
+}
+
+// Un versículo elegido en el selector de Biblia → ítem "biblia" del Setlist.
+function versiculoAItem(v, bloqueId, nuevoId) {
+  return {
+    id: nuevoId(), type: "biblia", reference: v.ref, version: v.version, text: v.text,
+    bookId: v.bookId, bookName: v.bookName, chapter: v.chapter, verseStart: v.verseStart, verseEnd: v.verseEnd,
+    bosquejoDe: bloqueId,
+  };
+}
+
+function textoAItem(titulo, subtitulo, bloqueId, nuevoId) {
+  return { id: nuevoId(), type: "slide", title: titulo, subtitle: subtitulo || "", bg: "#1B2029", bgType: "color", isSermonPoint: true, bosquejoDe: bloqueId };
+}
+
+// El bosquejo → diapositivas, en el orden en que se predica:
+// título (con la cita de subtítulo) → cita base → idea central (si se pidió mostrarla) → cada punto → sus versículos.
+// La nota de cada punto es solo para el predicador: nunca se proyecta.
+export function bosquejoAItems(bosquejo, bloqueId, nuevoId = () => crypto.randomUUID()) {
+  if (!bosquejoListoParaEnviar(bosquejo)) return [];
+  const items = [textoAItem(bosquejo.titulo.trim(), bosquejo.citaBase?.ref || "", bloqueId, nuevoId)];
+  if (bosquejo.citaBase?.text) items.push(versiculoAItem(bosquejo.citaBase, bloqueId, nuevoId));
+  if (bosquejo.mostrarIdea && bosquejo.ideaCentral?.trim()) items.push(textoAItem(bosquejo.ideaCentral.trim(), "", bloqueId, nuevoId));
+  (bosquejo.puntos || []).forEach((p, i) => {
+    const titulo = (p.titulo || "").trim();
+    if (titulo) items.push(textoAItem(titulo, `Punto ${i + 1}`, bloqueId, nuevoId));
+    (p.versiculos || []).forEach((v) => { if (v?.text) items.push(versiculoAItem(v, bloqueId, nuevoId)); });
+  });
+  return items;
+}
+
+// Reemplaza en el orden del culto las diapositivas de una versión anterior del bosquejo de este bloque
+// por las nuevas, al final del bloque de Predicación (después de lo que ya tenga, ej. un video que
+// Multimedia agregó). No modifica `orden`.
+export function aplicarBosquejoAlOrden(orden, bloqueId, items) {
+  const sinViejas = (orden || []).filter((it) => it.bosquejoDe !== bloqueId);
+  const fin = finDeBloque(sinViejas, bloqueId);
+  if (fin === -1) return sinViejas;
+  return [...sinViejas.slice(0, fin), ...items, ...sinViejas.slice(fin)];
+}

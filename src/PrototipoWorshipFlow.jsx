@@ -57,6 +57,8 @@ import { confirmDialog, promptDialog } from "./lib/confirm.js";
 import { validarPassword } from "./lib/passwordSegura.js";
 import MedidorPassword from "./MedidorPassword.jsx";
 import Tour from "./components/Tour.jsx";
+import BosquejoWizard from "./components/BosquejoWizard.jsx";
+import { esBloquePredicacion, guardarBosquejo, bosquejoAItems, aplicarBosquejoAlOrden, bosquejoTieneCambiosSinEnviar } from "./lib/bosquejos.js";
 import { CLAVES_TUTORIAL, pasosBienvenida, pasosEventos, pasosEvento, pasosCanciones, pasosEditorCancion, pasosEnVivo, marcarTutorialVisto, reiniciarTutoriales } from "./lib/tutoriales.js";
 import {
   guardarCapituloOffline, obtenerCapituloOffline, contarCapitulosGuardados,
@@ -611,7 +613,40 @@ function esMiembroAlabanza(event, uid) {
 // ni botones de agregar — solo su(s) propio(s) bloque(s), de solo lectura (encargados incluidos), tal
 // como se ve el resto de bloques cuando no se pueden editar. Multimedia además ve el equipo de
 // Alabanza completo (worshipRoles), que necesita para proyectar.
-function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event }) {
+// Botón del predicador en su bloque de Predicación: "Agregar bosquejo" la primera vez; después muestra
+// el título y si ya está enviado a Multimedia (ver BosquejoWizard y lib/bosquejos.js).
+function EtiquetaBosquejoListo({ cambios = false }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 9px", background: cambios ? "rgba(232,130,30,0.14)" : "rgba(31,138,115,0.14)", color: cambios ? "var(--wf-brand-accent)" : "#1F8A73" }}>
+      {cambios ? <Pencil size={11} /> : <Check size={11} />} {cambios ? "Cambios sin enviar" : "Bosquejo listo"}
+    </span>
+  );
+}
+function BotonBosquejo({ bosquejo, onAbrir, grande = false }) {
+  const tiene = !!(bosquejo && bosquejo.titulo);
+  if (!tiene) {
+    return (
+      <button onClick={onAbrir} className="hoverable" style={{ ...primaryBtn, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: grande ? "13px" : "10px", fontSize: grande ? 14 : 13, marginBottom: grande ? 16 : 0 }}>
+        <Mic2 size={grande ? 17 : 15} /> Agregar bosquejo
+      </button>
+    );
+  }
+  const enviado = !!bosquejo.enviadoAt;
+  return (
+    <button onClick={onAbrir} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "10px 12px", cursor: "pointer", marginBottom: grande ? 16 : 0, fontFamily: "inherit" }}>
+      <div style={{ width: 32, height: 32, borderRadius: 12, background: "rgba(232,130,30,0.14)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Mic2 size={15} color="var(--wf-brand-accent)" /></div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{bosquejo.titulo}</div>
+        <div style={{ marginTop: 3 }}>
+          {enviado ? <EtiquetaBosquejoListo cambios={bosquejoTieneCambiosSinEnviar(bosquejo)} />
+            : <span style={{ fontSize: 11.5, color: "var(--wf-muted)" }}>Borrador · toca para seguir</span>}
+        </div>
+      </div>
+      <ChevronRight size={16} color="var(--wf-faint)" style={{ flexShrink: 0 }} />
+    </button>
+  );
+}
+function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event, bosquejoInfo = null }) {
   return (
     <div style={{ flex: 1, padding: 20, display: "flex", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 480, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -629,6 +664,7 @@ function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event }) {
             <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><Sparkles size={13} color="#5661B3" /> TU PRIVILEGIO EN ESTE EVENTO</div>
             <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, marginBottom: 4 }}>{block.title}</div>
             {block.description && <div style={{ fontSize: 13, color: "var(--wf-text-2)", marginBottom: 16 }}>{block.description}</div>}
+            {bosquejoInfo?.puede(block) && <BotonBosquejo bosquejo={bosquejoInfo.bosquejos[block.id]} onAbrir={() => bosquejoInfo.abrir(block.id)} grande />}
             {linkedMinistry && currentPlan?.detail && (
               <div style={{ background: "var(--wf-hover)", borderRadius: 12, padding: "10px 12px", marginBottom: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 4 }}>PLANIFICACIÓN DE ESTA SEMANA</div>
@@ -882,6 +918,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const [slideDraft, setSlideDraft] = useState({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" });
   const [showSermonForm, setShowSermonForm] = useState(false);
   const [sermonPointText, setSermonPointText] = useState("");
+  const [bosquejoAbierto, setBosquejoAbierto] = useState(null); // id del bloque de Predicación (ver BosquejoWizard)
 
   const selectedEvent = events.find((e) => e.id === selectedEventId);
   const [liveEventId, setLiveEventId] = useState(null);
@@ -1113,8 +1150,11 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       // manda solo lo que cambió — ver soloIds en sincronizarServiceOrder.
       let soloIds = null;
       if (!puedeEditarSetlistEvento) {
-        const antes = new Map((anterior || []).map((it) => [it.id, JSON.stringify(it)]));
-        soloIds = new Set(nuevoOrden.filter((it) => antes.get(it.id) !== JSON.stringify(it)).map((it) => it.id));
+        // También las que solo cambiaron de LUGAR: al insertar algo a mitad del culto (un versículo de la
+        // Lectura, las diapositivas del bosquejo) todo lo de abajo se recorre y su "orden" en la base
+        // tiene que recorrerse igual, o lo nuevo quedaría con el mismo número que lo que ya estaba ahí.
+        const antes = new Map((anterior || []).map((it, i) => [it.id, `${i}|${JSON.stringify(it)}`]));
+        soloIds = new Set(nuevoOrden.filter((it, i) => antes.get(it.id) !== `${i}|${JSON.stringify(it)}`).map((it) => it.id));
       }
       pendingSavesRef.current++;
       sincronizarServiceOrder(selectedEventId, nuevoOrden, { soloIds }).catch((err) => notifyError("No se pudo guardar el setlist", err)).finally(() => pendingSavesRef.current--);
@@ -1268,7 +1308,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     updateItemEncargados(itemId, (encargados) => [...encargados, { id: nextId(), n: usuario.nombre, usuarioId: usuario.id, status: "pendiente", lead: false }]);
     const item = selectedEvent?.serviceOrder.find((i) => i.id === itemId);
     const label = item ? serviceItemLabel(item, library) : "un encargo";
-    notificarAsignacion(usuario.id, { titulo: "Se te ha asignado", cuerpo: `Para "${label}" en "${selectedEvent?.title}".`, eventoId: selectedEventId });
+    // Al predicador se le invita de una a preparar su bosquejo (ver BosquejoWizard).
+    const extra = esBloquePredicacion(item) ? " Entra al evento y toca \"Agregar bosquejo\" para preparar tu mensaje." : "";
+    notificarAsignacion(usuario.id, { titulo: "Se te ha asignado", cuerpo: `Para "${label}" en "${selectedEvent?.title}".${extra}`, eventoId: selectedEventId });
   };
   const setEncargadoStatus = (itemId, idx, status) =>
     updateItemEncargados(itemId, (encargados) => encargados.map((m, mi) => (mi === idx ? { ...m, status } : m)));
@@ -1789,6 +1831,40 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     (it) => isBibleReadingBlock(it) && (it.encargados || []).some((m) => m.usuarioId === myUserId)
   );
   const canAddSermonPoints = () => puedeEditarSetlistEvento;
+  // ---- Bosquejo del predicador (2026-11-01): quien está asignado a un bloque de Predicación (o quien
+  // edita el Setlist) lo arma paso a paso; al enviarlo se vuelve diapositivas del Setlist (ver bosquejos.js).
+  const puedeBosquejo = (block) => esBloquePredicacion(block) && (puedeEditarSetlistEvento || (block.encargados || []).some((m) => m.usuarioId === myUserId));
+  const bloqueBosquejo = bosquejoAbierto ? (selectedEvent?.serviceOrder || []).find((it) => it.id === bosquejoAbierto) : null;
+  // En vivo, el predicador ya no lo cambia (Multimedia sí puede corregir desde la consola).
+  const bosquejoBloqueado = !!bloqueBosquejo && liveEventId === selectedEventId && !puedeEditarSetlistEvento;
+  const ponerBosquejoLocal = (eventoId, bloqueId, guardado) => setEventsSynced((evs) => evs.map((e) => (
+    e.id === eventoId ? { ...e, bosquejos: { ...(e.bosquejos || {}), [bloqueId]: guardado } } : e
+  )));
+  const guardarBorradorBosquejo = async (b) => {
+    const eventoId = selectedEventId, bloqueId = bosquejoAbierto;
+    try {
+      const guardado = await guardarBosquejo(eventoId, bloqueId, b);
+      ponerBosquejoLocal(eventoId, bloqueId, guardado);
+      return guardado;
+    } catch (err) {
+      notifyError("No se pudo guardar el bosquejo", err);
+      throw err;
+    }
+  };
+  const enviarBosquejo = async (b) => {
+    const eventoId = selectedEventId, bloqueId = bosquejoAbierto;
+    try {
+      const guardado = await guardarBosquejo(eventoId, bloqueId, b, { enviado: true });
+      ponerBosquejoLocal(eventoId, bloqueId, guardado);
+      updateOrder((o) => aplicarBosquejoAlOrden(o, bloqueId, bosquejoAItems(b, bloqueId, nextId)));
+      showToast("Bosquejo enviado. Multimedia ya tiene tus diapositivas.", "info");
+      return guardado;
+    } catch (err) {
+      notifyError("No se pudo enviar el bosquejo", err);
+      throw err;
+    }
+  };
+  const bosquejoInfo = { puede: puedeBosquejo, abrir: setBosquejoAbierto, bosquejos: selectedEvent?.bosquejos || {} };
 
   // ---- Estilo en vivo de la proyección: declarado más arriba (antes de `slides`), porque el tamaño de
   // letra decide en cuántas partes se dividen los versículos largos ----
@@ -2589,6 +2665,18 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
           showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
           showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
+          bosquejoInfo={bosquejoInfo}
+        />
+      )}
+      {tab === "eventos" && selectedEvent && bloqueBosquejo && (
+        <BosquejoWizard
+          key={bloqueBosquejo.id}
+          inicial={selectedEvent.bosquejos?.[bloqueBosquejo.id]}
+          tituloBloque={bloqueBosquejo.title} tituloEvento={selectedEvent.title}
+          bloqueado={bosquejoBloqueado}
+          onGuardar={guardarBorradorBosquejo} onEnviar={enviarBosquejo}
+          onClose={() => setBosquejoAbierto(null)}
+          BibliaSelector={BibleBrowserBody}
         />
       )}
 
@@ -6584,7 +6672,7 @@ function EventDetail({
   event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onPracticar, onGoLive, onDelete,
   isDraftFromTemplate, onPublish,
   onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, destinoAgregar, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder,
-  onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints,
+  onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
   onViewMinistry, onOpenSong, onAddReminder, onRemoveReminder, onSetHora, onUpdateEventDetails, onMarkVisto, onSetEnsayo,
@@ -6861,7 +6949,7 @@ function EventDetail({
         onRemove={onRemove} onRestaurar={onRestaurar} onDuplicate={onDuplicate} onReorder={onReorder}
         onLinkMinistry={onLinkMinistry} onUpdateSeccionText={onUpdateSeccionText}
         onSetSongKey={onSetSongKey}
-        canAddBibleReading={canAddBibleReading} canAddSermonPoints={canAddSermonPoints}
+        canAddBibleReading={canAddBibleReading} canAddSermonPoints={canAddSermonPoints} bosquejoInfo={bosquejoInfo}
         onAddEncargado={onAddEncargado} onSetEncargadoStatus={onSetEncargadoStatus} onSetEncargadoLead={onSetEncargadoLead} onRemoveEncargado={onRemoveEncargado}
         onAddWorshipRole={onAddWorshipRole} onRemoveWorshipRole={onRemoveWorshipRole} onAddWorshipRoleMember={onAddWorshipRoleMember} onSetWorshipRoleMemberStatus={onSetWorshipRoleMemberStatus} onSetWorshipRoleMemberLead={onSetWorshipRoleMemberLead} onRemoveWorshipRoleMember={onRemoveWorshipRoleMember}
         onViewMinistry={onViewMinistry} onOpenSong={onOpenSong}
@@ -7015,7 +7103,7 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, destinoAgregar = null, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, destinoAgregar = null, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   const [showImportar, setShowImportar] = useState(false); // Importar presentación (ver ImportarPresentacion)
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
@@ -7113,7 +7201,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   // sus bloques) en vez del panel de solo lectura, para que pueda editarlos.
   const lideraAlgunoDeSusBloques = visibilidadSetlist.modo === "bloque-propio" && visibilidadSetlist.blocks.some((b) => lideraBloque(b, gruposQueLidero));
   if (visibilidadSetlist.modo === "bloque-propio" && !lideraAlgunoDeSusBloques) {
-    return <RestrictedGroupPanel blocks={visibilidadSetlist.blocks} worshipRoles={[]} ministries={ministries} event={event} />;
+    return <RestrictedGroupPanel blocks={visibilidadSetlist.blocks} worshipRoles={[]} ministries={ministries} event={event} bosquejoInfo={bosquejoInfo} />;
   }
   // Alabanza/Multimedia: NO es un panel simplificado — ven el Setlist normal de siempre (canciones,
   // letra, versículos, slides), solo que sin los bloques organizativos de otros grupos (ver
@@ -7364,6 +7452,12 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                     {canEditNow && botonMenu(item)}
                   </div>
                 </div>
+                {bosquejoInfo?.puede(item) && (
+                  <div style={{ marginTop: 10 }}><BotonBosquejo bosquejo={bosquejoInfo.bosquejos[item.id]} onAbrir={() => bosquejoInfo.abrir(item.id)} /></div>
+                )}
+                {!bosquejoInfo?.puede(item) && esBloquePredicacion(item) && bosquejoInfo?.bosquejos[item.id]?.enviadoAt && (
+                  <div style={{ marginTop: 8 }}><EtiquetaBosquejoListo /></div>
+                )}
 
                 {isExpanded && (
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(124,140,216,0.3)" }}>
