@@ -30,6 +30,10 @@ export function iniciarMonitoreo() {
     ],
     denyUrls: [/extensions\//i, /^chrome:\/\//i, /^moz-extension:\/\//i],
   });
+  // Prueba: abrir la app con ?probar-monitoreo manda un aviso a Sentry, para confirmar que llega.
+  if (new URLSearchParams(window.location.search).has("probar-monitoreo")) {
+    Sentry.captureMessage("Prueba de monitoreo de WorshipFlow — si ves esto, ya funciona", "warning");
+  }
 }
 
 // Quién está usando la app — se llama cuando ya se sabe el perfil. Solo el id, el rol y la iglesia
