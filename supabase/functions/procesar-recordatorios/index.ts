@@ -263,7 +263,50 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    return json({ success: true, procesados, fallos, avisosConfirmacion }, 200);
+    // Tercera pasada (2026-11-01): al predicador asignado que todavía no envió su bosquejo, un aviso
+    // dentro de las 24 horas antes del culto — una sola vez por bloque y persona (avisos_bosquejo_enviados).
+    // Si esa tabla todavía no existe (falta la migración del bosquejo), se salta entera.
+    let avisosBosquejo = 0;
+    const probeBosquejo = await admin.from("avisos_bosquejo_enviados").select("usuario_id").limit(1);
+    if (!probeBosquejo.error) {
+      const { data: eventosBosquejo } = await admin.from("eventos").select("id, titulo, fecha, hora, iglesia_id").eq("es_plantilla", false).not("fecha", "is", null);
+      for (const ev of eventosBosquejo ?? []) {
+        const zonaEv = zonaPorIglesia.get(ev.iglesia_id) || "Etc/GMT+6";
+        const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}${offsetParaZona(zonaEv, `${ev.fecha}T${ev.hora || "00:00:00"}`)}`).getTime();
+        if (inicio < ahora || inicio > ahora + VENTANA_MS) continue;
+
+        const { data: bloques } = await admin.from("items_servicio").select("id, titulo").eq("evento_id", ev.id).eq("tipo", "bloque");
+        const predicacion = (bloques ?? []).filter((b: { titulo: string | null }) => /pr[eé]dic|serm[oó]n|mensaje/i.test(b.titulo || ""));
+        if (predicacion.length === 0) continue;
+        const ids = predicacion.map((b: { id: string }) => b.id);
+        const { data: enviados } = await admin.from("bosquejos").select("item_servicio_id").in("item_servicio_id", ids).not("enviado_at", "is", null);
+        const conBosquejo = new Set((enviados ?? []).map((b: { item_servicio_id: string }) => b.item_servicio_id));
+        const sinBosquejo = ids.filter((id: string) => !conBosquejo.has(id));
+        if (sinBosquejo.length === 0) continue;
+
+        const { data: predicadores } = await admin.from("miembros_rol").select("usuario_id, item_servicio_id").in("item_servicio_id", sinBosquejo).not("usuario_id", "is", null);
+        const { data: yaAvisados } = await admin.from("avisos_bosquejo_enviados").select("usuario_id, item_servicio_id").in("item_servicio_id", sinBosquejo);
+        const avisadoSet = new Set((yaAvisados ?? []).map((a: { usuario_id: string; item_servicio_id: string }) => `${a.item_servicio_id}|${a.usuario_id}`));
+
+        const titulo = `Prepara tu bosquejo: ${ev.titulo}`;
+        const cuerpo = `Te toca predicar en menos de un día y todavía no has enviado tu bosquejo. Entra al evento y toca "Agregar bosquejo" para que Multimedia tenga tus diapositivas.`;
+        for (const p of predicadores ?? []) {
+          if (avisadoSet.has(`${p.item_servicio_id}|${p.usuario_id}`)) continue;
+          try {
+            const { error: insertErr } = await admin.from("notificaciones").insert({ usuario_id: p.usuario_id, tipo: "recordatorio", titulo, cuerpo, evento_id: ev.id, iglesia_id: ev.iglesia_id });
+            if (insertErr) throw insertErr;
+            await enviarPush(admin, p.usuario_id, { title: titulo, body: cuerpo });
+            await admin.from("avisos_bosquejo_enviados").insert({ item_servicio_id: p.item_servicio_id, usuario_id: p.usuario_id, iglesia_id: ev.iglesia_id });
+            avisadoSet.add(`${p.item_servicio_id}|${p.usuario_id}`);
+            avisosBosquejo++;
+          } catch (e) {
+            console.error(`aviso bosquejo evento ${ev.id} / usuario ${p.usuario_id}:`, e);
+          }
+        }
+      }
+    }
+
+    return json({ success: true, procesados, fallos, avisosConfirmacion, avisosBosquejo }, 200);
   } catch (e) {
     return json({ error: "Error inesperado: " + (e instanceof Error ? e.message : String(e)) }, 500);
   }

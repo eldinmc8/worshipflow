@@ -119,3 +119,16 @@ create policy "escribir bosquejos" on public.bosquejos for all to authenticated
   using (iglesia_id = public.mi_iglesia_id() and public.wf_puedo_bosquejo(item_servicio_id, evento_id))
   with check (iglesia_id = public.mi_iglesia_id() and public.wf_puedo_bosquejo(item_servicio_id, evento_id));
 grant select, insert, update, delete on public.bosquejos to authenticated;
+
+-- ---------- Recordatorio "prepara tu bosquejo" ----------
+-- procesar-recordatorios avisa una sola vez, dentro de las 24 horas antes del culto, al predicador
+-- asignado que todavía no envió su bosquejo. Aquí se anota a quién ya se le avisó para no repetirlo
+-- cada 15 minutos. Solo la usa la Edge Function (llave de servicio): RLS encendido y sin políticas.
+create table if not exists public.avisos_bosquejo_enviados (
+  item_servicio_id uuid not null references public.items_servicio(id) on delete cascade,
+  usuario_id uuid not null references public.usuarios(id) on delete cascade,
+  iglesia_id uuid not null references public.iglesias(id) on delete cascade,
+  enviado_at timestamptz not null default now(),
+  primary key (item_servicio_id, usuario_id)
+);
+alter table public.avisos_bosquejo_enviados enable row level security;

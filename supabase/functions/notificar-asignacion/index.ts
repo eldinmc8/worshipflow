@@ -48,6 +48,57 @@ async function enviarPush(
   }
 }
 
+const REGEX_PREDICACION = /pr[eé]dic|serm[oó]n|mensaje/i;
+
+async function avisarBosquejoEnviado(
+  admin: ReturnType<typeof createClient>,
+  callerId: string,
+  iglesiaId: string,
+  bloqueId: string,
+  puedeAsignar: boolean,
+) {
+  if (!bloqueId) return json({ error: "Falta bloque_id." }, 400);
+  const { data: bloque } = await admin.from("items_servicio").select("id, evento_id, tipo, titulo, iglesia_id").eq("id", bloqueId).maybeSingle();
+  if (!bloque || bloque.iglesia_id !== iglesiaId || bloque.tipo !== "bloque" || !REGEX_PREDICACION.test(bloque.titulo || "")) {
+    return json({ error: "Ese bloque no es de Predicación." }, 400);
+  }
+  const { count: asignado } = await admin.from("miembros_rol").select("id", { count: "exact", head: true })
+    .eq("item_servicio_id", bloqueId).eq("usuario_id", callerId);
+  if (!asignado && !puedeAsignar) return json({ error: "No tienes permiso para avisar sobre este bosquejo." }, 403);
+
+  // Solo justo después de enviarlo (evita que se use para mandar el mismo aviso una y otra vez).
+  const { data: bosquejo } = await admin.from("bosquejos").select("titulo, enviado_at").eq("item_servicio_id", bloqueId).maybeSingle();
+  if (!bosquejo?.enviado_at || Date.now() - new Date(bosquejo.enviado_at).getTime() > 10 * 60_000) {
+    return json({ error: "Ese bosquejo no se acaba de enviar." }, 400);
+  }
+
+  const { data: evento } = await admin.from("eventos").select("titulo").eq("id", bloque.evento_id).single();
+  const { data: quien } = await admin.from("usuarios").select("nombre").eq("id", callerId).single();
+
+  // Destinatarios: los asignados al bloque de Multimedia de ese evento; si no hay, el equipo con rol Multimedia.
+  const { data: bloquesMultimedia } = await admin.from("items_servicio").select("id")
+    .eq("evento_id", bloque.evento_id).eq("tipo", "bloque").ilike("titulo", "%multimedia%");
+  let destinatarios: string[] = [];
+  const idsMultimedia = (bloquesMultimedia ?? []).map((b: { id: string }) => b.id);
+  if (idsMultimedia.length) {
+    const { data: enc } = await admin.from("miembros_rol").select("usuario_id").in("item_servicio_id", idsMultimedia).not("usuario_id", "is", null);
+    destinatarios = (enc ?? []).map((m: { usuario_id: string }) => m.usuario_id);
+  }
+  if (destinatarios.length === 0) {
+    const { data: equipo } = await admin.from("usuarios").select("id").eq("iglesia_id", iglesiaId).eq("rol", "multimedia");
+    destinatarios = (equipo ?? []).map((u: { id: string }) => u.id);
+  }
+  destinatarios = [...new Set(destinatarios)].filter((id) => id !== callerId);
+
+  const titulo = `Bosquejo listo: ${bosquejo.titulo}`;
+  const cuerpo = `${quien?.nombre || "El predicador"} envió su bosquejo para "${evento?.titulo || "el culto"}". Las diapositivas ya están en el Setlist.`;
+  for (const usuarioId of destinatarios) {
+    const { error } = await admin.from("notificaciones").insert({ usuario_id: usuarioId, tipo: "general", titulo, cuerpo, evento_id: bloque.evento_id, iglesia_id: iglesiaId });
+    if (!error) await enviarPush(admin, usuarioId, { title: titulo, body: cuerpo });
+  }
+  return json({ success: true, avisados: destinatarios.length }, 200);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -82,9 +133,17 @@ Deno.serve(async (req: Request) => {
         .eq("lider_id", caller.id).eq("iglesia_id", callerRow.iglesia_id);
       puedeAsignar = (count ?? 0) > 0;
     }
+    const body = await req.json();
+
+    // "Bosquejo listo" (2026-11-01): el predicador acaba de enviar su bosquejo y se le avisa a Multimedia.
+    // Lo puede pedir el predicador asignado aunque no pueda asignar gente; los destinatarios los decide el
+    // servidor (nunca el que llama), así nadie puede usar esto para mandar avisos a quien quiera.
+    if (body.accion === "bosquejo_enviado") {
+      return await avisarBosquejoEnviado(admin, caller.id, callerRow.iglesia_id, String(body.bloque_id || ""), puedeAsignar);
+    }
+
     if (!puedeAsignar) return json({ error: "No tienes permiso para avisar asignaciones." }, 403);
 
-    const body = await req.json();
     const usuario_id = String(body.usuario_id || "");
     const tipo = TIPOS_VALIDOS.includes(body.tipo) ? body.tipo : "general";
     const titulo = String(body.titulo || "").trim();

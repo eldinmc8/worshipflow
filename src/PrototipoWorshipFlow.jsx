@@ -1857,6 +1857,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       const guardado = await guardarBosquejo(eventoId, bloqueId, b, { enviado: true });
       ponerBosquejoLocal(eventoId, bloqueId, guardado);
       updateOrder((o) => aplicarBosquejoAlOrden(o, bloqueId, bosquejoAItems(b, bloqueId, nextId)));
+      // Aviso a Multimedia (los destinatarios los decide el servidor). Si falla, el bosquejo ya quedó enviado igual.
+      callUsersFunction("notificar-asignacion", { accion: "bosquejo_enviado", bloque_id: bloqueId })
+        .catch((e) => console.warn("No se pudo avisar a Multimedia del bosquejo:", e.message));
       showToast("Bosquejo enviado. Multimedia ya tiene tus diapositivas.", "info");
       return guardado;
     } catch (err) {
