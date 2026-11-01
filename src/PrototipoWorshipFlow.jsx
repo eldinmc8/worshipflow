@@ -16,7 +16,7 @@ import {
   ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
   Type, MonitorSmartphone, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff, ClipboardPaste, PencilLine, FileText, Link2, ArrowUpDown,
 } from "lucide-react";
-import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion } from "./lib/canciones.js";
+import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion, updateCancion } from "./lib/canciones.js";
 import { aplicarCambioLetra, rearmarSeccion, letraEfectiva } from "./lib/letraEnVivo.js";
 import { letraATexto, textoALetra } from "./lib/textoCancion.js";
 import AutoFitText from "./components/AutoFitText.jsx";
@@ -1101,15 +1101,23 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   };
 
   const updateOrder = (fn) => {
-    let nuevoOrden = null;
+    let nuevoOrden = null, anterior = null;
     setEventsSynced((evs) => evs.map((e) => {
       if (e.id !== selectedEventId) return e;
+      anterior = e.serviceOrder;
       nuevoOrden = fn(e.serviceOrder);
       return { ...e, serviceOrder: nuevoOrden };
     }));
     if (nuevoOrden) {
+      // Quien no edita el Setlist completo (líder de un grupo con lo básico, encargado de una lectura)
+      // manda solo lo que cambió — ver soloIds en sincronizarServiceOrder.
+      let soloIds = null;
+      if (!puedeEditarSetlistEvento) {
+        const antes = new Map((anterior || []).map((it) => [it.id, JSON.stringify(it)]));
+        soloIds = new Set(nuevoOrden.filter((it) => antes.get(it.id) !== JSON.stringify(it)).map((it) => it.id));
+      }
       pendingSavesRef.current++;
-      sincronizarServiceOrder(selectedEventId, nuevoOrden).catch((err) => notifyError("No se pudo guardar el setlist", err)).finally(() => pendingSavesRef.current--);
+      sincronizarServiceOrder(selectedEventId, nuevoOrden, { soloIds }).catch((err) => notifyError("No se pudo guardar el setlist", err)).finally(() => pendingSavesRef.current--);
     }
   };
   // ---- Editor de diapositivas (escritorio, ver EditorDiapositivas.jsx) ----
@@ -1473,7 +1481,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     const nuevoValor = !song.favorite;
     setLibrary((lib) => lib.map((s) => (s.id === songId ? { ...s, favorite: nuevoValor } : s)));
     pendingSavesRef.current++;
-    guardarCancionDesdeEditor({ ...song, favorite: nuevoValor }, true, userId).catch((e) => notifyError("No se pudo guardar", e)).finally(() => pendingSavesRef.current--);
+    // Solo la marca de favorita (antes reescribía la canción entera: letra, partes y estructura) — así
+    // cualquiera puede marcarla sin tener permiso de editar el cancionero (ver permisos en la base).
+    updateCancion(songId, { favorito: nuevoValor }).catch((e) => notifyError("No se pudo guardar", e)).finally(() => pendingSavesRef.current--);
   };
   // Corregir/agregar letra de una canción DESDE la pantalla en vivo de Multimedia (ver MultimediaControl)
   // — a diferencia de editar la canción desde Canciones (solo administradores), esto lo puede hacer

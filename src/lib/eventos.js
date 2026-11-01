@@ -300,12 +300,17 @@ export async function listEventosCompletos() {
 // 2. borra solo lo que este dispositivo conocía (línea base) y el usuario quitó;
 // 3. vuelve a leer qué quedó y actualiza la línea base para el siguiente guardado.
 // Una fila agregada por fuera nunca está en la línea base, así que nunca se borra desde aquí.
-async function sincronizarServiceOrderInterno(eventoId, serviceOrder) {
+async function sincronizarServiceOrderInterno(eventoId, serviceOrder, soloIds = null) {
   await esperarCreacionEvento(eventoId);
-  const filas = serviceOrder.map((item, i) => itemServicioAFila(item, eventoId, i));
-  const encargadosRows = encargadosPorItemAFilas(serviceOrder);
-  const itemIdsLocales = filas.map((f) => f.id);
-  const encargadoIdsLocales = encargadosRows.map((r) => r.id);
+  const todasLasFilas = serviceOrder.map((item, i) => itemServicioAFila(item, eventoId, i));
+  const todosLosEncargados = encargadosPorItemAFilas(serviceOrder);
+  const itemIdsLocales = todasLasFilas.map((f) => f.id);
+  const encargadoIdsLocales = todosLosEncargados.map((r) => r.id);
+  // soloIds (quien NO edita el Setlist completo: líder con lo básico, encargado de una lectura): manda
+  // solo las filas que de verdad cambió. Reenviar todo podía chocar con los permisos de la base en filas
+  // que esa persona no puede tocar aunque las mande igual (ver migración permisos_en_la_base).
+  const filas = soloIds ? todasLasFilas.filter((f) => soloIds.has(f.id)) : todasLasFilas;
+  const encargadosRows = soloIds ? todosLosEncargados.filter((r) => soloIds.has(r.item_servicio_id)) : todosLosEncargados;
 
   if (filas.length) {
     const { error } = await supabase.from("items_servicio").upsert(filas);
@@ -339,8 +344,8 @@ async function sincronizarServiceOrderInterno(eventoId, serviceOrder) {
   actualizarTrasGuardar(`items:${eventoId}`, itemIdsEnBase, itemIdsLocales);
   actualizarTrasGuardar(`encargados:${eventoId}`, (encEnBase ?? []).map((r) => r.id), encargadoIdsLocales);
 }
-export function sincronizarServiceOrder(eventoId, serviceOrder) {
-  return encolar(`items:${eventoId}`, () => sincronizarServiceOrderInterno(eventoId, serviceOrder));
+export function sincronizarServiceOrder(eventoId, serviceOrder, { soloIds = null } = {}) {
+  return encolar(`items:${eventoId}`, () => sincronizarServiceOrderInterno(eventoId, serviceOrder, soloIds));
 }
 
 // Guarda los roles del equipo de alabanza (roles_evento + miembros_rol por rol_id) de un evento —
