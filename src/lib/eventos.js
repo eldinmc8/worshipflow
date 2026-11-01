@@ -2,6 +2,7 @@ import { supabase } from "./supabaseClient.js";
 import { traerTodas } from "./traerTodas.js";
 import { sincronizarRecordatorios } from "./recordatorios.js";
 import { fijarLineaBase, idsABorrar, actualizarTrasGuardar } from "./lineaBase.js";
+import { listBosquejosPorEvento } from "./bosquejos.js";
 
 // Algunas acciones (ej. agregar varios versículos de un rango, uno por diapositiva) pueden disparar
 // varios guardados del mismo evento casi al mismo tiempo. Si corrieran en paralelo el más lento podría
@@ -103,6 +104,8 @@ function filaAItemServicio(row, encargadosPorItem) {
   const base = { id: row.id, encargados: (encargadosPorItem[row.id] || []).map(filaAEncargado) };
   if (row.tipo === "bloque") return { ...base, type: "seccion", title: row.titulo, description: row.descripcion || "", ministryId: row.ministerio_id || null };
   if (row.tipo === "cancion") return { ...base, type: "cancion", songId: row.cancion_id, structure: row.estructura && row.estructura.length ? row.estructura : undefined, keyOverride: row.tonalidad_override || null };
+  // Diapositivas que salen del bosquejo de un predicador: marcadas con el id de su bloque (ver bosquejos.js).
+  if (row.estructura && !Array.isArray(row.estructura) && row.estructura.bosquejoDe) base.bosquejoDe = row.estructura.bosquejoDe;
   if (row.tipo === "biblia") return { ...base, type: "biblia", reference: row.referencia, version: row.version_biblia, text: row.texto_biblia, bookId: row.libro_id || undefined, bookName: row.libro_nombre || undefined, chapter: row.capitulo || undefined, verseStart: row.versiculo_inicio || undefined, verseEnd: row.versiculo_fin || undefined };
   // Diapositivas con diseño (presentación agrupada o editada en el editor): viven en estructura.diapositivas.
   const diapositivas = Array.isArray(row.estructura?.diapositivas) && row.estructura.diapositivas.length ? row.estructura.diapositivas : undefined;
@@ -125,10 +128,13 @@ function itemServicioAFila(item, eventoId, orden) {
   };
   if (item.type === "seccion") return { ...base, tipo: "bloque", titulo: item.title, descripcion: item.description || "", ministerio_id: item.ministryId || null };
   if (item.type === "cancion") return { ...base, tipo: "cancion", cancion_id: item.songId, tonalidad_override: item.keyOverride || null };
+  // La marca del bosquejo (bosquejoDe) viaja en estructura, que versículos y diapositivas de texto no usan.
+  if (item.bosquejoDe) base.estructura = { bosquejoDe: item.bosquejoDe };
   if (item.type === "biblia") return { ...base, tipo: "biblia", referencia: item.reference, version_biblia: item.version, texto_biblia: item.text, libro_id: item.bookId ?? null, libro_nombre: item.bookName ?? null, capitulo: item.chapter ?? null, versiculo_inicio: item.verseStart ?? null, versiculo_fin: item.verseEnd ?? null };
   // escalaSubtitulo (tamaño del texto pequeño de una diapositiva de texto) viaja en estructura, que las
   // diapositivas de texto no usaban.
-  return { ...base, ...(item.diapositivas?.length ? { estructura: { diapositivas: item.diapositivas } } : item.escalaSubtitulo ? { estructura: { escalaSubtitulo: item.escalaSubtitulo } } : {}), tipo: "slide", titulo: item.title || "", descripcion: item.name || "", subtitulo: item.subtitle || "", fondo_color: item.bg || "#1B2029", fondo_video_url: item.videoUrl || null, fondo_imagen_url: item.imageUrl || null };
+  const marca = item.bosquejoDe ? { bosquejoDe: item.bosquejoDe } : {};
+  return { ...base, ...(item.diapositivas?.length ? { estructura: { diapositivas: item.diapositivas, ...marca } } : item.escalaSubtitulo ? { estructura: { escalaSubtitulo: item.escalaSubtitulo, ...marca } } : {}), tipo: "slide", titulo: item.title || "", descripcion: item.name || "", subtitulo: item.subtitle || "", fondo_color: item.bg || "#1B2029", fondo_video_url: item.videoUrl || null, fondo_imagen_url: item.imageUrl || null };
 }
 
 // "Encargados" de un ítem del Setlist (bloque, canción, versículo o slide) — reemplaza el antiguo roster
@@ -160,7 +166,7 @@ function filaARecordatorio(row) {
   return { id: row.id, cantidad: row.cantidad, unidad: row.unidad, enviado: row.enviado };
 }
 
-export function eventoCompletoAFormatoEditor({ evento, items, encargados, roles, roleMembers, recordatorios, vistas }) {
+export function eventoCompletoAFormatoEditor({ evento, items, encargados, roles, roleMembers, recordatorios, vistas, bosquejos }) {
   const encargadosPorItem = {};
   encargados.forEach((m) => {
     (encargadosPorItem[m.item_servicio_id] ||= []).push(m);
@@ -179,6 +185,8 @@ export function eventoCompletoAFormatoEditor({ evento, items, encargados, roles,
     worshipRoles: roles.map((row) => filaARolAlabanza(row, miembrosPorRol)),
     reminders: (recordatorios || []).map(filaARecordatorio),
     vistas: (vistas || []).map((v) => ({ usuarioId: v.usuario_id, vistoAt: v.visto_at })),
+    // Bosquejos de los predicadores, por id del bloque de Predicación (ver bosquejos.js).
+    bosquejos: bosquejos || {},
   };
 }
 
@@ -235,7 +243,7 @@ function agruparPor(filas, campo) {
 export async function listEventosCompletos() {
   const filas = await listEventos();
   if (filas.length === 0) return [];
-  const [itemsRes, rolesRes, recordatoriosRes, vistasRes, miembrosRes] = await Promise.all([
+  const [itemsRes, rolesRes, recordatoriosRes, vistasRes, miembrosRes, bosquejosPorEvento] = await Promise.all([
     // Por páginas (ver traerTodas): con varios meses de eventos, items y encargados pasan de 1000 filas.
     traerTodas(() => supabase.from("items_servicio").select("*, canciones(titulo, artista, tonalidad, tempo)").order("orden", { ascending: true }).order("id")),
     traerTodas(() => supabase.from("roles_evento").select("*").order("orden", { ascending: true }).order("id")),
@@ -247,6 +255,7 @@ export async function listEventosCompletos() {
       () => ({ data: [] })
     ),
     traerTodas(() => supabase.from("miembros_rol").select("*").order("orden", { ascending: true }).order("id")),
+    listBosquejosPorEvento(),
   ]);
   if (itemsRes.error) throw itemsRes.error;
   if (rolesRes.error) throw rolesRes.error;
@@ -286,6 +295,7 @@ export async function listEventosCompletos() {
     roleMembers: roleMembersPorEvento[evento.id] || [],
     recordatorios: recordatoriosPorEvento[evento.id] || [],
     vistas: vistasPorEvento[evento.id] || [],
+    bosquejos: bosquejosPorEvento[evento.id] || {},
   }));
 }
 
