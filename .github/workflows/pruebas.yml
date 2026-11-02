@@ -1,0 +1,31 @@
+# Pruebas automáticas (2026-11-02): en cada cambio que se sube a GitHub se revisa el código, se corren
+# todas las pruebas y se construye la app. Si algo falla, GitHub lo marca con una X roja antes de publicar.
+name: Pruebas
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: pruebas-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar
+        run: npm ci
+      - name: Revisar el código (nombres sin definir, reglas de React)
+        run: npx oxlint
+      - name: Pruebas
+        run: npx vitest run
+      - name: Construir la app
+        run: npm run build
