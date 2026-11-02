@@ -20,7 +20,10 @@ import { analizar } from "./mapaArchivo.mjs";
 const config = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const PRINCIPAL = config.principal;
 const COMPARTIDO = config.compartido;
-const { codigo, decls, deps, usaImports, imports, nombreADecl, reasignaciones } = analizar(PRINCIPAL);
+// "origen": el archivo principal tal como estaba ANTES de empezar a separar. Cada tanda se arma desde ahí con
+// todos los grupos acumulados, así el archivo compartido siempre sale completo y coherente.
+const ORIGEN = config.origen || PRINCIPAL;
+const { codigo, decls, deps, usaImports, imports, nombreADecl, reasignaciones } = analizar(ORIGEN);
 
 // Inseparables (variable + quien la reasigna): unión.
 const padre = new Map(decls.map((d) => [d, d]));

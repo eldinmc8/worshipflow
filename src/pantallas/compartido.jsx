@@ -4,6 +4,70 @@ import { guardarCapituloOffline, obtenerCapituloOffline } from "../lib/bibleOffl
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
+// ---------- Acordes diatónicos de una tonalidad (triadas + con séptima) ----------
+export const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+// ---------- Transporte de acordes (tonalidad por evento + ajuste personal del músico) ----------
+const FLAT_TO_SHARP = { Db: "C#", Eb: "D#", Gb: "F#", Ab: "G#", Bb: "A#" };
+
+function normalizeRoot(root) {
+  return FLAT_TO_SHARP[root] || root;
+}
+
+// Diferencia en semitonos (0-11) entre la raíz de dos tonalidades; ignora si son mayor/menor.
+export function semitoneShift(fromKey, toKey) {
+  if (!fromKey || !toKey) return 0;
+  const fromIdx = NOTES.indexOf(normalizeRoot(fromKey.replace(/m$/, "")));
+  const toIdx = NOTES.indexOf(normalizeRoot(toKey.replace(/m$/, "")));
+  if (fromIdx === -1 || toIdx === -1) return 0;
+  return ((toIdx - fromIdx) % 12 + 12) % 12;
+}
+
+export function transposeChordToken(chord, semitones) {
+  if (!semitones) return chord;
+  const match = chord.match(/^([A-G])(#|b)?(.*)$/);
+  if (!match) return chord;
+  const [, letter, accidental, rest] = match;
+  const idx = NOTES.indexOf(normalizeRoot(`${letter}${accidental || ""}`));
+  if (idx === -1) return chord;
+  const shifted = NOTES[((idx + semitones) % 12 + 12) % 12];
+  const bassMatch = rest.match(/^([^/]*)\/([A-G])(#|b)?(.*)$/);
+  if (bassMatch) {
+    const [, suffix, bLetter, bAccidental, bRest] = bassMatch;
+    const bIdx = NOTES.indexOf(normalizeRoot(`${bLetter}${bAccidental || ""}`));
+    const bShifted = bIdx === -1 ? `${bLetter}${bAccidental || ""}` : NOTES[((bIdx + semitones) % 12 + 12) % 12];
+    return `${shifted}${suffix}/${bShifted}${bRest}`;
+  }
+  return `${shifted}${rest}`;
+}
+
+export function transposeLine(raw, semitones) {
+  if (!semitones) return raw;
+  return raw.replace(/\[([^\]]+)\]/g, (_, chord) => `[${transposeChordToken(chord, semitones)}]`);
+}
+
+// ---------- Librería de canciones (estado inicial) ----------
+// Clasificaciones de canción: cada iglesia define las suyas (iglesias.categorias_canciones, editable
+// desde Canciones → botón de ajustes junto a los filtros). Cada una dice a qué bloque del Setlist se
+// manda sola la canción al agregarla (ver addSong). "clave" es lo que se guarda en
+// canciones.categoria y nunca cambia, aunque se renombre la clasificación. Esta lista es solo el
+// respaldo si la iglesia todavía no tiene ninguna (mismo valor que el default de la base).
+export const CLASIFICACIONES_DEFAULT = [
+  { clave: "himno", nombre: "Himno", bloque: "Alabanza" },
+  { clave: "corito", nombre: "Corito", bloque: "Alabanza" },
+  { clave: "especial", nombre: "Canto especial", bloque: "Alabanza" },
+  { clave: "adoracion", nombre: "Adoración", bloque: "Alabanza" },
+];
+
+// Clasificaciones de la iglesia con sesión abierta. Se actualiza al inicio de cada render de
+// WorshipFlowPrototype (antes de que se rendericen sus hijos), así SongEditor, SetlistPane e
+// isWorshipBlock la leen directo sin pasarla como prop por varios componentes intermedios.
+// Se cambia con fijarClasificacionesActuales (una variable de otro archivo no se puede reasignar desde
+// afuera, y esta parte vive en un archivo distinto del componente principal).
+export let clasificacionesActuales = CLASIFICACIONES_DEFAULT;
+
+export function fijarClasificacionesActuales(lista) { clasificacionesActuales = lista; }
+
 // Versiones disponibles a través de la Biblia completa y buscable (ver BibleModal). "RVR1960"/"NVI"/"NTV" son
 // las que pediste; "TLA"/"DHH" no están disponibles en la fuente de datos gratuita usada por el prototipo, así
 // que se agregaron "PDT" (también en lenguaje sencillo, como TLA) y "LBLA" (más literal, como DHH) en su lugar.
