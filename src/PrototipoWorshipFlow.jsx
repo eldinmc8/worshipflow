@@ -8,7 +8,7 @@ import { esPaginaPresentacion } from "./lib/importarPresentacion.js";
 import { esGrupoDiapositivas, slidesDeGrupo, diapositivasDeItem, itemConDiapositivas, moverDiapositiva, quitarDiapositiva as quitarDiapositivaDeGrupo, reordenarEnGrupo, tituloBase, nuevaDiapositiva } from "./lib/diapositivas.js";
 import DiapositivaDisenada from "./components/DiapositivaDisenada.jsx";
 import {
-  Music, Mic2, MessageSquare, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus,
+  Music, Mic2, MessageSquare, Tv, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus,
   Radio, ListMusic, BookOpen, Image as ImgIcon, Trash2, GripVertical,
   MonitorOff, X, Search, Sparkles, Calendar, MapPin, Users, Check,
   Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
@@ -3549,7 +3549,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showIdentidad, setShowIdentidad] = useState(false);
   const [showPantalla, setShowPantalla] = useState(false);
-  const [showOtroEquipoAjustes, setShowOtroEquipoAjustes] = useState(false);
+  const [showOtroEquipoAjustes, setShowOtroEquipoAjustes] = useState(false); // false · "proyeccion" · "escenario"
   const [pushEstado, setPushEstado] = useState("cargando"); // cargando | activo | inactivo | sin-soporte
   const [pushBusy, setPushBusy] = useState(false);
   const [screensBusy, setScreensBusy] = useState(false);
@@ -3804,8 +3804,10 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           {chevron}
         </div>
       </button>
-      <NavRow icon={MonitorSmartphone} label="Pantalla en otro equipo" onClick={() => setShowOtroEquipoAjustes(true)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>TV, tablet · QR {chevron}</span>} />
-      {showOtroEquipoAjustes && <PantallaOtroEquipo iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipoAjustes(false)} />}
+      <NavRow icon={MonitorSmartphone} label="Pantalla en otro equipo" onClick={() => setShowOtroEquipoAjustes("proyeccion")} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>TV, tablet · QR {chevron}</span>} />
+      {/* Pantalla de escenario (stage display): el monitor de la plataforma — ver PantallaEscenario.jsx. */}
+      <NavRow icon={Tv} label="Pantalla de escenario" onClick={() => setShowOtroEquipoAjustes("escenario")} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Monitor del escenario {chevron}</span>} />
+      {showOtroEquipoAjustes && <PantallaOtroEquipo tipo={showOtroEquipoAjustes} iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipoAjustes(false)} />}
       {realIsAdmin && (
         <>
           {/* Una sola entrada para todo lo de las personas (2026-10-30): invitar, rol, estado, y Roles y

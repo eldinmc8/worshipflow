@@ -9,7 +9,9 @@ import { enlacePantalla, enlaceEscenario } from "../lib/enlacePantalla.js";
 // TV, tablet o computadora con navegador y se sincroniza sola por internet. Aquí se muestra el enlace
 // corto de la iglesia (/p/<slug>) para copiarlo, mandarlo por WhatsApp o escanearlo con el QR.
 // tipo "escenario" (2026-11-01): lo mismo para la Pantalla de escenario (/e/<slug>), el monitor de la plataforma.
-export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCerrar, tipo = "proyeccion" }) {
+export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCerrar, tipo: tipoInicial = "proyeccion" }) {
+  // Se puede cambiar entre las dos pantallas desde aquí mismo (Proyección · Escenario).
+  const [tipo, setTipo] = useState(tipoInicial === "escenario" ? "escenario" : "proyeccion");
   const esEscenario = tipo === "escenario";
   const [slug, setSlug] = useState(slugInicial || null);
   const [copiado, setCopiado] = useState(false);
@@ -41,6 +43,15 @@ export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCer
           <span style={{ width: 34, height: 34, borderRadius: 10, background: "var(--wf-brand-accent)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><MonitorSmartphone size={18} /></span>
           <span style={{ fontSize: 16, fontWeight: 700, color: "var(--wf-heading)", flex: 1 }}>{esEscenario ? "Pantalla de escenario" : "Pantalla en otro equipo"}</span>
           <button type="button" onClick={onCerrar} aria-label="Cerrar" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--wf-muted)", display: "flex" }}><X size={18} /></button>
+        </div>
+        <div role="tablist" aria-label="Qué pantalla abrir" style={{ display: "flex", gap: 4, background: "var(--wf-hover)", borderRadius: 12, padding: 4, marginBottom: 12 }}>
+          {[["proyeccion", "Proyección", "Para la congregación"], ["escenario", "Escenario", "Para la plataforma"]].map(([clave, titulo, sub]) => (
+            <button key={clave} type="button" role="tab" aria-selected={tipo === clave} onClick={() => { setTipo(clave); setCopiado(false); }}
+              style={{ flex: 1, border: "none", borderRadius: 9, padding: "7px 8px", cursor: "pointer", fontFamily: "inherit", background: tipo === clave ? "var(--wf-brand-accent)" : "transparent", color: tipo === clave ? "var(--wf-on-brand-accent)" : "var(--wf-text)" }}>
+              <span style={{ display: "block", fontSize: 13, fontWeight: 700 }}>{titulo}</span>
+              <span style={{ display: "block", fontSize: 10.5, opacity: 0.8 }}>{sub}</span>
+            </button>
+          ))}
         </div>
         <p style={{ fontSize: 13, color: "var(--wf-muted)", lineHeight: 1.5, margin: "0 0 14px" }}>
           {esEscenario
