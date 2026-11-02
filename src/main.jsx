@@ -8,6 +8,7 @@ import { iniciarPreferencias } from './lib/preferencias.js'
 import AuthGate from './AuthGate.jsx'
 import PublicScreen from './PublicScreen.jsx'
 import PantallaEscenario from './PantallaEscenario.jsx'
+import ConectarTv from './ConectarTv.jsx'
 import { leerPantallaDeUrl, leerEscenarioDeUrl } from './lib/enlacePantalla.js'
 import CrearIglesia from './CrearIglesia.jsx'
 import { manifestDePantalla } from './lib/manifestPantalla.js'
@@ -27,10 +28,12 @@ iniciarMonitoreo()
 const isPublicScreen = !!leerPantallaDeUrl(window.location.pathname, window.location.search)
 // Pantalla de escenario (stage display) para quienes están en la plataforma: /e/<iglesia>.
 const isEscenario = !isPublicScreen && !!leerEscenarioDeUrl(window.location.pathname, window.location.search)
+// Conectar TV con un número de 6 dígitos (Smart TV, caja de Claro/Android TV): /tv
+const isConectarTv = /^\/tv\/?$/.test(window.location.pathname)
 // Alta de una iglesia nueva (Fase 4) — su propia URL (?crear-iglesia), sin ningún enlace visible
 // hacia ella desde el resto de la app (ver CrearIglesia.jsx para el porqué).
 const isCrearIglesia = new URLSearchParams(window.location.search).has('crear-iglesia')
-if (isPublicScreen || isEscenario) {
+if (isPublicScreen || isEscenario || isConectarTv) {
   const link = document.querySelector('link[rel="manifest"]')
   // Manifest armado aquí mismo (2026-11-02) para que "Agregar a inicio" / "Instalar" abra EXACTAMENTE
   // esta pantalla de esta iglesia (/p/<iglesia> o /e/<iglesia>). Con el archivo fijo, el ícono siempre
@@ -69,7 +72,7 @@ function App() {
           </button>
         </div>
       )}
-      <ErrorPantalla>{isPublicScreen ? <PublicScreen /> : isEscenario ? <PantallaEscenario /> : isCrearIglesia ? <CrearIglesia /> : <AuthGate />}</ErrorPantalla>
+      <ErrorPantalla>{isPublicScreen ? <PublicScreen /> : isEscenario ? <PantallaEscenario /> : isConectarTv ? <ConectarTv /> : isCrearIglesia ? <CrearIglesia /> : <AuthGate />}</ErrorPantalla>
       <ToastHost />
       <ConfirmDialogHost />
     </>

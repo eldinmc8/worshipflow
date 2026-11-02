@@ -1,8 +1,24 @@
 {
   "rewrites": [
-    { "source": "/p/:slug", "destination": "/index.html" },
-    { "source": "/p/:slug/:codigo", "destination": "/index.html" },
-    { "source": "/e/:slug", "destination": "/index.html" },
-    { "source": "/e/:slug/:codigo", "destination": "/index.html" }
+    {
+      "source": "/p/:slug",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/p/:slug/:codigo",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/e/:slug",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/e/:slug/:codigo",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/tv",
+      "destination": "/index.html"
+    }
   ]
 }

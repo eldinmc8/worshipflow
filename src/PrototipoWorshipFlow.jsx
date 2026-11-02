@@ -3824,9 +3824,8 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           {chevron}
         </div>
       </button>
-      <NavRow icon={MonitorSmartphone} label="Pantalla en otro equipo" onClick={() => setShowOtroEquipoAjustes("proyeccion")} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>TV, tablet · QR {chevron}</span>} />
-      {/* Pantalla de escenario (stage display): el monitor de la plataforma — ver PantallaEscenario.jsx. */}
-      <NavRow icon={Tv} label="Pantalla de escenario" onClick={() => setShowOtroEquipoAjustes("escenario")} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Monitor del escenario {chevron}</span>} />
+      {/* Todo en una sola opción (2026-11-02): proyección y escenario, Smart TV con número, QR y enlace. */}
+      <NavRow icon={Tv} label="Pantallas y TV" onClick={() => setShowOtroEquipoAjustes("proyeccion")} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Proyección · Escenario {chevron}</span>} />
       {showOtroEquipoAjustes && <PantallaOtroEquipo tipo={showOtroEquipoAjustes} iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipoAjustes(false)} />}
       {realIsAdmin && (
         <>
@@ -3835,7 +3834,7 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
           <NavRow icon={Users} label="Miembros" onClick={onGoToUsuarios} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{usuariosReales.length} {chevron}</span>} />
           <NavRow icon={Palette} label="Identidad de la iglesia" onClick={() => setShowIdentidad(true)} right={chevron} />
           {showIdentidad && <IdentidadIglesiaModal iglesiaId={myIglesiaId} onClose={() => setShowIdentidad(false)} />}
-          <NavRow icon={Radio} label="Pantalla de proyección" onClick={() => setShowPantalla(true)} right={chevron} />
+          <NavRow icon={Radio} label="Ajustes de la proyección" onClick={() => setShowPantalla(true)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Letra y versículos {chevron}</span>} />
           {showPantalla && <PantallaProyeccionModal iglesiaId={myIglesiaId} onClose={() => setShowPantalla(false)} />}
           {/* Visible solo si soy_super_admin() dio true para esta cuenta (ver AuthGate.jsx). */}
           {onGoToPlataforma && <NavRow icon={Shield} label="Consola general" onClick={onGoToPlataforma} right={chevron} />}
@@ -9072,7 +9071,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       {blanked && franja("#C23B32", "#fff", <MonitorOff size={17} />, <>La pantalla está en NEGRO · la iglesia no ve nada</>, botonFranja("Volver a mostrar", () => setBlanked(false)))}
       {mostrarAvisoProyeccion && franja("#F6C344", "#16324F", <AlertTriangle size={17} />, <>La pantalla de proyección no está abierta · lo que pases aquí no se ve en el proyector</>, <>
         {botonFranja("Abrir proyección", onOpenPublicScreen, { background: "#16324F", color: "#fff" })}
-        {botonFranja("Abrir en otro equipo", () => setShowOtroEquipo(true))}
+        {botonFranja("Conectar un TV", () => setShowOtroEquipo(true))}
         {botonFranja("Ya está abierta en otro equipo", () => setAvisoProyeccionOculto(true), { background: "transparent", color: "#16324F", textDecoration: "underline", padding: "5px 4px" })}
       </>)}
     </>
@@ -9549,7 +9548,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
               {onFijar && botonCinta({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", onClick: () => (fijada ? onSoltar() : onFijar()), activo: !!fijada, title: "Congelar la pantalla para moverte sin proyectar (tecla F)" })}
               {botonCinta({ icon: Radio, label: "Proyección", onClick: onOpenPublicScreen, title: "Reabrir la pantalla de proyección", tour: "envivo-proyeccion" })}
               {onMensajeEscenario && botonCinta({ icon: MessageSquare, label: "Escenario", onClick: () => setShowEscenario(true), activo: !!mensajeEscenario, title: "Pantalla de escenario: mensaje para quienes están en la plataforma y enlace del monitor" })}
-              {botonCinta({ icon: MonitorSmartphone, label: "Otro equipo", onClick: () => setShowOtroEquipo(true), title: "Abrir la proyección en un TV, tablet u otra computadora (enlace y código QR)", ancho: 70 })}
+              {botonCinta({ icon: Tv, label: "Pantallas y TV", onClick: () => setShowOtroEquipo(true), title: "Conectar un Smart TV con número, o abrir en celular/tablet con QR", ancho: 76 })}
             </>),
           grupoItem("Proyectar", botonCinta({ icon: Music, label: "Desde biblioteca", onClick: () => setShowAdHocSong("proyectar"), title: "Buscar una canción de la biblioteca y ponerla en pantalla de una vez", ancho: 96 })),
           grupoItem("Secciones de la canción", currentSongSections.length > 0 ? (
