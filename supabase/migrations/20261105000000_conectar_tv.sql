@@ -1,6 +1,6 @@
 -- "Conectar TV" con un número de 6 dígitos (pedido de Eldin, 2026-11-02), como YouTube en los televisores.
 --
--- En un Smart TV o caja (Claro, Android TV) escribir con el control un enlace largo con código es muy
+-- En un Smart TV escribir con el control un enlace largo con código es muy
 -- tedioso, y como el enlace vence en cada culto habría que hacerlo cada semana. Ahora:
 -- 1. El TV abre una dirección corta y fija: /tv (se guarda en favoritos una sola vez).
 -- 2. El TV pide un número de 6 dígitos (tv_pedir_codigo) con un token secreto propio y lo muestra grande.

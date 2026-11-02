@@ -5,8 +5,8 @@ import WorshipFlowIcon from "./WorshipFlowIcon.jsx";
 
 // Pantalla del TV en /tv (2026-11-02): muestra un número de 6 dígitos grande. Multimedia lo escribe en la
 // app (Ajustes → Pantallas y TV → Conectar un TV) y este TV abre solo la proyección o la pantalla de
-// escenario de esa iglesia. Se maneja sin tocar nada: pensado para el control remoto de un Smart TV o una
-// caja de Claro/Android TV. Siempre oscura, como toda pantalla de proyección.
+// escenario de esa iglesia. Se maneja sin tocar nada: pensado para el control remoto de un Smart TV.
+// Siempre oscura, como toda pantalla de proyección.
 const CADA_MS = 3000;
 
 export default function ConectarTv() {

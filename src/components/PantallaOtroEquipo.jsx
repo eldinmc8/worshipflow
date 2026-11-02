@@ -98,9 +98,9 @@ export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCer
             : "Lo mismo que ve la congregación. Cambia solo, sin iniciar sesión."}
         </p>
 
-        {/* 1. Smart TV o caja (Claro, Android TV): número de 6 dígitos */}
+        {/* 1. Smart TV: número de 6 dígitos */}
         <div style={tarjeta}>
-          <div style={tituloTarjeta}><Tv size={17} color="var(--wf-brand-accent)" /> En un Smart TV o caja de Claro</div>
+          <div style={tituloTarjeta}><Tv size={17} color="var(--wf-brand-accent)" /> En un Smart TV</div>
           <div style={paso}><span style={numPaso}>1</span><span>En el navegador del TV abre <b style={{ color: "var(--wf-heading)" }}>{dirTv}</b> (guárdala en favoritos: es siempre la misma).</span></div>
           <div style={paso}><span style={numPaso}>2</span><span>Escribe aquí el número que aparece en el TV:</span></div>
           <div style={{ display: "flex", gap: 8 }}>

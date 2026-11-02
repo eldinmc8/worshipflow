@@ -28,7 +28,7 @@ iniciarMonitoreo()
 const isPublicScreen = !!leerPantallaDeUrl(window.location.pathname, window.location.search)
 // Pantalla de escenario (stage display) para quienes están en la plataforma: /e/<iglesia>.
 const isEscenario = !isPublicScreen && !!leerEscenarioDeUrl(window.location.pathname, window.location.search)
-// Conectar TV con un número de 6 dígitos (Smart TV, caja de Claro/Android TV): /tv
+// Conectar TV con un número de 6 dígitos (Smart TV): /tv
 const isConectarTv = /^\/tv\/?$/.test(window.location.pathname)
 // Alta de una iglesia nueva (Fase 4) — su propia URL (?crear-iglesia), sin ningún enlace visible
 // hacia ella desde el resto de la app (ver CrearIglesia.jsx para el porqué).
