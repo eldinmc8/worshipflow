@@ -5,6 +5,8 @@ import { leerEscenarioDeUrl } from "./lib/enlacePantalla.js";
 import { tiempoTranscurrido } from "./lib/escenario.js";
 import { getLiveSession, subscribeLiveSession, subscribeLiveBroadcast, pedirEstadoActual, guardarUltimaFila, leerUltimaFila } from "./lib/liveSession.js";
 import { supabase } from "./lib/supabaseClient.js";
+import { soportaPantallaCompleta, pedirPantallaCompleta, salirDePantallaCompleta } from "./lib/pantallaCompleta.js";
+import AvisoIphone from "./components/AvisoIphone.jsx";
 
 // Pantalla de escenario (stage display, pedido de Eldin, 2026-11-01). Monitor en el piso del escenario
 // para quienes cantan, tocan o predican: la letra al aire en grande, lo que sigue, la parte de la
@@ -88,7 +90,7 @@ export default function PantallaEscenario() {
     window.addEventListener("touchstart", mover);
     return () => { window.removeEventListener("mousemove", mover); window.removeEventListener("touchstart", mover); clearTimeout(idleRef.current); };
   }, []);
-  useEffect(() => { document.documentElement.requestFullscreen?.().catch(() => {}); }, []);
+  useEffect(() => { pedirPantallaCompleta(); }, []);
 
   const cambiarTamano = (d) => {
     const i = Math.min(TAMANOS.length - 1, Math.max(0, TAMANOS.indexOf(tamano) + d));
@@ -221,10 +223,11 @@ export default function PantallaEscenario() {
         <div style={{ position: "fixed", right: 14, bottom: 14, display: "flex", gap: 8, zIndex: 10 }}>
           <button type="button" onClick={() => cambiarTamano(-1)} style={botonControl} aria-label="Letra más pequeña" title="Letra más pequeña"><Minus size={18} /></button>
           <button type="button" onClick={() => cambiarTamano(1)} style={botonControl} aria-label="Letra más grande" title="Letra más grande"><Plus size={18} /></button>
-          <button type="button" onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})} style={botonControl} aria-label="Pantalla completa" title="Pantalla completa"><Maximize size={17} /></button>
-          <button type="button" onClick={() => { document.exitFullscreen?.().catch(() => {}); window.location.href = window.location.origin + "/"; }} style={botonControl} aria-label="Salir de la pantalla de escenario" title="Salir"><X size={18} /></button>
+          {soportaPantallaCompleta() && <button type="button" onClick={() => pedirPantallaCompleta()} style={botonControl} aria-label="Pantalla completa" title="Pantalla completa"><Maximize size={17} /></button>}
+          <button type="button" onClick={() => { salirDePantallaCompleta(); window.location.href = window.location.origin + "/"; }} style={botonControl} aria-label="Salir de la pantalla de escenario" title="Salir"><X size={18} /></button>
         </div>
       )}
+      <AvisoIphone />
       <style>{"@keyframes wfEscenarioPulso { 0%, 100% { opacity: 1 } 50% { opacity: .82 } }"}</style>
     </div>
   );

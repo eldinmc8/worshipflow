@@ -5,6 +5,8 @@ import { precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
 import { leerPantallaDeUrl } from "./lib/enlacePantalla.js";
 import { getLiveSession, subscribeLiveSession, subscribeLiveBroadcast, anunciarProyeccion, pedirEstadoActual, guardarUltimaFila, leerUltimaFila } from "./lib/liveSession.js";
 import { supabase } from "./lib/supabaseClient.js";
+import { soportaPantallaCompleta, estaEnPantallaCompleta, pedirPantallaCompleta, salirDePantallaCompleta, alCambiarPantallaCompleta } from "./lib/pantallaCompleta.js";
+import AvisoIphone from "./components/AvisoIphone.jsx";
 
 const CURSOR_IDLE_MS = 3000;
 
@@ -101,7 +103,7 @@ export default function PublicScreen() {
   // y reinstalar. Este botón resuelve eso: se esconde solo junto con el cursor (igual que arriba), así
   // que la congregación nunca lo ve, pero aparece apenas alguien toca/mueve el mouse si lo necesita.
   const salirDePantallaPublica = () => {
-    document.exitFullscreen?.().catch(() => {});
+    salirDePantallaCompleta();
     window.location.href = window.location.origin + "/";
   };
 
@@ -110,13 +112,17 @@ export default function PublicScreen() {
   // pero casi siempre el navegador ya perdió ese permiso para cuando esta página termina de cargar). Si
   // no lo logra, se muestra un botón bien visible que cubre toda la pantalla — un clic ahí SÍ cuenta
   // como gesto real y el navegador lo permite siempre, sin depender de timing ni del navegador usado.
+  // iPhone (2026-11-02): Safari en iPhone no permite pantalla completa para páginas web, así que el aviso
+  // de "Toca para pantalla completa" nunca debe salir ahí — antes salía y, como tocarlo no hacía nada, se
+  // quedaba tapando la proyección para siempre. Ver lib/pantallaCompleta.js.
   useEffect(() => {
-    document.documentElement.requestFullscreen?.().catch(() => {});
+    if (!soportaPantallaCompleta()) return undefined;
+    pedirPantallaCompleta();
     const checkTimer = setTimeout(() => {
-      if (!document.fullscreenElement) setNeedsTapToFullscreen(true);
+      if (!estaEnPantallaCompleta()) setNeedsTapToFullscreen(true);
     }, 500);
     const onFsChange = () => {
-      if (document.fullscreenElement) {
+      if (estaEnPantallaCompleta()) {
         everFullscreenRef.current = true;
         setNeedsTapToFullscreen(false);
         setFullscreenDroppedQuietly(false);
@@ -134,12 +140,16 @@ export default function PublicScreen() {
         setNeedsTapToFullscreen(true);
       }
     };
-    document.addEventListener("fullscreenchange", onFsChange);
-    return () => { clearTimeout(checkTimer); document.removeEventListener("fullscreenchange", onFsChange); };
+    const dejar = alCambiarPantallaCompleta(onFsChange);
+    return () => { clearTimeout(checkTimer); dejar(); };
   }, []);
 
-  const tapToFullscreen = () => {
-    document.documentElement.requestFullscreen?.().then(() => { setNeedsTapToFullscreen(false); setFullscreenDroppedQuietly(false); }).catch(() => {});
+  // El aviso se quita con el toque aunque el navegador no conceda la pantalla completa: nunca debe
+  // quedarse tapando la proyección.
+  const tapToFullscreen = async () => {
+    await pedirPantallaCompleta();
+    setNeedsTapToFullscreen(false);
+    setFullscreenDroppedQuietly(false);
   };
 
   return (
@@ -152,6 +162,7 @@ export default function PublicScreen() {
           style={{ position: "fixed", top: 10, right: 10, width: 30, height: 30, borderRadius: "50%", background: "rgba(255,255,255,0.12)", border: "none", color: "rgba(255,255,255,0.55)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 1000 }}
         ><X size={15} /></button>
       )}
+      <AvisoIphone />
       {needsTapToFullscreen && (
         <button
           onClick={tapToFullscreen}

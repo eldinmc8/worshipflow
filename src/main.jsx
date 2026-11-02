@@ -10,6 +10,7 @@ import PublicScreen from './PublicScreen.jsx'
 import PantallaEscenario from './PantallaEscenario.jsx'
 import { leerPantallaDeUrl, leerEscenarioDeUrl } from './lib/enlacePantalla.js'
 import CrearIglesia from './CrearIglesia.jsx'
+import { manifestDePantalla } from './lib/manifestPantalla.js'
 import ToastHost from './ToastHost.jsx'
 import ConfirmDialogHost from './ConfirmDialogHost.jsx'
 import ErrorPantalla from './ErrorPantalla.jsx'
@@ -31,7 +32,10 @@ const isEscenario = !isPublicScreen && !!leerEscenarioDeUrl(window.location.path
 const isCrearIglesia = new URLSearchParams(window.location.search).has('crear-iglesia')
 if (isPublicScreen || isEscenario) {
   const link = document.querySelector('link[rel="manifest"]')
-  if (link) link.setAttribute('href', '/manifest-pantalla.webmanifest')
+  // Manifest armado aquí mismo (2026-11-02) para que "Agregar a inicio" / "Instalar" abra EXACTAMENTE
+  // esta pantalla de esta iglesia (/p/<iglesia> o /e/<iglesia>). Con el archivo fijo, el ícono siempre
+  // abría la proyección de la iglesia por defecto, aunque se hubiera agregado desde la de escenario.
+  if (link) link.setAttribute('href', manifestDePantalla(isEscenario ? 'escenario' : 'proyeccion'))
 } else {
   // Antes de que React monte nada — así no hay parpadeo de claro-y-luego-oscuro si ya se había
   // elegido oscuro antes. La pantalla de Proyección real nunca aplica esto: siempre se ve oscura.
