@@ -90,11 +90,18 @@ export const TYPE_META = {
   seccion: { label: "Bloque", color: "#5661B3", icon: ListMusic },
 };
 
+// Objeto "evento" liviano para cuando se transmite sin un evento del calendario detrás (ver
+// startFreeEvent) — referencia estable a nivel de módulo para no invalidar el useMemo de `slides` en
+// cada render con un objeto nuevo. serviceOrder vacío: no hay plan, todo el contenido es improvisado.
+export const EVENTO_LIBRE = { id: null, title: "Transmisión libre", serviceOrder: [] };
+
 export const DEFAULT_COVERS = [
   "linear-gradient(135deg, var(--wf-brand-primary) 0%, #2F5FA8 60%, var(--wf-brand-accent) 100%)",
   "linear-gradient(135deg, var(--wf-brand-primary) 0%, #1F8A73 60%, #2E86AB 100%)",
   "linear-gradient(135deg, var(--wf-brand-primary) 0%, #B15EA0 60%, var(--wf-brand-accent) 100%)",
 ];
+
+export const nextMinistryChildId = () => crypto.randomUUID();
 
 // Un bloque "pertenece" al equipo de alabanza si su título incluye Alabanza o Adoración, o el nombre
 // de cualquier bloque al que esta iglesia manda sus canciones — así
