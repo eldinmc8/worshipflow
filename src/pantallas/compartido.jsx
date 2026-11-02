@@ -1,8 +1,10 @@
 // Piezas que usan varias pantallas (estilos de botones, ventana base, constantes de la proyección…). Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
+import { Music, BookOpen, Image as ImgIcon, ListMusic, X } from "lucide-react";
+import { parseIsoDateLocal, todayLocal, MONTH_NAMES_FULL } from "../lib/dates.js";
 import { saveCache, loadCache } from "../lib/offlineCache.js";
 import { guardarCapituloOffline, obtenerCapituloOffline } from "../lib/bibleOfflineStore.js";
+import { bloquesDelCulto } from "../lib/ordenCulto.js";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
 
 // ---------- Acordes diatónicos de una tonalidad (triadas + con séptima) ----------
 export const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -81,6 +83,71 @@ export const BIBLE_VERSIONS = [
   { code: "LBLA", label: "La Biblia de las Américas" },
 ];
 
+export const TYPE_META = {
+  cancion: { label: "Canción", color: "var(--wf-brand-accent)", icon: Music },
+  biblia: { label: "Versículo", color: "#2F5FA8", icon: BookOpen },
+  slide: { label: "Slide", color: "#B15EA0", icon: ImgIcon },
+  seccion: { label: "Bloque", color: "#5661B3", icon: ListMusic },
+};
+
+export const DEFAULT_COVERS = [
+  "linear-gradient(135deg, var(--wf-brand-primary) 0%, #2F5FA8 60%, var(--wf-brand-accent) 100%)",
+  "linear-gradient(135deg, var(--wf-brand-primary) 0%, #1F8A73 60%, #2E86AB 100%)",
+  "linear-gradient(135deg, var(--wf-brand-primary) 0%, #B15EA0 60%, var(--wf-brand-accent) 100%)",
+];
+
+// Un bloque "pertenece" al equipo de alabanza si su título incluye Alabanza o Adoración, o el nombre
+// de cualquier bloque al que esta iglesia manda sus canciones — así
+// una iglesia que llama distinto a ese momento del culto no pierde el equipo de alabanza del bloque.
+// (ver clasificacionesActuales)
+export function isWorshipBlock(item) {
+  if (item.type !== "seccion") return false;
+  if (/alabanza|ador/i.test(item.title || "")) return true;
+  const titulo = normalizarTitulo(item.title);
+  return clasificacionesActuales.some((c) => c.bloque && titulo.includes(normalizarTitulo(c.bloque)));
+}
+
+// Nombre legible de un ítem del Setlist para notificaciones y para "qué me toca" en la miniatura de un
+// evento — alguien puede tener varios cargos distintos en el mismo evento (ej. Multimedia Y una
+// canción), así que cada uno necesita decir CUÁL es, no solo "tienes un encargo".
+export function serviceItemLabel(item, library) {
+  if (item.type === "seccion") return item.title || "Bloque";
+  if (item.type === "cancion") return library.find((s) => s.id === item.songId)?.title || "Canción";
+  if (item.type === "biblia") return `Lectura: ${item.reference}`;
+  if (item.type === "slide") return item.title ? `Diapositiva: ${item.title}` : "Diapositiva";
+  return "Ítem del Setlist";
+}
+
+// Lista de TODOS los cargos que una persona tiene en un evento (puede ser más de uno — ej. Multimedia Y
+// además una canción) para mostrar "Te toca: ..." en su miniatura, en vez de solo un ícono de personas
+// que no dice nada de qué le toca a ELLA específicamente.
+export function misAsignacionesEnEvento(event, uid, library) {
+  if (!uid) return [];
+  const labels = [];
+  (event.serviceOrder || []).forEach((item) => {
+    if ((item.encargados || []).some((m) => m.usuarioId === uid)) labels.push(serviceItemLabel(item, library));
+  });
+  (event.worshipRoles || []).forEach((r) => {
+    if ((r.members || []).some((m) => m.usuarioId === uid)) labels.push(r.name);
+  });
+  return labels;
+}
+
+// Quita tildes y pasa a minúsculas antes de buscar una palabra clave en un título — así "Prédica" o
+// "Ofrenda" (singular, sin la "s" final) también coinciden con "predic"/"ofrenda", en vez de exigir
+// que el título esté escrito exactamente como el patrón (acentos y plural incluidos).
+const PATRON_TILDES = new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g");
+
+export function normalizarTitulo(s) {
+  return (s || "").normalize("NFD").replace(PATRON_TILDES, "").toLowerCase();
+}
+
+// ¿Este bloque del Setlist está vinculado a un grupo (ministerio) que esta persona lidera?
+// gruposQueLidero: Set con los ids de los ministerios donde la persona es líder.
+export function lideraBloque(item, gruposQueLidero) {
+  return !!(gruposQueLidero && item?.type === "seccion" && item.ministryId && gruposQueLidero.has(item.ministryId));
+}
+
 export function Field({ label, required, children }) {
   return (
     <div>
@@ -88,6 +155,34 @@ export function Field({ label, required, children }) {
       {children}
     </div>
   );
+}
+
+// Ensayo y nota de quien dirige la alabanza (pedido de Eldin, 2026-10-09). Lo ve todo el equipo de
+// alabanza del evento (y los administradores); lo editan los administradores y quien dirige. Lo mismo
+// aparece en el Inicio de cada músico/cantante (ver InicioView).
+export function quienDirigeAlabanza(event) {
+  for (const r of event?.worshipRoles || []) for (const m of r.members || []) if (m.lead) return m;
+  return null;
+}
+
+export function textoEnsayo(event) {
+  if (!event?.ensayoFecha && !event?.ensayoHora) return "";
+  const partes = [];
+  if (event.ensayoFecha) {
+    const d = parseIsoDateLocal(event.ensayoFecha);
+    const dias = d ? Math.round((d - todayLocal()) / 86400000) : null;
+    const corta = d ? `${["dom", "lun", "mar", "mié", "jue", "vie", "sáb"][d.getDay()]} ${d.getDate()} ${MONTH_NAMES_FULL[d.getMonth()].slice(0, 3).toLowerCase()}` : event.ensayoFecha;
+    partes.push(event.ensayoFecha === event.date ? "El mismo día" : dias === 0 ? "Hoy" : dias === 1 ? "Mañana" : corta);
+  }
+  if (event.ensayoHora) partes.push(formatHora12(event.ensayoHora));
+  return partes.join(" · ");
+}
+
+function formatHora12(hora) {
+  const m = String(hora || "").match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return hora || "";
+  const h = Number(m[1]);
+  return `${((h + 11) % 12) + 1}:${m[2]} ${h < 12 ? "a. m." : "p. m."}`;
 }
 
 // ---------- Biblia completa y buscable: se consulta en vivo (fetch) a la API pública bolls.life, así el
@@ -128,6 +223,25 @@ export async function fetchBibleChapter(version, bookId, chapter) {
   }
 }
 
+// "¿En qué parte del culto va?" — fila de botones con los bloques del culto (pedido de Eldin,
+// 2026-10-11). valor: id del bloque elegido o null (textoSinElegir: "Al final del culto", "Después de
+// lo que estás viendo"...). Se usa en "+ Agregar" del Setlist y de la consola.
+export function ElegirParteDelCulto({ orden, valor, onCambiar, textoSinElegir }) {
+  // Lista desplegable (pedido de Eldin, 2026-10-11: mejor que burbujas).
+  const bloques = bloquesDelCulto(orden);
+  if (bloques.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--wf-divider)" }}>
+      <label htmlFor="parte-del-culto" style={{ display: "block", fontSize: 12, fontWeight: 800, color: "var(--wf-text)", marginBottom: 7 }}>¿En qué parte del culto va?</label>
+      <select id="parte-del-culto" value={valor || ""} onChange={(e) => onCambiar(e.target.value || null)}
+        style={{ ...inputStyle, fontSize: 14, fontWeight: 600, cursor: "pointer", borderColor: valor ? "var(--wf-brand-accent)" : undefined }}>
+        <option value="">{textoSinElegir}</option>
+        {bloques.map((b) => <option key={b.id} value={b.id}>{b.titulo}</option>)}
+      </select>
+    </div>
+  );
+}
+
 export function ModalShell({ title, icon: Icon, color, onClose, children, alto = false }) {
   // Portal a document.body (no un <div> normal en el sitio donde se usa <ModalShell>) — "position:
   // fixed" por sí solo no basta: si algún ancestro tiene un transform activo (ej. SongView, que anima
@@ -154,6 +268,10 @@ export function ModalShell({ title, icon: Icon, color, onClose, children, alto =
 
 // ---------------- estilos compartidos ----------------
 export const iconGhost = { background: "transparent", border: "none", color: "var(--wf-muted)", cursor: "pointer", width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 10 };
+
+export const miniBtnStyle = { display: "flex", alignItems: "center", gap: 4, background: "transparent", border: "1px solid var(--wf-border)", borderRadius: 10, padding: "4px 8px", fontSize: 10, color: "#2F5FA8", cursor: "pointer" };
+
+export const ghostToggleBtn = { fontSize: 12, fontWeight: 700, padding: "8px 12px", borderRadius: 12, border: "1px solid var(--wf-border)", background: "var(--wf-hover)", color: "var(--wf-heading)", cursor: "pointer" };
 
 export const addBtnStyle = { display: "flex", alignItems: "center", gap: 8, width: "100%", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "9px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer" };
 
