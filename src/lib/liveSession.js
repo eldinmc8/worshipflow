@@ -146,3 +146,78 @@ export function escucharProyeccion(iglesiaId, onCambio) {
     if (canal) supabase.removeChannel(canal);
   };
 }
+
+// ---- Enlace que vence (2026-11-02) ----
+// Las pantallas sin sesión (proyección /p/… y escenario /e/…) ya no leen la tabla directamente: piden lo
+// que está al aire con el código secreto de la iglesia (sesion_en_vivo_publica) y escuchan los cambios en
+// un canal de Realtime cuyo nombre lleva ese código. El código cambia solo al finalizar la transmisión,
+// así que un enlace compartido en un culto deja de servir al terminar. Ver migración
+// 20261104000000_enlace_pantalla_que_vence.sql.
+
+// Código vigente de mi iglesia (con sesión). null si la base todavía no tiene esta función.
+export async function obtenerCodigoPantalla() {
+  try {
+    const { data, error } = await supabase.rpc("codigo_pantalla_actual");
+    if (error) return null;
+    return data || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function renovarCodigoPantalla() {
+  const { data, error } = await supabase.rpc("renovar_codigo_pantalla");
+  if (error) throw error;
+  return data;
+}
+
+export function esFuncionInexistente(error) {
+  return error?.code === "PGRST202" || error?.code === "42883" || /could not find the function/i.test(error?.message || "");
+}
+
+// Para pantallas sin sesión: { estado: "ok", fila } · { estado: "vencido" } · { estado: "antiguo", fila }
+// ("antiguo" = la base todavía no tiene el código: se lee como siempre, para no dejar pantallas en negro
+// entre que se publica la app y se corre la migración). Un fallo de red se lanza como error.
+export async function leerSesionPublica(iglesiaId, codigo) {
+  const { data, error } = await supabase.rpc("sesion_en_vivo_publica", { p_iglesia: iglesiaId, p_codigo: codigo || null });
+  if (error) {
+    if (esFuncionInexistente(error)) return { estado: "antiguo", fila: await getLiveSession(iglesiaId) };
+    throw error;
+  }
+  if (!data) return { estado: "vencido" };
+  return { estado: "ok", fila: { ...filaVacia(iglesiaId), ...data } };
+}
+
+const prefijoCanalPantallas = (iglesiaId) => `pantallas_${iglesiaId}_`;
+const canalesEnvio = new Map();
+
+// Consola (quien lleva la transmisión): manda cada cambio al canal de las pantallas con el código vigente.
+export function enviarAPantallas(iglesiaId, codigo, fila) {
+  if (!iglesiaId || !codigo) return;
+  const nombre = `${prefijoCanalPantallas(iglesiaId)}${codigo}`;
+  let c = canalesEnvio.get(nombre);
+  if (!c) {
+    // Un código nuevo reemplaza al anterior: el canal viejo se cierra.
+    for (const [n, viejo] of canalesEnvio) {
+      if (n.startsWith(prefijoCanalPantallas(iglesiaId))) { supabase.removeChannel(viejo.canal); canalesEnvio.delete(n); }
+    }
+    c = { canal: supabase.channel(nombre, { config: { broadcast: { self: false } } }), listo: false, pendiente: null };
+    canalesEnvio.set(nombre, c);
+    c.canal.subscribe((estado) => {
+      if (estado !== "SUBSCRIBED") return;
+      c.listo = true;
+      if (c.pendiente) { Promise.resolve(c.canal.send({ type: "broadcast", event: "fila", payload: c.pendiente })).catch(() => {}); c.pendiente = null; }
+    });
+  }
+  if (c.listo) Promise.resolve(c.canal.send({ type: "broadcast", event: "fila", payload: fila })).catch(() => {});
+  else c.pendiente = fila;
+}
+
+// Pantalla sin sesión: escucha los cambios del canal con su código. Devuelve la función para dejar de escuchar.
+export function escucharPantallas(iglesiaId, codigo, onFila) {
+  const canal = supabase
+    .channel(`${prefijoCanalPantallas(iglesiaId)}${codigo}`)
+    .on("broadcast", { event: "fila" }, ({ payload }) => { if (payload) onFila(payload); })
+    .subscribe();
+  return () => { supabase.removeChannel(canal); };
+}

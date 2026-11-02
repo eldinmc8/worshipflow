@@ -24,3 +24,14 @@ describe("pantalla de escenario", () => {
     expect(leerPantallaDeUrl("/e/buen-pastor", "")).toBe(null);
   });
 });
+
+describe("enlace con código que vence", () => {
+  it("arma y lee el código en el enlace corto y en el largo", () => {
+    expect(enlacePantalla("buen-pastor", "https://x.app", "a1b2c3d4e5f6")).toBe("https://x.app/p/buen-pastor/a1b2c3d4e5f6");
+    expect(enlaceEscenario("buen-pastor", "https://x.app", "a1b2c3d4e5f6")).toBe("https://x.app/e/buen-pastor/a1b2c3d4e5f6");
+    expect(leerPantallaDeUrl("/p/buen-pastor/a1b2c3d4e5f6", "")).toEqual({ slug: "buen-pastor", codigo: "a1b2c3d4e5f6" });
+    expect(leerEscenarioDeUrl("/e/buen-pastor/a1b2c3d4e5f6/", "")).toEqual({ slug: "buen-pastor", codigo: "a1b2c3d4e5f6" });
+    expect(leerPantallaDeUrl("/", "?screen=publico&igl=buen-pastor&k=zz")).toEqual({ slug: "buen-pastor", codigo: "zz" });
+    expect(leerPantallaDeUrl("/p/buen-pastor/a/b", "")).toBe(null);
+  });
+});

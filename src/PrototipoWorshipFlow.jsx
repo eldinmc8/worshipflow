@@ -39,7 +39,7 @@ import {
 import { PERMISOS_LIDER } from "./lib/roles.js";
 import { ordenarPor } from "./lib/orden.js";
 import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, actualizarPermisosLider, eliminarMinisterio, sincronizarPlan, sincronizarRecursos, getResumenMensual, guardarResumenMensual, subirArchivoRecurso } from "./lib/ministerios.js";
-import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession, escucharProyeccion, responderPedidosDeEstado } from "./lib/liveSession.js";
+import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession, escucharProyeccion, responderPedidosDeEstado, enviarAPantallas, obtenerCodigoPantalla } from "./lib/liveSession.js";
 import { getMusicoLive, updateMusicoLive, clearMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { sincronizarRecordatorios } from "./lib/recordatorios.js";
@@ -924,6 +924,10 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
 
   const selectedEvent = events.find((e) => e.id === selectedEventId);
   const [liveEventId, setLiveEventId] = useState(null);
+  // Código secreto de las pantallas sin sesión (enlace que vence, 2026-11-02): va en el enlace/QR y en el
+  // nombre del canal por el que la consola les manda lo que está al aire. La base lo cambia sola al
+  // finalizar la transmisión, así que se vuelve a pedir al empezar y al terminar.
+  const [codigoPantalla, setCodigoPantalla] = useState(null);
   const [liveOwnerId, setLiveOwnerId] = useState(null); // usuario que inició la transmisión; solo esa persona puede finalizarla
   // Estado de Modo Músico líder/seguidor de la sesión en vivo (ver columnas musico_* en sesiones_en_vivo
   // y el useEffect de subscribeLiveSession más abajo, que lo llena junto con liveEventId/liveOwnerId).
@@ -1414,7 +1418,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     // en vivo — ver iglesia_id_por_slug en la migración 20260930000300 y PublicScreen.jsx. Si el slug
     // todavía no cargó (carrera rara al abrir muy rápido), PublicScreen cae a iglesia_id_por_defecto(),
     // que sigue siendo correcto mientras exista una sola iglesia.
-    const url = `${window.location.origin}${window.location.pathname}?screen=publico${myIglesia.slug ? `&igl=${encodeURIComponent(myIglesia.slug)}` : ""}${myIglesiaId ? `&iid=${myIglesiaId}` : ""}`;
+    const url = `${window.location.origin}${window.location.pathname}?screen=publico${myIglesia.slug ? `&igl=${encodeURIComponent(myIglesia.slug)}` : ""}${myIglesiaId ? `&iid=${myIglesiaId}` : ""}${codigoPantalla ? `&k=${encodeURIComponent(codigoPantalla)}` : ""}`;
     const otherScreen = screenDetails.screens.find((s) => s !== screenDetails.currentScreen);
     if (!otherScreen) {
       showToast("No se detectó una segunda pantalla conectada. Conecta el proyector/monitor y vuelve a intentar para que se abra ahí solo.");
@@ -1514,8 +1518,12 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     setLiveEventId(null); setLiveLibre(false); setLiveOwnerId(null); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); setTab("eventos");
     // También por el canal local: si no hay internet, la pantalla de esta computadora igual se apaga.
     filaAlAireRef.current = null;
-    if (myIglesiaId) broadcastLiveSession(myIglesiaId, { evento_id: null, liderado_por: null, slide_actual: null, blanked: false, estilo_en_vivo: liveStyle, ad_hoc_label: null, libre: false });
-    clearLiveSession(myIglesiaId).catch((e) => { if (!esFalloDeConexion(e)) notifyError("No se pudo cerrar la sesión en vivo", e); });
+    const filaFin = { evento_id: null, liderado_por: null, slide_actual: null, blanked: false, estilo_en_vivo: liveStyle, ad_hoc_label: null, libre: false };
+    if (myIglesiaId) { broadcastLiveSession(myIglesiaId, filaFin); enviarAPantallas(myIglesiaId, codigoPantalla, filaFin); }
+    // Al cerrar la sesión, la base cambia el código de las pantallas: el enlace de este culto vence.
+    clearLiveSession(myIglesiaId)
+      .then(() => obtenerCodigoPantalla().then((c) => { if (c) setCodigoPantalla(c); }))
+      .catch((e) => { if (!esFalloDeConexion(e)) notifyError("No se pudo cerrar la sesión en vivo", e); });
     resetMusicoLive();
   };
 
@@ -1913,6 +1921,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     if (!myIglesiaId) return;
     filaAlAireRef.current = fila;
     broadcastLiveSession(myIglesiaId, fila);
+    enviarAPantallas(myIglesiaId, codigoPantalla, fila);
     // Sin internet (2026-10-17): la pantalla en ESTA computadora ya recibió el cambio por el canal local,
     // así que la falla de internet no se avisa en cada diapositiva (asustaba sin razón). Se anota como
     // pendiente y se manda solo apenas vuelve la señal (ver el efecto de "online" justo abajo).
@@ -1920,7 +1929,18 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       .then(() => { sincroPendienteRef.current = false; })
       .catch((e) => { if (esFalloDeConexion(e)) sincroPendienteRef.current = true; else notifyError("No se pudo actualizar la proyección", e); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId, practica, fijada, escenarioClave]);
+  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId, practica, fijada, escenarioClave, codigoPantalla]);
+  // Código vigente de las pantallas: al abrir la app y cada vez que empieza una transmisión (al terminar
+  // lo pide endEvent, DESPUÉS de cerrar la sesión, para no quedarse con el código que acaba de vencer).
+  const codigoPedidoRef = useRef(false);
+  useEffect(() => {
+    if (!myIglesiaId) return;
+    if (codigoPedidoRef.current && !liveEventId && !liveLibre) return;
+    codigoPedidoRef.current = true;
+    let vivo = true;
+    obtenerCodigoPantalla().then((c) => { if (vivo && c) setCodigoPantalla(c); });
+    return () => { vivo = false; };
+  }, [myIglesiaId, liveEventId, liveLibre]);
   // Lo que está al aire ahora: para responderle a una pantalla de proyección que se abre o se recarga
   // sin internet, y para mandarlo a Supabase cuando vuelve la señal.
   useEffect(() => {

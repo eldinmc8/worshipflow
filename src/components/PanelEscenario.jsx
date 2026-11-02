@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, MessageSquare, Send, Trash2, MonitorSmartphone, ExternalLink } from "lucide-react";
 import PantallaOtroEquipo from "./PantallaOtroEquipo.jsx";
 import { enlaceEscenario } from "../lib/enlacePantalla.js";
+import { obtenerCodigoPantalla } from "../lib/liveSession.js";
 
 // Panel "Escenario" de la consola de Multimedia (2026-11-01): mensaje corto para quienes están en la
 // plataforma (sale grande en la Pantalla de escenario, el público no lo ve) y cómo abrir esa pantalla.
@@ -13,6 +14,8 @@ export const MENSAJES_RAPIDOS = ["Repetir coro", "Último coro", "Alargar", "Ter
 export default function PanelEscenario({ mensaje, onMensaje, iglesiaId, slug, onCerrar }) {
   const [texto, setTexto] = useState(mensaje || "");
   const [verEnlace, setVerEnlace] = useState(false);
+  const [codigo, setCodigo] = useState(null); // el enlace lleva el código vigente (vence al finalizar la transmisión)
+  useEffect(() => { let vivo = true; obtenerCodigoPantalla().then((c) => { if (vivo) setCodigo(c); }); return () => { vivo = false; }; }, []);
   const enviar = (t) => { const limpio = (t ?? texto).trim().slice(0, 80); onMensaje(limpio); setTexto(limpio); };
 
   if (verEnlace) return <PantallaOtroEquipo tipo="escenario" iglesiaId={iglesiaId} slug={slug} onCerrar={() => setVerEnlace(false)} />;
@@ -52,7 +55,7 @@ export default function PanelEscenario({ mensaje, onMensaje, iglesiaId, slug, on
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4, margin: "16px 0 6px" }}>PANTALLA DE ESCENARIO</div>
         <div style={{ display: "flex", gap: 8 }}>
           <button type="button" onClick={() => setVerEnlace(true)} style={boton}><MonitorSmartphone size={16} /> En un TV o tablet</button>
-          <a href={enlaceEscenario(slug)} target="_blank" rel="noopener noreferrer" style={boton}><ExternalLink size={16} /> Abrir aquí</a>
+          <a href={enlaceEscenario(slug, window.location.origin, codigo)} target="_blank" rel="noopener noreferrer" style={boton}><ExternalLink size={16} /> Abrir aquí</a>
         </div>
         <div style={{ fontSize: 11.5, color: "var(--wf-faint)", lineHeight: 1.5, marginTop: 10 }}>
           Muestra la letra al aire, lo que sigue, la parte de la canción, la siguiente canción, el reloj y estos mensajes. Si pones la proyección en negro, el escenario sigue viendo la letra.
