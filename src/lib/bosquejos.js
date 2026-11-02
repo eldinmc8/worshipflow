@@ -8,11 +8,8 @@ import { finDeBloque } from "./ordenCulto.js";
 // Setlist justo después del bloque, marcadas con bosquejoDe = id del bloque (la base solo deja al
 // predicador tocar las diapositivas con SU marca — ver migración 20261103000000_bosquejo_predicador.sql).
 
-// Mismo criterio (por título) que wf_es_titulo_predicacion en la base.
-export const REGEX_PREDICACION = /pr[eé]dic|serm[oó]n|mensaje/i;
-export function esBloquePredicacion(item) {
-  return !!item && item.type === "seccion" && REGEX_PREDICACION.test(item.title || "");
-}
+// Mismo criterio (por título) que wf_es_titulo_predicacion en la base (ver predicacion.js).
+export { REGEX_PREDICACION, esBloquePredicacion } from "./predicacion.js";
 
 export function bosquejoVacio() {
   return { titulo: "", citaBase: null, ideaCentral: "", mostrarIdea: false, puntos: [], enviadoAt: null, updatedAt: null };
@@ -79,16 +76,18 @@ export async function guardarBosquejo(eventoId, bloqueId, bosquejo, { enviado = 
 }
 
 // Un versículo elegido en el selector de Biblia → ítem "biblia" del Setlist.
-function versiculoAItem(v, bloqueId, nuevoId) {
+// bosquejoPunto (1, 2, 3…): de qué punto del bosquejo es; la pantalla de escenario lo usa para mostrarle
+// al predicador su nota privada y "Punto 2 de 4".
+function versiculoAItem(v, bloqueId, nuevoId, punto = null) {
   return {
     id: nuevoId(), type: "biblia", reference: v.ref, version: v.version, text: v.text,
     bookId: v.bookId, bookName: v.bookName, chapter: v.chapter, verseStart: v.verseStart, verseEnd: v.verseEnd,
-    bosquejoDe: bloqueId,
+    bosquejoDe: bloqueId, ...(punto ? { bosquejoPunto: punto } : {}),
   };
 }
 
-function textoAItem(titulo, subtitulo, bloqueId, nuevoId) {
-  return { id: nuevoId(), type: "slide", title: titulo, subtitle: subtitulo || "", bg: "#1B2029", bgType: "color", isSermonPoint: true, bosquejoDe: bloqueId };
+function textoAItem(titulo, subtitulo, bloqueId, nuevoId, punto = null) {
+  return { id: nuevoId(), type: "slide", title: titulo, subtitle: subtitulo || "", bg: "#1B2029", bgType: "color", isSermonPoint: true, bosquejoDe: bloqueId, ...(punto ? { bosquejoPunto: punto } : {}) };
 }
 
 // El bosquejo → diapositivas, en el orden en que se predica:
@@ -101,8 +100,8 @@ export function bosquejoAItems(bosquejo, bloqueId, nuevoId = () => crypto.random
   if (bosquejo.mostrarIdea && bosquejo.ideaCentral?.trim()) items.push(textoAItem(bosquejo.ideaCentral.trim(), "", bloqueId, nuevoId));
   (bosquejo.puntos || []).forEach((p, i) => {
     const titulo = (p.titulo || "").trim();
-    if (titulo) items.push(textoAItem(titulo, `Punto ${i + 1}`, bloqueId, nuevoId));
-    (p.versiculos || []).forEach((v) => { if (v?.text) items.push(versiculoAItem(v, bloqueId, nuevoId)); });
+    if (titulo) items.push(textoAItem(titulo, `Punto ${i + 1}`, bloqueId, nuevoId, i + 1));
+    (p.versiculos || []).forEach((v) => { if (v?.text) items.push(versiculoAItem(v, bloqueId, nuevoId, i + 1)); });
   });
   return items;
 }

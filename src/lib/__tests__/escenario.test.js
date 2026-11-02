@@ -80,3 +80,61 @@ describe("ayudantes", () => {
     expect(tiempoTranscurrido(null)).toBe("");
   });
 });
+
+import { estaEnPredicacion, datosPredicacion, restanteTemporizador, textoTemporizador, nivelTemporizador, iniciarTemporizador, pausarTemporizador, reanudarTemporizador } from "../escenario.js";
+
+describe("predicación en el escenario", () => {
+  const orden = [
+    { id: "alab", type: "seccion", title: "Alabanza" },
+    { id: "c1", type: "cancion" },
+    { id: "pred", type: "seccion", title: "Predicación" },
+    { id: "t", type: "slide", title: "La gracia", bosquejoDe: "pred" },
+    { id: "p1", type: "slide", title: "Su amor es inmerecido", subtitle: "Punto 1", bosquejoDe: "pred", bosquejoPunto: 1 },
+    { id: "v1", type: "biblia", reference: "Romanos 5:8", bosquejoDe: "pred", bosquejoPunto: 1 },
+    { id: "p2", type: "slide", title: "Su amor nos cambia", subtitle: "Punto 3", bosquejoDe: "pred" },
+    { id: "v2", type: "biblia", reference: "2 Corintios 5:17", bosquejoDe: "pred" },
+    { id: "video", type: "slide", title: "Video" },
+  ];
+  const bosquejos = { pred: { titulo: "La gracia", puntos: [
+    { titulo: "Su amor es inmerecido", nota: "Contar lo del hijo pródigo", versiculos: [] },
+    { titulo: "", nota: "", versiculos: [] },
+    { titulo: "Su amor nos cambia", nota: "Testimonio de Ana", versiculos: [] },
+  ] } };
+
+  it("sabe cuándo lo que está al aire es de la predicación", () => {
+    expect(estaEnPredicacion(orden, orden[1])).toBe(false);
+    expect(estaEnPredicacion(orden, orden[3])).toBe(true);
+    expect(estaEnPredicacion(orden, orden[8])).toBe(true); // un video dentro del bloque de Predicación
+  });
+  it("muestra el punto, el total, la nota privada y los próximos versículos", () => {
+    expect(datosPredicacion(orden, orden[4], bosquejos)).toEqual({ titulo: "La gracia", punto: 1, total: 2, nota: "Contar lo del hijo pródigo", proximosVersiculos: ["Romanos 5:8", "2 Corintios 5:17"] });
+    // diapositivas viejas sin número guardado: se reconoce por el subtítulo y el versículo toma el de arriba
+    expect(datosPredicacion(orden, orden[7], bosquejos)).toMatchObject({ punto: 2, total: 2, nota: "Testimonio de Ana", proximosVersiculos: [] });
+    expect(datosPredicacion(orden, orden[3], bosquejos)).toMatchObject({ punto: null, nota: "" });
+    expect(datosPredicacion(orden, orden[1], bosquejos)).toBeNull();
+  });
+});
+
+describe("temporizador del mensaje", () => {
+  const t0 = Date.parse("2026-11-08T11:00:00Z");
+  it("cuenta hacia atrás, avisa a los 5 minutos y cuenta lo excedido", () => {
+    const t = iniciarTemporizador(30 * 60, t0);
+    expect(textoTemporizador(restanteTemporizador(t, t0))).toBe("30:00");
+    expect(nivelTemporizador(restanteTemporizador(t, t0 + 25 * 60000))).toBe("aviso");
+    const pasado = restanteTemporizador(t, t0 + 32 * 60000 + 15000);
+    expect(textoTemporizador(pasado)).toBe("+2:15");
+    expect(nivelTemporizador(pasado)).toBe("excedido");
+  });
+  it("se pausa y se reanuda sin perder tiempo", () => {
+    const t = iniciarTemporizador(600, t0);
+    const pausado = pausarTemporizador(t, t0 + 60000);
+    expect(restanteTemporizador(pausado, t0 + 999999)).toBe(540);
+    const otraVez = reanudarTemporizador(pausado, t0 + 120000);
+    expect(restanteTemporizador(otraVez, t0 + 180000)).toBe(480);
+  });
+  it("apagado no muestra nada", () => {
+    expect(restanteTemporizador(null)).toBeNull();
+    expect(textoTemporizador(null)).toBe("");
+    expect(textoTemporizador(3725)).toBe("1:02:05");
+  });
+});

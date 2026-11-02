@@ -59,7 +59,7 @@ import MedidorPassword from "./MedidorPassword.jsx";
 import Tour from "./components/Tour.jsx";
 import BosquejoWizard from "./components/BosquejoWizard.jsx";
 import PanelEscenario from "./components/PanelEscenario.jsx";
-import { armarEscenario } from "./lib/escenario.js";
+import { armarEscenario, perteneceA, estaEnPredicacion, iniciarTemporizador, temporizadorActivo } from "./lib/escenario.js";
 import { esBloquePredicacion, guardarBosquejo, bosquejoAItems, aplicarBosquejoAlOrden, bosquejoTieneCambiosSinEnviar } from "./lib/bosquejos.js";
 import { CLAVES_TUTORIAL, pasosBienvenida, pasosEventos, pasosEvento, pasosCanciones, pasosEditorCancion, pasosEnVivo, marcarTutorialVisto, reiniciarTutoriales } from "./lib/tutoriales.js";
 import {
@@ -1893,21 +1893,46 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const [mensajeEscenario, setMensajeEscenario] = useState("");
   const [inicioVivo, setInicioVivo] = useState(null);
   const llevoLaTransmision = !practica && !!(liveEventId || liveLibre) && userId === liveOwnerId;
+  // Temporizador del mensaje (2026-11-02): lo maneja Multimedia desde el panel Escenario; se ve grande en
+  // la pantalla de escenario. Puede arrancar solo al empezar la predicación (autoTemporizador).
+  const [temporizador, setTemporizador] = useState(null);
+  const [autoTemporizador, setAutoTemporizador] = useState(() => loadCache("escenario_auto_temporizador") || { activo: false, duracionSeg: 30 * 60 });
+  useEffect(() => { saveCache("escenario_auto_temporizador", autoTemporizador); }, [autoTemporizador]);
   useEffect(() => {
-    if (!llevoLaTransmision) { setInicioVivo(null); setMensajeEscenario(""); return; }
-    // Si la consola se recarga a mitad del culto, el tiempo sigue contando desde el inicio real.
+    if (!llevoLaTransmision) { setInicioVivo(null); setMensajeEscenario(""); setTemporizador(null); return; }
+    // Si la consola se recarga a mitad del culto, el tiempo sigue contando desde el inicio real (y el temporizador también).
     const clave = liveEventId || "libre";
     const guardado = loadCache("escenario_inicio");
     const inicio = guardado?.clave === clave && guardado?.inicio ? guardado.inicio : new Date().toISOString();
     saveCache("escenario_inicio", { clave, inicio });
     setInicioVivo(inicio);
+    const tGuardado = loadCache("escenario_temporizador");
+    setTemporizador(tGuardado?.clave === clave ? tGuardado.t || null : null);
   }, [llevoLaTransmision, liveEventId]);
+  useEffect(() => {
+    if (llevoLaTransmision) saveCache("escenario_temporizador", { clave: liveEventId || "libre", t: temporizador });
+  }, [temporizador, llevoLaTransmision, liveEventId]);
+  // ¿Lo que está al aire es de la predicación? Al entrar, el temporizador arranca solo (si está activado).
+  const enPredicacion = useMemo(() => {
+    const alAire = fijada || current;
+    if (!llevoLaTransmision || !alAire || adHoc) return false;
+    const orden = liveEvent?.serviceOrder || [];
+    return estaEnPredicacion(orden, orden.find((it) => it.type !== "seccion" && perteneceA(alAire, it.id)) || null);
+  }, [llevoLaTransmision, fijada, current, adHoc, liveEvent]);
+  const enPredicacionAntesRef = useRef(false);
+  useEffect(() => {
+    if (enPredicacion && !enPredicacionAntesRef.current && autoTemporizador.activo && !temporizadorActivo(temporizador)) {
+      setTemporizador(iniciarTemporizador(autoTemporizador.duracionSeg));
+    }
+    enPredicacionAntesRef.current = enPredicacion;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enPredicacion]);
   const escenario = useMemo(() => {
     if (!llevoLaTransmision) return null;
     const alAire = fijada || current || null;
     const indice = adHoc ? -1 : fijada ? slides.findIndex((x) => x.slideId === fijada.slideId) : activeIdx;
-    return armarEscenario({ slides, indice, alAire, serviceOrder: liveEvent?.serviceOrder || [], library, mensaje: mensajeEscenario, inicio: inicioVivo });
-  }, [llevoLaTransmision, fijada, current, adHoc, slides, activeIdx, liveEvent, library, mensajeEscenario, inicioVivo]);
+    return armarEscenario({ slides, indice, alAire, serviceOrder: liveEvent?.serviceOrder || [], library, mensaje: mensajeEscenario, inicio: inicioVivo, bosquejos: liveEvent?.bosquejos || {}, temporizador });
+  }, [llevoLaTransmision, fijada, current, adHoc, slides, activeIdx, liveEvent, library, mensajeEscenario, inicioVivo, temporizador]);
   const escenarioClave = escenario ? JSON.stringify(escenario) : "";
 
   useEffect(() => {
@@ -2811,6 +2836,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             adHoc={adHocVista} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
             onOpenPublicScreen={enPractica ? () => avisoPractica("abre el proyector") : startPresentation}
             mensajeEscenario={mensajeEscenario} onMensajeEscenario={setMensajeEscenario} iglesiaSlug={myIglesia?.slug || null}
+            temporizador={temporizador} onTemporizador={setTemporizador} autoTemporizador={autoTemporizador} onAutoTemporizador={setAutoTemporizador}
             onNavigateBibleVerse={navigateBibleVerse}
             onAddLiveSlide={addLiveSlide} onEditLiveSlide={editLiveSlide} onRemoveLiveSlide={removeLiveSlide}
             onEditSongSlide={enPractica ? () => avisoPractica("cambian las canciones") : editSongSlideLive}
@@ -8581,7 +8607,7 @@ function BibleLivePanel({ version, setVersion, history, setHistory, onProject, l
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {}, onEditarLetraCompleta, mensajeEscenario = "", onMensajeEscenario = null, iglesiaSlug = null }) {
+function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {}, onEditarLetraCompleta, mensajeEscenario = "", onMensajeEscenario = null, iglesiaSlug = null, temporizador = null, onTemporizador = null, autoTemporizador = null, onAutoTemporizador = null }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -9128,7 +9154,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
       {/* Barra de herramientas: pantalla 2, negro */}
       <div style={{ display: "flex", gap: 8, padding: "8px 16px 10px", flexWrap: "wrap" }}>
         <button data-tour="envivo-proyeccion" onClick={onOpenPublicScreen} style={{ ...ctrlBtn, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)" }}><Radio size={14} /> Reabrir proyección</button>
-        {onMensajeEscenario && <button onClick={() => setShowEscenario(true)} style={{ ...ctrlBtn, ...(mensajeEscenario ? { background: "#E8821E", color: "#16233A", border: "none" } : {}) }}><MessageSquare size={14} /> Escenario</button>}
+        {onMensajeEscenario && <button onClick={() => setShowEscenario(true)} style={{ ...ctrlBtn, ...(mensajeEscenario || temporizadorActivo(temporizador) ? { background: "#E8821E", color: "#16233A", border: "none" } : {}) }}><MessageSquare size={14} /> Escenario</button>}
         <button data-tour="envivo-negro" onClick={() => setBlanked((b) => !b)} style={{ ...ctrlBtn, background: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)" }}><MonitorOff size={14} /> {blanked ? "Reanudar" : "Pantalla en negro"}</button>
         <div style={{ flex: 1 }} />
         {botonAgregarConsola({ tour: "envivo-agregar" })}
@@ -9547,7 +9573,7 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
               {botonCinta({ icon: MonitorOff, label: "Negro", onClick: () => setBlanked((b) => !b), activo: blanked, tour: "envivo-negro" })}
               {onFijar && botonCinta({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", onClick: () => (fijada ? onSoltar() : onFijar()), activo: !!fijada, title: "Congelar la pantalla para moverte sin proyectar (tecla F)" })}
               {botonCinta({ icon: Radio, label: "Proyección", onClick: onOpenPublicScreen, title: "Reabrir la pantalla de proyección", tour: "envivo-proyeccion" })}
-              {onMensajeEscenario && botonCinta({ icon: MessageSquare, label: "Escenario", onClick: () => setShowEscenario(true), activo: !!mensajeEscenario, title: "Pantalla de escenario: mensaje para quienes están en la plataforma y enlace del monitor" })}
+              {onMensajeEscenario && botonCinta({ icon: MessageSquare, label: "Escenario", onClick: () => setShowEscenario(true), activo: !!mensajeEscenario || temporizadorActivo(temporizador), title: "Pantalla de escenario: mensajes, temporizador del mensaje y enlace del monitor" })}
               {botonCinta({ icon: Tv, label: "Pantallas y TV", onClick: () => setShowOtroEquipo(true), title: "Conectar un Smart TV con número, o abrir en celular/tablet con QR", ancho: 76 })}
             </>),
           grupoItem("Proyectar", botonCinta({ icon: Music, label: "Desde biblioteca", onClick: () => setShowAdHocSong("proyectar"), title: "Buscar una canción de la biblioteca y ponerla en pantalla de una vez", ancho: 96 })),
@@ -9581,7 +9607,8 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
         </ModalShell>
       )}
       {showOtroEquipo && <PantallaOtroEquipo iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipo(false)} />}
-      {showEscenario && onMensajeEscenario && <PanelEscenario mensaje={mensajeEscenario} onMensaje={onMensajeEscenario} iglesiaId={myIglesiaId} slug={iglesiaSlug} onCerrar={() => setShowEscenario(false)} />}
+      {showEscenario && onMensajeEscenario && <PanelEscenario mensaje={mensajeEscenario} onMensaje={onMensajeEscenario} iglesiaId={myIglesiaId} slug={iglesiaSlug} onCerrar={() => setShowEscenario(false)}
+        temporizador={temporizador} onTemporizador={onTemporizador} autoTemporizador={autoTemporizador} onAutoTemporizador={onAutoTemporizador} />}
       {mmPanel === "estilo" && animMenu && (
         <div style={{ position: "relative", height: 0, zIndex: 36 }}>
           <div onClick={() => setAnimMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />

@@ -6,6 +6,8 @@
 // la diapositiva al aire (slide_actual.escenario en sesiones_en_vivo, y por el canal local). Así la
 // pantalla de escenario, que no tiene sesión iniciada, no necesita leer el Setlist: todo le llega listo.
 
+import { esBloquePredicacion } from "./predicacion.js";
+
 // ¿Esta diapositiva es de este elemento del Setlist? Mismo criterio que la consola (perteneceA):
 // canción "<id>-<parte>-<n>", versículo partido "<id>~<k>", diapositiva de un grupo "<id>~<id>".
 export function perteneceA(slide, itemId) {
@@ -68,7 +70,7 @@ function tonoDeItem(it, library) {
 // Resumen completo para la pantalla de escenario.
 // slides: lo que la consola puede proyectar (en orden) · indice: el que está al aire en `slides`
 // (-1 si lo que está al aire no es del plan, ej. un versículo suelto) · alAire: la diapositiva al aire.
-export function armarEscenario({ slides = [], indice = -1, alAire = null, serviceOrder = [], library = [], mensaje = "", inicio = null }) {
+export function armarEscenario({ slides = [], indice = -1, alAire = null, serviceOrder = [], library = [], mensaje = "", inicio = null, bosquejos = {}, temporizador = null }) {
   const actual = indice >= 0 ? slides[indice] : alAire;
   const item = actual ? serviceOrder.find((it) => it.type !== "seccion" && perteneceA(actual, it.id)) || null : null;
   const siguienteDiapositiva = indice >= 0 ? slides[indice + 1] || null : null;
@@ -93,7 +95,99 @@ export function armarEscenario({ slides = [], indice = -1, alAire = null, servic
     proximos,
     mensaje: (mensaje || "").trim(),
     inicio: inicio || null,
+    predicacion: datosPredicacion(serviceOrder, item, bosquejos),
+    temporizador: temporizadorActivo(temporizador) ? { finEn: temporizador.finEn || null, restanteSeg: temporizador.finEn ? null : temporizador.restanteSeg, duracionSeg: temporizador.duracionSeg || null } : null,
   };
+}
+
+// ---------- Predicación (2026-11-02) ----------
+
+// ¿Lo que está al aire es de la predicación? Una diapositiva del bosquejo, o cualquier cosa dentro del
+// bloque de Predicación. Sirve para que el temporizador arranque solo.
+export function estaEnPredicacion(serviceOrder = [], item = null) {
+  if (!item) return false;
+  if (item.bosquejoDe) return true;
+  const i = serviceOrder.findIndex((it) => it.id === item.id);
+  for (let k = i - 1; k >= 0; k--) if (serviceOrder[k].type === "seccion") return esBloquePredicacion(serviceOrder[k]);
+  return false;
+}
+
+// Número de punto del bosquejo de un elemento (las diapositivas enviadas antes de guardar el número se
+// reconocen por su subtítulo "Punto N"; un versículo toma el del punto que tiene arriba).
+function puntoDe(serviceOrder, item) {
+  const directo = (it) => it.bosquejoPunto || (/^Punto (\d+)$/.exec(it.subtitle || "") ? Number(/^Punto (\d+)$/.exec(it.subtitle)[1]) : null);
+  const p = directo(item);
+  if (p) return p;
+  const i = serviceOrder.findIndex((it) => it.id === item.id);
+  for (let k = i - 1; k >= 0; k--) {
+    const it = serviceOrder[k];
+    if (it.bosquejoDe !== item.bosquejoDe) break;
+    const q = directo(it);
+    if (q) return q;
+  }
+  return null;
+}
+
+// Para el predicador, mientras está al aire algo de su bosquejo: "Punto 2 de 4", su nota privada de ese
+// punto (nunca se proyecta) y los próximos versículos del bosquejo, para que los vaya buscando.
+export function datosPredicacion(serviceOrder = [], item = null, bosquejos = {}) {
+  if (!item?.bosquejoDe) return null;
+  const b = bosquejos?.[item.bosquejoDe] || null;
+  const puntos = b?.puntos || [];
+  const conTitulo = puntos.map((pt, i) => ({ i, titulo: (pt.titulo || "").trim() })).filter((pt) => pt.titulo);
+  const punto = puntoDe(serviceOrder, item);
+  const orden = punto ? conTitulo.findIndex((pt) => pt.i === punto - 1) + 1 : 0;
+  const total = conTitulo.length || serviceOrder.filter((it) => it.bosquejoDe === item.bosquejoDe && /^Punto \d+$/.test(it.subtitle || "")).length;
+  const desde = serviceOrder.findIndex((it) => it.id === item.id) + 1;
+  const proximosVersiculos = serviceOrder.slice(desde).filter((it) => it.bosquejoDe === item.bosquejoDe && it.type === "biblia").slice(0, 4).map((it) => it.reference);
+  return {
+    titulo: b?.titulo || "",
+    punto: orden > 0 ? orden : punto || null,
+    total: total || null,
+    nota: punto ? (puntos[punto - 1]?.nota || "").trim() : "",
+    proximosVersiculos,
+  };
+}
+
+// ---------- Temporizador del mensaje ----------
+// { duracionSeg, finEn } corriendo · { duracionSeg, restanteSeg } en pausa · null o sin ninguno = apagado.
+export function temporizadorActivo(t) {
+  return !!t && (!!t.finEn || typeof t.restanteSeg === "number");
+}
+
+// Segundos que faltan (negativo = se pasó del tiempo).
+export function restanteTemporizador(t, ahora = Date.now()) {
+  if (!temporizadorActivo(t)) return null;
+  if (t.finEn) return Math.round((new Date(t.finEn).getTime() - ahora) / 1000);
+  return t.restanteSeg;
+}
+
+// "12:05", "1:02:09" o "+2:15" cuando ya se pasó.
+export function textoTemporizador(seg) {
+  if (seg == null) return "";
+  const a = Math.abs(seg);
+  const h = Math.floor(a / 3600), m = Math.floor((a % 3600) / 60), s = a % 60;
+  const dos = (n) => String(n).padStart(2, "0");
+  return `${seg < 0 ? "+" : ""}${h > 0 ? `${h}:${dos(m)}` : m}:${dos(s)}`;
+}
+
+// normal · aviso (faltan 5 minutos o menos) · excedido.
+export function nivelTemporizador(seg) {
+  if (seg == null) return null;
+  if (seg < 0) return "excedido";
+  return seg <= 300 ? "aviso" : "normal";
+}
+
+export function iniciarTemporizador(duracionSeg, ahora = Date.now()) {
+  return { duracionSeg, finEn: new Date(ahora + duracionSeg * 1000).toISOString() };
+}
+export function pausarTemporizador(t, ahora = Date.now()) {
+  if (!t?.finEn) return t;
+  return { duracionSeg: t.duracionSeg, restanteSeg: restanteTemporizador(t, ahora) };
+}
+export function reanudarTemporizador(t, ahora = Date.now()) {
+  if (!t || t.finEn || typeof t.restanteSeg !== "number") return t;
+  return { duracionSeg: t.duracionSeg, finEn: new Date(ahora + t.restanteSeg * 1000).toISOString() };
 }
 
 // "1:05:09" / "12:04" desde una fecha ISO hasta ahora.
