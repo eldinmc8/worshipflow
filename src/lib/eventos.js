@@ -105,7 +105,10 @@ function filaAItemServicio(row, encargadosPorItem) {
   if (row.tipo === "bloque") return { ...base, type: "seccion", title: row.titulo, description: row.descripcion || "", ministryId: row.ministerio_id || null };
   if (row.tipo === "cancion") return { ...base, type: "cancion", songId: row.cancion_id, structure: row.estructura && row.estructura.length ? row.estructura : undefined, keyOverride: row.tonalidad_override || null };
   // Diapositivas que salen del bosquejo de un predicador: marcadas con el id de su bloque (ver bosquejos.js).
-  if (row.estructura && !Array.isArray(row.estructura) && row.estructura.bosquejoDe) base.bosquejoDe = row.estructura.bosquejoDe;
+  if (row.estructura && !Array.isArray(row.estructura) && row.estructura.bosquejoDe) {
+    base.bosquejoDe = row.estructura.bosquejoDe;
+    if (row.estructura.punto) base.bosquejoPunto = row.estructura.punto;
+  }
   if (row.tipo === "biblia") return { ...base, type: "biblia", reference: row.referencia, version: row.version_biblia, text: row.texto_biblia, bookId: row.libro_id || undefined, bookName: row.libro_nombre || undefined, chapter: row.capitulo || undefined, verseStart: row.versiculo_inicio || undefined, verseEnd: row.versiculo_fin || undefined };
   // Diapositivas con diseño (presentación agrupada o editada en el editor): viven en estructura.diapositivas.
   const diapositivas = Array.isArray(row.estructura?.diapositivas) && row.estructura.diapositivas.length ? row.estructura.diapositivas : undefined;
@@ -129,11 +132,11 @@ function itemServicioAFila(item, eventoId, orden) {
   if (item.type === "seccion") return { ...base, tipo: "bloque", titulo: item.title, descripcion: item.description || "", ministerio_id: item.ministryId || null };
   if (item.type === "cancion") return { ...base, tipo: "cancion", cancion_id: item.songId, tonalidad_override: item.keyOverride || null };
   // La marca del bosquejo (bosquejoDe) viaja en estructura, que versículos y diapositivas de texto no usan.
-  if (item.bosquejoDe) base.estructura = { bosquejoDe: item.bosquejoDe };
+  if (item.bosquejoDe) base.estructura = { bosquejoDe: item.bosquejoDe, ...(item.bosquejoPunto ? { punto: item.bosquejoPunto } : {}) };
   if (item.type === "biblia") return { ...base, tipo: "biblia", referencia: item.reference, version_biblia: item.version, texto_biblia: item.text, libro_id: item.bookId ?? null, libro_nombre: item.bookName ?? null, capitulo: item.chapter ?? null, versiculo_inicio: item.verseStart ?? null, versiculo_fin: item.verseEnd ?? null };
   // escalaSubtitulo (tamaño del texto pequeño de una diapositiva de texto) viaja en estructura, que las
   // diapositivas de texto no usaban.
-  const marca = item.bosquejoDe ? { bosquejoDe: item.bosquejoDe } : {};
+  const marca = item.bosquejoDe ? { bosquejoDe: item.bosquejoDe, ...(item.bosquejoPunto ? { punto: item.bosquejoPunto } : {}) } : {};
   return { ...base, ...(item.diapositivas?.length ? { estructura: { diapositivas: item.diapositivas, ...marca } } : item.escalaSubtitulo ? { estructura: { escalaSubtitulo: item.escalaSubtitulo, ...marca } } : {}), tipo: "slide", titulo: item.title || "", descripcion: item.name || "", subtitulo: item.subtitle || "", fondo_color: item.bg || "#1B2029", fondo_video_url: item.videoUrl || null, fondo_imagen_url: item.imageUrl || null };
 }
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { X, Minus, Plus, Maximize, Music, BookOpen, Type, MessageSquare } from "lucide-react";
 import AutoFitText from "./components/AutoFitText.jsx";
 import { leerEscenarioDeUrl } from "./lib/enlacePantalla.js";
-import { tiempoTranscurrido } from "./lib/escenario.js";
+import { tiempoTranscurrido, restanteTemporizador, textoTemporizador, nivelTemporizador } from "./lib/escenario.js";
 import { useSesionPublica } from "./lib/usarSesionPublica.js";
 import EnlaceVencido from "./components/EnlaceVencido.jsx";
 import { soportaPantallaCompleta, pedirPantallaCompleta, salirDePantallaCompleta } from "./lib/pantallaCompleta.js";
@@ -76,11 +76,16 @@ export default function PantallaEscenario() {
   const enVivo = !!(fila?.evento_id || fila?.libre);
   const reloj = new Date(ahora).toLocaleTimeString("es", { hour: "numeric", minute: "2-digit" });
   const transcurrido = esc?.inicio ? tiempoTranscurrido(esc.inicio, ahora) : "";
+  // Temporizador del mensaje (lo maneja Multimedia): blanco, naranja en los últimos 5 min, rojo si se pasa.
+  const restante = restanteTemporizador(esc?.temporizador, ahora);
+  const nivel = nivelTemporizador(restante);
+  const colorTemporizador = nivel === "excedido" ? "#FF5A4E" : nivel === "aviso" ? NARANJA : "#fff";
+  const pred = esc?.predicacion || null;
 
   // Lo que está al aire, como líneas de texto.
   let lineasAhora = [], etiquetaAhora = "", IconoAhora = Type;
   if (slide?.type === "cancion") { lineasAhora = (slide.lines || []).filter((l) => l && l.trim()); etiquetaAhora = slide.blockLabel || ""; IconoAhora = Music; }
-  else if (slide?.type === "biblia") { lineasAhora = [slide.text || ""]; etiquetaAhora = slide.reference || ""; IconoAhora = BookOpen; }
+  else if (slide?.type === "biblia") { lineasAhora = [slide.text || ""]; etiquetaAhora = `${slide.reference || ""}${slide.version ? ` · ${slide.version}` : ""}`; IconoAhora = BookOpen; }
   else if (slide) { lineasAhora = [slide.title, slide.subtitle].filter((t) => t && String(t).trim()); if (!lineasAhora.length) lineasAhora = [slide.nombre || "Diapositiva"]; etiquetaAhora = slide.diseno ? "Diapositiva con diseño" : ""; }
   const esVersiculo = slide?.type === "biblia";
 
@@ -137,7 +142,7 @@ export default function PantallaEscenario() {
           {/* Izquierda: AHORA (grande) y SIGUE */}
           <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", gap: "1.4vh" }}>
             <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-              <Etiqueta color={NARANJA}><IconoAhora size={13} style={{ flexShrink: 0 }} />Ahora{etiquetaAhora && esc?.cancion ? ` · ${etiquetaAhora}` : ""}</Etiqueta>
+              <Etiqueta color={NARANJA}><IconoAhora size={13} style={{ flexShrink: 0 }} />Ahora{etiquetaAhora && esc?.cancion ? ` · ${etiquetaAhora}` : ""}{pred?.punto && pred?.total ? ` · Punto ${pred.punto} de ${pred.total}` : ""}</Etiqueta>
               <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
                 <AutoFitText
                   lines={lineasAhora} targetRatio={(esVersiculo ? 0.13 : 0.22) * tamano} minRatio={esVersiculo ? 0.05 : 0.09} minPx={18}
@@ -160,6 +165,32 @@ export default function PantallaEscenario() {
 
           {/* Derecha: lo que viene */}
           <div style={{ width: vertical ? "auto" : "min(32%, 520px)", flexShrink: 0, display: "flex", flexDirection: vertical ? "row" : "column", gap: "1.2vh", minHeight: 0, flexWrap: vertical ? "wrap" : "nowrap" }}>
+            {restante != null && (
+              <Tarjeta style={{ flex: vertical ? 1 : "none", background: nivel === "excedido" ? "rgba(194,59,50,0.22)" : nivel === "aviso" ? "rgba(232,130,30,0.16)" : "rgba(255,255,255,0.05)" }}>
+                <Etiqueta color={nivel === "normal" ? GRIS : colorTemporizador}>{nivel === "excedido" ? "Se pasó del tiempo" : esc.temporizador.finEn ? "Tiempo del mensaje" : "Tiempo del mensaje · en pausa"}</Etiqueta>
+                <div aria-label="Temporizador del mensaje" style={{ fontSize: `calc(clamp(34px, 9vh, 120px) * ${tamano})`, fontWeight: 800, color: colorTemporizador, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{textoTemporizador(restante)}</div>
+              </Tarjeta>
+            )}
+            {pred && (pred.nota || (pred.punto && pred.total)) && (
+              <Tarjeta style={{ flex: vertical ? 1 : "none", borderLeft: "4px solid #F6C344" }}>
+                <Etiqueta color="#F6C344">{pred.punto && pred.total ? `Punto ${pred.punto} de ${pred.total}` : "Tu bosquejo"}{pred.nota ? " · Tu nota" : ""}</Etiqueta>
+                {pred.nota
+                  ? <div style={{ fontSize: `calc(clamp(15px, 2.6vh, 32px) * ${tamano})`, color: "#FFF4D6", lineHeight: 1.35, whiteSpace: "pre-line", maxHeight: "28vh", overflow: "hidden" }}>{pred.nota}</div>
+                  : <div style={{ fontSize: "clamp(13px, 2vh, 22px)", color: GRIS }}>{pred.titulo}</div>}
+              </Tarjeta>
+            )}
+            {pred?.proximosVersiculos?.length > 0 && (
+              <Tarjeta style={{ flex: vertical ? 1 : "none" }}>
+                <Etiqueta>Próximos versículos</Etiqueta>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.6vh" }}>
+                  {pred.proximosVersiculos.map((r, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: `calc(clamp(14px, 2.4vh, 30px) * ${tamano})`, color: "#7FA6E0", fontWeight: 600 }}>
+                      <BookOpen size={16} style={{ flexShrink: 0 }} />{r}
+                    </div>
+                  ))}
+                </div>
+              </Tarjeta>
+            )}
             {esc?.siguienteParte && (
               <Tarjeta style={{ flex: vertical ? 1 : "none" }}>
                 <Etiqueta>Siguiente parte</Etiqueta>
