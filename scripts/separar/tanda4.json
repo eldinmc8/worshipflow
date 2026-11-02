@@ -20,7 +20,8 @@
       "ChangePasswordModal",
       "IdentidadIglesiaModal",
       "PantallaProyeccionModal",
-      "MediaPicker"
+      "MediaPicker",
+      "SlideModal"
     ],
     "src/pantallas/biblia.jsx": [
       "BibleLivePanel",

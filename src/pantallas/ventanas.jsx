@@ -355,3 +355,60 @@ export function MediaPicker({ iglesiaId, tipo, value, onChange, color = "#B15EA0
     </div>
   );
 }
+
+const etiquetaCampo = { display: "block", fontSize: 11.5, fontWeight: 800, color: "var(--wf-text)", marginBottom: 6, letterSpacing: 0.2 };
+
+export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositiva de texto", submitLabel = "Agregar al culto", iglesiaId }) {
+  const bgOptions = ["#1B2029", "#2A1F33", "#1F2A2C", "#332420"];
+  const bgType = draft.bgType || "color";
+  return (
+    <ModalShell title={title} icon={ImgIcon} color="#B15EA0" onClose={onClose}>
+      {/* Textarea, no input: para un texto largo se puede tocar Enter y armar el salto de línea a mano
+          (dónde se corta cada línea en la proyección), en vez de dejarlo todo al ajuste automático. */}
+      {/* Contenido (lo que se proyecta) separado del NOMBRE (cómo aparece en la lista y en la miniatura)
+          — pedido de Eldin, 2026-10-11, para que no se confundan. */}
+      <label style={etiquetaCampo}>Contenido · lo que se ve en la pantalla</label>
+      <textarea placeholder="Escribe el texto que se va a proyectar (Enter para cambiar de línea). Opcional si es solo imagen o video." value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} style={{ ...inputStyle, height: 80, resize: "none" }} />
+      <textarea placeholder="Texto pequeño debajo (opcional)" value={draft.subtitle} onChange={(e) => setDraft({ ...draft, subtitle: e.target.value })} style={{ ...inputStyle, height: 44, resize: "none", marginTop: 8 }} />
+      {(draft.subtitle || "").trim() && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 2 }}>
+            <span>Tamaño del texto pequeño (comparado con el contenido)</span><b>{Math.round((draft.escalaSubtitulo ?? 0.65) * 100)}%</b>
+          </div>
+          <input type="range" min={0.4} max={0.9} step={0.05} value={draft.escalaSubtitulo ?? 0.65} onChange={(e) => setDraft({ ...draft, escalaSubtitulo: parseFloat(e.target.value) })} style={{ width: "100%", accentColor: "var(--wf-brand-accent)" }} />
+        </div>
+      )}
+      <label style={{ ...etiquetaCampo, marginTop: 14 }}>Nombre de la diapositiva · no se proyecta</label>
+      <input placeholder={`Ej. "Anuncio de ayuno" — así sale en el orden del culto y en la miniatura`} value={draft.name || ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={inputStyle} />
+      <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 5 }}>Si lo dejas vacío, se usa el contenido como nombre.</div>
+      <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, margin: "14px 0 8px" }}>FONDO</div>
+      <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 10, width: "fit-content" }}>
+        {[["color", "Color"], ["imagen", "Imagen"], ["video", "Video"]].map(([val, label]) => (
+          <button key={val} onClick={() => setDraft({ ...draft, bgType: val })} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: bgType === val ? "var(--wf-brand-accent)" : "transparent", color: bgType === val ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{label}</button>
+        ))}
+      </div>
+      {bgType === "color" && (
+        <div style={{ display: "flex", gap: 8 }}>
+          {bgOptions.map((c) => (<button key={c} onClick={() => setDraft({ ...draft, bg: c })} style={{ width: 34, height: 34, borderRadius: 12, background: c, border: draft.bg === c ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", cursor: "pointer" }} />))}
+        </div>
+      )}
+      {bgType === "imagen" && (
+        <div>
+          <MediaPicker iglesiaId={iglesiaId} tipo="imagen" value={draft.imageUrl} onChange={(url) => setDraft({ ...draft, imageUrl: url })} />
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Se estira para cubrir toda la pantalla. Si dejas el título vacío, se proyecta a pantalla completa sin texto encima.</div>
+        </div>
+      )}
+      {bgType === "video" && (
+        <div>
+          {/* El filtro !startsWith("http") es solo para no mostrar un video base64 viejo (de antes de
+              este cambio) hecho ilegible dentro de este campo de texto -- uno nuevo (subido o elegido de
+              la biblioteca) siempre es una URL https:// real, así que nunca lo oculta. */}
+          <input placeholder="o pega un enlace https://... (mp4 de fondo)" value={draft.videoUrl && !draft.videoUrl.startsWith("http") ? "" : draft.videoUrl || ""} onChange={(e) => setDraft({ ...draft, videoUrl: e.target.value })} style={{ ...inputStyle, marginBottom: 8 }} />
+          <MediaPicker iglesiaId={iglesiaId} tipo="video" value={draft.videoUrl} onChange={(url) => setDraft({ ...draft, videoUrl: url })} />
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Se reproduce en bucle y sin sonido. Si dejas el título vacío, se proyecta a pantalla completa sin texto encima.</div>
+        </div>
+      )}
+      <button onClick={onAdd} style={{ ...primaryBtn, marginTop: 14 }}>{submitLabel}</button>
+    </ModalShell>
+  );
+}
