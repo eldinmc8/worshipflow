@@ -5,7 +5,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/**/__tests__/**/*.test.js"],
+    include: ["src/**/__tests__/**/*.test.{js,jsx}"],
     // Las pruebas de aislamiento entre iglesias (rls.test.js) levantan Postgres en memoria (PGlite) y
     // repasan TODAS las migraciones del repo -- tardan más que una prueba unitaria normal.
     testTimeout: 30000,
