@@ -1,0 +1,10285 @@
+import { useState, useMemo, useRef, useEffect, lazy, Suspense } from "react";
+import { createPortal } from "react-dom";
+import AppLogo from "./AppLogo.jsx";
+import { useArrastreLista } from "./lib/arrastreLista.js";
+import { useArrastreGrid } from "./lib/arrastreGrid.js";
+import ImportarPresentacion from "./components/ImportarPresentacion.jsx";
+import { esPaginaPresentacion } from "./lib/importarPresentacion.js";
+import { esGrupoDiapositivas, slidesDeGrupo, diapositivasDeItem, itemConDiapositivas, moverDiapositiva, quitarDiapositiva as quitarDiapositivaDeGrupo, reordenarEnGrupo, tituloBase, nuevaDiapositiva } from "./lib/diapositivas.js";
+import DiapositivaDisenada from "./components/DiapositivaDisenada.jsx";
+import {
+  Music, Mic2, MessageSquare, Tv, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus,
+  Radio, ListMusic, BookOpen, Image as ImgIcon, Trash2, GripVertical,
+  MonitorOff, X, Search, Sparkles, Calendar, MapPin, Users, Check,
+  Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
+  Star, LogOut, Settings, Download, Eye, EyeOff,
+  ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
+  Type, MonitorSmartphone, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff, ClipboardPaste, PencilLine, FileText, Link2, ArrowUpDown,
+} from "lucide-react";
+import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion, updateCancion } from "./lib/canciones.js";
+import { aplicarCambioLetra, rearmarSeccion, letraEfectiva } from "./lib/letraEnVivo.js";
+import { letraATexto, textoALetra } from "./lib/textoCancion.js";
+import AutoFitText from "./components/AutoFitText.jsx";
+import { stripBibleSearchMarkup } from "./lib/textoBiblia.js";
+import { buscarCanciones, normalizar as normalizarBusqueda, leerCita } from "./lib/busqueda.js";
+import { crearIndice, buscarEnIndice, filtrarResultadosApi } from "./lib/buscarBiblia.js";
+import { pasosDeDiapositiva } from "./lib/animaciones.js";
+import { animacionActiva, definicionAnimacion, nombreAnimacion, claseAnimacion, armarLineasAnimadas, velocidadLetra, FondoAnimado, precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
+import SelectorAnimacion from "./components/SelectorAnimacion.jsx";
+import PantallaOtroEquipo from "./components/PantallaOtroEquipo.jsx";
+import CintaAdaptable from "./components/CintaAdaptable.jsx";
+import EditorTextoCancion from "./components/EditorTextoCancion.jsx";
+import ImportarCancionesPdf from "./components/ImportarCancionesPdf.jsx";
+import { misProximosServicios, cuandoEs, companeros, indicaciones, cancionesParaEnsayar, necesitaAtencion, estaSemana } from "./lib/inicio.js";
+import { bloquesDelCulto, insertarEnBloque, anclaDeBloque } from "./lib/ordenCulto.js";
+import { expandirVersiculosLargos, reorganizarLetra, FORMATOS_LETRA, palabrasPorParteSegun, partesDeVersiculo } from "./lib/dividirTexto.js";
+import {
+  listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
+} from "./lib/eventos.js";
+import { PERMISOS_LIDER } from "./lib/roles.js";
+import { ordenarPor } from "./lib/orden.js";
+import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, actualizarPermisosLider, eliminarMinisterio, sincronizarPlan, sincronizarRecursos, getResumenMensual, guardarResumenMensual, subirArchivoRecurso } from "./lib/ministerios.js";
+import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession, escucharProyeccion, responderPedidosDeEstado, enviarAPantallas, obtenerCodigoPantalla } from "./lib/liveSession.js";
+import { getMusicoLive, updateMusicoLive, clearMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
+import { subscribeTableChanges } from "./lib/realtime.js";
+import { sincronizarRecordatorios } from "./lib/recordatorios.js";
+import { enviarMensajeAsistente, aplicarPlanAsistente, obtenerReglasAsistente, guardarReglasAsistente } from "./lib/asistente.js";
+import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotificaciones, suscribirPush, desuscribirPush, estaSuscritoPush, tieneAlgunaSuscripcionPush, estadoPermisoNotificacion, decidirAccionPush } from "./lib/notificaciones.js";
+import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
+import { listarFondos, subirFondo, borrarFondo } from "./lib/multimedia.js";
+import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } from "./lib/pwaInstall.js";
+import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FULL, MONTH_ABBR, DOW_LABELS, monthKey, monthLabelFromKey, formatFullDate, buildMonthWeeks } from "./lib/dates.js";
+import { saveCache, loadCache } from "./lib/offlineCache.js";
+import { showToast, notifyError, esFalloDeConexion } from "./lib/toast.js";
+import { cargarNotas, guardarNota, DUENO_EQUIPO } from "./lib/notasSeccion.js";
+import { listarAdjuntos, subirAdjunto, agregarEnlace, borrarAdjunto, tipoDeArchivo } from "./lib/adjuntosCancion.js";
+import { confirmDialog, promptDialog } from "./lib/confirm.js";
+import { validarPassword } from "./lib/passwordSegura.js";
+import MedidorPassword from "./MedidorPassword.jsx";
+import Tour from "./components/Tour.jsx";
+import BosquejoWizard from "./components/BosquejoWizard.jsx";
+import PanelEscenario from "./components/PanelEscenario.jsx";
+import { armarEscenario, perteneceA, estaEnPredicacion, iniciarTemporizador, temporizadorActivo } from "./lib/escenario.js";
+import { esBloquePredicacion, guardarBosquejo, bosquejoAItems, aplicarBosquejoAlOrden, bosquejoTieneCambiosSinEnviar } from "./lib/bosquejos.js";
+import { CLAVES_TUTORIAL, pasosBienvenida, pasosEventos, pasosEvento, pasosCanciones, pasosEditorCancion, pasosEnVivo, marcarTutorialVisto, reiniciarTutoriales } from "./lib/tutoriales.js";
+import {
+  guardarCapituloOffline, obtenerCapituloOffline, contarCapitulosGuardados,
+  borrarVersionOffline, todosLosVersiculosOffline, descargarBibliaCompleta,
+} from "./lib/bibleOfflineStore.js";
+import { getTema, setTema } from "./lib/theme.js";
+import { usePreferencias, acordeEn, lineaEn, getNotacion, setNotacion, setTamanoLetra, TAMANOS_LETRA, NOTACIONES } from "./lib/preferencias.js";
+// El editor de diapositivas (solo escritorio) se descarga recién la primera vez que se abre.
+const EditorDiapositivas = lazy(() => import("./components/EditorDiapositivas.jsx"));
+
+// ---------- Vista de celular: se activa sola según el ancho real de la pantalla, no un dispositivo fijo ----------
+const MOBILE_BREAKPOINT = 768;
+function useIsCompact() {
+  const [isCompact, setIsCompact] = useState(() => window.innerWidth < MOBILE_BREAKPOINT);
+  useEffect(() => {
+    const onResize = () => setIsCompact(window.innerWidth < MOBILE_BREAKPOINT);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return isCompact;
+}
+
+// ---------- Utilidades de acordes/letra ----------
+function stripChords(line) { return line.replace(/\[[^\]]+\]/g, ""); }
+// La 'letra' de cada sección ahora es un ARRAY DE DIAPOSITIVAS, cada una con sus propias líneas.
+// Al derivar desde Contenido, arranca como una sola diapositiva con todas las líneas de la sección.
+function deriveLetra(blocks) {
+  const out = {};
+  Object.entries(blocks).forEach(([key, b]) => { out[key] = [b.lines.map(stripChords)]; });
+  return out;
+}
+// Agrupa un array plano ['v1','c','v2','c'] en entradas con conteo consecutivo [{key:'v1',count:1},{key:'c',count:1}...]
+function groupConsecutive(flat) {
+  const out = [];
+  flat.forEach((k) => {
+    const last = out[out.length - 1];
+    if (last && last.key === k) last.count += 1;
+    else out.push({ key: k, count: 1 });
+  });
+  return out;
+}
+function expandEntries(entries) {
+  const out = [];
+  entries.forEach((e) => { for (let i = 0; i < e.count; i++) out.push(e.key); });
+  return out;
+}
+
+// ---------- Acordes diatónicos de una tonalidad (triadas + con séptima) ----------
+const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+function diatonicChords(keyStr) {
+  if (!keyStr) return [];
+  const isMinor = keyStr.endsWith("m");
+  const root = isMinor ? keyStr.slice(0, -1) : keyStr;
+  const rootIdx = NOTES.indexOf(root);
+  if (rootIdx === -1) return [];
+  const intervals = isMinor ? [0, 2, 3, 5, 7, 8, 10] : [0, 2, 4, 5, 7, 9, 11];
+  // 'dom' = quinto grado mayor (dominante) en tonalidad mayor -> 7ma dominante, no maj7
+  const qualities = isMinor ? ["min", "dim", "maj", "min", "min", "maj", "maj"] : ["maj", "min", "min", "maj", "dom", "min", "dim"];
+  const romans = isMinor ? ["i", "ii°", "III", "iv", "v", "VI", "VII"] : ["I", "ii", "iii", "IV", "V", "vi", "vii°"];
+  return intervals.map((iv, i) => {
+    const note = NOTES[(rootIdx + iv) % 12];
+    const q = qualities[i];
+    const triadSuffix = q === "min" ? "m" : q === "dim" ? "dim" : ""; // maj y dom son triadas mayores (sin sufijo)
+    const sevenSuffix = q === "maj" ? "maj7" : q === "min" ? "m7" : q === "dom" ? "7" : "m7b5";
+    return { roman: romans[i], chord: `${note}${triadSuffix}`, chord7: `${note}${sevenSuffix}` };
+  });
+}
+
+// Todos los acordes útiles de una tonalidad, en grupos, para la barra del editor: una sola fila que
+// se desliza hacia la derecha, en vez de alternar entre "Triadas" y "Con séptima". Además de los
+// diatónicos trae los que más se usan en alabanza: suspendidos, con bajo (inversiones) y prestados.
+function acordesDeTonalidad(keyStr) {
+  const diat = diatonicChords(keyStr);
+  if (diat.length === 0) return [];
+  const isMinor = keyStr.endsWith("m");
+  const rootIdx = NOTES.indexOf(isMinor ? keyStr.slice(0, -1) : keyStr);
+  const n = (iv) => NOTES[(rootIdx + iv) % 12];
+  const grupos = [
+    { titulo: "Triadas", acordes: diat.map((c) => ({ chord: c.chord, grado: c.roman })) },
+    { titulo: "Séptimas", acordes: diat.map((c) => ({ chord: c.chord7, grado: `${c.roman}7` })) },
+  ];
+  if (isMinor) {
+    grupos.push(
+      { titulo: "Suspendidos", acordes: [{ chord: `${n(0)}sus2`, grado: "isus2" }, { chord: `${n(0)}sus4`, grado: "isus4" }, { chord: `${n(7)}sus4`, grado: "Vsus4" }] },
+      { titulo: "Con bajo", acordes: [{ chord: `${n(0)}m/${n(3)}`, grado: "i/3" }, { chord: `${n(8)}/${n(0)}`, grado: "VI/1" }, { chord: `${n(10)}/${n(2)}`, grado: "VII/2" }] },
+      { titulo: "Dominante", acordes: [{ chord: n(7), grado: "V" }, { chord: `${n(7)}7`, grado: "V7" }] },
+    );
+  } else {
+    grupos.push(
+      { titulo: "Suspendidos", acordes: [{ chord: `${n(0)}sus2`, grado: "Isus2" }, { chord: `${n(0)}sus4`, grado: "Isus4" }, { chord: `${n(5)}sus2`, grado: "IVsus2" }, { chord: `${n(7)}sus4`, grado: "Vsus4" }, { chord: `${n(0)}add9`, grado: "Iadd9" }] },
+      { titulo: "Con bajo", acordes: [{ chord: `${n(0)}/${n(4)}`, grado: "I/3" }, { chord: `${n(7)}/${n(11)}`, grado: "V/7" }, { chord: `${n(5)}/${n(9)}`, grado: "IV/6" }, { chord: `${n(9)}m/${n(7)}`, grado: "vi/5" }, { chord: `${n(5)}/${n(7)}`, grado: "IV/5" }] },
+      { titulo: "Prestados", acordes: [{ chord: n(10), grado: "♭VII" }, { chord: n(8), grado: "♭VI" }, { chord: `${n(5)}m`, grado: "iv" }, { chord: n(2), grado: "II" }, { chord: n(4), grado: "III" }] },
+    );
+  }
+  return grupos;
+}
+
+// ---------- Transporte de acordes (tonalidad por evento + ajuste personal del músico) ----------
+const FLAT_TO_SHARP = { Db: "C#", Eb: "D#", Gb: "F#", Ab: "G#", Bb: "A#" };
+function normalizeRoot(root) {
+  return FLAT_TO_SHARP[root] || root;
+}
+// Diferencia en semitonos (0-11) entre la raíz de dos tonalidades; ignora si son mayor/menor.
+function semitoneShift(fromKey, toKey) {
+  if (!fromKey || !toKey) return 0;
+  const fromIdx = NOTES.indexOf(normalizeRoot(fromKey.replace(/m$/, "")));
+  const toIdx = NOTES.indexOf(normalizeRoot(toKey.replace(/m$/, "")));
+  if (fromIdx === -1 || toIdx === -1) return 0;
+  return ((toIdx - fromIdx) % 12 + 12) % 12;
+}
+function transposeChordToken(chord, semitones) {
+  if (!semitones) return chord;
+  const match = chord.match(/^([A-G])(#|b)?(.*)$/);
+  if (!match) return chord;
+  const [, letter, accidental, rest] = match;
+  const idx = NOTES.indexOf(normalizeRoot(`${letter}${accidental || ""}`));
+  if (idx === -1) return chord;
+  const shifted = NOTES[((idx + semitones) % 12 + 12) % 12];
+  const bassMatch = rest.match(/^([^/]*)\/([A-G])(#|b)?(.*)$/);
+  if (bassMatch) {
+    const [, suffix, bLetter, bAccidental, bRest] = bassMatch;
+    const bIdx = NOTES.indexOf(normalizeRoot(`${bLetter}${bAccidental || ""}`));
+    const bShifted = bIdx === -1 ? `${bLetter}${bAccidental || ""}` : NOTES[((bIdx + semitones) % 12 + 12) % 12];
+    return `${shifted}${suffix}/${bShifted}${bRest}`;
+  }
+  return `${shifted}${rest}`;
+}
+function transposeLine(raw, semitones) {
+  if (!semitones) return raw;
+  return raw.replace(/\[([^\]]+)\]/g, (_, chord) => `[${transposeChordToken(chord, semitones)}]`);
+}
+// Devuelve una COPIA transportada de la canción para mostrarla en la tonalidad que se eligió para
+// ese ítem del Setlist en particular (tonalidad_override), sin tocar la canción real de la
+// biblioteca — a diferencia de transposeSong (que sí muta y guarda), esto es solo para lectura.
+function songWithKeyOverride(song, overrideKey) {
+  if (!song || !overrideKey || overrideKey === song.key) return song;
+  const semitones = semitoneShift(song.key, overrideKey);
+  const blocks = Object.fromEntries(Object.entries(song.blocks).map(([key, b]) => [key, { ...b, lines: b.lines.map((l) => transposeLine(l, semitones)) }]));
+  return { ...song, key: overrideKey, blocks };
+}
+
+const KEY_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm"];
+// Tonalidades para cambiar una canción dentro del Setlist: solo las 12 notas. Si la canción original
+// es menor, las 12 salen en menor (Em pasa a Fm, nunca a F), así nunca se cambia sin querer de
+// menor a mayor ni al revés.
+function opcionesTonalidadSetlist(keyOriginal) {
+  const menor = (keyOriginal || "").endsWith("m");
+  return NOTES.map((n) => (menor ? `${n}m` : n));
+}
+
+// ---------- Librería de canciones (estado inicial) ----------
+// Clasificaciones de canción: cada iglesia define las suyas (iglesias.categorias_canciones, editable
+// desde Canciones → botón de ajustes junto a los filtros). Cada una dice a qué bloque del Setlist se
+// manda sola la canción al agregarla (ver addSong). "clave" es lo que se guarda en
+// canciones.categoria y nunca cambia, aunque se renombre la clasificación. Esta lista es solo el
+// respaldo si la iglesia todavía no tiene ninguna (mismo valor que el default de la base).
+const CLASIFICACIONES_DEFAULT = [
+  { clave: "himno", nombre: "Himno", bloque: "Alabanza" },
+  { clave: "corito", nombre: "Corito", bloque: "Alabanza" },
+  { clave: "especial", nombre: "Canto especial", bloque: "Alabanza" },
+  { clave: "adoracion", nombre: "Adoración", bloque: "Alabanza" },
+];
+// Clasificaciones de la iglesia con sesión abierta. Se actualiza al inicio de cada render de
+// WorshipFlowPrototype (antes de que se rendericen sus hijos), así SongEditor, SetlistPane e
+// isWorshipBlock la leen directo sin pasarla como prop por varios componentes intermedios.
+// Se cambia con fijarClasificacionesActuales (una variable de otro archivo no se puede reasignar desde
+// afuera, y esta parte vive en un archivo distinto del componente principal).
+let clasificacionesActuales = CLASIFICACIONES_DEFAULT;
+function fijarClasificacionesActuales(lista) { clasificacionesActuales = lista; }
+// Versiones disponibles a través de la Biblia completa y buscable (ver BibleModal). "RVR1960"/"NVI"/"NTV" son
+// las que pediste; "TLA"/"DHH" no están disponibles en la fuente de datos gratuita usada por el prototipo, así
+// que se agregaron "PDT" (también en lenguaje sencillo, como TLA) y "LBLA" (más literal, como DHH) en su lugar.
+// En producción, cuando haya backend propio, esto se reemplaza por la fuente de texto bíblico que se contrate.
+const BIBLE_VERSIONS = [
+  { code: "RV1960", label: "Reina-Valera 1960" },
+  // NVI quitada (2026-10-21): bolls.life ya no la tiene — Biblica se lo prohibió y en su lugar devuelve
+  // un mensaje de protesta en cada versículo, que salía proyectado tal cual.
+  { code: "NTV", label: "Nueva Traducción Viviente" },
+  { code: "PDT", label: "Palabra de Dios para Todos" },
+  { code: "LBLA", label: "La Biblia de las Américas" },
+];
+const BIBLE_QUICK = [
+  { ref: "Salmos 100:1-2", version: "RV1960", text: "Toda la tierra celebra con gozo la presencia del Señor y sirve delante de él con alegría." },
+  { ref: "Filipenses 4:6-7", version: "NVI", text: "No se inquieten por nada; en toda situación, presenten sus peticiones delante de Dios, y su paz cuidará sus corazones." },
+  { ref: "Isaías 41:10", version: "RV1960", text: "No temas, porque yo estoy contigo; te sostengo con mi mano derecha." },
+];
+
+// Umbral para dar por abandonada una sesión en vivo que nadie finalizó — ver el useEffect que llama a getLiveSession().
+const LIVE_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
+
+// ---- Modo Músico líder/seguidor durante una transmisión en vivo (ver SongView, tabla musico_en_vivo) ----
+// Identifica esta pestaña/dispositivo para saber si el líder que aparece en musico_en_vivo soy yo o
+// alguien más — se genera una sola vez por carga de página, no hace falta que sobreviva a un refresh.
+const DEVICE_ID = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `dev-${Math.random().toString(36).slice(2)}`;
+// Si el líder no manda un "sigo aquí" (heartbeat, o cualquier acción — ambos tocan la columna heartbeat)
+// en más de esto, se da por perdido: el siguiente que toque "Modo Músico" puede tomar el mando sin
+// quedar nadie bloqueado a mitad de un culto. 10s (el valor original) era demasiado poco — un músico
+// que se sale un instante sin querer (toca "atrás", el teléfono se bloquea solo, cambia de app un
+// segundo) ya alcanzaba a marcar al líder como "caído" y exponía el botón para que cualquier otro
+// tomara el mando por error, aunque el líder de verdad volviera enseguida. Con más margen, mientras
+// tanto todos quedan simplemente pausados en su sección actual (ver "leaderStale" en SongView) sin
+// que nadie tome el mando solo, y si el líder vuelve antes de este tiempo, nada se movió ni cambió.
+const MUSICO_LEADER_STALE_MS = 25000;
+function filaAMusicoState(fila) {
+  if (!fila) return null;
+  return {
+    liderId: fila.lider_id || null,
+    liderNombre: fila.lider_nombre || null,
+    songItemId: fila.song_item_id || null,
+    sectionIdx: fila.section_idx ?? 0,
+    bpm: fila.bpm || null,
+    auto: !!fila.auto,
+    heartbeat: fila.heartbeat || null,
+  };
+}
+function isMusicoLeaderFresh(musicoState) {
+  return !!(musicoState?.liderId && musicoState?.heartbeat && Date.now() - new Date(musicoState.heartbeat).getTime() < MUSICO_LEADER_STALE_MS);
+}
+
+const TYPE_META = {
+  cancion: { label: "Canción", color: "var(--wf-brand-accent)", icon: Music },
+  biblia: { label: "Versículo", color: "#2F5FA8", icon: BookOpen },
+  slide: { label: "Slide", color: "#B15EA0", icon: ImgIcon },
+  seccion: { label: "Bloque", color: "#5661B3", icon: ListMusic },
+};
+
+// ---------- Color por sección para el grid de diapositivas del panel Multimedia (estilo "grid de shows" tipo FreeShow) ----------
+const sectionColorFor = (s) => {
+  if (s.type !== "cancion") return TYPE_META[s.type]?.color || "#5B6472";
+  const label = (s.blockLabel || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  // Orden importa: pre-coro y post-coro ANTES que coro (los dos también contienen "coro"), e
+  // "instrumental" antes que "intro" (empieza igual). Acepta también los nombres en inglés.
+  if (/pre[\s-]?(coro|chorus)/.test(label)) return "#C2508F"; // rosado
+  if (/pos(t)?[\s-]?(coro|chorus)/.test(label)) return "#7B4FB8"; // morado
+  if (/coro|estribillo|refran|chorus/.test(label)) return "#B15EA0"; // orquídea
+  if (/puente|bridge/.test(label)) return "#3F6FC4"; // azul
+  if (/estrofa|verso|verse/.test(label)) return "#1F8A73"; // teal
+  if (/instrumental|interludio|solo|riff/.test(label)) return "#8A6D1E"; // ocre
+  if (/intro/.test(label)) return "#A85A26"; // durazno oscuro
+  if (/vamp|espontane|ministracion|adoracion|declaracion|clamor/.test(label)) return "#2E86AB"; // celeste
+  if (/final|outro|coda|cierre|ending|tag/.test(label)) return "#3E5C76"; // azul pizarra
+  return "#5B6472";
+};
+
+// ---------- Estilo en vivo de la proyección: fondo y tipografía, ajustables por multimedia mientras transmite ----------
+// Letra animada sobre fondo propio: mínimo de oscurecido, sombra extra y colores casi transparentes más
+// visibles (ej. las palabras que esperan en "Karaoke") — ver ProjectionPanel.
+const OSCURECER_MINIMO_ANIMADA = 0.4;
+export function reforzarSombraAnimada(sombra) {
+  const extra = "0 0.05em 0.3em rgba(0,0,0,.8)";
+  return !sombra || sombra === "none" ? extra : `${sombra}, ${extra}`;
+}
+export function colorLegibleAnimada(color) {
+  const m = /^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)$/.exec(color || "");
+  if (!m || Number(m[4]) >= 0.55) return color;
+  return `rgba(${m[1]}, ${m[2]}, ${m[3]}, 0.55)`;
+}
+const LIVE_THEMES = {
+  stage: { label: "Escenario", bg: "radial-gradient(ellipse at center 40%, #1A1F2B 0%, #0C0E13 70%)" },
+  azul: { label: "Azul noche", bg: "radial-gradient(ellipse at center 40%, #0D2340 0%, #01050A 70%)" },
+  calido: { label: "Cálido", bg: "radial-gradient(ellipse at center 40%, #3A2416 0%, #0D0704 70%)" },
+  puro: { label: "Negro puro", bg: "#000000" },
+};
+// ---------- Ajustes finos de la letra en vivo (pedido de Eldin, 2026-10-08: que cada iglesia lo deje
+// a su gusto). Todos opcionales dentro de liveStyle — sin valor, la proyección se ve como siempre:
+//   interlineado (número, ej. 1.35) · espaciado (em, ej. 0.05) · sombra (clave de LIVE_SOMBRAS)
+//   oscurecer (0–0.85, sobre imagen/video de fondo) · posicion (arriba/centro/abajo) · alineacion
+// Las sombras van en "em" para que se vean igual de proporcionadas en la mini-vista que en el TV.
+const LIVE_SOMBRAS = {
+  ninguna: { label: "Ninguna", css: "none" },
+  suave: { label: "Suave", css: "0 0.06em 0.25em rgba(0,0,0,0.55)" },
+  fuerte: { label: "Fuerte", css: "0 0.08em 0.4em rgba(0,0,0,0.9), 0 0.03em 0.08em rgba(0,0,0,0.9)" },
+  contorno: { label: "Contorno", css: "-0.035em -0.035em 0 #000, 0.035em -0.035em 0 #000, -0.035em 0.035em 0 #000, 0.035em 0.035em 0 #000, 0 0.06em 0.2em rgba(0,0,0,0.6)" },
+};
+const LIVE_POSICIONES = { arriba: { label: "Arriba", flex: "flex-start" }, centro: { label: "Centro", flex: "center" }, abajo: { label: "Abajo", flex: "flex-end" } };
+const LIVE_ALINEACIONES = { izquierda: { label: "Izquierda", flex: "flex-start", text: "left" }, centro: { label: "Centro", flex: "center", text: "center" }, derecha: { label: "Derecha", flex: "flex-end", text: "right" } };
+
+const LIVE_FONTS = {
+  elegante: { label: "Elegante", family: "'Fraunces', serif", weight: 500, transform: "none", tracking: "normal" },
+  editorial: { label: "Editorial", family: "'Playfair Display', serif", weight: 600, transform: "none", tracking: "normal", italic: true },
+  moderna: { label: "Moderna", family: "'Poppins', sans-serif", weight: 500, transform: "none", tracking: "normal" },
+  minimalista: { label: "Minimalista", family: "'Montserrat', sans-serif", weight: 300, transform: "none", tracking: "0.3px" },
+  audaz: { label: "Audaz", family: "'Poppins', sans-serif", weight: 800, transform: "uppercase", tracking: "0.5px" },
+  impacto: { label: "Impacto", family: "'Bebas Neue', sans-serif", weight: 400, transform: "uppercase", tracking: "1px" },
+  condensada: { label: "Condensada", family: "'Oswald', sans-serif", weight: 600, transform: "uppercase", tracking: "0.5px" },
+  redondeada: { label: "Redondeada", family: "'Quicksand', sans-serif", weight: 700, transform: "none", tracking: "normal" },
+  clasica: { label: "Clásica", family: "Georgia, 'Times New Roman', serif", weight: 400, transform: "none", tracking: "normal" },
+  manuscrita: { label: "Manuscrita", family: "'Caveat', cursive", weight: 600, transform: "none", tracking: "normal" },
+  script: { label: "Script", family: "'Dancing Script', cursive", weight: 700, transform: "none", tracking: "normal" },
+  monoespaciada: { label: "Monoespaciada", family: "'JetBrains Mono', monospace", weight: 600, transform: "none", tracking: "0.5px" },
+  // 8 más (pedido de Eldin, 2026-10-05: "algo parecido a las de ProPresenter") -- completan las
+  // familias que todavía faltaban: una sans fina, dos "impacto" distintos entre sí, un serif cálido,
+  // un serif clásico/grabado, un marcador grueso, una condensada más suave que Oswald, y un script
+  // más juguetón que Dancing Script.
+  fina: { label: "Fina", family: "'Raleway', sans-serif", weight: 300, transform: "none", tracking: "0.4px" },
+  negrita: { label: "Extra negrita", family: "'Archivo Black', sans-serif", weight: 400, transform: "none", tracking: "normal" },
+  cartel: { label: "Cartel", family: "'Anton', sans-serif", weight: 400, transform: "uppercase", tracking: "0.5px" },
+  serifCalida: { label: "Serif cálida", family: "'Bitter', serif", weight: 600, transform: "none", tracking: "normal" },
+  grabada: { label: "Clásica grabada", family: "'Cinzel', serif", weight: 600, transform: "none", tracking: "0.5px" },
+  marcador: { label: "Marcador", family: "'Permanent Marker', cursive", weight: 400, transform: "none", tracking: "normal" },
+  condensadaSuave: { label: "Condensada suave", family: "'Barlow Condensed', sans-serif", weight: 600, transform: "none", tracking: "0.3px" },
+  scriptJuvenil: { label: "Script juvenil", family: "'Pacifico', cursive", weight: 400, transform: "none", tracking: "normal" },
+};
+// Color del texto principal en pantalla (letra de canción, cita bíblica, título de slide) — todos
+// pensados para buen contraste sobre los fondos oscuros de LIVE_THEMES/imágenes/video.
+const LIVE_TEXT_COLORS = {
+  blanco: { label: "Blanco", value: "#FFFFFF" },
+  crema: { label: "Crema", value: "#F5EFE0" },
+  amarillo: { label: "Amarillo suave", value: "#F5D67B" },
+  celeste: { label: "Celeste", value: "#BFE3FF" },
+  dorado: { label: "Dorado", value: "#E8C77E" },
+};
+// Paleta para la cita bíblica (ej. "Mateo 5:25") -- separada de LIVE_TEXT_COLORS porque antes su color
+// vivía fijo en el código (#6E9BD1, el primero de acá) y nunca fue configurable como el del versículo.
+const LIVE_REFERENCE_COLORS = {
+  celeste: { label: "Celeste (por defecto)", value: "#6E9BD1" },
+  blanco: { label: "Blanco", value: "#FFFFFF" },
+  dorado: { label: "Dorado", value: "#E8C77E" },
+  naranja: { label: "Naranja", value: "#E8821E" },
+};
+// Estilo de transmisión para la letra de canciones (pedido de Eldin, 2026-10-05, inspirado en un video
+// de ejemplo) -- primeros 3 de una lista más larga de diseños sugeridos. Solo aplica a slides tipo
+// "cancion" (lines[1], la segunda línea) -- las diapositivas de canción ahora son de máximo 2 líneas
+// cada una (ver la regeneración de diapositivas_letra del mismo día), así que "segunda línea" siempre
+// es la que cierra la frase de esa diapositiva.
+const LINE_STYLES = {
+  tradicional: { label: "Tradicional" },
+  mayuscula: { label: "Énfasis en mayúscula" },
+  acento: { label: "Línea de acento" },
+  editorial: { label: "Contraste editorial" },
+  descendente: { label: "Tamaño descendente" },
+  revista: { label: "Alineación tipo revista" },
+  cita: { label: "Cita destacada" },
+  fundido: { label: "Entrada con fundido" },
+  deslizante: { label: "Entrada deslizante" },
+  franja: { label: "Franja inferior" },
+};
+// Objeto "evento" liviano para cuando se transmite sin un evento del calendario detrás (ver
+// startFreeEvent) — referencia estable a nivel de módulo para no invalidar el useMemo de `slides` en
+// cada render con un objeto nuevo. serviceOrder vacío: no hay plan, todo el contenido es improvisado.
+const EVENTO_LIBRE = { id: null, title: "Transmisión libre", serviceOrder: [] };
+
+// UUIDs reales (no ids falsos tipo "it301"): así cualquier fila creada en el cliente ya sirve
+// directo como primary key real en Supabase, sin tener que "reconciliar" un id falso con el real
+// que devolvería el servidor después de guardar.
+const nextId = () => crypto.randomUUID();
+const nextSongId = () => crypto.randomUUID();
+
+// ---------- Equipo / iglesia ----------
+// El nombre de la iglesia ya NO está fijo acá (Fase 3) — InicioView y SettingsView lo reciben como
+// prop `teamName`, leído de iglesias.nombre (ver myIglesia en WorshipFlowPrototype).
+
+// ---------- Convierte una canción + estructura en diapositivas proyectables (planeada o improvisada) ----------
+function songToSlides(idPrefix, song, structure) {
+  const out = [];
+  // song.defaultStructure (la pestaña Estructura de la canción, la fuente de verdad actual) manda
+  // SIEMPRE que tenga contenido. "structure" es una foto fija del Estructura que se tomó el día que
+  // esta canción se agregó a ESTE Setlist — no hay ninguna pantalla para editarla aparte, así que si
+  // luego se ajusta la Estructura de la canción (agregar repeticiones, reordenar...), esa foto vieja se
+  // queda desactualizada para siempre y terminaba ganándole a la Estructura real. Solo se usa esa foto
+  // como respaldo si la canción HOY no tiene ninguna Estructura propia; y si ninguna de las dos existe,
+  // se usan todas las secciones que la canción tenga (en el orden en que existen) — mejor un orden
+  // razonable por defecto que una canción muda en la proyección.
+  const order = song.defaultStructure && song.defaultStructure.length > 0
+    ? song.defaultStructure
+    : structure && structure.length > 0
+      ? structure
+      : Object.keys(song.blocks || {});
+  order.forEach((blockKey, i) => {
+    const block = song.blocks[blockKey];
+    if (!block) return;
+    // song.letra[blockKey] puede venir como [] a propósito (el usuario borró todas las diapositivas de
+    // esa sección, ej. un instrumental que no debe proyectar nada) — el "||" NO debe caer al respaldo en
+    // ese caso ([] es verdadero en JS), así que solo se usa cuando la clave no existe en absoluto.
+    const hasRealSlides = !!(song.letra && blockKey in song.letra);
+    const slideGroups = hasRealSlides ? song.letra[blockKey] : [block.lines.map(stripChords)];
+    // Además, cualquier diapositiva que haya quedado en blanco (todas sus líneas vacías) nunca se
+    // proyecta — así una diapositiva vacía olvidada no interrumpe la presentación en vivo. Se guarda el
+    // índice ORIGINAL (antes de filtrar en blanco) — es el mismo con el que se arma song.letra[clave] en
+    // cancionCompletaAFormatoEditor, así que es el que hace falta para corregir la fila correcta en
+    // Supabase si Multimedia la edita en vivo (ver corregirDiapositivaCancion).
+    const slideEntries = slideGroups
+      .map((lines, originalIndex) => ({ lines, originalIndex }))
+      .filter((e) => e.lines.some((l) => l && l.trim()));
+    slideEntries.forEach(({ lines, originalIndex }, si) => {
+      out.push({
+        slideId: `${idPrefix}-${i}-${si}`, type: "cancion", songTitle: song.title,
+        blockLabel: slideEntries.length > 1 ? `${block.label} (${si + 1}/${slideEntries.length})` : block.label,
+        sectionLabel: block.label,
+        lines,
+        songId: song.id, blockKey, slideIndexInBlock: originalIndex, hasRealSlides,
+      });
+    });
+  });
+  return out;
+}
+// ---------- Construye slides proyectables. Usa 'letra' (diapositivas ya armadas) porque eso es lo que alimenta la proyección ----------
+function buildSlides(serviceOrder, library) {
+  const slides = [];
+  serviceOrder.forEach((item) => {
+    if (item.type === "cancion") {
+      const song = library.find((s) => s.id === item.songId);
+      if (!song) return;
+      slides.push(...songToSlides(item.id, song, item.structure));
+    } else if (item.type === "biblia") {
+      slides.push({ slideId: item.id, type: "biblia", reference: item.reference, version: item.version, text: item.text, bookId: item.bookId, bookName: item.bookName, chapter: item.chapter, verseStart: item.verseStart, verseEnd: item.verseEnd });
+    } else if (item.type === "slide" && esGrupoDiapositivas(item)) {
+      // Presentación agrupada o diapositiva diseñada en el editor: cada diapositiva con su diseño.
+      slides.push(...slidesDeGrupo(item));
+    } else if (item.type === "slide") {
+      slides.push({ slideId: item.id, type: "slide", title: item.title, nombre: item.name || "", subtitle: item.subtitle, escalaSubtitulo: item.escalaSubtitulo, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl, imageUrl: item.imageUrl });
+    }
+  });
+  return slides;
+}
+
+const DEFAULT_COVERS = [
+  "linear-gradient(135deg, var(--wf-brand-primary) 0%, #2F5FA8 60%, var(--wf-brand-accent) 100%)",
+  "linear-gradient(135deg, var(--wf-brand-primary) 0%, #1F8A73 60%, #2E86AB 100%)",
+  "linear-gradient(135deg, var(--wf-brand-primary) 0%, #B15EA0 60%, var(--wf-brand-accent) 100%)",
+];
+const MINISTRY_COLORS = ["var(--wf-brand-accent)", "#2E86AB", "#B15EA0", "#1F8A73", "#C23B32", "#5661B3"];
+const nextMinistryChildId = () => crypto.randomUUID();
+
+// Nuevos ids al clonar un evento plantilla: si se copiaran los ids, chocarían en la base de datos real
+// (items_servicio.id es su propia primary key). Los encargados se copian con la misma gente pero
+// confirmación reiniciada a "pendiente" — es una semana distinta, hay que reconfirmar a cada quien.
+function cloneServiceOrder(order) {
+  return order.map((item) => ({
+    ...item, id: nextId(),
+    encargados: (item.encargados || []).map((m) => ({ ...m, id: nextId(), status: "pendiente" })),
+  }));
+}
+// Mismo criterio para el equipo de alabanza compartido entre los bloques de Alabanza y Adoración.
+function cloneWorshipRoles(roles) {
+  return roles.map((r) => ({
+    ...r, id: nextId(),
+    members: r.members.map((m) => ({ ...m, id: nextId(), status: "pendiente" })),
+  }));
+}
+// Y para los recordatorios de una plantilla: "enviado" siempre arranca en false — es un evento
+// nuevo, todavía no se le mandó ningún recordatorio.
+function cloneRecordatorios(reminders) {
+  return (reminders || []).map((r) => ({ ...r, id: nextId(), enviado: false }));
+}
+// Un bloque "pertenece" al equipo de alabanza si su título incluye Alabanza o Adoración, o el nombre
+// de cualquier bloque al que esta iglesia manda sus canciones — así
+// una iglesia que llama distinto a ese momento del culto no pierde el equipo de alabanza del bloque.
+// (ver clasificacionesActuales)
+function isWorshipBlock(item) {
+  if (item.type !== "seccion") return false;
+  if (/alabanza|ador/i.test(item.title || "")) return true;
+  const titulo = normalizarTitulo(item.title);
+  return clasificacionesActuales.some((c) => c.bloque && titulo.includes(normalizarTitulo(c.bloque)));
+}
+// Un bloque "pertenece" a lectura bíblica/oración por el mismo criterio (título) — el encargado de
+// ESE bloque en el evento puede agregar su propio versículo, aunque no sea administrador.
+function isBibleReadingBlock(item) {
+  return item.type === "seccion" && /lectura|oraci[oó]n/i.test(item.title || "");
+}
+// Nombre legible de un ítem del Setlist para notificaciones y para "qué me toca" en la miniatura de un
+// evento — alguien puede tener varios cargos distintos en el mismo evento (ej. Multimedia Y una
+// canción), así que cada uno necesita decir CUÁL es, no solo "tienes un encargo".
+function serviceItemLabel(item, library) {
+  if (item.type === "seccion") return item.title || "Bloque";
+  if (item.type === "cancion") return library.find((s) => s.id === item.songId)?.title || "Canción";
+  if (item.type === "biblia") return `Lectura: ${item.reference}`;
+  if (item.type === "slide") return item.title ? `Diapositiva: ${item.title}` : "Diapositiva";
+  return "Ítem del Setlist";
+}
+// Lista de TODOS los cargos que una persona tiene en un evento (puede ser más de uno — ej. Multimedia Y
+// además una canción) para mostrar "Te toca: ..." en su miniatura, en vez de solo un ícono de personas
+// que no dice nada de qué le toca a ELLA específicamente.
+function misAsignacionesEnEvento(event, uid, library) {
+  if (!uid) return [];
+  const labels = [];
+  (event.serviceOrder || []).forEach((item) => {
+    if ((item.encargados || []).some((m) => m.usuarioId === uid)) labels.push(serviceItemLabel(item, library));
+  });
+  (event.worshipRoles || []).forEach((r) => {
+    if ((r.members || []).some((m) => m.usuarioId === uid)) labels.push(r.name);
+  });
+  return labels;
+}
+// Quita tildes y pasa a minúsculas antes de buscar una palabra clave en un título — así "Prédica" o
+// "Ofrenda" (singular, sin la "s" final) también coinciden con "predic"/"ofrenda", en vez de exigir
+// que el título esté escrito exactamente como el patrón (acentos y plural incluidos).
+const PATRON_TILDES = new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g");
+function normalizarTitulo(s) {
+  return (s || "").normalize("NFD").replace(PATRON_TILDES, "").toLowerCase();
+}
+// Un bloque "pertenece" a Multimedia por el mismo criterio (título) que isWorshipBlock usa para
+// Alabanza — ver serviceOrderVisiblePara: Alabanza y Multimedia son el único par que se ve entre sí,
+// cualquier otro bloque organizativo (Limpieza, Ofrendas, Adolescentes, Escuelita Infantil, Lectura
+// inicial, Predicación...) restringe a su(s) encargado(s) a ver SOLO ese bloque.
+function isMultimediaBlock(item) {
+  return item.type === "seccion" && normalizarTitulo(item.title).includes("multimedia");
+}
+// Única fuente de verdad para la visibilidad del Setlist por grupo — la usan tanto SetlistPane (para
+// decidir qué panel mostrar) como el resumen en PDF (para no filtrar aparte y arriesgar que se
+// desincronicen). Nada de esto aplica a un administrador, que siempre ve todo:
+// - Alabanza y Multimedia se ven entre sí (el equipo de alabanza completo + el bloque de Multimedia)
+//   y nada más del Setlist.
+// - Cualquier OTRO bloque organizativo (Limpieza, Ofrendas, Adolescentes, Escuelita Infantil, Lectura
+//   inicial, Predicación, etc.) restringe a su(s) encargado(s) a ver SOLO ese bloque — ni siquiera
+//   Alabanza/Multimedia, ni el resto de bloques.
+function decidirVisibilidadSetlist(event, isAdminViewer, userId, esSupervisor, gruposQueLidero = null) {
+  // Supervisor ve TODO, sin excepción — a diferencia de los demás roles, tener además una asignación
+  // propia (ej. un bloque puntual) no lo restringe a ver solo eso. Es el único rol, aparte de
+  // Administrador, que nunca queda encerrado en "bloque-propio" ni "filtrado".
+  if (isAdminViewer || esSupervisor) return { modo: "todo" };
+  // También cuentan como propios los bloques vinculados a un grupo (ministerio) que esta persona
+  // lidera (pedido de Eldin, 2026-10-30): el líder de Limpieza ve — y edita, ver puedeEditarBloque —
+  // el bloque de Limpieza en cada evento aunque no figure como encargado.
+  const misBloquesPropios = event.serviceOrder.filter((it) => it.type === "seccion" && (
+    (it.encargados || []).some((m) => m.usuarioId === userId) || lideraBloque(it, gruposQueLidero)
+  ));
+  const misOtrosBloques = misBloquesPropios.filter((it) => !isMultimediaBlock(it));
+  // OJO: esto se chequea ANTES de "bloque-propio" — alguien puede ser AMBAS cosas a la vez (ej. toca
+  // guitarra en Alabanza Y además es el encargado puntual de la Escuelita Dominical), y en ese caso
+  // tiene que ver la unión de las dos cosas, no quedar encerrado en una a costa de la otra. Antes
+  // "bloque-propio" se evaluaba primero y ganaba SIEMPRE que hubiera algún bloque propio, así que
+  // alguien de Alabanza con un bloque organizativo de más se quedaba viendo SOLO ese bloque — sin
+  // canciones, sin nada de lo que de verdad necesitaba para tocar (bug real: 2026-09, Pavel).
+  const soyDeAlabanzaOMultimedia = esMiembroAlabanza(event, userId) || misBloquesPropios.some(isMultimediaBlock) || misBloquesPropios.some(isWorshipBlock);
+  if (soyDeAlabanzaOMultimedia) {
+    // Ven el Setlist COMPLETO (canciones, versículos, slides — lo que de verdad necesitan para tocar
+    // o proyectar) + su propio bloque de Multimedia/Alabanza + cualquier otro bloque organizativo del
+    // que además sean encargados puntuales (ej. la Escuelita) — nada más de bloques organizativos
+    // AJENOS (Limpieza, Ofrendas, Predicación, etc., que son los únicos que sí se ocultan).
+    const propiosIds = new Set(misOtrosBloques.map((it) => it.id));
+    return { modo: "filtrado", visibleOrder: event.serviceOrder.filter((it) => it.type !== "seccion" || isMultimediaBlock(it) || isWorshipBlock(it) || propiosIds.has(it.id)) };
+  }
+  if (misOtrosBloques.length > 0) return { modo: "bloque-propio", blocks: misOtrosBloques };
+  return { modo: "todo" };
+}
+// ¿Este bloque del Setlist está vinculado a un grupo (ministerio) que esta persona lidera?
+// gruposQueLidero: Set con los ids de los ministerios donde la persona es líder.
+function lideraBloque(item, gruposQueLidero) {
+  return !!(gruposQueLidero && item?.type === "seccion" && item.ministryId && gruposQueLidero.has(item.ministryId));
+}
+// ¿Tiene esta persona el permiso de líder `clave` (ver PERMISOS_LIDER) en este evento? Es decir: el
+// evento tiene un bloque vinculado a un grupo que ella lidera y ese grupo le da ese permiso a su líder.
+function permisoLiderEnEvento(event, ministries, userId, clave) {
+  if (!event || !userId) return false;
+  return (event.serviceOrder || []).some((it) => {
+    if (it.type !== "seccion" || !it.ministryId) return false;
+    const m = (ministries || []).find((x) => x.id === it.ministryId);
+    return !!(m && m.leaderId === userId && m.permisosLider?.[clave]);
+  });
+}
+// Ítems del Setlist que un usuario puede ver, aplicando decidirVisibilidadSetlist — se usa en el
+// resumen en PDF, que de otro modo mostraría el Setlist completo a cualquiera sin pasar por SetlistPane.
+function serviceOrderVisiblePara(event, isAdminViewer, userId, esSupervisor, gruposQueLidero = null) {
+  const decision = decidirVisibilidadSetlist(event, isAdminViewer, userId, esSupervisor, gruposQueLidero);
+  if (decision.modo === "bloque-propio") return decision.blocks;
+  if (decision.modo === "filtrado") return decision.visibleOrder;
+  return event.serviceOrder;
+}
+// "Del equipo de Alabanza" = aparece como integrante de algún rol del equipo de alabanza en ESTE
+// evento (event.worshipRoles, ej. Guitarra, Batería) — no tiene que ver con el rol de dispositivo.
+function esMiembroAlabanza(event, uid) {
+  return (event.worshipRoles || []).some((r) => (r.members || []).some((m) => m.usuarioId === uid));
+}
+// Vista reducida para quien solo tiene un privilegio de grupo restringido en este evento (Limpieza,
+// Ventas, Adolescentes, Ofrendas o Multimedia): ni el Setlist completo, ni la biblioteca de canciones,
+// ni botones de agregar — solo su(s) propio(s) bloque(s), de solo lectura (encargados incluidos), tal
+// como se ve el resto de bloques cuando no se pueden editar. Multimedia además ve el equipo de
+// Alabanza completo (worshipRoles), que necesita para proyectar.
+// Botón del predicador en su bloque de Predicación: "Agregar bosquejo" la primera vez; después muestra
+// el título y si ya está enviado a Multimedia (ver BosquejoWizard y lib/bosquejos.js).
+function EtiquetaBosquejoListo({ cambios = false }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: "3px 9px", background: cambios ? "rgba(232,130,30,0.14)" : "rgba(31,138,115,0.14)", color: cambios ? "var(--wf-brand-accent)" : "#1F8A73" }}>
+      {cambios ? <Pencil size={11} /> : <Check size={11} />} {cambios ? "Cambios sin enviar" : "Bosquejo listo"}
+    </span>
+  );
+}
+function BotonBosquejo({ bosquejo, onAbrir, grande = false }) {
+  const tiene = !!(bosquejo && bosquejo.titulo);
+  if (!tiene) {
+    return (
+      <button onClick={onAbrir} className="hoverable" style={{ ...primaryBtn, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: grande ? "13px" : "10px", fontSize: grande ? 14 : 13, marginBottom: grande ? 16 : 0 }}>
+        <Mic2 size={grande ? 17 : 15} /> Agregar bosquejo
+      </button>
+    );
+  }
+  const enviado = !!bosquejo.enviadoAt;
+  return (
+    <button onClick={onAbrir} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "10px 12px", cursor: "pointer", marginBottom: grande ? 16 : 0, fontFamily: "inherit" }}>
+      <div style={{ width: 32, height: 32, borderRadius: 12, background: "rgba(232,130,30,0.14)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Mic2 size={15} color="var(--wf-brand-accent)" /></div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{bosquejo.titulo}</div>
+        <div style={{ marginTop: 3 }}>
+          {enviado ? <EtiquetaBosquejoListo cambios={bosquejoTieneCambiosSinEnviar(bosquejo)} />
+            : <span style={{ fontSize: 11.5, color: "var(--wf-muted)" }}>Borrador · toca para seguir</span>}
+        </div>
+      </div>
+      <ChevronRight size={16} color="var(--wf-faint)" style={{ flexShrink: 0 }} />
+    </button>
+  );
+}
+function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event, bosquejoInfo = null }) {
+  return (
+    <div style={{ flex: 1, padding: 20, display: "flex", justifyContent: "center" }}>
+      <div style={{ width: "100%", maxWidth: 480, display: "flex", flexDirection: "column", gap: 14 }}>
+        {blocks.map((block) => {
+          // Si este bloque está vinculado a un ministerio, ya se ve TODA su planificación y recursos
+          // acá mismo, desplegados de una — a diferencia del Setlist completo (que arranca colapsado y
+          // hay que tocarlo), quien solo tiene este panel restringido no tiene ningún otro lugar donde
+          // ir a buscarlo, así que no tiene sentido esconderlo detrás de un toque.
+          const linkedMinistry = block.ministryId ? ministries.find((m) => m.id === block.ministryId) : null;
+          const currentPlan = linkedMinistry && event.date ? linkedMinistry.plan.find((p) => p.date === event.date) : null;
+          const eventMonth = event.date ? event.date.slice(0, 7) : null;
+          const resourcesForEventMonth = linkedMinistry ? linkedMinistry.resources.filter((r) => r.month === eventMonth) : [];
+          return (
+          <div key={block.id} style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 18, padding: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><Sparkles size={13} color="#5661B3" /> TU PRIVILEGIO EN ESTE EVENTO</div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, marginBottom: 4 }}>{block.title}</div>
+            {block.description && <div style={{ fontSize: 13, color: "var(--wf-text-2)", marginBottom: 16 }}>{block.description}</div>}
+            {bosquejoInfo?.puede(block) && <BotonBosquejo bosquejo={bosquejoInfo.bosquejos[block.id]} onAbrir={() => bosquejoInfo.abrir(block.id)} grande />}
+            {linkedMinistry && currentPlan?.detail && (
+              <div style={{ background: "var(--wf-hover)", borderRadius: 12, padding: "10px 12px", marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 4 }}>PLANIFICACIÓN DE ESTA SEMANA</div>
+                <div style={{ fontSize: 12.5, color: "var(--wf-text-2)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{currentPlan.detail}</div>
+              </div>
+            )}
+            {linkedMinistry && resourcesForEventMonth.length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>RECURSOS</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {resourcesForEventMonth.map((r) => (
+                    <a key={r.id} href={r.link || undefined} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-hover)", borderRadius: 12, padding: "8px 10px", textDecoration: "none", color: "var(--wf-text)", fontSize: 12, fontWeight: 600 }}>
+                      <FolderOpen size={13} color="var(--wf-faint)" />
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</span>
+                      {r.link && <ExternalLink size={12} color="#2F5FA8" style={{ flexShrink: 0 }} />}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 8 }}>EQUIPO ASIGNADO</div>
+            {(block.encargados || []).length === 0 ? (
+              <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>Nadie asignado todavía.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {block.encargados.map((m, i) => (
+                  <div key={m.id || i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0 }}>{m.n.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</div>
+                    <span style={{ fontSize: 13 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "var(--wf-brand-accent)", fontWeight: 700 }}> · Encargado</span>}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          );
+        })}
+        {worshipRoles.map((role) => (
+          <div key={role.id} style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 18, padding: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><Sparkles size={13} color="var(--wf-brand-accent)" /> EQUIPO DE ALABANZA</div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, marginBottom: 10 }}>{role.name}</div>
+            {(role.members || []).length === 0 ? (
+              <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>Nadie asignado todavía.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {role.members.map((m, i) => (
+                  <div key={m.id || i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0 }}>{m.n.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</div>
+                    <span style={{ fontSize: 13 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "var(--wf-brand-accent)", fontWeight: 700 }}> · Encargado</span>}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIglesiaActualizada, onGoToUsuarios, onGoToRoles, onGoToPlataforma }) {
+  // Al cambiar "Cómo ver los tonos" en Ajustes, toda la app se vuelve a pintar con la nueva notación.
+  usePreferencias();
+  // Clasificaciones de canción de ESTA iglesia (ver CLASIFICACIONES_DEFAULT).
+  const clasificaciones = myIglesia.categoriasCanciones?.length ? myIglesia.categoriasCanciones : CLASIFICACIONES_DEFAULT;
+  fijarClasificacionesActuales(clasificaciones);
+  // Solo el Administrador real puede guardarlas (la RLS de iglesias exige usuarios.rol = 'admin').
+  const guardarClasificaciones = async (lista) => {
+    const { error } = await supabase.from("iglesias").update({ categorias_canciones: lista }).eq("id", perfil?.iglesia_id);
+    if (error) throw new Error("No se pudieron guardar las clasificaciones: " + error.message);
+    onIglesiaActualizada?.({ categorias_canciones: lista });
+    showToast("Clasificaciones guardadas.", "info");
+  };
+  const isCompact = useIsCompact(); // vista de celular: en pantallas angostas se activan los layouts compactos y se oculta Multimedia
+  const [tab, setTab] = useState("inicio"); // inicio | canciones | eventos | envivo | proyeccion
+  // Multimedia y Pantalla son de escritorio (quien controla la proyección); si la pantalla se vuelve angosta
+  // mientras estás ahí, regresa a Inicio en vez de dejarte en una pantalla que ya no debería ser alcanzable.
+  useEffect(() => {
+    if (isCompact && (tab === "envivo" || tab === "proyeccion")) setTab("inicio");
+  }, [isCompact, tab]);
+  // Publica el alto REAL de la nav flotante inferior como variable CSS (--bottom-nav-height) — así una
+  // pantalla distinta con un elemento position:fixed que necesite quedar arriba de la nav (ej. la barra
+  // de acordes del editor de canciones) puede apoyarse en el alto medido de verdad en ESTE dispositivo,
+  // en vez de un número fijo adivinado que en celulares con gesture bar (safe-area-inset-bottom más
+  // alto) dejaba ese elemento tapado detrás de la nav o fuera de la pantalla.
+  const bottomNavRef = useRef(null);
+  useEffect(() => {
+    const el = bottomNavRef.current;
+    if (!el) return;
+    // offsetHeight (no getBoundingClientRect): con el tamaño de letra "Grande" (zoom en <html>) el rect
+    // viene ya agrandado y al usarlo como CSS se agrandaba otra vez — la barra quedaba mal puesta.
+    const publish = () => document.documentElement.style.setProperty("--bottom-nav-height", `${el.offsetHeight}px`);
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isCompact]);
+  // Canciones y Eventos arrancan vacíos y se cargan de verdad desde Supabase — ya no hay datos de
+  // ejemplo del prototipo. Ministerios sigue siendo local por ahora (todavía no tiene tabla real).
+  const [librarySinOrden, setLibrary] = useState([]);
+  // Siempre en orden alfabético (2026-10-30) — también las que se crean o renombran en este dispositivo,
+  // que antes quedaban al final hasta recargar.
+  const library = useMemo(() => ordenarPor(librarySinOrden, (s) => s.title), [librarySinOrden]);
+  // El guardado automático por atrás físico/gesto (más abajo, junto al listener de popstate) vive
+  // dentro de un efecto que se monta una sola vez, así que no puede leer `library`/`userId` del render
+  // actual sin quedarse con el valor viejo del primer render (cuando `library` todavía estaba vacío) —
+  // de ahí estas refs, mantenidas al día en cada render.
+  const libraryRef = useRef(library);
+  const userIdRef = useRef(userId);
+  useEffect(() => { libraryRef.current = library; userIdRef.current = userId; }, [library, userId]);
+  // El guardado del Setlist/roles queda en vuelo un rato (fetch de fondo) mientras la pantalla ya se ve
+  // actualizada al instante — si alguien asigna a una persona y cierra la pestaña/app de inmediato (muy
+  // común en celular, apurados a mitad de un culto), esa escritura puede quedar cortada antes de llegar
+  // a Supabase y la asignación "desaparece" la próxima vez que se entra, aunque en pantalla sí se vio
+  // agregada un instante. Este contador + el aviso nativo de "salir sin guardar" (ver más abajo) le dan
+  // al menos una oportunidad de notar que todavía hay algo guardándose antes de cerrar.
+  const pendingSavesRef = useRef(0);
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      if (pendingSavesRef.current > 0) { e.preventDefault(); e.returnValue = ""; }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+  const [openSong, setOpenSong] = useState(null); // null = lista; { id, mode: 'view' | 'edit' }
+  const [events, setEvents] = useState([]);
+  // Espejo síncrono de `events`, escrito a mano en vez de leído del valor de retorno de setEvents(fn) —
+  // updateOrder/updateWorshipRoles/etc. necesitan el arreglo YA actualizado ANTES de llamar a
+  // sincronizarServiceOrder, en el mismo instante en que se llama. React solo ejecuta el updater de
+  // setEvents(fn) de forma síncrona cuando no hay otra actualización de este mismo estado ya pendiente
+  // (su optimización interna de "eager state"); si el usuario dispara varios cambios seguidos (ej. la
+  // tonalidad de 5 canciones, una detrás de otra, antes de que React alcance a renderizar entre medio),
+  // solo el primero cae en ese camino rápido — en los siguientes React solo encola la actualización sin
+  // correr el updater todavía, así que la variable que se esperaba llenar (nuevoOrden/nuevo) se queda en
+  // null y el guardado correspondiente NUNCA se dispara, en silencio. Por eso pasaba que de 5 cambios de
+  // tonalidad solo se guardaban 2, y de los 3 restantes solo 1, etc. — dependía de cuántos alcanzaran a
+  // pisar esa ventana. Con este espejo, cada llamada calcula el nuevo valor a mano a partir del último
+  // valor ya calculado (no del estado de React, que puede ir un paso atrás), así que siempre es fresco
+  // sin importar qué tan rápido se disparen los cambios.
+  const eventsRef = useRef([]);
+  // Un arreglo completo (no una función) solo llega cuando la app ADOPTA datos traídos de la base
+  // (carga inicial, refresco en tiempo real, copia sin conexión): ahí se fija la línea base que usan
+  // los guardados por diferencias (ver src/lib/lineaBase.js). Las ediciones locales pasan una función.
+  const setEventsSynced = (next) => {
+    if (typeof next !== "function") registrarLineaBaseEventos(next);
+    eventsRef.current = typeof next === "function" ? next(eventsRef.current) : next;
+    setEvents(eventsRef.current);
+  };
+  // Mismo criterio que setEventsSynced con un arreglo: ministerios traídos de la base fijan su línea base.
+  const adoptarMinisterios = (data) => {
+    registrarLineaBaseMinisterios(data);
+    setMinistries(data);
+  };
+  const [datosListos, setDatosListos] = useState(false);
+  // Red de seguridad si no hay internet al cargar (o se cae justo en ese momento): en vez de dejar la
+  // app en blanco, se usa la última copia que sí se guardó localmente la vez que hubo conexión. Es de
+  // solo lectura — los intentos de guardar algo mientras no hay señal van a fallar igual (ya lo avisan
+  // las alertas de "No se pudo guardar..." que ya existían), esto solo evita la pantalla vacía.
+  const [usingCachedData, setUsingCachedData] = useState(false);
+  // Refleja el estado real de conexión del navegador (no solo "falló la última carga") — así se puede
+  // avisar apenas se corta la señal, aunque los datos ya estuvieran cargados de antes.
+  const [importandoPdf, setImportandoPdf] = useState(false); // ver components/ImportarCancionesPdf.jsx
+  const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && navigator.onLine === false);
+  const filaAlAireRef = useRef(null); // lo último que se mandó a la proyección (ver sincronización en vivo)
+  const sincroPendienteRef = useRef(false); // true = Supabase no recibió el último cambio por falta de internet
+  const reloadLibrary = () => listCancionesCompletas().then(setLibrary).catch((e) => notifyError("No se pudo cargar el cancionero", e));
+  // Se reutiliza tanto en la carga inicial como al recuperar la señal (ver el efecto de "online" más
+  // abajo) — mismo Promise.all de siempre, solo que ahora tiene nombre para no repetirlo dos veces.
+  const cargarTodo = () => Promise.all([
+    listCancionesCompletas().then((data) => { setLibrary(data); saveCache("canciones", data); }),
+    listEventosCompletos().then((data) => { setEventsSynced(data); saveCache("eventos", data); }),
+    listMinisteriosCompletos().then((data) => { adoptarMinisterios(data); saveCache("ministerios", data); }),
+  ]);
+  useEffect(() => {
+    cargarTodo()
+      .catch((e) => {
+        const cachedLibrary = loadCache("canciones");
+        const cachedEvents = loadCache("eventos");
+        const cachedMinistries = loadCache("ministerios");
+        if (cachedLibrary || cachedEvents) {
+          setLibrary(cachedLibrary || []);
+          setEventsSynced(cachedEvents || []);
+          adoptarMinisterios(cachedMinistries || []);
+          setUsingCachedData(true);
+        } else {
+          notifyError("No se pudieron cargar los datos", e);
+        }
+      })
+      .finally(() => setDatosListos(true));
+  }, []);
+  // Si el teléfono compartido se queda sin señal a medio culto y luego vuelve (algo que ya le ha
+  // pasado a esta iglesia), esto lo detecta solo — sin tener que recargar la página a mano — y
+  // resincroniza todo de una vez apenas vuelve el internet.
+  useEffect(() => {
+    const onOffline = () => setIsOffline(true);
+    const onOnline = () => {
+      setIsOffline(false);
+      cargarTodo()
+        .then(() => { setUsingCachedData(false); showToast("Conexión recuperada — todo actualizado.", "info"); })
+        .catch(() => {});
+    };
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+    return () => { window.removeEventListener("offline", onOffline); window.removeEventListener("online", onOnline); };
+  }, []);
+  // Sincroniza Canciones/Eventos/Ministerios EN TIEMPO REAL entre dispositivos — antes cada uno se
+  // cargaba una sola vez al abrir la app y quien lo tuviera abierto no se enteraba de cambios hechos
+  // desde otro celular/computadora hasta recargar la página a mano. Cada dominio se re-lee completo
+  // (mismo listXCompletos que ya usa la carga inicial) apenas Supabase avisa que algo cambió — ver
+  // subscribeTableChanges para el debounce y la pausa mientras alguien está escribiendo.
+  useEffect(() => {
+    const unsubCanciones = subscribeTableChanges(
+      "rt-canciones", ["canciones", "secciones_cancion", "diapositivas_letra", "estructura_cancion"],
+      // "shouldWait" solo evita EMPEZAR el refresco mientras hay un guardado en vuelo — pero listar
+      // todo de nuevo es una operación en sí misma (varias canciones, cada una con 4 consultas), que
+      // puede tardar más que un guardado corto que arranca DESPUÉS de que este refresco ya empezó. Sin
+      // este segundo chequeo, ese refresco (que arrancó cuando no había nada pendiente) terminaba
+      // igual y pisaba con datos viejos lo que se acababa de guardar mientras tanto — el guardado en sí
+      // había salido bien, pero la pantalla volvía a mostrar la versión de antes. Por eso se vuelve a
+      // comprobar pendingSavesRef justo antes de aplicar el resultado, no solo antes de pedirlo.
+      () => listCancionesCompletas().then((data) => { if (pendingSavesRef.current === 0) { setLibrary(data); saveCache("canciones", data); } }).catch(() => {}),
+      2500, () => pendingSavesRef.current > 0
+    );
+    const unsubEventos = subscribeTableChanges(
+      "rt-eventos", ["eventos", "items_servicio", "roles_evento", "miembros_rol", "recordatorios_evento", "asignaciones_vistas"],
+      // Mismo chequeo doble que rt-canciones — acá es más grave todavía: agregar varias canciones
+      // seguidas al Setlist es exactamente el patrón que más fácil dispara esto (cada canción agregada
+      // es un guardado nuevo, y listar TODOS los eventos de nuevo tarda bastante con varios eventos
+      // cargados), así que sin este segundo chequeo era fácil que una tanda de canciones agregadas se
+      // "esfumara" de la pantalla apenas terminaba de cargar un refresco que había arrancado antes.
+      () => listEventosCompletos().then((data) => { if (pendingSavesRef.current === 0) { setEventsSynced(data); saveCache("eventos", data); } }).catch(() => {}),
+      2500, () => pendingSavesRef.current > 0
+    );
+    const unsubMinisterios = subscribeTableChanges(
+      "rt-ministerios", ["ministerios", "planificacion_ministerio", "recursos_ministerio"],
+      () => listMinisteriosCompletos().then((data) => { if (pendingSavesRef.current === 0) { adoptarMinisterios(data); saveCache("ministerios", data); } }).catch(() => {}),
+      2500, () => pendingSavesRef.current > 0
+    );
+    return () => { unsubCanciones(); unsubEventos(); unsubMinisterios(); };
+  }, []);
+  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [blanked, setBlanked] = useState(false);
+  // Pantalla FIJADA (pedido de Eldin, 2026-10-11): la proyección se queda en esta diapositiva mientras
+  // Multimedia se mueve por la consola sin que nada salga. null = normal. "Soltar" proyecta lo actual.
+  const [fijada, setFijada] = useState(null);
+  // Contenido improvisado en vivo (versículo/canción/video que no están en el setlist): reemplaza al plan mientras esté activo.
+  const [adHoc, setAdHoc] = useState(null); // { label, slides } | null
+  const [adHocIdx, setAdHocIdx] = useState(0);
+  const [showBibleForm, setShowBibleForm] = useState(false);
+  const [showSlideForm, setShowSlideForm] = useState(false);
+  const [slideDraft, setSlideDraft] = useState({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" });
+  const [showSermonForm, setShowSermonForm] = useState(false);
+  const [sermonPointText, setSermonPointText] = useState("");
+  const [bosquejoAbierto, setBosquejoAbierto] = useState(null); // id del bloque de Predicación (ver BosquejoWizard)
+
+  const selectedEvent = events.find((e) => e.id === selectedEventId);
+  const [liveEventId, setLiveEventId] = useState(null);
+  // Código secreto de las pantallas sin sesión (enlace que vence, 2026-11-02): va en el enlace/QR y en el
+  // nombre del canal por el que la consola les manda lo que está al aire. La base lo cambia sola al
+  // finalizar la transmisión, así que se vuelve a pedir al empezar y al terminar.
+  const [codigoPantalla, setCodigoPantalla] = useState(null);
+  const [liveOwnerId, setLiveOwnerId] = useState(null); // usuario que inició la transmisión; solo esa persona puede finalizarla
+  // Estado de Modo Músico líder/seguidor de la sesión en vivo (ver columnas musico_* en sesiones_en_vivo
+  // y el useEffect de subscribeLiveSession más abajo, que lo llena junto con liveEventId/liveOwnerId).
+  const [musicoState, setMusicoState] = useState(null);
+  // Modo Músico en vivo es VOLUNTARIO: este dispositivo solo sigue a quien dirige si tocó "Unirme".
+  // Vive aquí (no en SongView) para que siga unido al pasar de canción. Se suelta al terminar el culto.
+  const [unidoAlLider, setUnidoAlLider] = useState(false);
+  // "En vivo sin evento": transmisión libre, sin ningún plan/setlist detrás — solo contenido improvisado
+  // (Biblia/canción/video/slide). liveEventId se queda en null en este caso, igual que cuando no hay nada
+  // en vivo, así que se necesita esta bandera aparte para distinguir ambos casos.
+  const [liveLibre, setLiveLibre] = useState(false);
+  // Diapositivas agregadas a mano durante una transmisión libre (ej. el título de la predica) — no hay
+  // ningún evento real al que guardarlas en Supabase, así que viven solo en memoria mientras dura esta
+  // transmisión (se limpian al iniciar/terminar una), pero SÍ quedan fijas ahí (reseleccionables) en vez
+  // de proyectarse una sola vez y desaparecer, igual que cualquier diapositiva agregada a un evento real.
+  const [libreServiceOrder, setLibreServiceOrder] = useState([]);
+  // Modo práctica (pedido de Eldin, 2026-10-11): la consola con un culto real, pero SIN tocar la sesión
+  // en vivo — nada sale a la pantalla de la iglesia, no se escribe nada en Supabase y los cambios al
+  // orden quedan solo en esta copia. Para que alguien nuevo aprenda sin miedo antes del culto.
+  const [practica, setPractica] = useState(null); // null | { eventId, title, serviceOrder }
+  const enPractica = !!practica;
+  const liveEvent = practica ? { id: practica.eventId, title: practica.title, serviceOrder: practica.serviceOrder }
+    : liveLibre ? { ...EVENTO_LIBRE, serviceOrder: libreServiceOrder } : events.find((e) => e.id === liveEventId);
+  const navFlotante = tab === "envivo" && !!liveEvent && !isCompact; // ver la nav inferior
+  // En la consola la barra se encoge a un botón redondo en la esquina (pedido de Eldin, 2026-10-21:
+  // "la barra de navegación estorba en los textos, los últimos ya no se pueden ver"). Se abre al tocarlo
+  // y se vuelve a encoger al elegir una pestaña.
+  const [navAbierta, setNavAbierta] = useState(false);
+  useEffect(() => { setNavAbierta(false); }, [tab]);
+  const navEncogida = navFlotante && !navAbierta;
+  // ---- Estilo en vivo de la proyección (fondo/tipografía/tamaño), editable solo por Multimedia mientras transmite ----
+  // Se queda guardado entre transmisiones (pedido de Eldin, 2026-10-08): copia en este dispositivo
+  // para arrancar al instante, y la de la iglesia (sesiones_en_vivo.estilo_en_vivo, que ya no se borra
+  // al finalizar — ver clearLiveSession) manda en cuanto llega, para que cualquier computadora que
+  // transmita use el mismo estilo. Es uno solo para todas las canciones.
+  const [liveStyle, setLiveStyle] = useState(() => loadCache("estilo_en_vivo") || { theme: "stage", font: "elegante", fontScale: 1 });
+  useEffect(() => { saveCache("estilo_en_vivo", liveStyle); }, [liveStyle]);
+  const adoptarEstiloGuardado = (estilo) => {
+    if (!estilo || typeof estilo !== "object") return;
+    setLiveStyle((actual) => (JSON.stringify(actual) === JSON.stringify(estilo) ? actual : estilo));
+  };
+  // Versículos largos → 2 o 3 diapositivas (ver dividirTexto.js). Con la letra en vivo más grande,
+  // caben menos palabras por diapositiva y divide antes.
+  // Dividir versículos largos: ajuste de cada iglesia (Ajustes → Pantalla de proyección).
+  const palabrasPorParte = palabrasPorParteSegun(liveStyle.fontScale, !!myIglesia.dividirVersiculos);
+  // Cómo se reparte la letra de canciones en pantalla — ajuste de cada iglesia (Identidad de la iglesia).
+  const formatoLetra = myIglesia.formatoLetra || "dos_lineas";
+  // Ocultos en la consola (pedido de Eldin, 2026-10-11): la ✕ de la consola ya NO borra del setlist —
+  // solo esconde ese elemento en la consola de ESTA computadora y no lo proyecta. El setlist general
+  // queda intacto. Se guarda por evento (y sobrevive a recargar); "Mostrar ocultos" los regresa.
+  const [ocultosConsola, setOcultosConsola] = useState(() => loadCache("consola_ocultos") || {});
+  useEffect(() => { saveCache("consola_ocultos", ocultosConsola); }, [ocultosConsola]);
+  const claveOcultos = liveEvent?.id || null;
+  const idsOcultosConsola = useMemo(() => new Set((claveOcultos && ocultosConsola[claveOcultos]) || []), [ocultosConsola, claveOcultos]);
+  const slides = useMemo(
+    () => (liveEvent ? expandirVersiculosLargos(reorganizarLetra(buildSlides(liveEvent.serviceOrder.filter((it) => !idsOcultosConsola.has(it.id)), library), formatoLetra), palabrasPorParte) : []),
+    [liveEvent, library, palabrasPorParte, formatoLetra, idsOcultosConsola]
+  );
+  const adHocSlides = useMemo(
+    () => (adHoc ? expandirVersiculosLargos(reorganizarLetra(adHoc.slides, formatoLetra), palabrasPorParte) : []),
+    [adHoc, palabrasPorParte, formatoLetra]
+  );
+  const adHocVista = useMemo(() => (adHoc ? { ...adHoc, slides: adHocSlides } : null), [adHoc, adHocSlides]);
+  const currentBase = adHoc ? adHocSlides[adHocIdx] : slides[activeIdx];
+  // Diapositivas diseñadas con animación "al clic" (editor de diapositivas, 2026-10-18): cada "Siguiente"
+  // revela el próximo elemento antes de pasar a la otra diapositiva. El paso viaja dentro de la
+  // diapositiva al aire (slide.paso) para que la proyección muestre exactamente lo mismo.
+  // Se guarda junto al id de la diapositiva: al cambiar de diapositiva vuelve a 0 en el MISMO render (sin un
+  // cuadro intermedio mostrando de más).
+  const [pasoGuardado, setPasoGuardado] = useState({ id: null, paso: 0 });
+  const idDiapositivaActual = currentBase?.slideId ?? null;
+  const pasoDiseno = pasoGuardado.id === idDiapositivaActual ? pasoGuardado.paso : 0;
+  const setPasoDiseno = (n) => setPasoGuardado({ id: idDiapositivaActual, paso: typeof n === "function" ? n(pasoDiseno) : n });
+  const current = useMemo(() => (currentBase?.diseno ? { ...currentBase, paso: pasoDiseno } : currentBase), [currentBase, pasoDiseno]);
+  const next = adHoc ? adHocSlides[adHocIdx + 1] : slides[activeIdx + 1];
+
+  // ---- Lectura bíblica en vivo: "Siguiente/Anterior versículo" y cambio de versión sin reabrir el buscador.
+  // Solo funciona para versículos elegidos con el buscador de la Biblia (traen bookId/chapter) — los que se
+  // escribieron a mano o son de "acceso rápido" no tienen cómo saber cuál es el próximo versículo. ----
+  // Guarda en Supabase en segundo plano cada vez que cambia el setlist de un evento — el estado local
+  // se actualiza al instante (para que la operación en vivo se sienta rápida) y la persistencia real
+  // pasa por detrás, sin bloquear la interacción.
+  const updateLiveOrder = (fn) => {
+    if (practica) { setPractica((p) => (p ? { ...p, serviceOrder: fn(p.serviceOrder) } : p)); return; } // práctica: nada se guarda
+    if (liveLibre) { setLibreServiceOrder((o) => fn(o)); return; } // sin evento real, no hay nada que guardar en Supabase
+    let nuevoOrden = null;
+    setEventsSynced((evs) => evs.map((e) => {
+      if (e.id !== liveEventId) return e;
+      nuevoOrden = fn(e.serviceOrder);
+      return { ...e, serviceOrder: nuevoOrden };
+    }));
+    if (nuevoOrden) {
+      pendingSavesRef.current++;
+      sincronizarServiceOrder(liveEventId, nuevoOrden).catch((err) => notifyError("No se pudo guardar el setlist", err)).finally(() => pendingSavesRef.current--);
+    }
+  };
+  // Para cuando a Multimedia se le olvidó agregar algo en el Setlist (un anuncio, etc.): agrega una slide
+  // directo al plan en vivo (no al overlay "improvisado" temporal) y salta a proyectarla de inmediato.
+  // `slides.length` (antes de agregar) es exactamente el índice donde queda la nueva, ya que se agrega al final.
+  // despuesDe (opcional): id del elemento tras el cual entra — igual que una canción agregada en vivo,
+  // va junto a lo que se está viendo, no al final. Se proyecta de inmediato (mantenerAlAireRef apunta
+  // a ella apenas se recalculan las diapositivas).
+  const addLiveSlide = (draft, despuesDe) => {
+    const nuevo = { id: nextId(), type: "slide", ...draft };
+    updateLiveOrder((o) => {
+      const i = despuesDe ? o.findIndex((it) => it.id === despuesDe) : -1;
+      return i === -1 ? [...o, nuevo] : [...o.slice(0, i + 1), nuevo, ...o.slice(i + 1)];
+    });
+    setAdHoc(null); setAdHocIdx(0); setBlanked(false);
+    mantenerAlAireRef.current = nuevo.id;
+  };
+  // ---- Editar el orden del culto desde la consola En vivo (pedido de Eldin, 2026-10-08: "el líder de
+  // alabanza le pide a Multimedia que agregue una canción y la ponga en tal orden"). Igual que el
+  // Setlist: agregar, quitar y arrastrar. Lo que está AL AIRE no se mueve: activeIdx es un índice en
+  // la lista de diapositivas, y al cambiar el orden esa misma diapositiva queda en otro índice — se
+  // recuerda su slideId y, apenas se recalculan las diapositivas, se vuelve a apuntar a ella.
+  const mantenerAlAireRef = useRef(null);
+  const cambiarOrdenEnVivo = (fn) => {
+    if (!adHoc && slides[activeIdx]) mantenerAlAireRef.current = slides[activeIdx].slideId;
+    updateLiveOrder(fn);
+  };
+  useEffect(() => {
+    const id = mantenerAlAireRef.current;
+    if (!id) return;
+    mantenerAlAireRef.current = null;
+    const nuevo = slides.findIndex((s) => s.slideId === id);
+    if (nuevo !== -1) setActiveIdx(nuevo);
+  }, [slides]);
+  // despuesDe: id del elemento tras el cual va (null = al final).
+  const agregarCancionEnVivo = (songId, despuesDe) => {
+    const song = library.find((s) => s.id === songId);
+    if (!song) return;
+    const nuevo = { id: nextId(), type: "cancion", songId, structure: song.defaultStructure };
+    cambiarOrdenEnVivo((o) => {
+      const i = despuesDe ? o.findIndex((it) => it.id === despuesDe) : -1;
+      return i === -1 ? [...o, nuevo] : [...o.slice(0, i + 1), nuevo, ...o.slice(i + 1)];
+    });
+    return nuevo.id;
+  };
+  // Varios elementos de una vez (una presentación importada, ver ImportarPresentacion), en el mismo lugar.
+  const insertarItemsEnVivo = (items, despuesDe) => cambiarOrdenEnVivo((o) => {
+    const i = despuesDe ? o.findIndex((it) => it.id === despuesDe) : -1;
+    return i === -1 ? [...o, ...items] : [...o.slice(0, i + 1), ...items, ...o.slice(i + 1)];
+  });
+  const reordenarOrdenEnVivo = (desde, hacia) => cambiarOrdenEnVivo((o) => {
+    if (desde === hacia) return o;
+    const arr = [...o];
+    const [movido] = arr.splice(desde, 1);
+    arr.splice(hacia, 0, movido);
+    return arr;
+  });
+  const ocultarEnConsola = (ids) => {
+    if (!claveOcultos || !ids.length) return;
+    // Lo que está al aire se queda al aire si no es lo que se oculta (mismo truco que al reordenar).
+    if (!adHoc && slides[activeIdx] && !ids.some((id) => slides[activeIdx].slideId === id || String(slides[activeIdx].slideId).startsWith(`${id}-`) || String(slides[activeIdx].slideId).startsWith(`${id}~`))) mantenerAlAireRef.current = slides[activeIdx].slideId;
+    setOcultosConsola((m) => {
+      // Solo se guardan los últimos 30 eventos para no acumular basura en esta computadora.
+      const otros = Object.entries(m).filter(([k]) => k !== claveOcultos).slice(-29);
+      return { ...Object.fromEntries(otros), [claveOcultos]: [...new Set([...(m[claveOcultos] || []), ...ids])] };
+    });
+  };
+  const mostrarOcultosConsola = (ids = null) => {
+    if (!claveOcultos) return;
+    if (!adHoc && slides[activeIdx]) mantenerAlAireRef.current = slides[activeIdx].slideId;
+    setOcultosConsola((m) => {
+      const quedan = ids ? (m[claveOcultos] || []).filter((x) => !ids.includes(x)) : [];
+      const { [claveOcultos]: _fuera, ...resto } = m;
+      return quedan.length ? { ...resto, [claveOcultos]: quedan } : resto;
+    });
+  };
+  const quitarDelOrdenEnVivo = (itemId) => {
+    const alAireEsDeEste = !adHoc && slides[activeIdx] && (slides[activeIdx].slideId === itemId || String(slides[activeIdx].slideId).startsWith(`${itemId}-`) || String(slides[activeIdx].slideId).startsWith(`${itemId}~`));
+    if (alAireEsDeEste) { removeLiveSlide(itemId); return; } // lo que estaba al aire se va: se queda en el mismo lugar
+    cambiarOrdenEnVivo((o) => o.filter((it) => it.id !== itemId));
+  };
+  // Corregir texto de un versículo/slide/punto del bosquejo ya agregado (typos, etc.) — solo aplica a
+  // slideId que son directamente el id del elemento del plan (biblia/slide), no a las de canción (que
+  // vienen de la estructura de la canción, no del evento).
+  const editLiveSlide = (slideId, patch) => updateLiveOrder((o) => o.map((item) => (item.id === slideId ? { ...item, ...patch } : item)));
+  // Borrar una diapositiva agregada a mano por error — si era la que estaba en pantalla, activeIdx se
+  // recorta para no quedar apuntando más allá del final del plan (pantalla en negro hasta elegir otra).
+  const removeLiveSlide = (slideId) => {
+    let nuevaLongitud = 0;
+    updateLiveOrder((o) => { const filtrado = o.filter((item) => item.id !== slideId); nuevaLongitud = filtrado.length; return filtrado; });
+    setActiveIdx((i) => Math.min(i, Math.max(0, nuevaLongitud - 1)));
+  };
+  // Siempre sobre el versículo COMPLETO (baseSlideId), aunque en pantalla esté una de sus partes — y
+  // después se salta a la primera parte del versículo nuevo (que puede tener otra cantidad de partes).
+  const applyBibleSlidePatch = (patch) => {
+    if (!current) return;
+    const baseId = current.baseSlideId || current.slideId;
+    const primeraParte = (adHoc ? adHocIdx : activeIdx) - (current.parte || 0);
+    if (adHoc) {
+      setAdHoc((a) => ({ ...a, slides: a.slides.map((s) => (s.slideId === baseId ? { ...s, ...patch } : s)) }));
+      setAdHocIdx(Math.max(0, primeraParte));
+    } else {
+      updateLiveOrder((o) => o.map((item) => (item.id === baseId ? { ...item, ...patch } : item)));
+      setActiveIdx(Math.max(0, primeraParte));
+    }
+  };
+  const navigateBibleVerse = async (direction) => {
+    if (!current || current.type !== "biblia" || !current.bookId) return;
+    // Con un versículo partido en varias diapositivas, avanzar entre SUS partes es "Siguiente" normal;
+    // estas flechas (arriba/abajo) siempre saltan al versículo de al lado completo.
+    const fromVerse = direction > 0 ? current.verseEnd : current.verseStart;
+    try {
+      const result = await fetchAdjacentBibleVerse(current.version, current.bookId, current.chapter, fromVerse, direction);
+      if (!result) { showToast(direction > 0 ? "Ya no hay más versículos después de este en el libro." : "Este ya es el primer versículo del libro."); return; }
+      const bookName = result.bookName || current.bookName;
+      applyBibleSlidePatch({ reference: `${bookName} ${result.chapter}:${result.verse}`, text: result.text, chapter: result.chapter, verseStart: result.verse, verseEnd: result.verse, bookName });
+    } catch {
+      showToast("No se pudo cargar el versículo. Revisa tu conexión a internet.", "offline");
+    }
+  };
+
+  const updateOrder = (fn) => {
+    let nuevoOrden = null, anterior = null;
+    setEventsSynced((evs) => evs.map((e) => {
+      if (e.id !== selectedEventId) return e;
+      anterior = e.serviceOrder;
+      nuevoOrden = fn(e.serviceOrder);
+      return { ...e, serviceOrder: nuevoOrden };
+    }));
+    if (nuevoOrden) {
+      // Quien no edita el Setlist completo (líder de un grupo con lo básico, encargado de una lectura)
+      // manda solo lo que cambió — ver soloIds en sincronizarServiceOrder.
+      let soloIds = null;
+      if (!puedeEditarSetlistEvento) {
+        // También las que solo cambiaron de LUGAR: al insertar algo a mitad del culto (un versículo de la
+        // Lectura, las diapositivas del bosquejo) todo lo de abajo se recorre y su "orden" en la base
+        // tiene que recorrerse igual, o lo nuevo quedaría con el mismo número que lo que ya estaba ahí.
+        const antes = new Map((anterior || []).map((it, i) => [it.id, `${i}|${JSON.stringify(it)}`]));
+        soloIds = new Set(nuevoOrden.filter((it, i) => antes.get(it.id) !== `${i}|${JSON.stringify(it)}`).map((it) => it.id));
+      }
+      pendingSavesRef.current++;
+      sincronizarServiceOrder(selectedEventId, nuevoOrden, { soloIds }).catch((err) => notifyError("No se pudo guardar el setlist", err)).finally(() => pendingSavesRef.current--);
+    }
+  };
+  // ---- Editor de diapositivas (escritorio, ver EditorDiapositivas.jsx) ----
+  // origen: "vivo" (consola En vivo, sobre el orden del culto al aire) o el id del evento (Setlist).
+  const [editorDiap, setEditorDiap] = useState(null); // { origen, itemId, indice }
+  const ordenDeOrigen = (origen) => (origen === "vivo" ? liveEvent?.serviceOrder : events.find((e) => e.id === origen)?.serviceOrder) || [];
+  const cambiarOrdenDeOrigen = (origen, fn) => {
+    if (origen === "vivo") { cambiarOrdenEnVivo(fn); return; }
+    let nuevoOrden = null;
+    setEventsSynced((evs) => evs.map((e) => {
+      if (e.id !== origen) return e;
+      nuevoOrden = fn(e.serviceOrder);
+      return { ...e, serviceOrder: nuevoOrden };
+    }));
+    if (nuevoOrden) {
+      pendingSavesRef.current++;
+      sincronizarServiceOrder(origen, nuevoOrden).catch((err) => notifyError("No se pudo guardar el setlist", err)).finally(() => pendingSavesRef.current--);
+    }
+  };
+  const guardarEditorDiap = (diapositivas, titulo) => {
+    const { itemId, eventoId } = editorDiap;
+    // Si la transmisión terminó mientras se editaba, se guarda igual en el evento.
+    const origen = editorDiap.origen === "vivo" && !(liveEvent && (liveLibre ? eventoId === null : liveEventId === eventoId)) ? eventoId : editorDiap.origen;
+    // Diapositiva nueva diseñada desde cero ("Diseñar diapositiva"): entra como elemento nuevo.
+    if (editorDiap.nuevo) {
+      if (!origen || !diapositivas.length) { setEditorDiap(null); return; }
+      const nuevo = itemConDiapositivas({ id: nextId(), type: "slide", title: titulo, subtitle: "" }, diapositivas);
+      const despuesDe = editorDiap.despuesDe;
+      cambiarOrdenDeOrigen(origen, (o) => {
+        const i = despuesDe ? o.findIndex((it) => it.id === despuesDe) : -1;
+        return i === -1 ? [...o, nuevo] : [...o.slice(0, i + 1), nuevo, ...o.slice(i + 1)];
+      });
+      setEditorDiap(null);
+      showToast(`"${titulo}" se agregó al orden del culto.`, "info");
+      return;
+    }
+    if (!origen || !ordenDeOrigen(origen).some((it) => it.id === itemId)) {
+      showToast("No se pudo guardar: ese elemento ya no está en el orden del culto.");
+      setEditorDiap(null);
+      return;
+    }
+    cambiarOrdenDeOrigen(origen, (o) => (diapositivas.length
+      ? o.map((it) => (it.id === itemId ? itemConDiapositivas({ ...it, title: titulo }, diapositivas) : it))
+      : o.filter((it) => it.id !== itemId)));
+    setEditorDiap(null);
+    showToast("Diapositivas guardadas.", "info");
+  };
+  // Al abrir se toma una foto de las diapositivas (las viejas se convierten aquí, una sola vez).
+  const abrirEditorDiap = (origen, itemId, indice = 0) => {
+    const it = ordenDeOrigen(origen).find((x) => x.id === itemId);
+    if (!it) return;
+    setEditorDiap({ origen, eventoId: origen === "vivo" ? (liveLibre ? null : liveEventId) : origen, itemId, indice, titulo: tituloBase(it.title) || "Diapositivas", diapositivas: diapositivasDeItem(it) });
+  };
+  // Diseñar una diapositiva desde cero: el editor abre en blanco con las plantillas a la vista y, al
+  // tocar Listo, entra al orden del culto (después de despuesDe, o al final).
+  const abrirEditorNuevo = (origen, despuesDe = null) => {
+    setEditorDiap({ origen, nuevo: true, despuesDe, eventoId: origen === "vivo" ? (liveLibre ? null : liveEventId) : origen, itemId: null, indice: 0, titulo: "Diapositiva", diapositivas: [nuevaDiapositiva()] });
+  };
+  const editorAlAire = !!(editorDiap && editorDiap.origen === "vivo" && !adHoc && current && (current.grupoId === editorDiap.itemId || current.slideId === editorDiap.itemId));
+  // Mover / copiar / sacar diapositivas entre grupos (menú de clic derecho en la consola En vivo).
+  const moverDiapositivaEnVivo = (args) => cambiarOrdenEnVivo((o) => moverDiapositiva(o, args));
+  const quitarDiapositivaEnVivo = (itemId, indice) => cambiarOrdenEnVivo((o) => quitarDiapositivaDeGrupo(o, itemId, indice));
+
+  // Cada canción se manda sola al bloque que le corresponde según su clasificación — a qué bloque
+  // exactamente lo decide CADA iglesia (Canciones → Clasificaciones, iglesias.categorias_canciones),
+  // ya no está fijo en el código ("Alabanza" para las 4 antes). Se
+  // agrega al final de ese bloque, o se crea el bloque si el evento todavía no lo tiene. Los bloques
+  // son simples marcadores de posición (no hay anidado real en los datos), así que "pertenecer a un
+  // bloque" es estar entre ese marcador y el siguiente.
+  // "¿En qué parte del culto va?" — el bloque elegido en "+ Agregar" del Setlist (null = al final).
+  // Se usa para lo que se agregue mientras esa elección está abierta (ver SetlistPane).
+  const [destinoSetlist, setDestinoSetlist] = useState(null);
+  const colocar = (o, items) => insertarEnBloque(o, items, destinoSetlist);
+  // Un bloque de alabanza nuevo queda vinculado solo al grupo de Alabanza (pedido de Eldin,
+  // 2026-10-30), si la iglesia tiene exactamente un grupo con "alabanza"/"adoración" en el nombre.
+  const ministerioParaBloque = (title) => {
+    if (!isWorshipBlock({ type: "seccion", title })) return null;
+    const candidatos = ministries.filter((m) => /alabanza|adoraci/i.test(m.name || ""));
+    return candidatos.length === 1 ? candidatos[0].id : null;
+  };
+  const addSong = (songId) => {
+    const song = library.find((s) => s.id === songId);
+    const newItem = { id: nextId(), type: "cancion", songId, structure: song.defaultStructure };
+    if (destinoSetlist) { updateOrder((o) => colocar(o, newItem)); return; } // eligió el bloque a mano
+    const targetBlock = clasificaciones.find((c) => c.clave === song.category)?.bloque?.trim();
+    updateOrder((o) => {
+      if (!targetBlock) return [...o, newItem]; // sin clasificación: al final, como antes
+      let blockIdx = -1;
+      o.forEach((item, i) => { if (item.type === "seccion" && item.title.toLowerCase().includes(targetBlock.toLowerCase())) blockIdx = i; });
+      if (blockIdx === -1) {
+        return [...o, { id: nextId(), type: "seccion", title: `Bloque de ${targetBlock}`, description: `Bloque de ${targetBlock.toLowerCase()}.`, ministryId: ministerioParaBloque(`Bloque de ${targetBlock}`) }, newItem];
+      }
+      let insertAt = o.length;
+      for (let i = blockIdx + 1; i < o.length; i++) { if (o[i].type === "seccion") { insertAt = i; break; } }
+      return [...o.slice(0, insertAt), newItem, ...o.slice(insertAt)];
+    });
+  };
+  const addBible = (b) => { updateOrder((o) => colocar(o, { id: nextId(), type: "biblia", reference: b.ref, version: b.version, text: b.text, bookId: b.bookId, bookName: b.bookName, chapter: b.chapter, verseStart: b.verseStart, verseEnd: b.verseEnd })); setShowBibleForm(false); };
+  const addSlide = () => {
+    if (!slideDraft.title && !(slideDraft.bgType === "video" && slideDraft.videoUrl) && !(slideDraft.bgType === "imagen" && slideDraft.imageUrl)) return; // se permite solo-video/solo-imagen sin texto
+    updateOrder((o) => colocar(o, { id: nextId(), type: "slide", ...slideDraft }));
+    setSlideDraft({ title: "", subtitle: "", name: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" });
+    setShowSlideForm(false);
+  };
+  const addSeccion = (title, description) => updateOrder((o) => [...o, { id: nextId(), type: "seccion", title: title.trim() || "Nuevo bloque", description: description.trim(), ministryId: ministerioParaBloque(title.trim()) }]);
+  // Punto del bosquejo del predicador: se guarda como una "slide" más (así Multimedia la proyecta igual que
+  // cualquier otra), marcada con isSermonPoint para distinguirla visualmente en el Setlist y en el grid en vivo.
+  const addSermonPoint = () => {
+    if (!sermonPointText.trim()) return;
+    updateOrder((o) => colocar(o, { id: nextId(), type: "slide", title: sermonPointText.trim(), subtitle: "", bg: "var(--wf-brand-primary)", bgType: "color", isSermonPoint: true }));
+    setSermonPointText("");
+    setShowSermonForm(false);
+  };
+  const linkMinistry = (itemId, ministryId) => updateOrder((o) => o.map((i) => (i.id === itemId ? { ...i, ministryId: ministryId || null } : i)));
+  const updateSeccionText = (itemId, field, value) => updateOrder((o) => o.map((i) => (i.id === itemId ? { ...i, [field]: value } : i)));
+  const setSongKey = (itemId, key, defaultKey) => updateOrder((o) => o.map((i) => (i.id === itemId ? { ...i, keyOverride: key === defaultKey ? null : key } : i)));
+  const removeItem = (id) => updateOrder((o) => o.filter((i) => i.id !== id));
+  // "Deshacer" tras quitar algo del Setlist: vuelve a ponerlo en el mismo lugar (mismo id y encargados).
+  const restaurarItem = (item, indice) => updateOrder((o) => (o.some((i) => i.id === item.id) ? o : [...o.slice(0, indice), item, ...o.slice(indice)]));
+  // Arrastrar y soltar desde el ícono de 6 puntos: saca el elemento de su posición y lo inserta donde se soltó.
+  const reorderItem = (fromIdx, toIdx) => updateOrder((o) => {
+    if (fromIdx === toIdx) return o;
+    const arr = [...o];
+    const [moved] = arr.splice(fromIdx, 1);
+    arr.splice(toIdx, 0, moved);
+    return arr;
+  });
+  const duplicateItem = (id) => updateOrder((o) => {
+    const idx = o.findIndex((i) => i.id === id);
+    if (idx === -1) return o;
+    return [...o.slice(0, idx + 1), { ...o[idx], id: nextId() }, ...o.slice(idx + 1)];
+  });
+
+  // Encargados de un ítem del Setlist (bloque, canción, versículo o slide) — viven directo en la burbuja
+  // de ese ítem, ya no en una pantalla de "Roles/Participantes" separada.
+  const updateItemEncargados = (itemId, fn) =>
+    updateOrder((o) => o.map((i) => (i.id === itemId ? { ...i, encargados: fn(i.encargados || []) } : i)));
+  // Avisa a alguien que lo acaban de asignar a algo (encargado de un bloque, equipo de alabanza, líder
+  // de ministerio) — notificación in-app + push real si tiene un dispositivo suscrito. No bloquea la
+  // asignación si falla (solo avisa en consola): la persona ya quedó asignada de todas formas.
+  const notificarAsignacion = (usuarioId, { titulo, cuerpo, eventoId }) => {
+    if (!usuarioId || usuarioId === userId) return; // no hace falta avisarse a uno mismo
+    callUsersFunction("notificar-asignacion", { usuario_id: usuarioId, tipo: "asignacion", titulo, cuerpo, evento_id: eventoId || null })
+      .catch((e) => console.warn("No se pudo notificar la asignación:", e.message));
+  };
+  const addEncargado = (itemId, usuario) => {
+    if (!usuario) return;
+    updateItemEncargados(itemId, (encargados) => [...encargados, { id: nextId(), n: usuario.nombre, usuarioId: usuario.id, status: "pendiente", lead: false }]);
+    const item = selectedEvent?.serviceOrder.find((i) => i.id === itemId);
+    const label = item ? serviceItemLabel(item, library) : "un encargo";
+    // Al predicador se le invita de una a preparar su bosquejo (ver BosquejoWizard).
+    const extra = esBloquePredicacion(item) ? " Entra al evento y toca \"Agregar bosquejo\" para preparar tu mensaje." : "";
+    notificarAsignacion(usuario.id, { titulo: "Se te ha asignado", cuerpo: `Para "${label}" en "${selectedEvent?.title}".${extra}`, eventoId: selectedEventId });
+  };
+  const setEncargadoStatus = (itemId, idx, status) =>
+    updateItemEncargados(itemId, (encargados) => encargados.map((m, mi) => (mi === idx ? { ...m, status } : m)));
+  const setEncargadoLead = (itemId, idx) =>
+    updateItemEncargados(itemId, (encargados) => encargados.map((m, mi) => (mi === idx ? { ...m, lead: !m.lead } : m)));
+  const removeEncargado = (itemId, idx) => {
+    let removido = null;
+    updateItemEncargados(itemId, (encargados) => {
+      removido = encargados[idx];
+      return encargados.filter((_, mi) => mi !== idx);
+    });
+    if (removido) notificarAsignacion(removido.usuarioId, { titulo: "Te quitaron un encargo", cuerpo: `Ya no tienes un encargo en "${selectedEvent?.title}".`, eventoId: selectedEventId });
+  };
+
+  // Equipo de alabanza: un solo roster de roles (Guitarra, Batería, Voz...) compartido por los bloques
+  // de Alabanza y Adoración del mismo evento — por eso vive en el evento, no en cada bloque.
+  const updateWorshipRoles = (fn) => {
+    let nuevo = null;
+    setEventsSynced((evs) => evs.map((e) => {
+      if (e.id !== selectedEventId) return e;
+      nuevo = fn(e.worshipRoles || []);
+      return { ...e, worshipRoles: nuevo };
+    }));
+    if (nuevo) {
+      pendingSavesRef.current++;
+      sincronizarWorshipRoles(selectedEventId, nuevo).catch((err) => notifyError("No se pudo guardar el equipo de alabanza", err)).finally(() => pendingSavesRef.current--);
+    }
+  };
+  const addWorshipRole = (name) => {
+    if (!name.trim()) return;
+    updateWorshipRoles((roles) => [...roles, { id: nextId(), name: name.trim(), members: [] }]);
+  };
+  const removeWorshipRole = (roleId) => updateWorshipRoles((roles) => roles.filter((r) => r.id !== roleId));
+  const updateWorshipRoleMembers = (roleId, fn) =>
+    updateWorshipRoles((roles) => roles.map((r) => (r.id === roleId ? { ...r, members: fn(r.members) } : r)));
+  const addWorshipRoleMember = (roleId, usuario) => {
+    if (!usuario) return;
+    updateWorshipRoleMembers(roleId, (members) => [...members, { id: nextId(), n: usuario.nombre, usuarioId: usuario.id, status: "pendiente", lead: false }]);
+    const role = (selectedEvent?.worshipRoles || []).find((r) => r.id === roleId);
+    const label = role?.name || "el equipo de alabanza";
+    notificarAsignacion(usuario.id, { titulo: "Se te ha asignado", cuerpo: `Para "${label}" en "${selectedEvent?.title}".`, eventoId: selectedEventId });
+  };
+  const setWorshipRoleMemberStatus = (roleId, idx, status) =>
+    updateWorshipRoleMembers(roleId, (members) => members.map((m, mi) => (mi === idx ? { ...m, status } : m)));
+  const setWorshipRoleMemberLead = (roleId, idx) =>
+    updateWorshipRoleMembers(roleId, (members) => members.map((m, mi) => (mi === idx ? { ...m, lead: !m.lead } : m)));
+  const removeWorshipRoleMember = (roleId, idx) => {
+    let removido = null;
+    updateWorshipRoleMembers(roleId, (members) => {
+      removido = members[idx];
+      return members.filter((_, mi) => mi !== idx);
+    });
+    if (removido) notificarAsignacion(removido.usuarioId, { titulo: "Te quitaron del equipo de alabanza", cuerpo: `Ya no estás en el equipo de alabanza de "${selectedEvent?.title}".`, eventoId: selectedEventId });
+  };
+
+  const goto = (i) => {
+    setBlanked(false);
+    if (adHoc) { setAdHocIdx(Math.min(Math.max(i, 0), adHocSlides.length - 1)); return; }
+    setActiveIdx(Math.min(Math.max(i, 0), slides.length - 1));
+  };
+  const gotoPlanSlide = (i) => { setAdHoc(null); setAdHocIdx(0); setBlanked(false); setActiveIdx(Math.min(Math.max(i, 0), slides.length - 1)); };
+  const exitAdHoc = () => { setAdHoc(null); setAdHocIdx(0); };
+  const startAdHocBible = (b) => { setAdHoc({ label: `Versículo: ${b.ref}`, slides: [{ slideId: "adhoc-biblia", type: "biblia", reference: b.ref, version: b.version, text: b.text, bookId: b.bookId, bookName: b.bookName, chapter: b.chapter, verseStart: b.verseStart, verseEnd: b.verseEnd }] }); setAdHocIdx(b.parte || 0); setBlanked(false); }; // b.parte: arrancar en esa parte de un versículo largo
+  const startAdHocSong = (song) => { setAdHoc({ label: `Canción: ${song.title}`, slides: songToSlides("adhoc-cancion", song, song.defaultStructure) }); setAdHocIdx(0); setBlanked(false); };
+  const startAdHocVideo = (url) => { setAdHoc({ label: "Video", slides: [{ slideId: "adhoc-video", type: "slide", title: "", subtitle: "", bg: "#000", bgType: "video", videoUrl: url }] }); setAdHocIdx(0); setBlanked(false); };
+  // Como PowerPoint: la proyección solo se abre si hay una segunda pantalla (proyector/monitor)
+  // realmente conectada y detectada — si no hay una, no se abre nada (nunca sobre la misma pantalla
+  // del panel de control). Requiere Chrome/Edge (Window Management API).
+  // Ventana con nombre fijo: si ya está abierta, la reutiliza/enfoca en vez de abrir una duplicada.
+  const PROYECCION_WINDOW_NAME = "worshipflow-proyeccion";
+  const PROYECCION_WINDOW_FEATURES = "toolbar=no,menubar=no,location=no,status=no,directories=no,scrollbars=no";
+  // Se guarda apenas se detectan las pantallas (ver useEffect más abajo) para que, al hacer clic en
+  // "Iniciar evento"/"Reabrir proyección", window.open ocurra en el mismo tick del clic sin esperar un
+  // permiso async de por medio — así el navegador sigue viendo la ventana como abierta por gesto del
+  // usuario y le permite pedir pantalla completa sola, sin que el operador tenga que darle un clic extra.
+  const screenDetailsRef = useRef(null);
+  useEffect(() => {
+    if (!("getScreenDetails" in window)) return;
+    window.getScreenDetails().then((sd) => { screenDetailsRef.current = sd; }).catch(() => {});
+  }, []);
+  // Respaldo real (reportado por Eldin: el primer "Iniciar evento" del día salía sin pantalla completa
+  // -- con la barra del navegador visible -- y recién el segundo o tercero entraba limpio): en algunos
+  // navegadores, getScreenDetails() sin NINGÚN gesto todavía en esta carga de página no se resuelve a
+  // tiempo aunque el permiso ya esté concedido de antes -- hace falta al menos un clic/toque real en
+  // esta navegación, no necesariamente el de "Iniciar evento" mismo. Este reintenta en el PRIMER
+  // toque de cualquier parte de la app (una vez, se desactiva solo), para que screenDetailsRef ya esté
+  // listo bastante antes de que el operador llegue navegando hasta el botón de verdad.
+  useEffect(() => {
+    if (!("getScreenDetails" in window) || screenDetailsRef.current) return;
+    const reintentar = () => {
+      if (screenDetailsRef.current) return;
+      window.getScreenDetails().then((sd) => { screenDetailsRef.current = sd; }).catch(() => {});
+    };
+    document.addEventListener("pointerdown", reintentar, { once: true });
+    return () => document.removeEventListener("pointerdown", reintentar);
+  }, []);
+  const openOnOtherScreen = (screenDetails) => {
+    // ?igl=<slug> le dice a PublicScreen (que no tiene sesión iniciada) de qué iglesia leer la sesión
+    // en vivo — ver iglesia_id_por_slug en la migración 20260930000300 y PublicScreen.jsx. Si el slug
+    // todavía no cargó (carrera rara al abrir muy rápido), PublicScreen cae a iglesia_id_por_defecto(),
+    // que sigue siendo correcto mientras exista una sola iglesia.
+    const url = `${window.location.origin}${window.location.pathname}?screen=publico${myIglesia.slug ? `&igl=${encodeURIComponent(myIglesia.slug)}` : ""}${myIglesiaId ? `&iid=${myIglesiaId}` : ""}${codigoPantalla ? `&k=${encodeURIComponent(codigoPantalla)}` : ""}`;
+    const otherScreen = screenDetails.screens.find((s) => s !== screenDetails.currentScreen);
+    if (!otherScreen) {
+      showToast("No se detectó una segunda pantalla conectada. Conecta el proyector/monitor y vuelve a intentar para que se abra ahí solo.");
+      return;
+    }
+    const popup = window.open(url, PROYECCION_WINDOW_NAME, `${PROYECCION_WINDOW_FEATURES},left=${otherScreen.left},top=${otherScreen.top},width=${otherScreen.width},height=${otherScreen.height}`);
+    // Pedir pantalla completa DESDE ACÁ (el opener, justo tras window.open, todavía con el gesto del
+    // clic activo) es más confiable que pedirla desde dentro de la propia ventana emergente una vez
+    // cargada — el "activation" del clic no siempre le alcanza a su propio script para cuando termina
+    // de montar React. Este es el patrón que la documentación de Chrome recomienda para abrir una
+    // ventana en pantalla completa sobre un segundo monitor. PublicScreen.jsx igual mantiene su propio
+    // intento + un botón de respaldo por si el navegador bloquea esto (Firefox, popup reutilizado, etc).
+    if (popup) {
+      const requestFs = () => popup.document?.documentElement?.requestFullscreen?.().catch(() => {});
+      if (popup.document?.readyState === "complete") requestFs();
+      else popup.addEventListener("load", requestFs, { once: true });
+    }
+  };
+  const startPresentation = async () => {
+    if (!("getScreenDetails" in window)) {
+      showToast("Este navegador no permite detectar una segunda pantalla automáticamente. Usa Chrome o Edge para que la proyección se abra sola ahí.");
+      return;
+    }
+    if (screenDetailsRef.current) { openOnOtherScreen(screenDetailsRef.current); return; }
+    try {
+      const screenDetails = await window.getScreenDetails();
+      screenDetailsRef.current = screenDetails;
+      openOnOtherScreen(screenDetails);
+    } catch {
+      showToast("No se pudo detectar las pantallas conectadas (permiso denegado). Conecta el proyector/monitor y vuelve a intentar.");
+    }
+  };
+  // Si ya hay algo en vivo (un evento real o una transmisión libre) y se va a reemplazar por otra cosa,
+  // confirma antes — mismo diálogo para las tres combinaciones (evento→evento, evento→libre, libre→evento).
+  const confirmReplaceLive = async (excludeEventId) => {
+    if (!liveEventId && !liveLibre) return true;
+    if (liveEventId && liveEventId === excludeEventId) return true;
+    const otherTitle = liveLibre ? "Transmisión libre" : events.find((e) => e.id === liveEventId)?.title;
+    return confirmDialog(`"${otherTitle}" ya está en vivo. ¿Finalizarlo e iniciar esto en su lugar?`, { textoConfirmar: "Finalizar e iniciar" });
+  };
+  // Escribe el estado de Modo Músico (líder, canción/sección/tempo/auto-avance actuales) para que se
+  // vea igual en todos los dispositivos de la banda — ver SongView, que es quien de verdad decide CUÁNDO
+  // llamar esto (solo el líder escribe; los seguidores solo leen vía musicoState). Silencioso a propósito:
+  // es una señal de sincronización en vivo frecuente, no algo que merezca una alerta si falla una vez.
+  const updateMusicoState = (patch) => {
+    setMusicoState((s) => ({ ...(s || {}), ...patch }));
+    const dbPatch = {};
+    if ("liderId" in patch) dbPatch.lider_id = patch.liderId;
+    if ("liderNombre" in patch) dbPatch.lider_nombre = patch.liderNombre;
+    if ("songItemId" in patch) dbPatch.song_item_id = patch.songItemId;
+    if ("sectionIdx" in patch) dbPatch.section_idx = patch.sectionIdx;
+    if ("bpm" in patch) dbPatch.bpm = patch.bpm;
+    if ("auto" in patch) dbPatch.auto = patch.auto;
+    if ("heartbeat" in patch) dbPatch.heartbeat = patch.heartbeat;
+    updateMusicoLive(myIglesiaId, dbPatch).catch(() => {});
+  };
+  // Nadie hereda como "líder" de Modo Músico al culto de hoy solo porque lo fue en el anterior — se
+  // limpia al arrancar una transmisión nueva Y al finalizar una (ver endEvent), así que ni "reemplazar"
+  // una en vivo por otra sin pasar por Finalizar (confirmReplaceLive arriba) deja un líder colgado.
+  const resetMusicoLive = () => {
+    setMusicoState(null);
+    setUnidoAlLider(false);
+    clearMusicoLive(myIglesiaId).catch(() => {});
+  };
+  const empezarPractica = (eventId) => {
+    const ev = events.find((e) => e.id === eventId);
+    if (!ev) return;
+    if (userId === liveOwnerId && (liveEventId || liveLibre)) {
+      showToast("Estás transmitiendo en vivo desde esta computadora. Finaliza el culto antes de practicar.");
+      return;
+    }
+    setPractica({ eventId: ev.id, title: ev.title, serviceOrder: JSON.parse(JSON.stringify(ev.serviceOrder || [])) });
+    setActiveIdx(0); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0); setTab("envivo");
+  };
+  const salirPractica = () => {
+    const eventId = practica?.eventId;
+    setPractica(null); setActiveIdx(0); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0);
+    if (eventId) { setSelectedEventId(eventId); setTab("eventos"); } else setTab("eventos");
+  };
+  const avisoPractica = (que) => showToast(`En la práctica no se ${que}. Sal de la práctica para hacerlo de verdad.`);
+  const startEvent = async (eventId) => {
+    if (!(await confirmReplaceLive(eventId))) return;
+    setPractica(null);
+    setLiveEventId(eventId); setLiveLibre(false); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0); resetMusicoLive(); setTab("envivo");
+    startPresentation(); // abre/enfoca la pantalla de proyección de una vez, sin paso manual extra
+  };
+  // Transmitir sin un evento del calendario detrás — para anuncios, oración u otro contenido suelto que
+  // no amerita crear/usar un evento planificado. Todo el contenido sale de "Improvisar" (Biblia/canción/
+  // video) o de diapositivas agregadas a mano (ver libreServiceOrder) — nunca de un setlist real.
+  const startFreeEvent = async () => {
+    if (!(await confirmReplaceLive(null))) return;
+    setPractica(null);
+    setLiveEventId(null); setLiveLibre(true); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); resetMusicoLive(); setTab("envivo");
+    startPresentation();
+  };
+  const endEvent = () => {
+    setLiveEventId(null); setLiveLibre(false); setLiveOwnerId(null); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); setTab("eventos");
+    // También por el canal local: si no hay internet, la pantalla de esta computadora igual se apaga.
+    filaAlAireRef.current = null;
+    const filaFin = { evento_id: null, liderado_por: null, slide_actual: null, blanked: false, estilo_en_vivo: liveStyle, ad_hoc_label: null, libre: false };
+    if (myIglesiaId) { broadcastLiveSession(myIglesiaId, filaFin); enviarAPantallas(myIglesiaId, codigoPantalla, filaFin); }
+    // Al cerrar la sesión, la base cambia el código de las pantallas: el enlace de este culto vence.
+    clearLiveSession(myIglesiaId)
+      .then(() => obtenerCodigoPantalla().then((c) => { if (c) setCodigoPantalla(c); }))
+      .catch((e) => { if (!esFalloDeConexion(e)) notifyError("No se pudo cerrar la sesión en vivo", e); });
+    resetMusicoLive();
+  };
+
+  const toggleFavorite = (songId) => {
+    const song = library.find((s) => s.id === songId);
+    if (!song) return;
+    const nuevoValor = !song.favorite;
+    setLibrary((lib) => lib.map((s) => (s.id === songId ? { ...s, favorite: nuevoValor } : s)));
+    pendingSavesRef.current++;
+    // Solo la marca de favorita (antes reescribía la canción entera: letra, partes y estructura) — así
+    // cualquiera puede marcarla sin tener permiso de editar el cancionero (ver permisos en la base).
+    updateCancion(songId, { favorito: nuevoValor }).catch((e) => notifyError("No se pudo guardar", e)).finally(() => pendingSavesRef.current--);
+  };
+  // Corregir/agregar letra de una canción DESDE la pantalla en vivo de Multimedia (ver MultimediaControl)
+  // — a diferencia de editar la canción desde Canciones (solo administradores), esto lo puede hacer
+  // cualquiera que controle la transmisión (Multimedia también), porque el caso de uso es exactamente
+  // "nos dimos cuenta en pleno culto de que esta letra está mal" y no hay tiempo de ir a buscar a un
+  // administrador. El cambio queda guardado en la canción de una — no es solo para esta transmisión — así
+  // que la próxima vez que se use esta canción (en este evento o en cualquier otro) ya sale bien.
+  // Se aplica sobre la letra COMPLETA tal como se está proyectando y se guarda la canción entera —
+  // ver letraEnVivo.js: tocar una sola fila borraba la canción entera en las que nunca pasaron por
+  // la pestaña Letra.
+  const cambiarLetraEnVivo = (songId, cambio, mensajeError) => {
+    const song = library.find((s) => s.id === songId);
+    if (!song) return false;
+    let nuevaLetra;
+    try {
+      nuevaLetra = typeof cambio === "function" ? cambio(song) : aplicarCambioLetra(song, cambio);
+    } catch (e) {
+      notifyError(mensajeError, e);
+      return false;
+    }
+    setLibrary((lib) => lib.map((s) => (s.id === songId ? { ...s, letra: nuevaLetra } : s)));
+    pendingSavesRef.current++;
+    guardarLetraCancion(songId, nuevaLetra)
+      .catch((e) => notifyError(mensajeError, e))
+      .finally(() => pendingSavesRef.current--);
+    return true;
+  };
+  const editSongSlideLive = (songId, blockKey, slideIndexInBlock, nuevoTexto) =>
+    cambiarLetraEnVivo(songId, { tipo: "editar", blockKey, indice: slideIndexInBlock, texto: nuevoTexto }, "No se pudo guardar la corrección en la canción");
+  // La diapositiva nueva entra justo DESPUÉS de la que se estaba viendo (no al final de la sección), y
+  // solo si trae texto — una vacía nunca se proyecta y antes quedaba "invisible".
+  const addSongSlideLive = (songId, blockKey, afterIndex, texto, cortarDespuesDeLinea) =>
+    cambiarLetraEnVivo(songId, { tipo: "agregar", blockKey, indice: afterIndex, texto, cortarDespuesDeLinea }, "No se pudo agregar la diapositiva");
+  // Borrar o mover diapositivas de una sección desde la consola: la sección se rearma con los pedazos
+  // que quedan, en el orden nuevo (ver rearmarSeccion). También queda guardado en la canción.
+  const rearmarSeccionLive = (songId, blockKey, segmentos, mensajeError) =>
+    cambiarLetraEnVivo(songId, (song) => rearmarSeccion(song, blockKey, segmentos), mensajeError);
+  // Corregir la letra COMPLETA de una canción desde la consola (pedido de Eldin, 2026-10-18): en vez de
+  // diapositiva por diapositiva, se abre todo el texto (cada parte con su nombre, una línea en blanco =
+  // diapositiva nueva) y se guarda de una. Mismo convertidor que la pestaña Escribir del editor de
+  // canciones (textoALetra): las partes que no estén en el texto no se borran. Devuelve los avisos.
+  const editarLetraCompletaLive = (songId, texto) => {
+    const song = library.find((s) => s.id === songId);
+    if (!song) return null;
+    const base = { ...song, letra: letraEfectiva(song) };
+    const r = textoALetra(texto, base);
+    const cambiaronPartes = JSON.stringify(Object.keys(r.blocks)) !== JSON.stringify(Object.keys(song.blocks || {})) || JSON.stringify(r.defaultStructure) !== JSON.stringify(song.defaultStructure || []);
+    if (cambiaronPartes || JSON.stringify(r.blocks) !== JSON.stringify(song.blocks)) {
+      persistSongDraft({ ...song, blocks: r.blocks, letra: r.letra, defaultStructure: r.defaultStructure }).catch((e) => notifyError("No se pudo guardar la letra", e));
+    } else {
+      cambiarLetraEnVivo(songId, () => r.letra, "No se pudo guardar la letra");
+    }
+    return r.avisos || [];
+  };
+  // Transporta la canción completa a una nueva tonalidad: recalcula todos los acordes de todos los bloques.
+  const transposeSong = (songId, newKey) => {
+    let transposed = null;
+    setLibrary((lib) => lib.map((s) => {
+      if (s.id !== songId) return s;
+      const semitones = semitoneShift(s.key, newKey);
+      const blocks = Object.fromEntries(Object.entries(s.blocks).map(([key, b]) => [key, { ...b, lines: b.lines.map((l) => transposeLine(l, semitones)) }]));
+      transposed = { ...s, key: newKey, blocks };
+      return transposed;
+    }));
+    if (transposed) {
+      pendingSavesRef.current++;
+      guardarCancionDesdeEditor(transposed, true, userId).catch((e) => notifyError("No se pudo guardar la transposición", e)).finally(() => pendingSavesRef.current--);
+    }
+  };
+  // Guarda el borrador en Supabase y refleja el resultado en la librería en memoria, sin decidir qué
+  // pantalla mostrar después — lo reutilizan tanto "Guardar" (que sí navega a la vista de la canción)
+  // como la confirmación de "Guardar y salir" al presionar atrás con cambios sin guardar (que navega
+  // a donde el usuario iba, no de vuelta a la canción).
+  const persistSongDraft = (draft) => {
+    const existeEnDb = library.some((s) => s.id === draft.id);
+    pendingSavesRef.current++;
+    return guardarCancionDesdeEditor(draft, existeEnDb, userId).then((idReal) => {
+      const guardado = { ...draft, id: idReal };
+      setLibrary((lib) => (existeEnDb ? lib.map((s) => (s.id === draft.id ? guardado : s)) : [...lib, guardado]));
+      return idReal;
+    }).finally(() => pendingSavesRef.current--);
+  };
+  const saveSong = (draft) => {
+    return persistSongDraft(draft)
+      .then((idReal) => setOpenSong({ id: idReal, mode: "view" }))
+      .catch((e) => { notifyError("No se pudo guardar la canción", e); throw e; });
+  };
+  const deleteSong = async (song) => {
+    if (!(await confirmDialog(`¿Eliminar "${song.title}"? Esto no se puede deshacer.`, { danger: true, textoConfirmar: "Eliminar" }))) return;
+    setLibrary((lib) => lib.filter((s) => s.id !== song.id));
+    setOpenSong(null);
+    deleteCancion(song.id).catch((e) => notifyError("No se pudo eliminar la canción", e));
+  };
+  // Cuando un evento nace clonado de una plantilla, se marca como "recién armado" (solo en memoria,
+  // nada nuevo en la base de datos) para que EventDetail le muestre el botón "Publicar evento" — un
+  // simple "ya terminé de configurar esto" que regresa a la lista, ya que el evento se fue guardando
+  // solo desde el instante en que se creó (mismo patrón de autoguardado que ya usa toda la app).
+  const [draftFromTemplateId, setDraftFromTemplateId] = useState(null);
+  const createEvent = ({ templateId, title, dateLabel, date, hora, location, esPlantilla }) => {
+    const template = events.find((e) => e.id === templateId);
+    const newEvent = {
+      id: nextId(),
+      title, dateLabel, date, hora: hora || null, location,
+      openPositions: template ? template.openPositions : 0,
+      cover: template ? template.cover : DEFAULT_COVERS[events.length % DEFAULT_COVERS.length],
+      serviceOrder: template ? cloneServiceOrder(template.serviceOrder) : [],
+      worshipRoles: template ? cloneWorshipRoles(template.worshipRoles || []) : [],
+      reminders: template ? cloneRecordatorios(template.reminders) : [],
+      vistas: [],
+      esPlantilla: !!esPlantilla,
+    };
+    setEventsSynced((evs) => [...evs, newEvent]);
+    crearEventoCompleto(newEvent, userId).catch((e) => notifyError("No se pudo guardar el evento", e));
+    setSelectedEventId(newEvent.id);
+    if (template && !esPlantilla) setDraftFromTemplateId(newEvent.id);
+  };
+  const deleteEvent = async (event) => {
+    if (event.id === liveEventId) { showToast("No puedes eliminar un evento que está en vivo — finalízalo primero."); return; }
+    if (!(await confirmDialog(`¿Eliminar "${event.title}"? Esto borra también su Setlist y sus encargados. No se puede deshacer.`, { danger: true, textoConfirmar: "Eliminar" }))) return;
+    setEventsSynced((evs) => evs.filter((e) => e.id !== event.id));
+    setSelectedEventId(null);
+    deleteEvento(event.id).catch((e) => notifyError("No se pudo eliminar el evento", e));
+  };
+
+  // Recordatorios: mismo patrón que updateMinistry — calcula el nuevo valor dentro del setter y
+  // sincroniza con ESE valor (no con el estado viejo que todavía tendría el closure).
+  const updateEventReminders = (eventId, fn) => {
+    let nuevo = null;
+    setEventsSynced((evs) => evs.map((e) => {
+      if (e.id !== eventId) return e;
+      nuevo = fn(e);
+      return nuevo;
+    }));
+    if (nuevo) {
+      pendingSavesRef.current++;
+      sincronizarRecordatorios(eventId, nuevo.reminders).catch((e) => notifyError("No se pudo guardar el recordatorio", e)).finally(() => pendingSavesRef.current--);
+    }
+  };
+  const addReminder = (eventId, cantidad, unidad) => updateEventReminders(eventId, (e) => ({ ...e, reminders: [...(e.reminders || []), { id: nextId(), cantidad, unidad, enviado: false }] }));
+  const removeReminder = (eventId, reminderId) => updateEventReminders(eventId, (e) => ({ ...e, reminders: (e.reminders || []).filter((r) => r.id !== reminderId) }));
+  const setEventHora = (eventId, hora) => {
+    setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, hora: hora || null } : e)));
+    updateEvento(eventId, { hora: hora || null }).catch((e) => notifyError("No se pudo guardar la hora", e));
+  };
+  // Ensayo y nota de quien dirige (ver InicioView y EnsayoAlabanzaCard). Se guarda al terminar de editar.
+  const setEventEnsayo = (eventId, { ensayoFecha, ensayoHora, notaAlabanza }) => {
+    setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, ensayoFecha: ensayoFecha || null, ensayoHora: ensayoHora || null, notaAlabanza: notaAlabanza || "" } : e)));
+    return updateEvento(eventId, { ensayo_fecha: ensayoFecha || null, ensayo_hora: ensayoHora || null, nota_alabanza: (notaAlabanza || "").trim() || null })
+      .catch((e) => { notifyError("No se pudo guardar el ensayo", e); throw e; });
+  };
+  // Edita los datos propios del evento/plantilla (título, fecha, hora, ubicación) DESPUÉS de creado —
+  // antes solo se podían fijar una vez, al crearlo, y no había forma de corregirlos ni de renombrar
+  // una plantilla ya armada.
+  const updateEventDetails = (eventId, { title, dateLabel, date, hora, location }) => {
+    setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, title, dateLabel: dateLabel || "", date: date || null, hora: hora || null, location: location || "" } : e)));
+    updateEvento(eventId, { titulo: title, fecha_label: dateLabel || null, fecha: date || null, hora: hora || null, ubicacion: location || null })
+      .catch((e) => notifyError("No se pudo guardar el evento", e));
+  };
+
+  const favoritesCount = library.filter((s) => s.favorite).length;
+
+  // ---- Identidad y control de acceso REALES: vienen de la cuenta con la que iniciaste sesión (perfil,
+  // desde AuthGate) — ya no un selector que cualquiera podía cambiarse solo. Un rol lo asigna un
+  // administrador desde Usuarios. Solo un administrador puede "probar" cómo se ve la app con otro
+  // rol/persona (ver Ajustes) — para todos los demás su acceso queda fijo a su cuenta real.
+  const ROLE_DB_TO_LABEL = { admin: "Administrador", multimedia: "Multimedia", musico: "Músico", miembro: "Miembro", supervisor: "Supervisor" };
+  const realIsAdmin = perfil?.rol === "admin";
+  const realRoleLabel = ROLE_DB_TO_LABEL[perfil?.rol] || "Miembro";
+  const realName = perfil?.nombre || "";
+  // Fase 2b (multi-iglesia): sesiones_en_vivo/musico_en_vivo son una fila POR IGLESIA, no una sola
+  // para toda la base — ver src/lib/liveSession.js y src/lib/musicoLive.js. Todo lo que las toca en
+  // este componente necesita saber la iglesia del usuario actual; perfil ya la trae (columna
+  // iglesia_id agregada en la Fase 2a).
+  const myIglesiaId = perfil?.iglesia_id;
+  // myIglesia (slug/nombre/logo/colores) y el useEffect que aplica --wf-brand-primary/accent ya NO
+  // viven acá — se movieron a AuthGate.jsx (que los pasa como prop) porque este componente se
+  // DESMONTA por completo al entrar a Usuarios/Roles/Consola general (son vistas hermanas, no hijas,
+  // ver AuthGate.jsx) — el useEffect de acá limpiaba las variables de color apenas se desmontaba,
+  // así que el color personalizado "se perdía" (volvía al de Buen Pastor) justo al entrar a esas
+  // pantallas. AuthGate SÍ se queda montado siempre que haya sesión, sin importar la vista.
+  const [roleOverride, setRoleOverride] = useState(null); // solo un admin lo puede poner (ver Ajustes)
+  const [nameOverride, setNameOverride] = useState(null);
+  const [usuariosRealesSinOrden, setUsuariosReales] = useState([]); // miembros de ESTA iglesia
+  const usuariosReales = useMemo(() => ordenarPor(usuariosRealesSinOrden, (u) => u.nombre), [usuariosRealesSinOrden]); // alfabético
+  // Filtro explícito por iglesia: la RLS ya limita a la propia iglesia a casi todos, pero un super
+  // administrador de la plataforma (Consola general) tiene además permiso de ver usuarios de TODAS
+  // las iglesias, y sin este filtro le aparecían mezclados con los suyos en toda la app.
+  useEffect(() => {
+    if (!perfil?.iglesia_id) return;
+    supabase.from("usuarios").select("id, nombre, rol, rol_id, foto_url").eq("iglesia_id", perfil.iglesia_id).order("nombre").then(({ data }) => setUsuariosReales(data || []));
+  }, [perfil?.iglesia_id]);
+  // ---- Roles configurables (Ajustes → Roles): además de los 5 roles de fábrica (admin/multimedia/
+  // musico/miembro/supervisor, chequeados por texto en todo el código de abajo), un administrador
+  // puede crear roles nuevos con permisos a la medida — ver src/lib/roles.js. Los permisos de un rol
+  // configurable se SUMAN (con OR) a los chequeos de texto existentes, nunca los reemplazan: así
+  // ningún rol de fábrica pierde nada, y un rol nuevo solo gana exactamente lo que el administrador
+  // le activó.
+  const [rolesApp, setRolesApp] = useState([]);
+  useEffect(() => {
+    supabase.from("roles_app").select("id, nombre, permisos, protegido").then(({ data }) => setRolesApp(data || []));
+  }, []);
+
+  // ---- Notificaciones (campanita del header): carga las propias al entrar y se suscribe en tiempo
+  // real a las nuevas (asignaciones, recordatorios de eventos) — mismo patrón que subscribeLiveSession.
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  useEffect(() => {
+    listMisNotificaciones(userId).then(setNotifications).catch(() => {});
+    const unsubscribe = subscribeNotificaciones(userId, (fila) => setNotifications((ns) => [fila, ...ns]));
+    return unsubscribe;
+  }, [userId]);
+  const unreadCount = notifications.filter((n) => !n.leido).length;
+  const openNotification = (n) => {
+    if (!n.leido) {
+      setNotifications((ns) => ns.map((x) => (x.id === n.id ? { ...x, leido: true } : x)));
+      marcarLeida(n.id).catch(() => {});
+    }
+    if (n.evento_id) { setShowNotifications(false); goToEvent(n.evento_id); }
+  };
+  const markAllNotificationsRead = () => {
+    setNotifications((ns) => ns.map((n) => ({ ...n, leido: true })));
+    marcarTodasLeidas(userId).catch(() => {});
+  };
+  const myRole = realIsAdmin && roleOverride ? roleOverride : realRoleLabel;
+  // ---- Permisos de un rol CONFIGURABLE (Ajustes → Roles) para la identidad actualmente activa —
+  // la real, o la que se esté simulando si es un administrador probando "Simular identidad". Se
+  // resuelve aquí (antes de myUserId, que no existe todavía en este punto) para poder usarlo abajo
+  // en canControlLive/canStartLive/isAdminViewer/esSupervisorViewer.
+  const identidadActivaRow = realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride) : usuariosReales.find((u) => u.id === userId);
+  const rolPersonalizadoActivo = identidadActivaRow?.rol_id ? rolesApp.find((r) => r.id === identidadActivaRow.rol_id) : null;
+  const tienePermiso = (clave) => !!rolPersonalizadoActivo?.permisos?.[clave];
+  // Administrador y Multimedia controlan la transmisión en vivo — así ningún músico o miembro puede
+  // detenerla por accidente desde su teléfono (ver Ajustes → "Rol de este dispositivo"). Un rol
+  // configurable con el permiso "iniciar_finalizar_vivo"/"controlar_estilo_vivo" también puede.
+  const canControlLive = myRole === "Administrador" || myRole === "Multimedia" || tienePermiso("iniciar_finalizar_vivo") || tienePermiso("controlar_estilo_vivo");
+  // Iniciar la transmisión es más delicado que solo controlarla ya en marcha: Multimedia y Administrador
+  // ven el botón "Iniciar evento", y únicamente desde un escritorio — nunca desde un teléfono, para que
+  // solo se inicie desde el equipo conectado de verdad. Mismo criterio para un rol configurable.
+  const canStartLive = (myRole === "Multimedia" || myRole === "Administrador" || tienePermiso("iniciar_finalizar_vivo")) && !isCompact;
+  // Biblioteca de Canciones (pestaña + favoritas de Inicio): solo Administrador, Músico o un rol
+  // configurable con "ver_canciones" — es lo que distingue a Músico de Miembro. OJO: no afecta el
+  // Setlist de un evento — quien está asignado a Alabanza esa semana sigue viendo sus canciones y
+  // acordes desde el evento (ver decidirVisibilidadSetlist), tenga el rol que tenga.
+  const canSeeCanciones = myRole === "Administrador" || myRole === "Músico" || tienePermiso("ver_canciones") || tienePermiso("gestionar_canciones");
+  useEffect(() => {
+    if (!canSeeCanciones && tab === "canciones") { setTab("inicio"); setOpenSong(null); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSeeCanciones, tab]);
+  const myName = realIsAdmin && nameOverride ? nameOverride : realName;
+  const isAdminViewer = (realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride)?.rol === "admin" : realIsAdmin) || tienePermiso("editar_eventos_setlist");
+  // Permisos más finos que "editar_eventos_setlist" (que sigue existiendo, sin tocar, para quien ya
+  // lo usa): cada uno amplía isAdminViewer SOLO en su propia área, en vez de dar acceso de admin a
+  // todo. Se aplican en el único sitio donde cada componente recibe isAdminViewer como prop (ver más
+  // abajo) — no reemplazan isAdminViewer en general, que sigue gobernando lo demás (simular
+  // identidad, asistente, etc.). Usuarios, roles e identidad de la iglesia son solo del
+  // Administrador real (además lo exige la RLS de usuarios/roles_app/iglesias).
+  // "Organizar eventos" incluye ver todos los eventos y editar su Setlist (ver PERMISOS_APP.incluye).
+  // OJO: myUserId tiene que ir ANTES de lideroGrupoCon/puedeGestionarCanciones, que lo usan al
+  // renderizar — declarado más abajo dejaba la app en blanco para todo el que no es administrador
+  // (bug 2026-10-31: "Cannot access before initialization").
+  const myUserId = realIsAdmin && nameOverride ? usuariosReales.find((u) => u.nombre === nameOverride)?.id : userId;
+  const [ministriesSinOrden, setMinistries] = useState([]);
+  const ministries = useMemo(() => ordenarPor(ministriesSinOrden, (m) => m.name), [ministriesSinOrden]); // alfabético
+  // ¿Lidero algún grupo que le da a su líder este permiso? (permisos por grupo, ver PERMISOS_LIDER)
+  const lideroGrupoCon = (clave) => ministries.some((m) => m.leaderId === myUserId && m.permisosLider?.[clave]);
+  const puedeGestionarEventos = isAdminViewer || tienePermiso("gestionar_eventos"); // Crear eventos y plantillas, ajustes del evento, recordatorios, publicar y eliminar
+  const puedeEditarSetlist = puedeGestionarEventos || tienePermiso("editar_setlist"); // Setlist de un evento: agregar/quitar/reordenar, versículos, slides, tonalidades por evento, encargados y equipo de alabanza
+  const puedeGestionarCanciones = isAdminViewer || tienePermiso("gestionar_canciones") || lideroGrupoCon("gestionar_canciones"); // Biblioteca: crear/editar/transportar/borrar canciones
+  const puedeGestionarMinisterios = isAdminViewer || tienePermiso("gestionar_ministerios"); // Crear ministerios, su planificación, recursos y líder
+  // Al simular otra identidad (ver "Simular identidad" en Ajustes) los eventos visibles también deben
+  // ser los de ESA persona, no los del admin real — si no, probar "¿ve Miembro X solo lo suyo?" no
+  // serviría de nada.
+  // Notas por parte de la canción: las "del líder" las escriben quienes arman el setlist o las canciones.
+  // El clip de una canción se enciende/apaga al momento al agregar/quitar su último adjunto.
+  const marcarAdjuntos = (songId, tiene) => setLibrary((prev) => prev.map((s) => (s.id === songId && s.hasAttachment !== tiene ? { ...s, hasAttachment: tiene } : s)));
+  const notasCtx = useMemo(() => ({ usuarioId: myUserId, nombre: myName, puedeEquipo: puedeEditarSetlist || puedeGestionarCanciones }), [myUserId, myName, puedeEditarSetlist, puedeGestionarCanciones]);
+  // Un evento está "asignado a mí" si me pusieron como encargado de algún bloque/canción/versículo del
+  // Setlist, o si estoy en el roster del equipo de alabanza de ese evento (ej. "Guitarra").
+  // Grupos que lidero — el líder de un grupo ve los eventos donde ese grupo está vinculado a un bloque.
+  const gruposQueLideroYo = useMemo(() => new Set(ministries.filter((m) => m.leaderId === myUserId).map((m) => m.id)), [ministries, myUserId]);
+  const isEventAssignedToMe = (event, uid) =>
+    (event.serviceOrder || []).some((item) => (item.encargados || []).some((m) => m.usuarioId === uid)) ||
+    (event.worshipRoles || []).some((r) => (r.members || []).some((m) => m.usuarioId === uid));
+  // Las plantillas son eventos normales marcados con esPlantilla: no aparecen en el feed de cultos
+  // reales (Inicio, Eventos, Mi Horario), solo en el selector "crear desde plantilla" y en la vista
+  // de administración de plantillas — ambas armadas por administradores generales. Además, solo
+  // administradores y Supervisor ven TODOS los eventos reales sin filtro — todos los demás
+  // (Multimedia, Músico, Miembro) solo ven aquellos a los que efectivamente se les asignó algo. Sin
+  // esto, un Supervisor sin ninguna asignación en un evento puntual (ej. el pastor, que no figura en
+  // ningún bloque del Setlist) ni siquiera veía que ese evento existiera — no alcanzaba con que
+  // decidirVisibilidadSetlist lo dejara ver todo POR DENTRO del evento, si la lista de Eventos ya lo
+  // filtraba afuera antes de poder entrar.
+  const esSupervisorViewer = usuariosReales.find((u) => u.id === myUserId)?.rol === "supervisor" || tienePermiso("ver_todos_eventos");
+  const realEvents = events.filter((e) => !e.esPlantilla && (puedeEditarSetlist || esSupervisorViewer || isEventAssignedToMe(e, myUserId) || (e.serviceOrder || []).some((it) => lideraBloque(it, gruposQueLideroYo))));
+  const plantillas = events.filter((e) => e.esPlantilla);
+  // Agregar versículos al Setlist es de administradores, con una sola excepción: quien esté asignado
+  // como encargado de un bloque de Lectura bíblica/Oración EN ESTE EVENTO puede agregar su propio
+  // versículo para esa lectura, aunque no sea administrador.
+  // Setlist del evento abierto: además del permiso general (rol), el líder de un grupo vinculado a este
+  // evento si su grupo le da "Editar el Setlist".
+  const puedeEditarSetlistEvento = puedeEditarSetlist || permisoLiderEnEvento(selectedEvent, ministries, myUserId, "editar_setlist");
+  const canAddBibleReading = () => puedeEditarSetlistEvento || !!(selectedEvent?.serviceOrder || []).find(
+    (it) => isBibleReadingBlock(it) && (it.encargados || []).some((m) => m.usuarioId === myUserId)
+  );
+  const canAddSermonPoints = () => puedeEditarSetlistEvento;
+  // ---- Bosquejo del predicador (2026-11-01): quien está asignado a un bloque de Predicación (o quien
+  // edita el Setlist) lo arma paso a paso; al enviarlo se vuelve diapositivas del Setlist (ver bosquejos.js).
+  const puedeBosquejo = (block) => esBloquePredicacion(block) && (puedeEditarSetlistEvento || (block.encargados || []).some((m) => m.usuarioId === myUserId));
+  const bloqueBosquejo = bosquejoAbierto ? (selectedEvent?.serviceOrder || []).find((it) => it.id === bosquejoAbierto) : null;
+  // En vivo, el predicador ya no lo cambia (Multimedia sí puede corregir desde la consola).
+  const bosquejoBloqueado = !!bloqueBosquejo && liveEventId === selectedEventId && !puedeEditarSetlistEvento;
+  const ponerBosquejoLocal = (eventoId, bloqueId, guardado) => setEventsSynced((evs) => evs.map((e) => (
+    e.id === eventoId ? { ...e, bosquejos: { ...(e.bosquejos || {}), [bloqueId]: guardado } } : e
+  )));
+  const guardarBorradorBosquejo = async (b) => {
+    const eventoId = selectedEventId, bloqueId = bosquejoAbierto;
+    try {
+      const guardado = await guardarBosquejo(eventoId, bloqueId, b);
+      ponerBosquejoLocal(eventoId, bloqueId, guardado);
+      return guardado;
+    } catch (err) {
+      notifyError("No se pudo guardar el bosquejo", err);
+      throw err;
+    }
+  };
+  const enviarBosquejo = async (b) => {
+    const eventoId = selectedEventId, bloqueId = bosquejoAbierto;
+    try {
+      const guardado = await guardarBosquejo(eventoId, bloqueId, b, { enviado: true });
+      ponerBosquejoLocal(eventoId, bloqueId, guardado);
+      updateOrder((o) => aplicarBosquejoAlOrden(o, bloqueId, bosquejoAItems(b, bloqueId, nextId)));
+      // Aviso a Multimedia (los destinatarios los decide el servidor). Si falla, el bosquejo ya quedó enviado igual.
+      callUsersFunction("notificar-asignacion", { accion: "bosquejo_enviado", bloque_id: bloqueId })
+        .catch((e) => console.warn("No se pudo avisar a Multimedia del bosquejo:", e.message));
+      showToast("Bosquejo enviado. Multimedia ya tiene tus diapositivas.", "info");
+      return guardado;
+    } catch (err) {
+      notifyError("No se pudo enviar el bosquejo", err);
+      throw err;
+    }
+  };
+  const bosquejoInfo = { puede: puedeBosquejo, abrir: setBosquejoAbierto, bosquejos: selectedEvent?.bosquejos || {} };
+
+  // ---- Estilo en vivo de la proyección: declarado más arriba (antes de `slides`), porque el tamaño de
+  // letra decide en cuántas partes se dividen los versículos largos ----
+
+  // ---- Sincroniza la pantalla pública (ventana/dispositivo aparte) vía Supabase Realtime — ya no
+  // BroadcastChannel, que solo funcionaba dentro del mismo navegador: ahora el panel de control y la
+  // proyección pueden estar en computadoras distintas de verdad. Solo transmite mientras hay un
+  // evento en vivo Y este dispositivo es quien lo está llevando (si no, un músico que solo está
+  // observando "En vivo" encendido en su teléfono pisaría por accidente lo que Multimedia proyecta).
+  // ---- Pantalla de escenario (stage display, 2026-11-01): lo que sigue, la parte de la canción, la
+  // siguiente canción, el mensaje de Multimedia y la hora de inicio viajan junto con la diapositiva al
+  // aire (slide_actual.escenario) — ver lib/escenario.js y PantallaEscenario.jsx. ----
+  const [mensajeEscenario, setMensajeEscenario] = useState("");
+  const [inicioVivo, setInicioVivo] = useState(null);
+  const llevoLaTransmision = !practica && !!(liveEventId || liveLibre) && userId === liveOwnerId;
+  // Temporizador del mensaje (2026-11-02): lo maneja Multimedia desde el panel Escenario; se ve grande en
+  // la pantalla de escenario. Puede arrancar solo al empezar la predicación (autoTemporizador).
+  const [temporizador, setTemporizador] = useState(null);
+  const [autoTemporizador, setAutoTemporizador] = useState(() => loadCache("escenario_auto_temporizador") || { activo: false, duracionSeg: 30 * 60 });
+  useEffect(() => { saveCache("escenario_auto_temporizador", autoTemporizador); }, [autoTemporizador]);
+  useEffect(() => {
+    if (!llevoLaTransmision) { setInicioVivo(null); setMensajeEscenario(""); setTemporizador(null); return; }
+    // Si la consola se recarga a mitad del culto, el tiempo sigue contando desde el inicio real (y el temporizador también).
+    const clave = liveEventId || "libre";
+    const guardado = loadCache("escenario_inicio");
+    const inicio = guardado?.clave === clave && guardado?.inicio ? guardado.inicio : new Date().toISOString();
+    saveCache("escenario_inicio", { clave, inicio });
+    setInicioVivo(inicio);
+    const tGuardado = loadCache("escenario_temporizador");
+    setTemporizador(tGuardado?.clave === clave ? tGuardado.t || null : null);
+  }, [llevoLaTransmision, liveEventId]);
+  useEffect(() => {
+    if (llevoLaTransmision) saveCache("escenario_temporizador", { clave: liveEventId || "libre", t: temporizador });
+  }, [temporizador, llevoLaTransmision, liveEventId]);
+  // ¿Lo que está al aire es de la predicación? Al entrar, el temporizador arranca solo (si está activado).
+  const enPredicacion = useMemo(() => {
+    const alAire = fijada || current;
+    if (!llevoLaTransmision || !alAire || adHoc) return false;
+    const orden = liveEvent?.serviceOrder || [];
+    return estaEnPredicacion(orden, orden.find((it) => it.type !== "seccion" && perteneceA(alAire, it.id)) || null);
+  }, [llevoLaTransmision, fijada, current, adHoc, liveEvent]);
+  const enPredicacionAntesRef = useRef(false);
+  useEffect(() => {
+    if (enPredicacion && !enPredicacionAntesRef.current && autoTemporizador.activo && !temporizadorActivo(temporizador)) {
+      setTemporizador(iniciarTemporizador(autoTemporizador.duracionSeg));
+    }
+    enPredicacionAntesRef.current = enPredicacion;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enPredicacion]);
+  const escenario = useMemo(() => {
+    if (!llevoLaTransmision) return null;
+    const alAire = fijada || current || null;
+    const indice = adHoc ? -1 : fijada ? slides.findIndex((x) => x.slideId === fijada.slideId) : activeIdx;
+    return armarEscenario({ slides, indice, alAire, serviceOrder: liveEvent?.serviceOrder || [], library, mensaje: mensajeEscenario, inicio: inicioVivo, bosquejos: liveEvent?.bosquejos || {}, temporizador });
+  }, [llevoLaTransmision, fijada, current, adHoc, slides, activeIdx, liveEvent, library, mensajeEscenario, inicioVivo, temporizador]);
+  const escenarioClave = escenario ? JSON.stringify(escenario) : "";
+
+  useEffect(() => {
+    if (practica || (!liveEventId && !liveLibre) || userId !== liveOwnerId) return;
+    const alAire = (fijada || current) || null;
+    const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: alAire ? (escenario ? { ...alAire, escenario } : alAire) : null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null, libre: liveLibre };
+    // Se manda por las dos vías a la vez: BroadcastChannel llega al instante si la pantalla de
+    // proyección está en la MISMA computadora (caso típico: TV por HDMI como segunda pantalla) — así el
+    // cambio de diapositiva no depende del internet del lugar, igual que un presentador local. Supabase
+    // sigue siendo el camino real cuando la proyección de verdad está en otro dispositivo aparte.
+    if (!myIglesiaId) return;
+    filaAlAireRef.current = fila;
+    broadcastLiveSession(myIglesiaId, fila);
+    enviarAPantallas(myIglesiaId, codigoPantalla, fila);
+    // Sin internet (2026-10-17): la pantalla en ESTA computadora ya recibió el cambio por el canal local,
+    // así que la falla de internet no se avisa en cada diapositiva (asustaba sin razón). Se anota como
+    // pendiente y se manda solo apenas vuelve la señal (ver el efecto de "online" justo abajo).
+    updateLiveSession(myIglesiaId, fila)
+      .then(() => { sincroPendienteRef.current = false; })
+      .catch((e) => { if (esFalloDeConexion(e)) sincroPendienteRef.current = true; else notifyError("No se pudo actualizar la proyección", e); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId, practica, fijada, escenarioClave, codigoPantalla]);
+  // Código vigente de las pantallas: al abrir la app y cada vez que empieza una transmisión (al terminar
+  // lo pide endEvent, DESPUÉS de cerrar la sesión, para no quedarse con el código que acaba de vencer).
+  const codigoPedidoRef = useRef(false);
+  useEffect(() => {
+    if (!myIglesiaId) return;
+    if (codigoPedidoRef.current && !liveEventId && !liveLibre) return;
+    codigoPedidoRef.current = true;
+    let vivo = true;
+    obtenerCodigoPantalla().then((c) => { if (vivo && c) setCodigoPantalla(c); });
+    return () => { vivo = false; };
+  }, [myIglesiaId, liveEventId, liveLibre]);
+  // Lo que está al aire ahora: para responderle a una pantalla de proyección que se abre o se recarga
+  // sin internet, y para mandarlo a Supabase cuando vuelve la señal.
+  useEffect(() => {
+    if (!myIglesiaId) return;
+    const quitarRespuesta = responderPedidosDeEstado(myIglesiaId, () => filaAlAireRef.current);
+    const alVolver = () => {
+      if (!sincroPendienteRef.current || !filaAlAireRef.current) return;
+      updateLiveSession(myIglesiaId, filaAlAireRef.current).then(() => { sincroPendienteRef.current = false; }).catch(() => {});
+    };
+    window.addEventListener("online", alVolver);
+    return () => { quitarRespuesta(); window.removeEventListener("online", alVolver); };
+  }, [myIglesiaId]);
+
+  // ---- Sincroniza EN TIEMPO REAL, en todos los dispositivos, si hay un evento en vivo ahora mismo y
+  // quién lo está llevando — así el indicador "En vivo" (pestaña, franja de Inicio, tarjeta del evento)
+  // se enciende para músicos/miembros apenas Multimedia inicia la transmisión, sin que cada quien tenga
+  // que haberlo iniciado desde su propio teléfono. Antes esto era solo estado local: cada dispositivo
+  // solo se enteraba de un evento en vivo si ÉL MISMO lo había iniciado.
+  useEffect(() => {
+    if (!myIglesiaId) return;
+    getLiveSession(myIglesiaId)
+      .then((fila) => {
+        // Si a alguien se le olvidó tocar "Finalizar evento" (ej. se cerró la compu al terminar el
+        // culto), la sesión se queda marcada en vivo para SIEMPRE — cualquiera que abra la app un día
+        // después (o meses después) la hereda como si el culto siguiera transmitiendo. Un día entero sin
+        // ningún cambio (updateLiveSession se llama en cada diapositiva/estilo mientras alguien la está
+        // usando de verdad) es buena señal de que quedó abandonada, así que el primer dispositivo que
+        // abre la app después de eso la cierra sola, sin pedirle nada a nadie.
+        const abandonada = (fila?.evento_id || fila?.libre) && fila?.updated_at && (Date.now() - new Date(fila.updated_at).getTime() > LIVE_SESSION_STALE_MS);
+        if (abandonada) {
+          clearLiveSession(myIglesiaId).catch(() => {});
+          setLiveEventId(null); setLiveOwnerId(null); setLiveLibre(false);
+          return;
+        }
+        setLiveEventId(fila?.evento_id || null); setLiveOwnerId(fila?.liderado_por || null); setLiveLibre(!!fila?.libre);
+        adoptarEstiloGuardado(fila?.estilo_en_vivo);
+      })
+      .catch(() => {});
+    const unsubscribe = subscribeLiveSession(myIglesiaId, (fila) => {
+      setLiveEventId(fila.evento_id || null);
+      setLiveOwnerId(fila.liderado_por || null);
+      setLiveLibre(!!fila.libre);
+      // Solo si lo cambió OTRO dispositivo: quien transmite ya tiene su estilo, y adoptar su propio eco
+      // volvería a disparar el envío de la sesión.
+      if (fila.liderado_por !== userIdRef.current) adoptarEstiloGuardado(fila.estilo_en_vivo);
+    });
+    return unsubscribe;
+  }, [myIglesiaId]);
+
+  // ---- Modo Músico líder/seguidor: estado propio (tabla musico_en_vivo, no sesiones_en_vivo — ver
+  // src/lib/musicoLive.js) para que cualquier músico pueda tomar el mando sin necesitar el permiso de
+  // escritura restringido a Multimedia. Se sincroniza siempre (no solo mientras hay un evento en vivo):
+  // el "active" real por evento lo decide cada SongView con isLiveNow, esto solo mantiene musicoState al día.
+  useEffect(() => {
+    if (!myIglesiaId) return;
+    const refrescar = () => getMusicoLive(myIglesiaId).then((fila) => setMusicoState(filaAMusicoState(fila))).catch(() => {});
+    refrescar();
+    const unsubscribe = subscribeMusicoLive(myIglesiaId, (fila) => setMusicoState(filaAMusicoState(fila)));
+    // Si ESTE dispositivo (el líder, por ejemplo) es el que se quedó sin internet, no solo deja de
+    // avisar que sigue vivo — también deja de ENTERARSE de lo que pasó mientras estuvo desconectado
+    // (ej. que alguien más tomó el mando con el botón de "reiniciar"). Realtime no reenvía los
+    // cambios perdidos durante el corte, así que sin este refresco al volver la señal, el líder
+    // original podría reaparecer todavía creyéndose líder y pisarle el mando a quien lo tomó de
+    // verdad. "online" fuerza a traer el estado real de una en cuanto vuelve la conexión.
+    window.addEventListener("online", refrescar);
+    return () => { unsubscribe(); window.removeEventListener("online", refrescar); };
+  }, [myIglesiaId]);
+
+  // ---- Ministerios ----
+  // (ministries se declara más arriba, junto a isEventAssignedToMe — la lista de eventos lo necesita)
+  const [selectedMinistryId, setSelectedMinistryId] = useState(null);
+  // Grupos: solo administradores ven todos; quien lidera uno o más grupos ve la pestaña pero solo SUS
+  // propios grupos (no los de los demás), aunque tenga dos o más asignados. Quien solo está a cargo de
+  // un bloque del Setlist vinculado a un ministerio NO necesita entrar a Grupos para nada de eso — ya
+  // ve la planificación y los recursos completos directamente en su bloque del Setlist (ver
+  // RestrictedGroupPanel), sin exponerle una pestaña aparte.
+  const myMinistries = ministries.filter((m) => m.leaderId === myUserId);
+  const canSeeGrupos = puedeGestionarMinisterios || myMinistries.length > 0;
+  const visibleMinistries = puedeGestionarMinisterios ? ministries : myMinistries;
+  // Guarda en Supabase solo la parte que de verdad cambió (plan o recursos), comparando por
+  // referencia — cada mutador de abajo crea un array nuevo únicamente para lo que tocó.
+  const updateMinistry = (id, fn) => {
+    let anterior = null, nuevo = null;
+    setMinistries((ms) => ms.map((m) => {
+      if (m.id !== id) return m;
+      anterior = m;
+      nuevo = fn(m);
+      return nuevo;
+    }));
+    if (!nuevo) return;
+    // pendingSavesRef: mientras el guardado está en vuelo, el refresco en tiempo real no adopta datos
+    // (ni cambia la línea base que este guardado está usando).
+    if (nuevo.plan !== anterior.plan) {
+      pendingSavesRef.current++;
+      sincronizarPlan(id, nuevo.plan).catch((e) => notifyError("No se pudo guardar la planificación", e)).finally(() => pendingSavesRef.current--);
+    }
+    if (nuevo.resources !== anterior.resources) {
+      pendingSavesRef.current++;
+      sincronizarRecursos(id, nuevo.resources).catch((e) => notifyError("No se pudo guardar el recurso", e)).finally(() => pendingSavesRef.current--);
+    }
+  };
+  // La planificación se edita como borrador local dentro de MinistryDetail (ver planDraft ahí) y solo
+  // llega hasta acá cuando se toca "Guardar planificación" — un solo guardado con todo el arreglo final,
+  // no uno por cada tecla, para no chocar con el refresco de sincronizarTableChanges (ver realtime.js).
+  const savePlanForMinistry = async (id, plan) => {
+    setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, plan } : m)));
+    pendingSavesRef.current++;
+    try { await sincronizarPlan(id, plan); } finally { pendingSavesRef.current--; }
+  };
+  const addResource = (id, resource) => updateMinistry(id, (m) => ({ ...m, resources: [...m.resources, { id: nextMinistryChildId(), ...resource }] }));
+  const editResource = (id, resourceId, patch) => updateMinistry(id, (m) => ({ ...m, resources: m.resources.map((r) => (r.id === resourceId ? { ...r, ...patch } : r)) }));
+  const removeResource = (id, resourceId) => updateMinistry(id, (m) => ({ ...m, resources: m.resources.filter((r) => r.id !== resourceId) }));
+  const createMinistry = ({ name, leaderId, color }) => {
+    const leaderName = usuariosReales.find((u) => u.id === leaderId)?.nombre || "";
+    const newM = { id: nextId(), name, leaderId: leaderId || null, leaderName, color, memberCount: 0, plan: [], resources: [] };
+    setMinistries((ms) => [...ms, newM]);
+    crearMinisterio(newM, userId).catch((e) => notifyError("No se pudo guardar el ministerio", e));
+    setSelectedMinistryId(newM.id);
+  };
+  const setMinistryLeader = (id, leaderId) => {
+    const previousLeaderId = ministries.find((m) => m.id === id)?.leaderId || null;
+    const leaderName = usuariosReales.find((u) => u.id === leaderId)?.nombre || "";
+    const ministryName = ministries.find((m) => m.id === id)?.name || "un grupo";
+    setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, leaderId: leaderId || null, leaderName } : m)));
+    actualizarLiderMinisterio(id, leaderId || null).catch((e) => notifyError("No se pudo actualizar el líder", e));
+    if (leaderId) notificarAsignacion(leaderId, { titulo: "Se te ha asignado", cuerpo: `Como líder del grupo "${ministryName}". Podrás asignar encargados en los bloques del Setlist vinculados a este grupo.` });
+    if (previousLeaderId && previousLeaderId !== leaderId) notificarAsignacion(previousLeaderId, { titulo: "Ya no eres líder", cuerpo: `Dejaste de ser líder del grupo "${ministryName}".` });
+  };
+  const setMinistryName = (id, name) => {
+    setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, name } : m)));
+    actualizarNombreMinisterio(id, name).catch((e) => notifyError("No se pudo actualizar el nombre", e));
+  };
+  const setMinistryPermisosLider = (id, permisosLider) => {
+    const anteriores = ministries.find((m) => m.id === id)?.permisosLider || {};
+    setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, permisosLider } : m)));
+    actualizarPermisosLider(id, permisosLider).catch((e) => {
+      setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, permisosLider: anteriores } : m)));
+      notifyError("No se pudo guardar lo que puede hacer el líder", e);
+    });
+  };
+  const setMinistryColor = (id, color) => {
+    setMinistries((ms) => ms.map((m) => (m.id === id ? { ...m, color } : m)));
+    actualizarColorMinisterio(id, color).catch((e) => notifyError("No se pudo actualizar el color", e));
+  };
+  // Borrar un ministerio deja sin vincular (no borra) cualquier bloque del Setlist que lo usaba —
+  // items_servicio.ministerio_id tiene ON DELETE SET NULL — así que ningún evento pasado se rompe,
+  // solo deja de traer la planificación automática y vuelve a mostrar su descripción escrita a mano.
+  const deleteMinistry = async (ministry) => {
+    if (!(await confirmDialog(`¿Eliminar el grupo "${ministry.name}"? Esto no se puede deshacer. Los bloques del Setlist que lo tenían vinculado dejarán de traer su planificación sola.`, { danger: true, textoConfirmar: "Eliminar" }))) return;
+    setMinistries((ms) => ms.filter((m) => m.id !== ministry.id));
+    setSelectedMinistryId(null);
+    eliminarMinisterio(ministry.id).catch((e) => notifyError("No se pudo eliminar el grupo", e));
+  };
+
+  // ---- Botón "atrás" real ----
+  // Cada pantalla dentro de la app (una pestaña, un evento abierto, una canción abierta, un ministerio
+  // abierto) se empuja como su propia entrada del historial del navegador. Así, el botón/gesto "atrás"
+  // del teléfono o del navegador va regresando pantalla por pantalla — como cualquier app real — en vez
+  // de salir de la app de un solo salto. Los botones "‹ Volver" de la propia interfaz usan exactamente
+  // el mismo mecanismo (history.back()), así que ambos caminos siempre coinciden.
+  const isPoppingNavRef = useRef(false);
+  const hasMountedNavRef = useRef(false);
+  // Si el estado (sin importar la pestaña) no tiene nada "abierto" es una pantalla raíz de esa pestaña.
+  const isRootState = (s) => !s.selectedEventId && !s.openSong && !s.selectedMinistryId;
+  // true mientras estemos parados exactamente en Inicio-raíz sin haber avanzado a otra pestaña todavía.
+  const isAtHomeRootRef = useRef(true);
+  // Última combinación tab/evento/ministerio/canción que de verdad se apiló o reemplazó — se usa para
+  // detectar un "movimiento lateral" (deslizar/Siguiente a OTRA canción dentro del mismo lector) y así
+  // decidir reemplazar en vez de apilar (ver más abajo).
+  const prevNavRef = useRef({ tab, selectedEventId, openSong, selectedMinistryId });
+  // El listener de "popstate" se registra UNA sola vez (deps: []), así que su closure nunca ve valores
+  // actualizados de tab/openSong/etc. — estos refs, sincronizados en cada render, son cómo lee los
+  // valores VIGENTES al momento real en que se dispara el evento (ej. para el guard de SongEditor abajo).
+  const tabRef = useRef(tab);
+  const selectedEventIdRef = useRef(selectedEventId);
+  const openSongRef = useRef(openSong);
+  const selectedMinistryIdRef = useRef(selectedMinistryId);
+  useEffect(() => {
+    tabRef.current = tab; selectedEventIdRef.current = selectedEventId; openSongRef.current = openSong; selectedMinistryIdRef.current = selectedMinistryId;
+  }, [tab, selectedEventId, openSong, selectedMinistryId]);
+  // Si se está editando una canción con cambios sin guardar y se sale por el botón "‹" propio o por
+  // cambiar de pestaña, se pregunta si guardar o descartar (ver requestLeaveSongEditor más abajo). Por
+  // atrás físico/gesto NO se pregunta — ya se intentó cancelar esa navegación desde JS reapilando el
+  // historial (para poder mostrar la misma alerta) y resultó poco confiable en celulares/PWA: el gesto
+  // quedaba a medias y la pantalla se trababa sin dejar salir del editor. En su lugar se guarda solo,
+  // sin preguntar, y se deja pasar la navegación normal — así nunca se pierde nada de todas formas.
+  const songEditDirtyRef = useRef(false);
+  const songDraftGetterRef = useRef(null);
+  const [songExitPrompt, setSongExitPrompt] = useState(false);
+  const pendingNavigateRef = useRef(null);
+  // Aviso breve (no bloqueante) para cuando el atrás físico/gesto guarda solo, sin preguntar — así queda
+  // claro que el cambio no se perdió aunque no haya salido la alerta de guardar/descartar.
+  const [songAutoSaveToast, setSongAutoSaveToast] = useState(false);
+  const songAutoSaveToastTimeoutRef = useRef(null);
+  useEffect(() => {
+    const onPopState = (e) => {
+      if (!e.state || e.state.screen !== "app-nav") return;
+      const editingSongNow = tabRef.current === "canciones" && openSongRef.current?.mode === "edit";
+      if (editingSongNow && songEditDirtyRef.current) {
+        const draft = songDraftGetterRef.current?.();
+        if (draft) {
+          const existeEnDb = libraryRef.current.some((s) => s.id === draft.id);
+          pendingSavesRef.current++;
+          guardarCancionDesdeEditor(draft, existeEnDb, userIdRef.current)
+            .then((idReal) => {
+              const guardado = { ...draft, id: idReal };
+              setLibrary((lib) => (existeEnDb ? lib.map((s) => (s.id === draft.id ? guardado : s)) : [...lib, guardado]));
+              clearTimeout(songAutoSaveToastTimeoutRef.current);
+              setSongAutoSaveToast(true);
+              songAutoSaveToastTimeoutRef.current = setTimeout(() => setSongAutoSaveToast(false), 2200);
+            })
+            .catch((e2) => notifyError("No se pudo guardar la canción", e2))
+            .finally(() => pendingSavesRef.current--);
+        }
+        songEditDirtyRef.current = false;
+      }
+      isPoppingNavRef.current = true;
+      const s = { tab: e.state.tab ?? "inicio", selectedEventId: e.state.selectedEventId ?? null, openSong: e.state.openSong ?? null, selectedMinistryId: e.state.selectedMinistryId ?? null };
+      isAtHomeRootRef.current = s.tab === "inicio" && isRootState(s);
+      prevNavRef.current = s;
+      setTab(s.tab);
+      setSelectedEventId(s.selectedEventId);
+      setOpenSong(s.openSong);
+      setSelectedMinistryId(s.selectedMinistryId);
+    };
+    window.addEventListener("popstate", onPopState);
+    if (!history.state || history.state.screen !== "app-nav") {
+      // Primera vez que esta pantalla existe de verdad (recién cargó la página): siembra la entrada base.
+      history.replaceState({ screen: "app-nav", tab, selectedEventId, openSong, selectedMinistryId }, "");
+    } else {
+      // Nos volvieron a montar (ej. al volver de Usuarios) con una entrada "app-nav" que ya existía en
+      // el historial — sincroniza lo que se ve en pantalla con lo que esa entrada dice de verdad, para
+      // que el historial real del navegador y la pantalla nunca queden desalineados.
+      isPoppingNavRef.current = true;
+      const s = { tab: history.state.tab ?? "inicio", selectedEventId: history.state.selectedEventId ?? null, openSong: history.state.openSong ?? null, selectedMinistryId: history.state.selectedMinistryId ?? null };
+      isAtHomeRootRef.current = s.tab === "inicio" && isRootState(s);
+      prevNavRef.current = s;
+      setTab(s.tab);
+      setSelectedEventId(s.selectedEventId);
+      setOpenSong(s.openSong);
+      setSelectedMinistryId(s.selectedMinistryId);
+    }
+    return () => window.removeEventListener("popstate", onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!hasMountedNavRef.current) { hasMountedNavRef.current = true; return; }
+    if (isPoppingNavRef.current) { isPoppingNavRef.current = false; return; }
+    const prev = prevNavRef.current;
+    const next = { screen: "app-nav", tab, selectedEventId, openSong, selectedMinistryId };
+    if (isRootState(next)) {
+      // Cambiar de pestaña SIN entrar a nada (Eventos → Canciones → Ajustes, todas en su lista raíz) no
+      // debe apilarse: si no, "atrás" te haría retroceder pestaña por pestaña en vez de ir a Inicio de
+      // un solo golpe. Solo la primera vez que nos movemos de Inicio hacia otra pestaña se apila (para
+      // dejar Inicio como piso); de ahí en adelante, moverse entre raíces de pestañas reemplaza.
+      if (tab !== "inicio" && isAtHomeRootRef.current) {
+        history.pushState(next, "");
+      } else {
+        history.replaceState(next, "");
+      }
+      isAtHomeRootRef.current = tab === "inicio";
+    } else {
+      // Moverse de UNA canción abierta a OTRA sin cambiar de evento/pestaña/ministerio (deslizar o
+      // "Siguiente" dentro del lector abierto desde un Setlist) reemplaza en vez de apilar — si no,
+      // "atrás" iría regresando canción por canción en vez de volver de un solo golpe al Setlist/lista
+      // de donde se abrió la primera. Cualquier OTRO tipo de entrada (evento, ministerio, o la primera
+      // canción que se abre) sigue apilando normalmente. OJO: el modo (view/edit) también tiene que
+      // coincidir — si no, pasar de "ver" a "editar" la misma canción (con Editar) se confundía con un
+      // deslizar lateral y REEMPLAZABA la entrada de "ver" en vez de apilar un paso real, así que "atrás"
+      // desde el editor se saltaba la vista de solo lectura en vez de volver a ella.
+      const isLateralSongSwap = !!prev.openSong && !!openSong && prev.openSong.mode === openSong.mode && prev.tab === tab && prev.selectedEventId === selectedEventId && prev.selectedMinistryId === selectedMinistryId;
+      if (isLateralSongSwap) {
+        history.replaceState(next, "");
+      } else {
+        history.pushState(next, "");
+      }
+      isAtHomeRootRef.current = false;
+    }
+    prevNavRef.current = next;
+  }, [tab, selectedEventId, openSong, selectedMinistryId]);
+
+  // Punto único por el que sale cualquier navegación que podría abandonar el editor de canciones (el
+  // botón "‹" propio, o el nav inferior): si hay cambios sin guardar, la detiene y pregunta primero;
+  // si no, la deja pasar de inmediato. `navigateFn` es la acción real (setTab/history.back/etc.).
+  const requestLeaveSongEditor = (navigateFn) => {
+    const editingSongNow = tab === "canciones" && openSong?.mode === "edit";
+    if (editingSongNow && songEditDirtyRef.current) {
+      pendingNavigateRef.current = navigateFn;
+      setSongExitPrompt(true);
+      return;
+    }
+    navigateFn();
+  };
+  const exitSongEditor = () => {
+    songEditDirtyRef.current = false;
+    setSongExitPrompt(false);
+    pendingNavigateRef.current?.();
+    pendingNavigateRef.current = null;
+  };
+  const handleDiscardSongEdit = () => exitSongEditor();
+  const handleSaveSongEdit = () => {
+    const draft = songDraftGetterRef.current?.();
+    if (draft) persistSongDraft(draft).catch((e) => notifyError("No se pudo guardar la canción", e));
+    exitSongEditor();
+  };
+  const handleKeepEditingSong = () => { pendingNavigateRef.current = null; setSongExitPrompt(false); };
+  // Saltar a un evento específico desde Inicio/Ajustes: limpia openSong/selectedMinistryId por la misma
+  // razón que el nav inferior — si no, podía quedar "pegada" una canción o ministerio de otra pestaña.
+  const goToEvent = (id) => requestLeaveSongEditor(() => { setSelectedEventId(id); setOpenSong(null); setSelectedMinistryId(null); setTab("eventos"); });
+
+  // Eventos próximos donde esta persona tiene algún cargo y TODAVÍA no ha confirmado que lo vio (ver
+  // "Te toca..." en EventDetail) — mientras esta lista no esté vacía, se le tapa la app con un aviso
+  // que no puede cerrar sin confirmar (ver el overlay más abajo). A propósito no depende de qué pestaña
+  // esté viendo: si entra por Inicio, por una notificación, por donde sea, se le sigue plantando encima
+  // hasta que confirme, en vez de depender de que ella misma entre a Eventos por su cuenta.
+  // Respaldo en este dispositivo de los eventos que ya marqué como vistos (2026-10-09): si un día la
+  // lista de "vistos" no carga del servidor (sin señal, error momentáneo), el aviso NO debe volver a
+  // salirle a quien ya lo vio. El servidor sigue siendo lo que ve el administrador.
+  const claveVistos = userId ? `worshipflow_vistos_${userId}` : null;
+  const [vistosLocales, setVistosLocales] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(claveVistos) || "[]")); } catch { return new Set(); }
+  });
+  const guardarVistoLocal = (eventId, visto) => setVistosLocales((prev) => {
+    const sig = new Set(prev);
+    if (visto) sig.add(eventId); else sig.delete(eventId);
+    try { localStorage.setItem(claveVistos, JSON.stringify([...sig].slice(-300))); } catch { /* sin almacenamiento local */ }
+    return sig;
+  });
+  const pendingConfirmations = useMemo(() => {
+    if (!userId) return [];
+    return events
+      .filter((e) => !e.esPlantilla && isUpcoming(e))
+      .map((e) => ({ event: e, cargos: misAsignacionesEnEvento(e, userId, library) }))
+      .filter(({ event: e, cargos }) => cargos.length > 0 && !(e.vistas || []).some((v) => v.usuarioId === userId) && !vistosLocales.has(e.id))
+      .sort((a, b) => compareByDay(a.event, b.event));
+  }, [events, userId, library, vistosLocales]);
+  const confirmarAsignacionVista = (eventId) => {
+    // Optimista: se refleja de una vez en pantalla, pero si el guardado real falla (red, permisos,
+    // lo que sea) se revierte y se avisa — antes el error se tragaba en silencio y la persona (y el
+    // admin viéndolo desde otro dispositivo) se quedaban creyendo que sí quedó marcado como visto.
+    setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, vistas: [...(e.vistas || []).filter((v) => v.usuarioId !== userId), { usuarioId: userId, vistoAt: new Date().toISOString() }] } : e)));
+    guardarVistoLocal(eventId, true);
+    marcarAsignacionVista(eventId, userId).catch((err) => {
+      guardarVistoLocal(eventId, false);
+      setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, vistas: (e.vistas || []).filter((v) => v.usuarioId !== userId) } : e)));
+      notifyError("No se pudo confirmar que viste este evento", err);
+    });
+  };
+
+  // ---------------- Tutorial / recorridos guiados ----------------
+  // "bienvenida" sale la primera vez que alguien nuevo entra (miembro invitado o administrador de una
+  // iglesia recién creada); los demás son mini recorridos que salen la primera vez que se abre esa
+  // pantalla. Lo ya visto vive en usuarios.tutoriales_vistos (ver migración 20261002000000) — a los
+  // usuarios que ya existían se les marcó todo como visto. Se guarda optimista: aunque falle la red,
+  // no se le repite en esta sesión.
+  const [tutorialesVistos, setTutorialesVistos] = useState(() => new Set(perfil?.tutoriales_vistos || []));
+  // AuthGate monta este componente con perfil todavía en null (la consulta a "usuarios" es asíncrona,
+  // ver AuthGate.jsx) — el useState de arriba solo lee perfil en ESE primer instante, así que sin esto
+  // el tutorial "ya visto" se perdía en cada apertura nueva de la app (useState no se vuelve a evaluar
+  // cuando perfil llega después). Se MEZCLA con lo que ya había en vez de reemplazarlo, para no pisar un
+  // "recién marcado como visto" de esta misma sesión que todavía no volvió desde el servidor.
+  useEffect(() => {
+    if (!perfil?.tutoriales_vistos?.length) return;
+    setTutorialesVistos((prev) => new Set([...prev, ...perfil.tutoriales_vistos]));
+  }, [perfil?.tutoriales_vistos]);
+  const [tourActivo, setTourActivo] = useState(null); // null | clave del recorrido abierto
+  // Claves con versión (ver CLAVES_TUTORIAL): un recorrido que cambió mucho se le vuelve a mostrar a
+  // todos, no solo a los nuevos.
+  const claveTourParaPantalla = (() => {
+    const C = CLAVES_TUTORIAL;
+    if (!tutorialesVistos.has(C.bienvenida)) return tab === "inicio" ? C.bienvenida : null;
+    if (tab === "eventos" && !selectedEventId && !openSong) return C.eventos;
+    if (tab === "eventos" && selectedEvent && !openSong) return C.evento;
+    if (tab === "canciones" && !openSong) return C.canciones;
+    if (tab === "canciones" && openSong?.mode === "edit") return C.editorCancion;
+    if (tab === "envivo" && liveEvent && !isCompact) return C.envivo;
+    return null;
+  })();
+  const tourPendiente = claveTourParaPantalla && !tutorialesVistos.has(claveTourParaPantalla) ? claveTourParaPantalla : null;
+  // Espera a que la pantalla termine de entrar (animación screen-enter), y a que no esté encima el
+  // aviso obligatorio de "cargos sin confirmar", ni la simulación de identidad de Ajustes.
+  useEffect(() => {
+    if (!datosListos || !tourPendiente || tourActivo || pendingConfirmations.length > 0 || nameOverride) return;
+    const t = setTimeout(() => setTourActivo(tourPendiente), 700);
+    return () => clearTimeout(t);
+  }, [datosListos, tourPendiente, tourActivo, pendingConfirmations.length, nameOverride]);
+  const pasosTour = (() => {
+    const ctx = { esAdmin: realIsAdmin, puedeGestionarEventos, puedeGestionarCanciones };
+    switch (tourActivo) {
+      case CLAVES_TUTORIAL.bienvenida: return pasosBienvenida(ctx);
+      case CLAVES_TUTORIAL.eventos: return pasosEventos(ctx);
+      case CLAVES_TUTORIAL.evento: return pasosEvento(ctx);
+      case CLAVES_TUTORIAL.canciones: return pasosCanciones(ctx);
+      case CLAVES_TUTORIAL.editorCancion: return pasosEditorCancion(ctx);
+      case CLAVES_TUTORIAL.envivo: return pasosEnVivo(ctx);
+      default: return null;
+    }
+  })();
+  const terminarTour = () => {
+    const clave = tourActivo;
+    setTourActivo(null);
+    if (!clave) return;
+    setTutorialesVistos((prev) => new Set(prev).add(clave));
+    marcarTutorialVisto(clave).catch((err) => console.warn("No se pudo guardar el tutorial visto:", err));
+  };
+  const verTutorialDeNuevo = () => {
+    setTutorialesVistos(new Set());
+    setTourActivo(null);
+    setTab("inicio"); setSelectedEventId(null); setOpenSong(null); setSelectedMinistryId(null);
+    reiniciarTutoriales().catch((err) => notifyError("No se pudo reiniciar el tutorial", err));
+  };
+
+  // ---------------- Aviso para activar notificaciones push ----------------
+  // Mucha gente nunca llegó a activarlas (se les invitó antes de que existiera el paso de Ajustes, o
+  // lo saltaron ahí) y por eso no les llegan avisos de asignaciones ni recordatorios. A diferencia de
+  // PushPrompt (AuthGate.jsx, solo al crear la cuenta por primera vez), este aviso vive en Inicio y
+  // puede volver a aparecer más adelante — pero sin bloquear nada: se puede cerrar, y si se cierra no
+  // insiste de nuevo hasta dentro de unos días (fecha guardada en localStorage, por dispositivo —
+  // conveniencia del aparato, no estado que haga falta recordar entre dispositivos). Se fija si tiene
+  // alguna suscripción en CUALQUIER dispositivo (no solo este) para no insistirle a alguien que ya las
+  // activó en su celular solo porque hoy entró desde la computadora.
+  const PUSH_NAG_KEY = "wf_push_aviso_oculto_hasta";
+  const PUSH_NAG_DIAS = 4;
+  const [avisoPush, setAvisoPush] = useState(null); // null = no aplica | { permiso }
+  useEffect(() => {
+    if (!datosListos || !userId) return;
+    const permiso = estadoPermisoNotificacion();
+    if (permiso === "sin-soporte") return; // este navegador nunca va a poder — no insistir
+    tieneAlgunaSuscripcionPush(userId)
+      .then((tiene) => {
+        const accion = decidirAccionPush({ tieneSuscripcion: tiene, permiso });
+        if (accion === "nada") return;
+        if (accion === "reinscribir-en-silencio") {
+          // Si falla (sin red, etc.) se reintenta solo la próxima vez que abra la app — no hace
+          // falta mostrarle nada por un fallo en algo que de entrada no le pedía nada.
+          suscribirPush(userId).catch(() => {});
+          return;
+        }
+        // "mostrar-aviso" — respetando que lo haya cerrado hace poco.
+        let ocultoHasta = 0;
+        try { ocultoHasta = Number(localStorage.getItem(PUSH_NAG_KEY) || 0); } catch { /* localStorage no disponible (incógnito estricto) — se muestra igual */ }
+        if (Date.now() < ocultoHasta) return;
+        setAvisoPush({ permiso });
+      })
+      .catch(() => {}); // sin red, etc. — simplemente no se muestra esta vez, no hay nada más que avisar
+  }, [datosListos, userId]);
+  const ocultarAvisoPush = () => {
+    setAvisoPush(null);
+    try { localStorage.setItem(PUSH_NAG_KEY, String(Date.now() + PUSH_NAG_DIAS * 86_400_000)); } catch { /* ídem */ }
+  };
+  const activarPushDesdeAviso = async () => {
+    try {
+      await suscribirPush(userId);
+      setAvisoPush(null);
+    } catch {
+      // Lo más probable es que el navegador acabe de bloquearlo al pedir permiso — se refleja el
+      // estado real (puede haber pasado de "default" a "denied") para mostrar las instrucciones de
+      // desbloqueo en vez de dejar el mismo botón que acaba de fallar.
+      setAvisoPush({ permiso: estadoPermisoNotificacion() });
+    }
+  };
+
+  if (!datosListos) {
+    return <div className="app-shell-height" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", color: "var(--wf-faint)", fontFamily: "'Poppins', sans-serif", fontSize: 14 }}>Cargando…</div>;
+  }
+
+  return (
+    <div className="app-shell-height" style={{ fontFamily: "'Poppins', sans-serif", background: "var(--wf-bg)", color: "var(--wf-text)", display: "flex", flexDirection: "column", position: "relative", overflowX: "hidden" }}>
+      <style>{`
+        /* El @import de Google Fonts que vivía acá se movió a index.css -- esta pantalla nunca
+           llegaba a la pantalla real de Proyección (PublicScreen.jsx es una entrada HTML aparte),
+           así que la mitad de las fuentes de LIVE_FONTS nunca cargaban ahí. Ver la nota en index.css. */
+        @keyframes pulseDot { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+        .live-dot { animation: pulseDot 1.6s ease-in-out infinite; }
+        @keyframes glowPulse { 0%,100% { opacity:.55; transform: scale(1); } 50% { opacity:.85; transform: scale(1.04); } }
+        .spotlight-glow { animation: glowPulse 3.2s ease-in-out infinite; }
+        @keyframes brilloEnVivo { 0%,100% { box-shadow: 0 8px 22px rgba(232,130,30,.35), 0 0 0 0 rgba(232,130,30,.35); } 50% { box-shadow: 0 10px 34px rgba(232,130,30,.6), 0 0 0 6px rgba(232,130,30,.12); } }
+        .tarjeta-en-vivo { animation: brilloEnVivo 2.4s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .tarjeta-en-vivo { animation: none; box-shadow: 0 10px 30px rgba(232,130,30,.5); } }
+        .hoverable:hover { background:var(--wf-hover) !important; }
+        .thumb:hover { transform: translateY(-2px); }
+        .thumb { transition: transform .15s; }
+        .orden-fila .orden-quitar { opacity: 0; transition: opacity .12s; }
+        .orden-fila:hover .orden-quitar, .orden-fila:focus-within .orden-quitar { opacity: 1; }
+        .navitem { transition: transform .15s, background .15s; }
+        .navitem:active { transform: scale(0.92); }
+        input, textarea, select { font-family: inherit; }
+      `}</style>
+
+      {editorDiap && (
+        <Suspense fallback={null}>
+          <EditorDiapositivas
+            key={`${editorDiap.origen}-${editorDiap.itemId}`}
+            titulo={editorDiap.titulo}
+            diapositivas={editorDiap.diapositivas}
+            indiceInicial={editorDiap.indice || 0}
+            alAire={editorAlAire}
+            iglesiaId={myIglesiaId}
+            nueva={!!editorDiap.nuevo}
+            onGuardar={guardarEditorDiap}
+            onCerrar={() => setEditorDiap(null)}
+          />
+        </Suspense>
+      )}
+
+      {/* Mientras un administrador ve la app como otra persona/rol (Ajustes → Mi iglesia), una franja
+          arriba se lo recuerda y le deja volver a sí mismo con un toque. */}
+      {realIsAdmin && (nameOverride || roleOverride) && (
+        <div style={{ background: "#5661B3", color: "#fff", fontSize: 12.5, fontWeight: 600, padding: "6px 12px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+          <Eye size={14} />
+          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Viendo como {nameOverride || roleOverride}{nameOverride && roleOverride ? ` · ${roleOverride}` : ""}</span>
+          <button onClick={() => { setNameOverride(null); setRoleOverride(null); }} style={{ background: "#fff", color: "#5661B3", border: "none", borderRadius: 10, padding: "3px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>Volver a mí</button>
+        </div>
+      )}
+      {(usingCachedData || isOffline) && (
+        <div style={{ background: "var(--wf-brand-accent)", color: "var(--wf-text)", fontSize: 12, fontWeight: 700, textAlign: "center", padding: "6px 10px", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <WifiOff size={13} />
+          {usingCachedData
+            ? "Sin conexión — mostrando la última versión guardada en este dispositivo. Los cambios no se guardarán hasta que vuelva el internet."
+            : (liveEventId || liveLibre) && userId === liveOwnerId
+              ? "Sin internet — la proyección en esta computadora sigue funcionando. Se sincroniza sola cuando vuelva la señal."
+              : "Sin conexión a internet — sigue usando la app con normalidad, se sincronizará sola apenas vuelva la señal."}
+        </div>
+      )}
+
+      {/* A propósito SIN botón de cerrar/X ni click-fuera-para-cerrar — la única forma de que
+          desaparezca es tocando "Ya vi mi participación" en cada evento listado. Ver
+          pendingConfirmations más arriba. */}
+      {pendingConfirmations.length > 0 && (
+        <div style={{ position: "absolute", inset: 0, background: "rgba(8,10,14,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 80, padding: 20 }}>
+          <div style={{ background: "var(--wf-card)", borderRadius: 20, padding: 22, width: 380, maxWidth: "100%", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(0,0,0,0.4)" }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--wf-active-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <EyeOff size={20} color="var(--wf-brand-accent)" />
+              </div>
+            </div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, textAlign: "center", marginBottom: 4 }}>
+              Tienes {pendingConfirmations.length === 1 ? "un cargo" : `${pendingConfirmations.length} cargos`} sin confirmar
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--wf-muted)", textAlign: "center", marginBottom: 16 }}>
+              Toca cada uno para avisar que ya lo viste.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {pendingConfirmations.map(({ event: ev, cargos }) => (
+                <button
+                  key={ev.id}
+                  onClick={() => confirmarAsignacionVista(ev.id)}
+                  className="hoverable"
+                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "var(--wf-active-bg)", border: "1.5px solid var(--wf-brand-accent)", borderRadius: 14, padding: "12px 14px", cursor: "pointer" }}
+                >
+                  <EyeOff size={18} color="var(--wf-active-text)" style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>{ev.title}</div>
+                    <div style={{ fontSize: 11.5, color: "var(--wf-active-text)", marginTop: 1 }}>{formatFullDate(ev.date) || ev.dateLabel} · Te toca: {cargos.join(", ")}</div>
+                  </span>
+                  <ChevronRight size={16} color="var(--wf-brand-accent)" style={{ flexShrink: 0 }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header: borde inferior curvo, sin pestañas — la navegación vive abajo, flotante */}
+      {/* paddingTop extendido con el área segura de arriba: el body ya no reserva ese espacio (ver
+          index.css) — así el navy del header llega hasta el borde físico de la pantalla, detrás del
+          notch/la muesca, en vez de dejar una franja sin pintar ahí (que en modo oscuro de iOS se veía
+          negra en vez de fundirse con la app). */}
+      <div style={{ background: "var(--wf-brand-primary)", padding: "calc(16px + env(safe-area-inset-top)) 20px 26px", borderRadius: "0 0 28px 28px", position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(232,130,30,0.15)" }} />
+        <div style={{ position: "absolute", bottom: -40, left: 40, width: 90, height: 90, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            {/* Fondo blanco detrás del logo (el ícono ya trae su propio fondo blanco, pero el círculo
+                asegura que se vea igual sobre el header azul marino) — sin zoom (contain, no cover) para
+                que se vea el logo COMPLETO (antes se recortaba la "J" de "Jesús" al hacerle zoom). El
+                logo de ESTA iglesia (Fase 5) — ver AppLogo.jsx: sin logoUrl cae al trazo genérico, no
+                al de Jesús El Buen Pastor, para que una iglesia nueva no vea un logo que no es el suyo. */}
+            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--wf-card)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
+              <AppLogo width={32} logoUrl={myIglesia.logoUrl} />
+            </div>
+            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "var(--wf-on-brand-primary)" }}>WorshipFlow</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {liveEvent && (
+              <button onClick={() => setTab("envivo")} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 20, padding: "4px 10px", cursor: "pointer" }}>
+                <span className="live-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "#F0704A" }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#FFD9C7" }}>EN VIVO</span>
+              </button>
+            )}
+            <button data-tour="campana" onClick={() => setShowNotifications(true)} title="Notificaciones" style={{ position: "relative", width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+              <Bell size={15} color="#fff" />
+              {unreadCount > 0 && (
+                <span style={{ position: "absolute", top: -3, right: -3, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", fontSize: 9, fontWeight: 800, borderRadius: 12, minWidth: 14, height: 14, lineHeight: "14px", textAlign: "center", padding: "0 2px" }}>{unreadCount > 9 ? "9+" : unreadCount}</span>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {tourActivo && pasosTour && <Tour key={tourActivo} pasos={pasosTour} onTerminar={terminarTour} />}
+
+      {showNotifications && (
+        <ModalShell title="Notificaciones" icon={Bell} color="var(--wf-brand-accent)" onClose={() => setShowNotifications(false)}>
+          {unreadCount > 0 && (
+            <button onClick={markAllNotificationsRead} style={{ ...ghostToggleBtn, marginBottom: 10 }}>Marcar todas como leídas</button>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "60vh", overflowY: "auto" }}>
+            {notifications.length === 0 && <div style={{ fontSize: 13, color: "var(--wf-faint)", textAlign: "center", padding: "20px 0" }}>No tienes notificaciones todavía.</div>}
+            {notifications.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => openNotification(n)}
+                className="hoverable"
+                style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%", textAlign: "left", background: n.leido ? "var(--wf-card)" : "var(--wf-active-bg)", border: n.leido ? "1px solid var(--wf-hover)" : "1px solid var(--wf-active-text)", borderRadius: 14, padding: "10px 12px", cursor: n.evento_id ? "pointer" : "default" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {!n.leido && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--wf-brand-accent)", flexShrink: 0 }} />}
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{n.titulo}</span>
+                </div>
+                {n.cuerpo && <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{n.cuerpo}</div>}
+                <div style={{ fontSize: 10, color: "#B0B8C4", marginTop: 2 }}>{new Date(n.created_at).toLocaleString("es-GT", { dateStyle: "medium", timeStyle: "short" })}</div>
+              </button>
+            ))}
+          </div>
+        </ModalShell>
+      )}
+
+      {/* overflowX oculto a propósito: la animación de deslizar entre canciones (song-slide-in-right/
+          left, ver index.css) arranca el contenido FUERA de pantalla con translateX(±100%) — sin este
+          corte, el navegador cuenta ese ancho "de más" como parte de la página y el celular (sobre
+          todo iPhone) dejaba que todo se corriera/rebotara de lado, incluyendo cosas fijas como el
+          badge "EN VIVO" del header, que terminaba saliéndose del borde visible. */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", alignItems: "stretch" }}>
+      {!["envivo", "proyeccion"].includes(tab) && (
+      <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: tab === "inicio" ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column" }}>
+      {tab === "inicio" && (
+        <InicioView events={realEvents} library={library} ministries={ministries} myUserId={myUserId} myName={myName} puedeVerPendientes={puedeEditarSetlist} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} canSeeCanciones={canSeeCanciones} teamName={myIglesia.nombre} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} avisoPush={avisoPush} onActivarPush={activarPushDesdeAviso} onOcultarPush={ocultarAvisoPush} />
+      )}
+
+      {tab === "ajustes" && (
+        <SettingsView
+          realIsAdmin={realIsAdmin}
+          myRole={myRole}
+          roleOverride={roleOverride}
+          setRoleOverride={setRoleOverride}
+          myName={myName}
+          nameOverride={nameOverride}
+          setNameOverride={setNameOverride}
+          usuariosReales={usuariosReales}
+          perfil={perfil}
+          events={realEvents}
+          onSelectEvent={goToEvent}
+          onGoToUsuarios={onGoToUsuarios}
+          onGoToRoles={onGoToRoles}
+          onGoToPlataforma={onGoToPlataforma}
+          userId={userId}
+          myIglesiaId={myIglesiaId}
+          teamName={myIglesia.nombre}
+          isCompact={isCompact}
+          onVerTutorial={verTutorialDeNuevo}
+        />
+      )}
+
+      {tab === "ministerios" && !selectedMinistryId && (
+        <MinistriesList ministries={visibleMinistries} usuariosReales={usuariosReales} isAdminViewer={puedeGestionarMinisterios} onSelect={setSelectedMinistryId} onCreate={createMinistry} />
+      )}
+      {tab === "ministerios" && selectedMinistryId && (
+        <MinistryDetail
+          myIglesiaId={myIglesiaId}
+          ministry={ministries.find((m) => m.id === selectedMinistryId)}
+          usuariosReales={usuariosReales}
+          isAdminViewer={puedeGestionarMinisterios}
+          canEdit={puedeGestionarMinisterios || ministries.find((m) => m.id === selectedMinistryId)?.leaderId === myUserId}
+          onBack={() => window.history.back()}
+          onSavePlan={(plan) => savePlanForMinistry(selectedMinistryId, plan)}
+          onAddResource={(resource) => addResource(selectedMinistryId, resource)}
+          onEditResource={(resourceId, patch) => editResource(selectedMinistryId, resourceId, patch)}
+          onRemoveResource={(resourceId) => removeResource(selectedMinistryId, resourceId)}
+          onSetLeader={(leaderId) => setMinistryLeader(selectedMinistryId, leaderId)}
+          onSetName={(name) => setMinistryName(selectedMinistryId, name)}
+          onSetColor={(color) => setMinistryColor(selectedMinistryId, color)}
+          onSetPermisosLider={(permisos) => setMinistryPermisosLider(selectedMinistryId, permisos)}
+          onDelete={() => deleteMinistry(ministries.find((m) => m.id === selectedMinistryId))}
+        />
+      )}
+
+      {realIsAdmin && (
+        // A diferencia del resto de las pantallas (que se desmontan al cambiar de pestaña), esta se
+        // mantiene montada siempre y solo se oculta con CSS — así la conversación con el asistente
+        // (y un plan pendiente de confirmar) sobrevive si el admin va a mirar Eventos/Canciones/etc.
+        // y vuelve, en vez de perderse cada vez que sale de esta pestaña. Sigue sin sobrevivir a
+        // cerrar la app del todo o recargar la página — eso sería guardar el historial en Supabase,
+        // que a propósito no se hace (ver AsistenteChatScreen).
+        <div style={{ display: tab === "asistente" ? "contents" : "none" }}>
+          <AsistenteChatScreen />
+        </div>
+      )}
+
+      {tab === "canciones" && openSong === null && (
+        <CancionesList library={library} clasificaciones={clasificaciones} puedeConfigurarClasificaciones={realIsAdmin && isAdminViewer} onGuardarClasificaciones={guardarClasificaciones} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onImportarPdf={() => setImportandoPdf(true)} onDelete={deleteSong} />
+      )}
+      {importandoPdf && (
+        <ImportarCancionesPdf library={library} clasificaciones={clasificaciones} iglesiaId={myIglesiaId} userId={userId}
+          onCerrar={() => setImportandoPdf(false)} onImportadas={() => reloadLibrary()} />
+      )}
+      {tab === "canciones" && openSong && openSong.mode === "view" && (
+        <SongView song={library.find((s) => s.id === openSong.id)} notasCtx={notasCtx} iglesiaId={myIglesiaId} onAdjuntosChange={marcarAdjuntos} isAdminViewer={puedeGestionarCanciones} mode="biblioteca" onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
+      )}
+      {tab === "canciones" && openSong && openSong.mode === "edit" && (
+        <SongEditor
+          song={openSong.id ? library.find((s) => s.id === openSong.id) : null}
+          isAdminViewer={puedeGestionarCanciones}
+          onCancel={() => requestLeaveSongEditor(() => window.history.back())}
+          onSave={saveSong}
+          onDirtyChange={(d) => { songEditDirtyRef.current = d; }}
+          draftGetterRef={songDraftGetterRef}
+        />
+      )}
+      {songExitPrompt && (
+        <ModalShell title="Cambios sin guardar" icon={Pencil} color="var(--wf-brand-accent)" onClose={handleKeepEditingSong}>
+          <div style={{ fontSize: 13, color: "var(--wf-text-2)", marginBottom: 16 }}>Esta canción tiene cambios sin guardar. ¿Qué quieres hacer antes de salir?</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button onClick={handleSaveSongEdit} style={primaryBtn}>Guardar y salir</button>
+            <button onClick={handleDiscardSongEdit} style={{ ...primaryBtn, background: "var(--wf-hover)", color: "#C23B32" }}>Descartar cambios y salir</button>
+            <button onClick={handleKeepEditingSong} style={{ ...primaryBtn, background: "none", boxShadow: "none" }}>Seguir editando</button>
+          </div>
+        </ModalShell>
+      )}
+      {songAutoSaveToast && (
+        <div style={{ position: "fixed", left: "50%", bottom: 88, transform: "translateX(-50%)", background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)", fontSize: 13, fontWeight: 600, padding: "10px 18px", borderRadius: 999, boxShadow: "0 8px 24px rgba(22,50,79,0.3)", zIndex: 200, display: "flex", alignItems: "center", gap: 8 }}>
+          <Check size={16} color="#5CD6A9" /> Cambios guardados
+        </div>
+      )}
+
+      {tab === "eventos" && !selectedEvent && (
+        <EventList events={realEvents} plantillas={plantillas} isAdminViewer={puedeGestionarEventos} liveEventId={liveEventId} liveLibre={liveLibre} onSelect={setSelectedEventId} onCreate={createEvent} canStartLive={canStartLive} onStartFree={startFreeEvent} library={library} myUserId={myUserId} />
+      )}
+
+      {tab === "eventos" && selectedEvent && !openSong && (
+        <EventDetail
+          onAbrirEditor={(itemId) => abrirEditorDiap(selectedEvent.id, itemId, 0)}
+          onDisenarNueva={(despuesDe) => abrirEditorNuevo(selectedEvent.id, typeof despuesDe === "string" ? despuesDe : null)}
+          myIglesiaId={myIglesiaId}
+          event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
+          isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={puedeGestionarEventos}
+          puedeEditarSetlist={puedeEditarSetlistEvento}
+          userId={myUserId} usuariosReales={usuariosReales}
+          onBack={() => window.history.back()}
+          isDraftFromTemplate={selectedEvent.id === draftFromTemplateId}
+          onPublish={() => { setDraftFromTemplateId(null); window.history.back(); }}
+          onStart={() => startEvent(selectedEvent.id)} onPracticar={() => empezarPractica(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
+          onAddSong={addSong} onAddSeccion={addSeccion}
+          onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)} onAddItems={(items) => updateOrder((o) => colocar(o, items))}
+          destinoAgregar={destinoSetlist} onDestinoAgregar={setDestinoSetlist}
+          onEditarItem={(itemId, patch) => updateOrder((o) => o.map((i) => (i.id === itemId ? { ...i, ...patch } : i)))}
+          onRemove={removeItem} onRestaurar={restaurarItem} onDuplicate={duplicateItem} onReorder={reorderItem}
+          onLinkMinistry={linkMinistry} onUpdateSeccionText={updateSeccionText}
+          onSetSongKey={setSongKey}
+          canAddBibleReading={canAddBibleReading()}
+          canAddSermonPoints={canAddSermonPoints()}
+          onAddEncargado={addEncargado} onSetEncargadoStatus={setEncargadoStatus} onSetEncargadoLead={setEncargadoLead} onRemoveEncargado={removeEncargado}
+          onAddWorshipRole={addWorshipRole} onRemoveWorshipRole={removeWorshipRole} onAddWorshipRoleMember={addWorshipRoleMember} onSetWorshipRoleMemberStatus={setWorshipRoleMemberStatus} onSetWorshipRoleMemberLead={setWorshipRoleMemberLead} onRemoveWorshipRoleMember={removeWorshipRoleMember}
+          onViewMinistry={(id) => { setTab("ministerios"); setSelectedMinistryId(id); }}
+          onOpenSong={(songId, itemId) => setOpenSong({ id: songId, mode: "view", itemId })}
+          onAddReminder={(cantidad, unidad) => addReminder(selectedEvent.id, cantidad, unidad)}
+          onRemoveReminder={(reminderId) => removeReminder(selectedEvent.id, reminderId)}
+          onSetHora={(hora) => setEventHora(selectedEvent.id, hora)}
+          onSetEnsayo={(datos) => setEventEnsayo(selectedEvent.id, datos)}
+          onUpdateEventDetails={(details) => updateEventDetails(selectedEvent.id, details)}
+          onMarkVisto={confirmarAsignacionVista}
+          showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
+          showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
+          showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
+          bosquejoInfo={bosquejoInfo}
+        />
+      )}
+      {tab === "eventos" && selectedEvent && bloqueBosquejo && (
+        <BosquejoWizard
+          key={bloqueBosquejo.id}
+          inicial={selectedEvent.bosquejos?.[bloqueBosquejo.id]}
+          tituloBloque={bloqueBosquejo.title} tituloEvento={selectedEvent.title}
+          bloqueado={bosquejoBloqueado}
+          onGuardar={guardarBorradorBosquejo} onEnviar={enviarBosquejo}
+          onClose={() => setBosquejoAbierto(null)}
+          BibliaSelector={BibleBrowserBody}
+        />
+      )}
+
+      {tab === "eventos" && selectedEvent && openSong && (() => {
+        // Abrir una canción desde el Setlist de un evento: mismo lector de solo lectura que en
+        // Canciones, pero con "Anterior/Siguiente" limitado a las canciones DE ESTE evento (para que
+        // el músico pueda ir pasando el setlist completo en vivo) y respetando la tonalidad_override
+        // que se haya elegido para ese ítem en particular (no la tonalidad guardada de la canción).
+        // OJO: se ubica por el id del ÍTEM del Setlist (openSong.itemId), no por el id de la canción —
+        // si la misma canción se repite varias veces en el setlist, todas comparten el mismo song id,
+        // así que buscar por song id siempre encontraba la PRIMERA repetición y deslizar no avanzaba.
+        const songItems = selectedEvent.serviceOrder.filter((it) => it.type === "cancion");
+        const pos = openSong.itemId != null
+          ? songItems.findIndex((it) => it.id === openSong.itemId)
+          : songItems.findIndex((it) => it.songId === openSong.id);
+        const currentItem = pos >= 0 ? songItems[pos] : null;
+        const baseSong = library.find((s) => s.id === openSong.id);
+        const displaySong = songWithKeyOverride(baseSong, currentItem?.keyOverride);
+        const prevItem = pos > 0 ? songItems[pos - 1] : null;
+        const nextItem = pos >= 0 && pos < songItems.length - 1 ? songItems[pos + 1] : null;
+        const prevTitle = prevItem ? library.find((s) => s.id === prevItem.songId)?.title : null;
+        const nextTitle = nextItem ? library.find((s) => s.id === nextItem.songId)?.title : null;
+        const positionLabel = pos >= 0 && songItems.length > 1 ? `${pos + 1} de ${songItems.length}` : null;
+        // Modo Músico líder/seguidor solo tiene sentido mientras ESTE evento es de verdad el que está en
+        // vivo ahora mismo — repasar/planear un evento futuro no debe intentar tomar el mando de nada.
+        const isLiveNow = selectedEvent.id === liveEventId;
+        // Si YO soy el líder ahora mismo y cambio de canción (‹ ›/swipe), el resto tiene que enterarse —
+        // se manda ANTES de navegar localmente, con el id del ítem del Setlist al que voy (no el de la
+        // canción sola: la misma canción puede repetirse varias veces en el Setlist).
+        const goToItem = (item, enterDir) => {
+          if (isLiveNow && musicoState?.liderId === DEVICE_ID) {
+            updateMusicoState({ songItemId: item.id, sectionIdx: 0, heartbeat: new Date().toISOString() });
+          }
+          setOpenSong({ id: item.songId, mode: "view", itemId: item.id, enterDir });
+        };
+        return (
+          <SongView
+            key={currentItem?.id ?? openSong.id}
+            notasCtx={notasCtx}
+            iglesiaId={myIglesiaId}
+            onAdjuntosChange={marcarAdjuntos}
+            song={displaySong} isAdminViewer={puedeGestionarCanciones} mode="setlist" positionLabel={positionLabel}
+            structureOverride={currentItem?.structure}
+            enterDirection={openSong.enterDir}
+            onBack={() => window.history.back()}
+            onEdit={() => { setTab("canciones"); setOpenSong({ id: openSong.id, mode: "edit" }); }}
+            onTranspose={transposeSong} onDelete={deleteSong}
+            onPrev={prevItem ? () => goToItem(prevItem, "prev") : null}
+            onNext={nextItem ? () => goToItem(nextItem, "next") : null}
+            prevTitle={prevTitle} nextTitle={nextTitle}
+            liveSync={{
+              active: isLiveNow,
+              deviceId: DEVICE_ID,
+              itemId: currentItem?.id ?? null,
+              state: musicoState,
+              onUpdate: updateMusicoState,
+              unido: unidoAlLider,
+              setUnido: setUnidoAlLider,
+              myName,
+              onFollowItem: (itemId) => {
+                const item = songItems.find((it) => it.id === itemId);
+                if (item) setOpenSong({ id: item.songId, mode: "view", itemId: item.id });
+              },
+            }}
+          />
+        );
+      })()}
+      </div>
+      )}
+
+      {tab === "envivo" && liveEvent && (
+        <div style={{ width: "100%", flex: 1, minHeight: 0, display: "flex" }}>
+          <MultimediaControl
+            key={liveEvent.id || "libre"} eventoId={liveEvent.id || null}
+            myIglesiaId={myIglesiaId} palabrasPorParte={palabrasPorParte} iglesiaNombre={myIglesia.nombre} usuarioId={userId}
+            pasoDiseno={pasoDiseno} setPasoDiseno={setPasoDiseno}
+            eventTitle={liveEvent.title} serviceOrder={liveEvent.serviceOrder || []} isFreeSession={liveLibre} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
+            goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}
+            onEnd={enPractica ? salirPractica : endEvent} canEnd={enPractica || isAdminViewer || userId === liveOwnerId}
+            enPractica={enPractica} onAyuda={() => setTourActivo(CLAVES_TUTORIAL.envivo)}
+            fijada={fijada} onFijar={() => setFijada(current ? { ...current } : null)} onSoltar={() => setFijada(null)} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
+            adHoc={adHocVista} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
+            onOpenPublicScreen={enPractica ? () => avisoPractica("abre el proyector") : startPresentation}
+            mensajeEscenario={mensajeEscenario} onMensajeEscenario={setMensajeEscenario} iglesiaSlug={myIglesia?.slug || null}
+            temporizador={temporizador} onTemporizador={setTemporizador} autoTemporizador={autoTemporizador} onAutoTemporizador={setAutoTemporizador}
+            onNavigateBibleVerse={navigateBibleVerse}
+            onAddLiveSlide={addLiveSlide} onEditLiveSlide={editLiveSlide} onRemoveLiveSlide={removeLiveSlide}
+            onEditSongSlide={enPractica ? () => avisoPractica("cambian las canciones") : editSongSlideLive}
+            onAddSongSlide={enPractica ? () => avisoPractica("cambian las canciones") : addSongSlideLive}
+            onRearmarSeccion={enPractica ? () => avisoPractica("cambian las canciones") : rearmarSeccionLive}
+            onEditarLetraCompleta={enPractica ? () => { avisoPractica("cambian las canciones"); return null; } : editarLetraCompletaLive}
+            onAgregarCancion={agregarCancionEnVivo} onReordenarOrden={reordenarOrdenEnVivo} onQuitarDelOrden={quitarDelOrdenEnVivo} onInsertarItems={insertarItemsEnVivo}
+            ocultos={idsOcultosConsola} onOcultar={ocultarEnConsola} onMostrarOcultos={mostrarOcultosConsola}
+            onAbrirEditor={enPractica ? undefined : (itemId, indice) => abrirEditorDiap("vivo", itemId, indice)}
+            onDisenarNueva={enPractica ? undefined : (despuesDe) => abrirEditorNuevo("vivo", despuesDe)}
+            onMoverDiapositiva={moverDiapositivaEnVivo} onQuitarDiapositivaGrupo={quitarDiapositivaEnVivo}
+            onReordenarEnGrupo={(itemId, desde, hacia) => cambiarOrdenEnVivo((o) => reordenarEnGrupo(o, itemId, desde, hacia))}
+          />
+        </div>
+      )}
+
+      {tab === "proyeccion" && liveEvent && (
+        <div style={{ flex: 1, display: "flex" }}><ProjectionPanel slide={current} blanked={blanked} split={false} liveStyle={liveStyle} /></div>
+      )}
+
+      </div>
+
+      {/* Nav flotante inferior: isla redondeada con burbuja activa. Vive como hermano normal del área
+          con scroll (no position: fixed/sticky) para que el layout le reserve su propio espacio siempre
+          y el contenido nunca pueda quedar tapado detrás de ella, tenga o no scroll la pantalla.
+          Se mide su alto real (varía por dispositivo: notch/gesture bar vía safe-area-inset-bottom) y se
+          publica como variable CSS — así cualquier elemento position:fixed en otra pantalla (ej. la
+          barra de acordes del editor de canciones) puede apoyarse en el alto REAL de esta nav en vez de
+          un número fijo adivinado, que en un celular con gesture bar dejaba la barra de acordes tapada
+          detrás de la nav (o directamente fuera de la pantalla) en vez de arriba de ella. */}
+      {/* paddingBottom extendido con el área segura de abajo, mismo motivo que el header: el body ya no
+          la reserva, así que esta franja (detrás de la barra de gestos del iPhone) queda pintada con el
+          fondo claro de la app en vez de negro por defecto — y de paso la nav flotante queda de verdad
+          fija arriba de esa barra, no flotando "a medias" sobre ella. */}
+      {/* Excepción: en la consola En vivo de escritorio la nav FLOTA encima (pedido de Eldin, 2026-10-08)
+          — solo la isla tapa el fondo y a los lados siguen viéndose el orden del culto y la vista
+          previa hasta abajo, como en una app de Office. La consola deja su propio espacio abajo
+          (ver paddingBottom en MultimediaControl) para que ninguna diapositiva quede tapada. */}
+      <div ref={bottomNavRef} style={navEncogida
+        ? { position: "absolute", right: 14, bottom: 0, display: "flex", padding: "0 0 calc(12px + env(safe-area-inset-bottom))", zIndex: 40, pointerEvents: "none" }
+        : navFlotante
+        ? { position: "absolute", left: 0, right: 0, bottom: 0, display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: "0 0 calc(12px + env(safe-area-inset-bottom))", zIndex: 40, pointerEvents: "none" }
+        : { flexShrink: 0, display: "flex", justifyContent: "center", padding: "10px 0 calc(14px + env(safe-area-inset-bottom))", zIndex: 40 }}>
+        {navEncogida ? (
+          <button data-tour="nav-menu" onClick={() => setNavAbierta(true)} aria-label="Abrir el menú (Inicio, Canciones, Eventos…)" title="Menú: Inicio, Canciones, Eventos…"
+            style={{ pointerEvents: "auto", width: 46, height: 46, borderRadius: 23, border: "none", cursor: "pointer", background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)", boxShadow: "0 6px 18px rgba(22,50,79,0.35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <LayoutGrid size={20} />
+          </button>
+        ) : (<>
+        <div data-tour="nav" style={{ pointerEvents: "auto", display: "flex", alignItems: "center", gap: 2, background: "var(--wf-brand-primary)", borderRadius: 24, padding: 6, boxShadow: "0 8px 24px rgba(22,50,79,0.35)", maxWidth: "94vw", overflowX: "auto" }}>
+          {[["inicio", "Inicio", Home], ["canciones", "Canciones", Music], ["eventos", "Eventos", Calendar], ["ministerios", "Grupos", LayoutGrid], ["asistente", "Asistente", MessageCircle], ["envivo", "En vivo", Radio], ["proyeccion", "Pantalla", ImgIcon], ["ajustes", "Ajustes", Settings]]
+            .filter(([val]) => !isCompact || (val !== "envivo" && val !== "proyeccion")) // Control en vivo/Proyección son de escritorio: en celular no aparecen
+            .filter(([val]) => val !== "ministerios" || canSeeGrupos) // Grupos: solo admins o quien lidera al menos uno
+            .filter(([val]) => val !== "canciones" || canSeeCanciones) // Canciones: solo admins, músicos o rol con "ver_canciones"
+            .filter(([val]) => val !== "asistente") // Escondido a propósito (2026-09-30, pedido de Eldin: no convence todavía) — el código y la
+            // Edge Function siguen intactos para retomarlo más adelante; para reactivarlo, volver a
+            // `val !== "asistente" || realIsAdmin`.
+            .map(([val, label, Icon]) => {
+            const needsLive = val === "envivo" || val === "proyeccion";
+            const needsLiveControlRole = (val === "envivo" || val === "proyeccion") && !canControlLive;
+            const isDisabled = (needsLive && !liveEvent) || needsLiveControlRole;
+            const active = tab === val;
+            return (
+              <button
+                key={val}
+                data-tour={`nav-${val}`}
+                onClick={() => requestLeaveSongEditor(() => {
+                  // Cambiar de pestaña siempre lleva a la RAÍZ de esa pestaña — si no se limpian estos
+                  // tres, quedaban "pegados" (ej. abrir una canción desde un evento y luego, sin volver
+                  // antes, tocar otra pestaña dejaba esa canción/evento fantasma abierto por debajo).
+                  setTab(val); setSelectedEventId(null); setOpenSong(null); setSelectedMinistryId(null); setNavAbierta(false);
+                })}
+                disabled={isDisabled}
+                className="navitem"
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: active ? "var(--wf-brand-accent)" : "transparent", border: "none", borderRadius: 18, padding: "8px 12px", cursor: isDisabled ? "not-allowed" : "pointer", opacity: isDisabled ? 0.35 : 1, flexShrink: 0 }}
+              >
+                <Icon size={17} color={active ? "var(--wf-on-brand-accent)" : "color-mix(in srgb, var(--wf-on-brand-primary) 80%, transparent)"} />
+                <span style={{ fontSize: 9, fontWeight: 700, color: active ? "var(--wf-on-brand-accent)" : "color-mix(in srgb, var(--wf-on-brand-primary) 60%, transparent)" }}>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+        {navFlotante && (
+          <button onClick={() => setNavAbierta(false)} aria-label="Encoger el menú" title="Encoger el menú"
+            style={{ pointerEvents: "auto", width: 40, height: 40, borderRadius: 20, border: "none", cursor: "pointer", background: "var(--wf-card)", color: "var(--wf-text)", boxShadow: "0 6px 18px rgba(22,50,79,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <X size={18} />
+          </button>
+        )}
+        </>)}
+      </div>
+    </div>
+  );
+}
+
+// ---------------- AVATAR STACK ----------------
+function AvatarStack({ initials, max = 3 }) {
+  const shown = initials.slice(0, max);
+  const rest = initials.length - shown.length;
+  return (
+    <div style={{ display: "flex" }}>
+      {shown.map((init, i) => (
+        <div key={i} style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", border: "2px solid var(--wf-text)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, marginLeft: i === 0 ? 0 : -8 }}>{init}</div>
+      ))}
+      {rest > 0 && <div style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--wf-brand-accent)", color: "var(--wf-text)", border: "2px solid var(--wf-text)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, marginLeft: -8 }}>+{rest}</div>}
+    </div>
+  );
+}
+function eventAvatars(event) {
+  const names = new Set();
+  event.serviceOrder.forEach((item) => (item.encargados || []).forEach((m) => names.add(m.n)));
+  return Array.from(names).map((n) => n.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase());
+}
+
+// ---------------- INICIO ----------------
+function greetingWord() {
+  const h = new Date().getHours();
+  if (h < 12) return "Buenos días";
+  if (h < 19) return "Buenas tardes";
+  return "Buenas noches";
+}
+
+function StatCard({ icon: Icon, label, value, onClick }) {
+  const Tag = onClick ? "button" : "div";
+  return (
+    <Tag onClick={onClick} className={onClick ? "hoverable" : undefined} style={{ flex: 1, background: "var(--wf-card)", border: "none", borderRadius: 20, boxShadow: "0 4px 14px rgba(22,50,79,0.06)", padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, minWidth: 0, textAlign: "left", cursor: onClick ? "pointer" : "default" }}>
+      <div style={{ width: 34, height: 34, borderRadius: 14, background: "var(--wf-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Icon size={16} color="#2F5FA8" />
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 17, fontWeight: 800, color: "var(--wf-text)", lineHeight: 1 }}>{value}</div>
+        <div style={{ fontSize: 10, color: "var(--wf-faint)", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+      </div>
+    </Tag>
+  );
+}
+
+// Agrupa eventos por día del mes REAL que se está viendo (year/month reales, no todo el historial junto
+// — dos eventos en el mismo día-del-mes pero meses distintos ya no chocan en la misma celda).
+function eventsByDay(events, year, month) {
+  const map = {};
+  events.forEach((ev) => {
+    const d = parseIsoDateLocal(ev.date);
+    if (!d || d.getFullYear() !== year || d.getMonth() !== month) return;
+    (map[d.getDate()] = map[d.getDate()] || []).push(ev);
+  });
+  // Con dos servicios el mismo día (ej. domingo AM/PM), que el más temprano salga primero en el
+  // selector — no en el orden en que hayan llegado de la base de datos.
+  Object.values(map).forEach((list) => list.sort((a, b) => (a.hora || "").localeCompare(b.hora || "")));
+  return map;
+}
+function nextUpcomingEvent(events, liveEventId) {
+  if (liveEventId) return events.find((e) => e.id === liveEventId);
+  return events
+    .filter((ev) => isUpcoming(ev))
+    .slice()
+    .sort(compareByDay)[0];
+}
+
+// Tarjeta NO bloqueante (a diferencia del aviso de "cargos sin confirmar") — se puede cerrar y no
+// insiste hasta dentro de unos días (ver el efecto que decide mostrar avisoPush, más arriba). Dos
+// variantes: con permiso bloqueado por el navegador se explica cómo desbloquearlo en vez de ofrecer
+// un botón que ya no serviría de nada (volver a pedir permiso mientras está "denied" no hace nada).
+function AvisoActivarPush({ estado, onActivar, onCerrar }) {
+  const [activando, setActivando] = useState(false);
+  const bloqueado = estado.permiso === "denied";
+  const activar = async () => {
+    setActivando(true);
+    try { await onActivar(); } finally { setActivando(false); }
+  };
+  return (
+    <div className="screen-enter" style={{ display: "flex", gap: 12, alignItems: "flex-start", background: "var(--wf-active-bg)", border: "1px solid var(--wf-brand-accent)", borderRadius: 18, padding: "14px 16px", marginBottom: 16, flexShrink: 0 }}>
+      <div style={{ width: 34, height: 34, borderRadius: 14, background: "var(--wf-card)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Bell size={16} color="var(--wf-brand-accent)" />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--wf-text)" }}>{bloqueado ? "Tus notificaciones están bloqueadas" : "Actívalas y no te pierdas nada"}</div>
+        {bloqueado ? (
+          <div style={{ fontSize: 12, color: "var(--wf-text-2)", marginTop: 3, lineHeight: 1.5 }}>
+            Tu navegador no deja mandarte avisos todavía.
+            <br />• <b>Android (Chrome):</b> toca el candado junto a la dirección → Permisos → Notificaciones → Permitir.
+            <br />• <b>iPhone con la app instalada:</b> Ajustes del iPhone → WorshipFlow → Notificaciones → Activar.
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: "var(--wf-text-2)", marginTop: 3, lineHeight: 1.5 }}>No tienes las notificaciones activadas en este dispositivo. Te avisamos cuando te asignen algo o se acerque un evento.</div>
+        )}
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          {!bloqueado && (
+            <button onClick={activar} disabled={activando} style={{ background: "var(--wf-brand-accent)", border: "none", borderRadius: 12, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, color: "var(--wf-brand-primary)", cursor: "pointer", opacity: activando ? 0.6 : 1 }}>
+              {activando ? "Activando…" : "Activar notificaciones"}
+            </button>
+          )}
+          <button onClick={onCerrar} style={{ background: "none", border: "none", fontSize: 12.5, fontWeight: 600, color: "var(--wf-faint)", cursor: "pointer", padding: "8px 4px" }}>
+            {bloqueado ? "Entendido" : "Ahora no"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------- INICIO ----------------
+// Pantalla de inicio personal (pedido de Eldin, 2026-10-09): "lo que me toca a mí" en vez de un
+// calendario de la iglesia. Cada sección aparece solo si aplica a esta persona — un músico ve qué
+// ensayar, alguien de limpieza ve sus indicaciones, un administrador ve lo que falta. Toda la lógica
+// vive en src/lib/inicio.js (con pruebas). Pensada también para adultos mayores: letra más grande,
+// textos oscuros, nada que se deslice de lado y botones con palabras, no solo íconos.
+
+function TituloSeccion({ children, derecha }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, margin: "16px 4px 6px" }}>
+      <span style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-text-2)" }}>{children}</span>
+      {derecha}
+    </div>
+  );
+}
+
+function BotonVerMas({ abierto, restantes, onClick }) {
+  return (
+    <button onClick={onClick} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, width: "100%", padding: "8px 12px", border: "none", borderTop: "1px solid var(--wf-divider)", background: "transparent", fontSize: 13, fontWeight: 700, color: "#2F5FA8", cursor: "pointer" }}>
+      {abierto ? <>Ver menos <ChevronUp size={15} /></> : <>Ver {restantes} más <ChevronDown size={15} /></>}
+    </button>
+  );
+}
+
+function TarjetaInicio({ children, style }) {
+  return <div style={{ background: "var(--wf-card)", borderRadius: 18, boxShadow: "0 3px 14px rgba(22,50,79,0.08)", overflow: "hidden", ...style }}>{children}</div>;
+}
+
+function Iniciales({ nombre, fondo = "var(--wf-hover)", color = "var(--wf-text)" }) {
+  const ini = (nombre || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
+  return <span style={{ width: 36, height: 36, borderRadius: 18, background: fondo, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{ini}</span>;
+}
+
+function InicioView({ events, library, ministries = [], myUserId, myName, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact, canSeeCanciones, teamName, avisoPush, onActivarPush, onOcultarPush, puedeVerPendientes }) {
+  const liveEvent = liveLibre ? EVENTO_LIBRE : events.find((e) => e.id === liveEventId);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [verMes, setVerMes] = useState(false);
+  const [verEquipo, setVerEquipo] = useState(false);
+  // Listas largas de Inicio: solo 3 a la vista y "Ver más" para desplegar el resto (pedido de Eldin).
+  const [verTodaAtencion, setVerTodaAtencion] = useState(false);
+  const [verTodasFechas, setVerTodasFechas] = useState(false);
+  const [verTodasCanciones, setVerTodasCanciones] = useState(false);
+  const favoriteSongs = library.filter((s) => s.favorite);
+  const [dayEventsPicker, setDayEventsPicker] = useState(null);
+  const today = todayLocal();
+  const [viewedMonth, setViewedMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
+  const isViewingCurrentMonth = viewedMonth.year === today.getFullYear() && viewedMonth.month === today.getMonth();
+  const changeMonth = (delta) => setViewedMonth(({ year, month }) => {
+    const d = new Date(year, month + delta, 1);
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+  const weeks = useMemo(() => buildMonthWeeks(viewedMonth.year, viewedMonth.month), [viewedMonth]);
+  const byDay = useMemo(() => eventsByDay(events, viewedMonth.year, viewedMonth.month), [events, viewedMonth]);
+  const eventsThisMonth = Object.values(byDay).reduce((acc, list) => acc + list.length, 0);
+  const nextEvent = useMemo(() => nextUpcomingEvent(events, liveEventId), [events, liveEventId]);
+  const nextDate = nextEvent ? parseIsoDateLocal(nextEvent.date) : null;
+
+  const misServicios = useMemo(() => misProximosServicios(events, myUserId, library), [events, myUserId, library]);
+  const proximo = misServicios[0] || null;
+  const ev = proximo?.event || null;
+  const cargos = proximo?.cargos || [];
+  const canciones = useMemo(() => (ev ? cancionesParaEnsayar(ev, myUserId, library) : []), [ev, myUserId, library]);
+  const equipo = useMemo(() => (ev ? companeros(ev, myUserId, library) : []), [ev, myUserId, library]);
+  const notas = useMemo(() => (ev ? indicaciones(ev, myUserId, ministries, library) : []), [ev, myUserId, ministries, library]);
+  const atencion = useMemo(() => (puedeVerPendientes ? necesitaAtencion(events, library) : []), [puedeVerPendientes, events, library]);
+  const semana = useMemo(() => estaSemana(events, myUserId, library), [events, myUserId, library]);
+  const esAlabanza = cargos.some((c) => c.tipo === "rol");
+  const fechaEv = ev ? parseIsoDateLocal(ev.date) : null;
+  const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+  const DIAS_CORTOS = ["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"];
+  const fechaLarga = (d, hora) => d ? `${DIAS[d.getDay()][0].toUpperCase()}${DIAS[d.getDay()].slice(1)} ${d.getDate()} de ${MONTH_NAMES_FULL[d.getMonth()].toLowerCase()}${hora ? ` · ${hora.slice(0, 5)}` : ""}` : "Sin fecha";
+  const fechaCorta = (d) => d ? `${DIAS[d.getDay()].slice(0, 3)} ${d.getDate()} ${MONTH_NAMES_FULL[d.getMonth()].slice(0, 3).toLowerCase()}` : "Sin fecha";
+  const abrirDia = (dia) => {
+    if (dia.eventos.length === 1) onSelectEvent(dia.eventos[0].id);
+    else if (dia.eventos.length > 1) setDayEventsPicker(dia.eventos);
+  };
+
+  const tarjetaServicio = ev ? (
+    <>
+    {/* Toda la tarjeta lleva al culto (pedido de Eldin, 2026-10-11); el equipo va en su propia
+        tarjeta aparte, abajo, con su botón "Ver equipo". */}
+    <div role="button" tabIndex={0} onClick={() => onSelectEvent(ev.id)} onKeyDown={(e) => { if (e.key === "Enter") onSelectEvent(ev.id); }} aria-label={`Ver el culto: ${ev.title}`} style={{ cursor: "pointer" }}>
+    <TarjetaInicio style={{ padding: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: 0.4, color: esAlabanza ? "#C2620F" : "#1F8A73" }}>{esAlabanza ? "TU PRÓXIMO SERVICIO" : "TU PRÓXIMO TURNO"}</span>
+        {cuandoEs(ev.date) && <span style={{ fontSize: 12.5, fontWeight: 700, background: "var(--wf-active-bg)", color: "var(--wf-active-text)", padding: "4px 10px", borderRadius: 12 }}>{cuandoEs(ev.date)}</span>}
+      </div>
+      <div style={{ marginTop: 8, color: "var(--wf-text)", display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.3 }}>{fechaLarga(fechaEv, ev.hora)}</div>
+          <div style={{ fontSize: 14, color: "var(--wf-muted)", marginTop: 2 }}>{ev.title}</div>
+        </div>
+        <ChevronRight size={22} color="var(--wf-faint)" style={{ flexShrink: 0 }} />
+      </div>
+      <div style={{ fontSize: 16, color: "var(--wf-text)", marginTop: 8 }}>Te toca: <b>{cargos.map((c) => c.nombre).join(", ")}</b></div>
+      {esAlabanza && textoEnsayo(ev) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 15, color: "var(--wf-text)" }}>
+          <Music size={17} color="#1F8A73" style={{ flexShrink: 0 }} />
+          <span>Ensayo: <b>{textoEnsayo(ev)}</b></span>
+        </div>
+      )}
+      {esAlabanza && (ev.notaAlabanza || "").trim() && (
+        <div style={{ marginTop: 12, background: "var(--wf-hover)", borderRadius: 14, padding: "12px 14px", borderLeft: "4px solid #1F8A73" }}>
+          <div style={{ fontSize: 15, color: "var(--wf-text)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{ev.notaAlabanza}</div>
+          {quienDirigeAlabanza(ev) && <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 6 }}>— {quienDirigeAlabanza(ev).n}, dirige la alabanza</div>}
+        </div>
+      )}
+    </TarjetaInicio>
+    </div>
+      {equipo.length > 0 && (
+        <TarjetaInicio style={{ padding: 16, marginTop: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.4, color: "var(--wf-muted)", marginBottom: 8 }}>{esAlabanza ? "TU EQUIPO" : "CON QUIÉN TE TOCA"}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ display: "flex", flexShrink: 0 }}>
+              {equipo.slice(0, 3).map((p, i) => (
+                <span key={`${p.nombre}-${i}`} style={{ marginLeft: i ? -8 : 0, borderRadius: 18, border: "2px solid var(--wf-card)", display: "flex" }}>
+                  <Iniciales nombre={p.nombre} fondo={p.lead ? "var(--wf-brand-primary)" : "var(--wf-hover)"} color={p.lead ? "var(--wf-on-brand-primary)" : "var(--wf-text)"} />
+                </span>
+              ))}
+            </span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {equipo[0].nombre.split(" ")[0]}{equipo.length > 1 ? ` y ${equipo.length - 1} más` : ""}
+            </span>
+            <button onClick={() => setVerEquipo(true)} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", color: "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "8px 12px", fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              <Users size={15} /> Ver equipo
+            </button>
+          </div>
+        </TarjetaInicio>
+      )}
+    </>
+  ) : (
+    <TarjetaInicio style={{ padding: 18 }}>
+      <div style={{ fontSize: 17, fontWeight: 700, color: "var(--wf-text)" }}>Esta semana no tienes servicio asignado</div>
+      {nextEvent ? (
+        <button onClick={() => onSelectEvent(nextEvent.id)} style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "var(--wf-hover)", border: "none", borderRadius: 14, padding: "12px 14px", cursor: "pointer" }}>
+          <Calendar size={18} color="var(--wf-brand-accent)" />
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 13, color: "var(--wf-muted)" }}>Próximo servicio de la iglesia</span>
+            <span style={{ display: "block", fontSize: 15, fontWeight: 700, color: "var(--wf-text)" }}>{fechaLarga(nextDate, nextEvent.hora)}</span>
+          </span>
+          <ChevronRight size={18} color="var(--wf-faint)" />
+        </button>
+      ) : <div style={{ fontSize: 14, color: "var(--wf-muted)", marginTop: 6 }}>No hay servicios próximos en el calendario.</div>}
+    </TarjetaInicio>
+  );
+
+  // "Canciones de hoy / de mañana / del domingo": el título dice para cuándo son.
+  const tituloCanciones = (() => {
+    const cuando = ev ? cuandoEs(ev.date) : null;
+    if (cuando === "hoy") return "Canciones de hoy";
+    if (cuando === "mañana") return "Canciones de mañana";
+    return fechaEv ? `Canciones del ${DIAS[fechaEv.getDay()]}` : "Canciones para ensayar";
+  })();
+  const seccionCanciones = canciones.length > 0 && (
+    <>
+      <TituloSeccion derecha={<span style={{ fontSize: 13, color: "var(--wf-muted)" }}>{canciones.length} {canciones.length === 1 ? "canción" : "canciones"}</span>}>{tituloCanciones}</TituloSeccion>
+      <TarjetaInicio>
+        {(verTodasCanciones ? canciones : canciones.slice(0, 3)).map((c, i) => (
+          <button key={c.itemId} onClick={() => onOpenSong(c.songId)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "8px 12px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: c.cambiado ? "var(--wf-active-bg)" : "transparent", cursor: "pointer" }}>
+            <span style={{ minWidth: 34, textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 700, color: c.cambiado ? "#C2620F" : "#1F8A73" }}>{acordeEn(c.tono)}</span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600, color: "var(--wf-text)", lineHeight: 1.3 }}>{c.titulo}</span>
+            {c.cambiado && <span title="Tono cambiado para este servicio" style={{ fontSize: 11.5, fontWeight: 700, color: "var(--wf-active-text)", background: "var(--wf-card)", borderRadius: 8, padding: "2px 6px", flexShrink: 0 }}>antes {acordeEn(c.tonoOriginal)}</span>}
+            {c.tempo ? <span style={{ fontSize: 12.5, color: "var(--wf-muted)" }}>{c.tempo} bpm</span> : null}
+            <ChevronRight size={16} color="var(--wf-faint)" />
+          </button>
+        ))}
+        {canciones.length > 3 && <BotonVerMas abierto={verTodasCanciones} restantes={canciones.length - 3} onClick={() => setVerTodasCanciones((v) => !v)} />}
+      </TarjetaInicio>
+    </>
+  );
+
+  const seccionIndicaciones = notas.length > 0 && (
+    <>
+      <TituloSeccion>Indicaciones</TituloSeccion>
+      {notas.map((n, i) => (
+        <TarjetaInicio key={i} style={{ padding: 14, marginBottom: 8 }}>
+          {notas.length > 1 && <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 4 }}>{n.bloque}</div>}
+          <div style={{ fontSize: 15, color: "var(--wf-text)", lineHeight: 1.55, whiteSpace: "pre-line" }}>{n.texto}</div>
+          {n.autor && <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 6 }}>— {n.autor}</div>}
+        </TarjetaInicio>
+      ))}
+    </>
+  );
+
+  const seccionAtencion = atencion.length > 0 && (
+    <>
+      <TituloSeccion derecha={<span style={{ fontSize: 13, color: "var(--wf-muted)" }}>próximos 14 días</span>}>Necesita tu atención</TituloSeccion>
+      <TarjetaInicio>
+        {(verTodaAtencion ? atencion : atencion.slice(0, 3)).map((a, i) => (
+          <button key={i} onClick={() => onSelectEvent(a.eventId)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "8px 12px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: "transparent", cursor: "pointer" }}>
+            {a.tipo === "setlist" ? <Music size={18} color="#B15EA0" /> : a.tipo === "rechazo" ? <X size={18} color="#C23B32" /> : <Users size={18} color="#5661B3" />}
+            <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--wf-text)", lineHeight: 1.35 }}>{a.texto}</span>
+            <ChevronRight size={16} color="var(--wf-faint)" />
+          </button>
+        ))}
+        {atencion.length > 3 && <BotonVerMas abierto={verTodaAtencion} restantes={atencion.length - 3} onClick={() => setVerTodaAtencion((v) => !v)} />}
+      </TarjetaInicio>
+    </>
+  );
+
+  const otrasFechas = misServicios.slice(1, 13);
+  const seccionFechas = otrasFechas.length > 0 && (
+    <>
+      <TituloSeccion>Tus próximas fechas</TituloSeccion>
+      <TarjetaInicio>
+        {(verTodasFechas ? otrasFechas : otrasFechas.slice(0, 3)).map(({ event: e, cargos: cs }, i) => {
+          return (
+            <button key={e.id} onClick={() => onSelectEvent(e.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "8px 12px", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: "transparent", cursor: "pointer" }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <b>{fechaCorta(parseIsoDateLocal(e.date))}</b> · {cs.map((c) => c.nombre).join(", ")}
+              </span>
+              <ChevronRight size={16} color="var(--wf-faint)" />
+            </button>
+          );
+        })}
+        {otrasFechas.length > 3 && <BotonVerMas abierto={verTodasFechas} restantes={otrasFechas.length - 3} onClick={() => setVerTodasFechas((v) => !v)} />}
+      </TarjetaInicio>
+    </>
+  );
+
+  const calendarioMes = (
+    <>
+        {/* Calendario del mes en curso */}
+        <div style={{ flex: isCompact ? "none" : 1.3, minHeight: 0, background: "var(--wf-card)", borderRadius: 20, boxShadow: "0 6px 20px rgba(22,50,79,0.08)", padding: 18, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexShrink: 0, gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <button onClick={() => changeMonth(-1)} style={iconGhost}><ChevronLeft size={16} /></button>
+              <span style={{ fontFamily: "'Fraunces', serif", fontSize: 16, fontWeight: 600, color: "var(--wf-heading)" }}>{MONTH_NAMES_FULL[viewedMonth.month]} {viewedMonth.year}</span>
+              <button onClick={() => changeMonth(1)} style={iconGhost}><ChevronRight size={16} /></button>
+              {!isViewingCurrentMonth && (
+                <button onClick={() => setViewedMonth({ year: today.getFullYear(), month: today.getMonth() })} style={{ ...ghostToggleBtn, padding: "4px 8px", fontSize: 10 }}>Hoy</button>
+              )}
+            </div>
+            <span style={{ fontSize: 11, color: "var(--wf-faint)", flexShrink: 0 }}>{eventsThisMonth} {eventsThisMonth === 1 ? "evento" : "eventos"} este mes</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6, flexShrink: 0 }}>
+            {DOW_LABELS.map((d) => (
+              <div key={d} style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: "var(--wf-faint)" }}>{d}</div>
+            ))}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: isCompact ? "none" : 1, minHeight: 0 }}>
+            {weeks.map((week, wi) => (
+              <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, flex: isCompact ? "none" : 1, minHeight: isCompact ? 40 : 0 }}>
+                {week.map((day, di) => {
+                  if (day === null) return <div key={di} />;
+                  const dayEvents = byDay[day] || [];
+                  const isNext = !!(nextDate && nextDate.getFullYear() === viewedMonth.year && nextDate.getMonth() === viewedMonth.month && day === nextDate.getDate());
+                  const isToday = isViewingCurrentMonth && day === today.getDate();
+                  return (
+                    <button
+                      key={di}
+                      disabled={dayEvents.length === 0}
+                      onClick={() => { if (dayEvents.length === 1) onSelectEvent(dayEvents[0].id); else if (dayEvents.length > 1) setDayEventsPicker(dayEvents); }}
+                      className={dayEvents.length && !isNext ? "hoverable" : undefined}
+                      style={{
+                        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
+                        borderRadius: 14, border: isToday && !isNext ? "1.5px solid #2F5FA8" : "1.5px solid transparent",
+                        background: isNext ? "var(--wf-brand-accent)" : dayEvents.length ? "var(--wf-hover)" : "transparent",
+                        cursor: dayEvents.length ? "pointer" : "default", padding: 0,
+                      }}
+                    >
+                      <span style={{ fontSize: 12, fontWeight: isNext ? 800 : 600, color: isNext ? "#fff" : "var(--wf-text-2)" }}>{day}</span>
+                      {dayEvents.length > 0 && (
+                        <span style={{ width: 4, height: 4, borderRadius: "50%", background: isNext ? "#fff" : "var(--wf-brand-accent)" }} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+
+    </>
+  );
+
+  const seccionSemana = (
+    <>
+      <TituloSeccion derecha={<button onClick={() => setVerMes((v) => !v)} style={{ background: "none", border: "none", fontSize: 13.5, fontWeight: 700, color: "#2F5FA8", cursor: "pointer" }}>{verMes ? "Ocultar mes" : "Ver mes completo"}</button>}>Esta semana</TituloSeccion>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
+        {semana.map((d, i) => {
+          const conEventos = d.eventos.length > 0;
+          return (
+            <button
+              key={d.iso} onClick={() => abrirDia(d)} disabled={!conEventos}
+              aria-label={`${DIAS_CORTOS[i]} ${d.fecha.getDate()}${conEventos ? `, ${d.eventos.length} servicio${d.eventos.length > 1 ? "s" : ""}` : ""}${d.meToca ? ", te toca" : ""}`}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, padding: "5px 0", borderRadius: 12, cursor: conEventos ? "pointer" : "default",
+                background: d.esHoy ? "var(--wf-brand-primary)" : "var(--wf-card)", color: d.esHoy ? "var(--wf-on-brand-primary)" : "var(--wf-text)",
+                border: d.meToca && !d.esHoy ? "2px solid var(--wf-brand-accent)" : "2px solid transparent", boxShadow: "0 2px 8px rgba(22,50,79,0.06)" }}
+            >
+              <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.75 }}>{DIAS_CORTOS[i]}</span>
+              <span style={{ fontSize: 15, fontWeight: 700 }}>{d.fecha.getDate()}</span>
+              <span style={{ width: 6, height: 6, borderRadius: 3, background: d.meToca ? "var(--wf-brand-accent)" : conEventos ? "var(--wf-faint)" : "transparent" }} />
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ display: isCompact && !verMes ? "none" : "flex", gap: 14, fontSize: 12.5, color: "var(--wf-muted)", margin: "8px 4px 0" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: "var(--wf-brand-accent)" }} /> Te toca</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: "var(--wf-faint)" }} /> Hay servicio</span>
+      </div>
+      {verMes && <div style={{ marginTop: 12, display: "flex", flexDirection: "column", minHeight: 320 }}>{calendarioMes}</div>}
+    </>
+  );
+
+  const atajos = (
+    <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+      {canSeeCanciones && <StatCard icon={Heart} label="Canciones favoritas" value={favoritesCount} onClick={() => setShowFavorites(true)} />}
+      <StatCard icon={Users} label="Miembros del equipo" value={memberCount} onClick={onGoToTeam} />
+    </div>
+  );
+
+  return (
+    <div className="screen-enter" style={{ height: "100%", boxSizing: "border-box", overflowY: "auto", overflowX: "hidden" }}>
+      <div style={{ maxWidth: isCompact ? "none" : 1080, margin: "0 auto", padding: isCompact ? "14px 16px 110px" : "24px 28px 40px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: "'Fraunces', serif", fontSize: isCompact ? 23 : 26, fontWeight: 600, lineHeight: 1.2 }}>{greetingWord()}{myName ? `, ${myName.split(" ")[0]}` : ""}</div>
+            <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 2 }}>{fechaLarga(today)}{isCompact ? "" : ` · ${teamName}`}</div>
+          </div>
+        </div>
+
+        {/* Evento en vivo (pedido de Eldin, 2026-10-21: "antes… se resaltaba con una luz sombreada y
+            resaltaba antes que cualquier otro evento"): tarjeta grande con brillo naranja que late,
+            arriba de todo lo demás. */}
+        {liveEvent && (
+          <button onClick={() => (liveLibre ? onGoLive() : onSelectEvent(liveEvent.id))} className="tarjeta-en-vivo" aria-label={`En vivo ahora: ${liveEvent.title}`}
+            style={{ position: "relative", display: "flex", alignItems: "center", gap: 14, width: "100%", textAlign: "left", border: "none", cursor: "pointer", borderRadius: 20, padding: isCompact ? "16px 16px" : "18px 22px", marginBottom: 16, overflow: "hidden", color: "#fff", background: liveEvent.cover || DEFAULT_COVERS[0] }}>
+            <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 12% 30%, rgba(232,130,30,.45), transparent 60%)", pointerEvents: "none" }} />
+            <span style={{ position: "relative", width: 46, height: 46, borderRadius: 16, background: "rgba(255,255,255,.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Radio size={22} color="#fff" />
+            </span>
+            <span style={{ position: "relative", flex: 1, minWidth: 0 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, letterSpacing: 0.6 }}>
+                <span className="live-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "#FF5A4E", boxShadow: "0 0 8px #FF5A4E" }} /> EN VIVO AHORA
+              </span>
+              <span style={{ display: "block", fontFamily: "'Fraunces', serif", fontSize: isCompact ? 18 : 21, fontWeight: 600, lineHeight: 1.25, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{liveEvent.title}</span>
+              {liveEvent.location && <span style={{ display: "block", fontSize: 12, opacity: 0.85, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{liveEvent.location}</span>}
+            </span>
+            <span style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, background: "#fff", color: "var(--wf-brand-primary, #16324F)", borderRadius: 14, padding: "8px 12px", fontSize: 12.5, fontWeight: 700, flexShrink: 0 }}>
+              {isCompact ? "Ver" : "Ver evento"} <ChevronRight size={14} />
+            </span>
+          </button>
+        )}
+
+        {avisoPush && <AvisoActivarPush estado={avisoPush} onActivar={onActivarPush} onCerrar={onOcultarPush} />}
+
+        {isCompact ? (
+          <>
+            {/* Compacto (pedido de Eldin, 2026-10-09: "hay que hacer mucho scrolling"): el equipo va
+                dentro de la tarjeta del servicio, y los atajos de favoritos/miembros ya tienen su pestaña. */}
+            {tarjetaServicio}
+            {seccionCanciones}
+            {seccionIndicaciones}
+            {seccionAtencion}
+            {seccionFechas}
+            {seccionSemana}
+          </>
+        ) : (
+          <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+            <div style={{ flex: 1.2, minWidth: 0 }}>
+              {tarjetaServicio}
+              {seccionCanciones}
+              {seccionIndicaciones}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ marginTop: -20 }}>{seccionSemana}</div>
+              {seccionAtencion}
+              {seccionFechas}
+              {atajos}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {showFavorites && (
+        <ModalShell title="Canciones favoritas" icon={Heart} color="#C23B32" onClose={() => setShowFavorites(false)}>
+          {favoriteSongs.length === 0 ? (
+            <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Todavía no has marcado ninguna canción como favorita — busca el corazón en Canciones.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "60vh", overflowY: "auto" }}>
+              {favoriteSongs.map((s) => (
+                <button key={s.id} onClick={() => { setShowFavorites(false); onOpenSong(s.id); }} className="hoverable" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", background: "var(--wf-hover)", border: "none", borderRadius: 12, padding: "10px 12px", cursor: "pointer" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{s.title}</div>
+                    <div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)} · {s.tempo} bpm</div>
+                  </div>
+                  <ChevronRight size={14} color="var(--wf-faint)" />
+                </button>
+              ))}
+            </div>
+          )}
+        </ModalShell>
+      )}
+
+      {verEquipo && (
+        <ModalShell title={esAlabanza ? "Tu equipo" : "Con quién te toca"} icon={Users} color="#6E63C7" onClose={() => setVerEquipo(false)}>
+          <div style={{ display: "flex", flexDirection: "column", maxHeight: "60vh", overflowY: "auto" }}>
+            {equipo.map((p, i) => (
+              <div key={`${p.nombre}-${i}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 2px", borderTop: i ? "1px solid var(--wf-divider)" : "none" }}>
+                <Iniciales nombre={p.nombre} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--wf-text)" }}>{p.nombre}</span>
+                  <span style={{ display: "block", fontSize: 13, color: "var(--wf-muted)" }}>{p.cargos.join(", ")}</span>
+                </span>
+                {p.lead && <span style={{ fontSize: 12, fontWeight: 700, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)", padding: "3px 9px", borderRadius: 10 }}>{esAlabanza ? "Dirige" : "A cargo"}</span>}
+              </div>
+            ))}
+          </div>
+        </ModalShell>
+      )}
+
+      {dayEventsPicker && (
+        <ModalShell title="Servicios de ese día" icon={Calendar} color="#2F5FA8" onClose={() => setDayEventsPicker(null)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {dayEventsPicker.map((e) => (
+              <button key={e.id} onClick={() => { setDayEventsPicker(null); onSelectEvent(e.id); }} className="hoverable" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", background: "var(--wf-hover)", border: "none", borderRadius: 12, padding: "12px 14px", cursor: "pointer" }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{e.title}</div>
+                  <div style={{ fontSize: 12.5, color: "var(--wf-muted)" }}>{e.hora ? `${e.hora.slice(0, 5)} · ` : ""}{e.location}</div>
+                </div>
+                <ChevronRight size={14} color="var(--wf-faint)" />
+              </button>
+            ))}
+          </div>
+        </ModalShell>
+      )}
+    </div>
+  );
+}
+
+// ---------------- AJUSTES ----------------
+function ToggleSwitch({ checked, onChange }) {
+  return (
+    <button onClick={() => onChange(!checked)} style={{ width: 44, height: 26, borderRadius: 20, background: checked ? "var(--wf-brand-accent)" : "var(--wf-border)", border: "none", position: "relative", cursor: "pointer", flexShrink: 0 }}>
+      <span style={{ position: "absolute", top: 3, left: checked ? 21 : 3, width: 20, height: 20, borderRadius: "50%", background: "var(--wf-card)", transition: "left .15s" }} />
+    </button>
+  );
+}
+function NavRow({ icon: Icon, label, onClick, right, danger }) {
+  // Si no hay onClick propio de la fila (ej. cuando "right" ya es interactivo, como un ToggleSwitch),
+  // usamos un <div> en vez de <button> — un <button> no puede contener otro <button> (HTML inválido).
+  const Tag = onClick ? "button" : "div";
+  return (
+    <Tag onClick={onClick} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: onClick ? "pointer" : "default", boxSizing: "border-box" }}>
+      <Icon size={18} color={danger ? "#C23B32" : "var(--wf-text-2)"} />
+      <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: danger ? "#C23B32" : "var(--wf-text)" }}>{label}</span>
+      {right}
+    </Tag>
+  );
+}
+function SectionLabel({ children }) {
+  return <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.5, margin: "18px 0 8px" }}>{children}</div>;
+}
+
+function useInstallState() {
+  const [state, setState] = useState(getInstallState);
+  useEffect(() => subscribeInstallState(() => setState(getInstallState())), []);
+  return state;
+}
+
+// Versión que se descarga para uso sin conexión — solo esta, para no golpear la API gratuita
+// bolls.life con las 5 versiones completas (serían miles de pedidos). Reina-Valera 1960 es la que
+// aparece primero en BIBLE_VERSIONS (la más usada en iglesias como esta).
+const BIBLE_OFFLINE_VERSION = "RV1960";
+
+// "Descargar Biblia" en Ajustes: guarda capítulo por capítulo en este dispositivo (ver
+// bibleOfflineStore.js) para que el buscador de Biblia en vivo y "siguiente versículo" (ver
+// fetchBibleChapter/fetchBibleBooks) sigan funcionando aunque se corte el internet en el templo.
+function BibleDownloadSection() {
+  const [totalCapitulos, setTotalCapitulos] = useState(0);
+  const [guardados, setGuardados] = useState(null); // null = todavía revisando
+  const [descargando, setDescargando] = useState(false);
+  const [progreso, setProgreso] = useState({ hechos: 0, total: 0 });
+  const cancelRef = useRef({ aborted: false });
+
+  const actualizarConteo = () => {
+    Promise.all([
+      fetchBibleBooks(BIBLE_OFFLINE_VERSION).catch(() => null),
+      contarCapitulosGuardados(BIBLE_OFFLINE_VERSION),
+    ]).then(([books, n]) => {
+      setTotalCapitulos(books ? books.reduce((acc, b) => acc + b.chapters, 0) : 0);
+      setGuardados(n);
+    });
+  };
+  useEffect(() => { actualizarConteo(); }, []);
+
+  const iniciarDescarga = async () => {
+    cancelRef.current = { aborted: false };
+    setDescargando(true);
+    setProgreso({ hechos: 0, total: 0 });
+    try {
+      const resultado = await descargarBibliaCompleta(BIBLE_OFFLINE_VERSION, {
+        fetchBooks: fetchBibleBooks,
+        fetchChapter: fetchBibleChapter,
+        onProgress: (hechos, total) => setProgreso({ hechos, total }),
+        signal: cancelRef.current,
+      });
+      if (!resultado.cancelado) showToast("Biblia Reina-Valera 1960 descargada — ya puedes usarla sin conexión.", "info");
+    } catch (e) {
+      notifyError("No se pudo terminar de descargar la Biblia", e);
+    } finally {
+      setDescargando(false);
+      actualizarConteo();
+    }
+  };
+  const cancelarDescarga = () => { cancelRef.current.aborted = true; };
+  const eliminarDescarga = async () => {
+    if (!(await confirmDialog("¿Eliminar la copia de la Biblia descargada de este dispositivo?", { danger: true, textoConfirmar: "Eliminar" }))) return;
+    await borrarVersionOffline(BIBLE_OFFLINE_VERSION);
+    actualizarConteo();
+  };
+
+  const completa = guardados !== null && totalCapitulos > 0 && guardados >= totalCapitulos;
+  const porcentaje = totalCapitulos ? Math.round(((guardados || 0) / totalCapitulos) * 100) : 0;
+
+  return (
+    <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <CloudDownload size={16} color="#2F5FA8" />
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>Biblia sin conexión (Reina-Valera 1960)</div>
+      </div>
+      <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10 }}>
+        Descárgala una vez con buena señal para poder seguir buscando y proyectando versículos aunque se corte el internet en el templo.
+      </div>
+      {guardados === null ? (
+        <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>Revisando…</div>
+      ) : descargando ? (
+        <>
+          <div style={{ height: 8, background: "var(--wf-hover)", borderRadius: 10, overflow: "hidden", marginBottom: 6 }}>
+            <div style={{ height: "100%", width: `${progreso.total ? Math.round((progreso.hechos / progreso.total) * 100) : 0}%`, background: "#2F5FA8", transition: "width .2s" }} />
+          </div>
+          <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 8 }}>{progreso.hechos} de {progreso.total || "…"} capítulos — puede tardar varios minutos.</div>
+          <button onClick={cancelarDescarga} style={{ fontSize: 12, fontWeight: 700, color: "#C23B32", background: "none", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 12px", cursor: "pointer" }}>Cancelar</button>
+        </>
+      ) : completa ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 12, color: "#1F8A73", fontWeight: 700 }}>✓ Descargada completa ({guardados} capítulos)</span>
+          <button onClick={eliminarDescarga} style={{ fontSize: 11, color: "#C23B32", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Eliminar</button>
+        </div>
+      ) : (
+        <>
+          {guardados > 0 && <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 8 }}>Ya tienes {guardados} de {totalCapitulos} capítulos ({porcentaje}%)</div>}
+          <button onClick={iniciarDescarga} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "var(--wf-bg)", border: "none", borderRadius: 12, padding: "9px 10px", fontSize: 12, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer" }}>
+            <CloudDownload size={14} color="#2F5FA8" /> {guardados > 0 ? "Continuar descarga" : "Descargar para uso sin conexión"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, onGoToRoles, onGoToPlataforma, userId, myIglesiaId, teamName, isCompact, onVerTutorial }) {
+  const [horarioAbierto, setHorarioAbierto] = useState(false);
+  const [showTeamList, setShowTeamList] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showIdentidad, setShowIdentidad] = useState(false);
+  const [showPantalla, setShowPantalla] = useState(false);
+  const [showOtroEquipoAjustes, setShowOtroEquipoAjustes] = useState(false); // false · "proyeccion" · "escenario"
+  const [pushEstado, setPushEstado] = useState("cargando"); // cargando | activo | inactivo | sin-soporte
+  const [pushBusy, setPushBusy] = useState(false);
+  const [screensBusy, setScreensBusy] = useState(false);
+  const activarDeteccionPantallas = async () => {
+    setScreensBusy(true);
+    try {
+      await window.getScreenDetails();
+      showToast("Listo — con el proyector/monitor conectado, \"Iniciar evento\" debería abrir la proyección sola en pantalla completa ahí.", "info");
+    } catch {
+      showToast("No se concedió el permiso. Intenta de nuevo y acepta el permiso de \"administrar ventanas en varias pantallas\" que pida el navegador.");
+    } finally {
+      setScreensBusy(false);
+    }
+  };
+  // Modo oscuro del chrome — de este dispositivo nada más (ver lib/theme.js), NO afecta a Proyección.
+  // Por defecto la app se queda clara; "Automático" sigue el tema del celular/computadora.
+  const [tema, setTemaState] = useState(getTema());
+  const cambiarTema = (t) => { setTema(t); setTemaState(t); };
+  const install = useInstallState();
+  // "Continuar con Google" en Ajustes: vincula/desvincula Google como método alterno de inicio de
+  // sesión para ESTA cuenta ya invitada — no reemplaza la invitación, solo evita tener que escribir la
+  // contraseña la próxima vez. Ver AuthGate.jsx para el resguardo de que nadie sin invitación entre así.
+  const [googleLinked, setGoogleLinked] = useState(null); // null: cargando · true/false
+  const [googleBusy, setGoogleBusy] = useState(false);
+  useEffect(() => {
+    supabase.auth.getUserIdentities()
+      .then(({ data }) => setGoogleLinked(!!data?.identities?.some((i) => i.provider === "google")))
+      .catch(() => setGoogleLinked(false));
+  }, []);
+  const vincularGoogle = async () => {
+    setGoogleBusy(true);
+    const { error } = await supabase.auth.linkIdentity({ provider: "google", options: { redirectTo: window.location.origin } });
+    if (error) { notifyError("No se pudo vincular Google", error); setGoogleBusy(false); }
+    // si no hay error, el navegador redirige a Google — vuelve solo a esta pantalla ya vinculada
+  };
+  const desvincularGoogle = async () => {
+    if (!(await confirmDialog("¿Dejar de poder entrar con Google? Vas a seguir pudiendo entrar con tu correo y contraseña.", { textoConfirmar: "Desvincular" }))) return;
+    setGoogleBusy(true);
+    try {
+      const { data } = await supabase.auth.getUserIdentities();
+      const identidad = data?.identities?.find((i) => i.provider === "google");
+      if (identidad) { await supabase.auth.unlinkIdentity(identidad); setGoogleLinked(false); }
+    } catch (e) {
+      notifyError("No se pudo desvincular", e);
+    } finally {
+      setGoogleBusy(false);
+    }
+  };
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+      setPushEstado("sin-soporte");
+      return;
+    }
+    estaSuscritoPush().then((si) => setPushEstado(si ? "activo" : "inactivo")).catch(() => setPushEstado("inactivo"));
+  }, []);
+  const activarPush = async () => {
+    setPushBusy(true);
+    try {
+      await suscribirPush(userId);
+      setPushEstado("activo");
+    } catch (e) {
+      notifyError("No se pudo activar las notificaciones push", e);
+    } finally {
+      setPushBusy(false);
+    }
+  };
+  const desactivarPush = async () => {
+    setPushBusy(true);
+    try {
+      await desuscribirPush();
+      setPushEstado("inactivo");
+    } catch (e) {
+      notifyError("No se pudo desactivar las notificaciones push", e);
+    } finally {
+      setPushBusy(false);
+    }
+  };
+  const ROLE_OPTIONS = ["Administrador", "Multimedia", "Músico", "Miembro", "Supervisor"];
+  const initials = (myName || "?").split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  const misEventos = useMemo(
+    () => events.filter((e) => !e.esPlantilla && isUpcoming(e) && (
+      e.serviceOrder.some((item) => (item.encargados || []).some((m) => m.n === myName)) ||
+      (e.worshipRoles || []).some((r) => (r.members || []).some((m) => m.n === myName))
+    )),
+    [events, myName]
+  );
+  // Reorganizado (pedido de Eldin, 2026-10-09): agrupado por lo que la persona busca — su cuenta
+  // arriba, lo suyo, cómo se ve, este aparato, la iglesia (admins), ayuda. Lo de pruebas de
+  // administrador queda guardado en "Opciones avanzadas" para que nadie lo toque sin querer.
+  const { tamanoLetra, notacion } = usePreferencias();
+  const [cuentaAbierta, setCuentaAbierta] = useState(false);
+  const [avanzadoAbierto, setAvanzadoAbierto] = useState(!!(roleOverride || nameOverride));
+  const chevron = <ChevronRight size={16} color="var(--wf-faint)" />;
+  const tarjeta = { background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "12px 16px", marginBottom: 8 };
+  const opcion = (activa) => ({ flex: 1, fontSize: 12.5, fontWeight: 700, padding: "9px 6px", borderRadius: 12, border: "none", cursor: "pointer", background: activa ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: activa ? "var(--wf-brand-primary)" : "var(--wf-text)" });
+  const subtitulo = (icono, texto) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+      {icono}
+      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--wf-text)" }}>{texto}</span>
+    </div>
+  );
+
+  const signOut = async () => {
+    if (!(await confirmDialog("¿Cerrar sesión?", { textoConfirmar: "Cerrar sesión" }))) return;
+    supabase.auth.signOut();
+  };
+
+  return (
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 640, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+      <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, marginBottom: 18 }}>Ajustes</h2>
+
+      {/* Mi cuenta: tocar la tarjeta abre contraseña y Google. */}
+      <button onClick={() => setCuentaAbierta((v) => !v)} className="hoverable" aria-expanded={cuentaAbierta} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 18, padding: 14, cursor: "pointer", marginBottom: 8, color: "var(--wf-text)" }}>
+        {perfil?.foto_url ? (
+          <img src={perfil.foto_url} alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+        ) : (
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700, flexShrink: 0, color: "#fff" }}>{initials}</div>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{myName || "Sin nombre"}</div>
+          {perfil?.email && <div style={{ fontSize: 12, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis" }}>{perfil.email}</div>}
+          <span style={{ display: "inline-block", marginTop: 4, background: "var(--wf-hover)", borderRadius: 16, padding: "2px 10px", fontSize: 11, color: "var(--wf-text-2)" }}>{myRole}</span>
+        </div>
+        <span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 2 }}>Mi cuenta {cuentaAbierta ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
+      </button>
+      {cuentaAbierta && (
+        <div style={{ marginBottom: 6 }}>
+          <NavRow icon={KeyRound} label="Cambiar contraseña" onClick={() => setShowChangePassword(true)} right={chevron} />
+          {googleLinked === true ? (
+            <NavRow
+              icon={Check} label="Puedes entrar con Google"
+              right={googleBusy ? null : <span onClick={(e) => { e.stopPropagation(); desvincularGoogle(); }} style={{ fontSize: 11, color: "var(--wf-faint)", fontWeight: 600, cursor: "pointer" }}>Desvincular</span>}
+            />
+          ) : googleLinked === false ? (
+            <NavRow icon={KeyRound} label="Entrar con Google" onClick={googleBusy ? undefined : vincularGoogle} right={googleBusy ? null : chevron} />
+          ) : null}
+        </div>
+      )}
+
+      <SectionLabel>MI SERVICIO</SectionLabel>
+      <NavRow icon={Calendar} label="Mis próximas fechas" onClick={() => setHorarioAbierto((v) => !v)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{misEventos.length} {horarioAbierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>} />
+      {horarioAbierto && (
+        misEventos.length ? (
+          <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+            {misEventos.map((e) => (
+              <button key={e.id} onClick={() => onSelectEvent(e.id)} className="hoverable" style={{ textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 2px 10px rgba(22,50,79,0.07)", borderRadius: 14, padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{e.title}</div>
+                  <div style={{ fontSize: 11, color: "var(--wf-faint)" }}>{formatFullDate(e.date) || e.dateLabel}</div>
+                </div>
+                <ChevronRight size={14} color="var(--wf-faint)" />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: "var(--wf-faint)", marginBottom: 8, padding: "0 4px" }}>No tienes nada asignado en los próximos eventos.</div>
+        )
+      )}
+      {pushEstado === "sin-soporte" ? (
+        <NavRow icon={Bell} label="Avisos no disponibles en este navegador" right={null} />
+      ) : pushEstado === "activo" ? (
+        // A propósito sin un botón de un solo toque para desactivar — solo un enlace chico que primero
+        // confirma con una advertencia, para que nadie las apague sin querer o sin pensarlo.
+        <NavRow
+          icon={Bell}
+          label="Avisos al celular activados"
+          right={pushBusy ? null : (
+            <span
+              onClick={async (e) => { e.stopPropagation(); if (await confirmDialog("¿Seguro que quieres desactivar los avisos? Podrías perderte avisos de tus asignaciones y recordatorios de eventos.", { danger: true, textoConfirmar: "Desactivar" })) desactivarPush(); }}
+              style={{ fontSize: 11, color: "var(--wf-faint)", fontWeight: 600, cursor: "pointer" }}
+            >
+              Desactivar
+            </span>
+          )}
+        />
+      ) : pushEstado === "inactivo" ? (
+        <NavRow icon={Bell} label="Activar avisos al celular" onClick={activarPush} right={pushBusy ? null : chevron} />
+      ) : null}
+
+      <SectionLabel>APARIENCIA</SectionLabel>
+      <div style={tarjeta}>
+        {subtitulo(<Moon size={18} color="var(--wf-text-2)" />, "Modo de color")}
+        <div style={{ display: "flex", gap: 6 }}>
+          {[["claro", "Claro"], ["oscuro", "Oscuro"], ["auto", "Automático"]].map(([val, label]) => (
+            <button key={val} onClick={() => cambiarTema(val)} style={opcion(tema === val)}>{label}</button>
+          ))}
+        </div>
+      </div>
+      <div style={tarjeta}>
+        {subtitulo(<Type size={18} color="var(--wf-text-2)" />, "Tamaño de letra")}
+        <div style={{ display: "flex", gap: 6 }}>
+          {TAMANOS_LETRA.map((t, i) => (
+            <button key={t.value} onClick={() => setTamanoLetra(t.value)} aria-pressed={tamanoLetra === t.value} style={{ ...opcion(tamanoLetra === t.value), display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <span style={{ fontSize: 14 + i * 4, lineHeight: 1.1 }}>Aa</span>
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: "var(--wf-muted)", marginTop: 8 }}>Solo en este dispositivo. No cambia la pantalla de proyección.</div>
+      </div>
+      <div style={tarjeta}>
+        {subtitulo(<Music size={18} color="var(--wf-text-2)" />, "Cómo ver los tonos y acordes")}
+        <div style={{ display: "flex", gap: 6 }}>
+          {NOTACIONES.map((n) => (
+            <button key={n.value} onClick={() => setNotacion(n.value)} aria-pressed={notacion === n.value} style={{ ...opcion(notacion === n.value), fontFamily: "'JetBrains Mono', monospace" }}>{n.label}</button>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: "var(--wf-muted)", marginTop: 8 }}>
+          Ejemplo: <b style={{ fontFamily: "'JetBrains Mono', monospace", color: "#1F8A73" }}>{acordeEn("G", notacion)} · {acordeEn("Em", notacion)} · {acordeEn("D/F#", notacion)}</b> — solo cambia lo que tú ves.
+        </div>
+      </div>
+
+      <SectionLabel>ESTE DISPOSITIVO</SectionLabel>
+      {install.installed ? (
+        <NavRow icon={Check} label="La app ya está instalada" right={null} />
+      ) : install.canInstall ? (
+        <NavRow icon={Download} label="Instalar la app" onClick={() => promptInstall()} right={chevron} />
+      ) : isIosSafari() ? (
+        <NavRow icon={Download} label="Compartir → Agregar a inicio para instalar" right={null} />
+      ) : (
+        <NavRow icon={Download} label="Instalar la app" right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>Desde el menú del navegador</span>} />
+      )}
+      {/* El navegador pide permiso para "administrar ventanas en varias pantallas" la primera vez que
+          se usa getScreenDetails() -- si esa primera vez coincide con el clic de "Iniciar evento", para
+          cuando la persona responde ya se perdió el "gesto de usuario" y la pantalla completa automática
+          en el segundo monitor falla en silencio. Pidiéndolo acá, una sola vez, Chrome lo recuerda.
+          Solo en computadora: un teléfono no maneja "otra pantalla" por HDMI. */}
+      {!isCompact && typeof window !== "undefined" && "getScreenDetails" in window && (
+        <>
+          <NavRow
+            icon={Radio}
+            label={screensBusy ? "Pidiendo permiso…" : "Activar detección automática de pantalla"}
+            onClick={screensBusy ? undefined : activarDeteccionPantallas}
+            right={screensBusy ? null : chevron}
+          />
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "-4px 4px 10px" }}>
+            Hazlo una vez, con el proyector/monitor ya conectado — así "Iniciar evento" abre la proyección en pantalla completa ahí solo.
+          </div>
+        </>
+      )}
+      {/* Solo tiene sentido en la computadora que proyecta. */}
+      {!isCompact && <BibleDownloadSection />}
+
+      <SectionLabel>MI IGLESIA</SectionLabel>
+      <button onClick={() => setShowTeamList(true)} className="hoverable" style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 16, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", cursor: "pointer", textAlign: "left", color: "var(--wf-text)" }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>{teamName}</div>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{usuariosReales.length} {usuariosReales.length === 1 ? "miembro" : "miembros"}</div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <AvatarStack initials={usuariosReales.map((u) => u.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase())} max={2} />
+          {chevron}
+        </div>
+      </button>
+      {/* Todo en una sola opción (2026-11-02): proyección y escenario, Smart TV con número, QR y enlace. */}
+      <NavRow icon={Tv} label="Pantallas y TV" onClick={() => setShowOtroEquipoAjustes("proyeccion")} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Proyección · Escenario {chevron}</span>} />
+      {showOtroEquipoAjustes && <PantallaOtroEquipo tipo={showOtroEquipoAjustes} iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipoAjustes(false)} />}
+      {realIsAdmin && (
+        <>
+          {/* Una sola entrada para todo lo de las personas (2026-10-30): invitar, rol, estado, y Roles y
+              permisos adentro. */}
+          <NavRow icon={Users} label="Miembros" onClick={onGoToUsuarios} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{usuariosReales.length} {chevron}</span>} />
+          <NavRow icon={Palette} label="Identidad de la iglesia" onClick={() => setShowIdentidad(true)} right={chevron} />
+          {showIdentidad && <IdentidadIglesiaModal iglesiaId={myIglesiaId} onClose={() => setShowIdentidad(false)} />}
+          <NavRow icon={Radio} label="Ajustes de la proyección" onClick={() => setShowPantalla(true)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Letra y versículos {chevron}</span>} />
+          {showPantalla && <PantallaProyeccionModal iglesiaId={myIglesiaId} onClose={() => setShowPantalla(false)} />}
+          {/* Visible solo si soy_super_admin() dio true para esta cuenta (ver AuthGate.jsx). */}
+          {onGoToPlataforma && <NavRow icon={Shield} label="Consola general" onClick={onGoToPlataforma} right={chevron} />}
+          <NavRow icon={Eye} label="Ver la app como otra persona" onClick={() => setAvanzadoAbierto((v) => !v)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{nameOverride || roleOverride || ""} {avanzadoAbierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>} />
+          {avanzadoAbierto && (
+        <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)", marginBottom: 6 }}>Elige a quién</div>
+          <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 8 }}>Para revisar que cada quien vea solo lo que le corresponde.</div>
+          <select value={nameOverride || ""} onChange={(e) => setNameOverride(e.target.value || null)} style={{ ...inputStyle, marginBottom: 14 }}>
+            <option value="">Yo mismo</option>
+            {usuariosReales.map((u) => <option key={u.nombre} value={u.nombre}>{u.nombre}{u.rol === "admin" ? " (administrador)" : ""}</option>)}
+          </select>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)", marginBottom: 6 }}>Probar la app con otro rol</div>
+          <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 8 }}>Solo en este dispositivo. Solo Administrador y Multimedia pueden controlar la transmisión en vivo.</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {ROLE_OPTIONS.map((r) => (
+              <button key={r} onClick={() => setRoleOverride(r === myRole && roleOverride ? null : r)} style={{ fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: "none", cursor: "pointer", background: myRole === r ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: myRole === r ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{r}</button>
+            ))}
+          </div>
+        </div>
+          )}
+        </>
+      )}
+      {showTeamList && (
+        <ModalShell title={teamName} icon={Users} color="#6E63C7" onClose={() => setShowTeamList(false)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: "60vh", overflowY: "auto" }}>
+            {usuariosReales.map((u) => (
+              <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 2px", borderBottom: "1px solid var(--wf-hover)" }}>
+                {u.foto_url ? (
+                  <img src={u.foto_url} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                ) : (
+                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+                    {u.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+                  </div>
+                )}
+                <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{u.nombre}</span>
+                {u.rol === "admin" && <span style={{ fontSize: 10, fontWeight: 700, color: "#2F5FA8", background: "#E8F1FB", border: "1px solid #2F5FA8", borderRadius: 16, padding: "2px 8px" }}>ADMIN</span>}
+              </div>
+            ))}
+          </div>
+        </ModalShell>
+      )}
+
+      <SectionLabel>AYUDA</SectionLabel>
+      {onVerTutorial && <NavRow icon={Sparkles} label="Ver el tutorial de nuevo" onClick={onVerTutorial} right={chevron} />}
+      <NavRow icon={MessageCircle} label="Escríbenos por WhatsApp" onClick={() => { window.open(`https://wa.me/${WHATSAPP_SOPORTE}?text=${encodeURIComponent(`Hola, te escribo de ${teamName || "mi iglesia"} sobre WorshipFlow: `)}`, "_blank", "noopener"); }} right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>Dudas o ideas</span>} />
+      <NavRow icon={Send} label="Escríbenos por correo" onClick={() => { window.location.href = `mailto:${CORREO_SOPORTE}?subject=${encodeURIComponent("WorshipFlow — " + (teamName || "mi iglesia"))}`; }} right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>{CORREO_SOPORTE}</span>} />
+
+      <div style={{ marginTop: 18 }}>
+        <NavRow icon={LogOut} label="Cerrar sesión" danger onClick={signOut} />
+      </div>
+
+      {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
+
+      <div style={{ textAlign: "center", fontSize: 11, color: "var(--wf-border-soft)", marginTop: 20 }}>WorshipFlow</div>
+    </div>
+  );
+}
+
+// Adónde llega "Escríbenos" en Ajustes → Ayuda.
+const CORREO_SOPORTE = "eldinmc8@gmail.com";
+const WHATSAPP_SOPORTE = "50240544813"; // +502 4054 4813, sin "+" ni espacios para wa.me
+
+// Cambiar la propia contraseña sin depender de un administrador — a diferencia de "Reiniciar
+// contraseña" en Usuarios (que un admin usa para OTRA persona), esto es autoservicio: updateUser()
+// de Supabase Auth ya cambia la contraseña de la sesión actual sin pedir la anterior.
+// Zonas de ejemplo más comunes — mismo criterio que CrearIglesia.jsx (la base acepta cualquier
+// nombre IANA válido, esto es solo para no obligar a escribir uno a mano).
+const ZONAS_HORARIAS = [
+  { value: "Etc/GMT+6", label: "Guatemala / El Salvador / Honduras (UTC-6, sin horario de verano)" },
+  { value: "America/Mexico_City", label: "Ciudad de México" },
+  { value: "America/Managua", label: "Nicaragua" },
+  { value: "America/Costa_Rica", label: "Costa Rica" },
+  { value: "America/Bogota", label: "Colombia" },
+  { value: "America/Lima", label: "Perú" },
+];
+
+// Fase 5: nombre, zona horaria, logo y colores de ESTA iglesia — antes de esto, lo único que existía
+// era la base de datos lista para guardarlos (Fase 3) y mostrarlos (ver myIglesia en
+// WorshipFlowPrototype), pero ningún administrador podía cambiarlos desde la app. Recarga la página
+// al guardar en vez de propagar el cambio en memoria -- es la forma más simple y confiable de que el
+// logo/colores nuevos se vean de una en TODA la app (nav, header, botones...), y esto no se usa
+// seguido como para que valga la pena evitar ese recargo.
+// Peso máximo que deja subir el bucket "logos-iglesias" (ver migración 20261001000100) — se
+// comprueba también acá, antes de intentar subir, para un error inmediato en vez de esperar a que
+// el servidor lo rechace.
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+const LOGO_TIPOS_VALIDOS = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+
+// Ajustes → Pantalla de proyección (pedido de Eldin, 2026-10-09): todo lo que depende del tamaño de la
+// pantalla de cada iglesia, en un solo lugar. Antes "letra de canciones" vivía en Identidad.
+function PantallaProyeccionModal({ iglesiaId, onClose }) {
+  const [cargando, setCargando] = useState(true);
+  const [formatoLetra, setFormatoLetra] = useState("dos_lineas");
+  const [dividirVersiculos, setDividirVersiculos] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    supabase.from("iglesias").select("formato_letra, dividir_versiculos").eq("id", iglesiaId).single()
+      .then(({ data }) => {
+        if (data) {
+          setFormatoLetra(data.formato_letra || "dos_lineas");
+          setDividirVersiculos(!!data.dividir_versiculos);
+        }
+        setCargando(false);
+      });
+  }, [iglesiaId]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true); setError("");
+    const { error } = await supabase.from("iglesias").update({ formato_letra: formatoLetra, dividir_versiculos: dividirVersiculos }).eq("id", iglesiaId);
+    if (error) { setError(error.message); setBusy(false); return; }
+    window.location.reload();
+  };
+
+  return (
+    <ModalShell title="Pantalla de proyección" icon={Radio} color="var(--wf-brand-accent)" onClose={onClose}>
+      {cargando ? (
+        <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Cargando…</div>
+      ) : (
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>Ajusta cómo se reparte el texto según el tamaño de la pantalla de tu iglesia. Se aplica al proyectar: las canciones y versículos guardados no cambian.</div>
+          <Field label="Letra de canciones en pantalla">
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {FORMATOS_LETRA.map((f) => {
+                const elegido = formatoLetra === f.value;
+                const ejemplo = f.value === "dos_lineas" ? ["Eres mi refugio eterno", "mi lugar seguro, Señor"]
+                  : f.value === "una_linea_dos_renglones" ? ["Eres mi refugio", "eterno, Señor"] : ["Eres mi refugio eterno, Señor"];
+                return (
+                  <button
+                    key={f.value} type="button" onClick={() => setFormatoLetra(f.value)}
+                    style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", padding: 8, borderRadius: 12, cursor: "pointer", background: "var(--wf-card)", border: elegido ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)" }}
+                  >
+                    <div style={{ width: 92, height: 52, flexShrink: 0, borderRadius: 8, background: "#0C0E13", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 4, boxSizing: "border-box", textAlign: "center", lineHeight: 1.25, fontSize: f.value === "dos_lineas" ? 7 : f.value === "una_linea" ? 7.5 : 10 }}>
+                      {ejemplo.map((l, i) => <div key={i} style={f.value === "una_linea_dos_renglones" && i === 1 ? { fontWeight: 800, textTransform: "uppercase" } : undefined}>{l}</div>)}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>{f.label}</div>
+                      <div style={{ fontSize: 11, color: "var(--wf-muted)" }}>{f.ayuda}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Se aplica al proyectar — las canciones de la biblioteca no cambian.</div>
+          </Field>
+          <Field label="Versículos largos">
+            <button
+              type="button" onClick={() => setDividirVersiculos((v) => !v)} aria-pressed={dividirVersiculos}
+              style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: 10, borderRadius: 12, cursor: "pointer", background: "var(--wf-card)", border: dividirVersiculos ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)" }}
+            >
+              <span style={{ width: 40, height: 24, borderRadius: 12, flexShrink: 0, position: "relative", background: dividirVersiculos ? "var(--wf-brand-accent)" : "var(--wf-border)", transition: "background 0.15s" }}>
+                <span style={{ position: "absolute", top: 3, left: dividirVersiculos ? 19 : 3, width: 18, height: 18, borderRadius: 9, background: "#fff", transition: "left 0.15s" }} />
+              </span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>Dividir versículos largos en 2 o 3 partes</span>
+                <span style={{ display: "block", fontSize: 11, color: "var(--wf-muted)" }}>Para pantallas chicas: cada parte lleva su "(1/2)" en la cita. Apagado, el versículo se proyecta completo.</span>
+              </span>
+            </button>
+          </Field>
+          {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
+          <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
+        </form>
+      )}
+    </ModalShell>
+  );
+}
+
+function IdentidadIglesiaModal({ iglesiaId, onClose }) {
+  const [cargando, setCargando] = useState(true);
+  const [nombre, setNombre] = useState("");
+  const [zonaHoraria, setZonaHoraria] = useState("Etc/GMT+6");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [colorPrimario, setColorPrimario] = useState("#16324F");
+  const [colorAcento, setColorAcento] = useState("#E8821E");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
+  const [mostrarEnlaceManual, setMostrarEnlaceManual] = useState(false);
+
+  useEffect(() => {
+    supabase.from("iglesias").select("nombre, zona_horaria, logo_url, color_primario, color_acento").eq("id", iglesiaId).single()
+      .then(({ data }) => {
+        if (data) {
+          setNombre(data.nombre || "");
+          setZonaHoraria(data.zona_horaria || "Etc/GMT+6");
+          setLogoUrl(data.logo_url || "");
+          setColorPrimario(data.color_primario || "#16324F");
+          setColorAcento(data.color_acento || "#E8821E");
+        }
+        setCargando(false);
+      });
+  }, [iglesiaId]);
+
+  // Un archivo por iglesia, siempre en la MISMA ruta ("<iglesia_id>/logo.<ext>") — volver a subir
+  // reemplaza el anterior (upsert). Como el navegador podría tener cacheada la imagen vieja en esa
+  // misma URL, se le agrega "?v=<hora>" al guardar para que SIEMPRE pida la versión nueva.
+  const subirLogo = async (file) => {
+    if (!LOGO_TIPOS_VALIDOS.includes(file.type)) { setError("El logo debe ser una imagen (PNG, JPG, WEBP o SVG)."); return; }
+    if (file.size > LOGO_MAX_BYTES) { setError("El logo no puede pesar más de 2 MB."); return; }
+    setSubiendoLogo(true); setError("");
+    const ext = file.name.split(".").pop().toLowerCase();
+    const ruta = `${iglesiaId}/logo.${ext}`;
+    const { error: uploadError } = await supabase.storage.from("logos-iglesias").upload(ruta, file, { upsert: true, contentType: file.type });
+    if (uploadError) { setError("No se pudo subir el logo: " + uploadError.message); setSubiendoLogo(false); return; }
+    const { data } = supabase.storage.from("logos-iglesias").getPublicUrl(ruta);
+    setLogoUrl(`${data.publicUrl}?v=${Date.now()}`);
+    setSubiendoLogo(false);
+  };
+
+  const HEX_VALIDO = /^#[0-9A-Fa-f]{6}$/;
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!nombre.trim()) { setError("El nombre no puede quedar vacío."); return; }
+    // El selector de color SIEMPRE escribe un hex válido, pero el campo de texto a su lado se puede
+    // editar a mano -- un valor inválido ahí (ej. "naranja" en vez de "#E8821E") dejaría ese color
+    // sin efecto en TODA la app (var() sin valor válido = transparente), no solo en esta pantalla.
+    if (!HEX_VALIDO.test(colorPrimario) || !HEX_VALIDO.test(colorAcento)) {
+      setError("Los colores deben ser un código hexadecimal válido, ej. #16324F.");
+      return;
+    }
+    setBusy(true); setError("");
+    const { error } = await supabase.from("iglesias").update({
+      nombre: nombre.trim(), zona_horaria: zonaHoraria,
+      logo_url: logoUrl.trim() || null, color_primario: colorPrimario, color_acento: colorAcento,
+    }).eq("id", iglesiaId);
+    if (error) { setError(error.message); setBusy(false); return; }
+    window.location.reload();
+  };
+
+  return (
+    <ModalShell title="Identidad de la iglesia" icon={Palette} color="var(--wf-brand-accent)" onClose={onClose}>
+      {cargando ? (
+        <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Cargando…</div>
+      ) : (
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 2 }}>
+            <AppLogo width={64} logoUrl={logoUrl.trim() || null} />
+          </div>
+          <Field label="Nombre de la iglesia"><input required value={nombre} onChange={(e) => setNombre(e.target.value)} style={inputStyle} /></Field>
+          <Field label="Logo (opcional)">
+            <label className="hoverable" style={{ ...addBtnStyle, justifyContent: "center", opacity: subiendoLogo ? 0.6 : 1, cursor: subiendoLogo ? "not-allowed" : "pointer" }}>
+              <Download size={14} style={{ transform: "rotate(180deg)" }} />
+              {subiendoLogo ? "Subiendo…" : logoUrl ? "Cambiar imagen" : "Subir una imagen"}
+              <input
+                type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" disabled={subiendoLogo}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) subirLogo(f); e.target.value = ""; }}
+                style={{ display: "none" }}
+              />
+            </label>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>PNG, JPG, WEBP o SVG — máximo 2 MB. Vacío = trazo genérico de WorshipFlow.</div>
+            <button type="button" onClick={() => setMostrarEnlaceManual((v) => !v)} style={{ background: "none", border: "none", color: "var(--wf-muted)", fontSize: 11, textDecoration: "underline", cursor: "pointer", padding: "6px 0 0" }}>
+              {mostrarEnlaceManual ? "Ocultar enlace manual" : "O pega un enlace en su lugar"}
+            </button>
+            {mostrarEnlaceManual && (
+              <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://…" style={{ ...inputStyle, marginTop: 6 }} />
+            )}
+          </Field>
+          <Field label="Color primario (fondos oscuros: encabezado, navegación)">
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input type="color" value={colorPrimario} onChange={(e) => setColorPrimario(e.target.value)} style={{ width: 40, height: 36, padding: 2, border: "1px solid var(--wf-border)", borderRadius: 8, background: "none", cursor: "pointer" }} />
+              <input value={colorPrimario} onChange={(e) => setColorPrimario(e.target.value)} style={{ ...inputStyle, flex: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }} />
+            </div>
+          </Field>
+          <Field label="Color de acento (botones, resaltados)">
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input type="color" value={colorAcento} onChange={(e) => setColorAcento(e.target.value)} style={{ width: 40, height: 36, padding: 2, border: "1px solid var(--wf-border)", borderRadius: 8, background: "none", cursor: "pointer" }} />
+              <input value={colorAcento} onChange={(e) => setColorAcento(e.target.value)} style={{ ...inputStyle, flex: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }} />
+            </div>
+          </Field>
+          <Field label="Zona horaria">
+            <select value={zonaHoraria} onChange={(e) => setZonaHoraria(e.target.value)} style={inputStyle}>
+              {ZONAS_HORARIAS.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
+            </select>
+          </Field>
+          {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
+          <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
+        </form>
+      )}
+    </ModalShell>
+  );
+}
+
+function ChangePasswordModal({ onClose }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    { const err = validarPassword(password); if (err) { setError(err); return; } }
+    if (password !== confirm) { setError("Las contraseñas no coinciden."); return; }
+    setBusy(true); setError("");
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) { setError(error.message); return; }
+    setDone(true);
+  };
+
+  return (
+    <ModalShell title="Cambiar contraseña" icon={KeyRound} color="var(--wf-heading)" onClose={onClose}>
+      {done ? (
+        <div style={{ fontSize: 13, color: "#1F8A73", fontWeight: 700 }}>Contraseña actualizada correctamente.</div>
+      ) : (
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <input type="password" required placeholder="Nueva contraseña" value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} autoFocus autoComplete="new-password" />
+          <MedidorPassword password={password} />
+          <input type="password" required placeholder="Confirmar contraseña" value={confirm} onChange={(e) => setConfirm(e.target.value)} style={inputStyle} />
+          {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
+          <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar contraseña"}</button>
+        </form>
+      )}
+    </ModalShell>
+  );
+}
+
+// ---------------- MINISTERIOS ----------------
+// Reduce una foto (puede venir pesada directo de la cámara del celular) antes de mandarla al
+// asistente — 1568px del lado más largo es el tamaño que igual usa internamente el modelo de
+// visión, mandarla más grande solo gasta más y tarda más sin ganar nada de lectura.
+// Una foto de celular reducida a 1568px/calidad alta TODAVÍA puede pesar varios MB (fotos con mucho
+// detalle, o el celular que sea) — más grande de lo que el servidor acepta, y eso corta la conexión
+// ANTES de que llegue cualquier respuesta ("Failed to fetch" críptico, en vez de un error claro).
+// Por eso se intenta en pasos cada vez más chicos hasta quedar bajo un tamaño seguro, en vez de un
+// solo intento con la esperanza de que alcance.
+function reducirImagenParaAsistente(file) {
+  const intentos = [
+    { maxDim: 1400, calidad: 0.75 },
+    { maxDim: 1100, calidad: 0.6 },
+    { maxDim: 850, calidad: 0.5 },
+    { maxDim: 650, calidad: 0.4 },
+  ];
+  const LIMITE_BASE64 = 2_500_000; // deja margen bajo el límite real del servidor
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("No se pudo leer la imagen."));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("No se pudo leer la imagen."));
+      img.onload = () => {
+        let ultimo = null;
+        for (const { maxDim, calidad } of intentos) {
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            const escala = maxDim / Math.max(width, height);
+            width = Math.round(width * escala);
+            height = Math.round(height * escala);
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", calidad);
+          const data = dataUrl.split(",")[1];
+          ultimo = { mediaType: "image/jpeg", data, previewUrl: dataUrl };
+          if (data.length <= LIMITE_BASE64) { resolve(ultimo); return; }
+        }
+        reject(new Error("Esta foto sigue pesando mucho incluso reducida — intenta recortarla o mandar una más chica."));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Asistente de chat admin-only: en vez de que alguien escriba directo a la base de datos por fuera
+// de la app (el riesgo real: se le olvida un recordatorio, o deja a alguien sin usuario_id
+// enlazado — invisible para siempre a las notificaciones, sin ningún indicio en pantalla), el
+// modelo arma un plan y este SOLO se guarda cuando el admin toca "Aplicar" — ver
+// supabase/functions/asistente-chat/index.ts para la ejecución real (determinista, sin IA de por
+// medio) y la auto-verificación de lo que acaba de escribir.
+function AsistenteChatScreen() {
+  const [messages, setMessages] = useState([]); // [{role:'user'|'assistant', content}]
+  const [input, setInput] = useState("");
+  const [pendingPlan, setPendingPlan] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [error, setError] = useState("");
+
+  // Reglas/excepciones fijas: a diferencia de la conversación (que se borra al salir de esta
+  // pantalla), esto vive en Supabase y el asistente lo lee SIEMPRE, en cada mensaje — así no hay
+  // que repetírselas cada vez ("en Multimedia, cuando el domingo caiga en fin de mes va Fulano...").
+  const [showReglas, setShowReglas] = useState(false);
+  const [reglasTexto, setReglasTexto] = useState("");
+  const [reglasLoading, setReglasLoading] = useState(false);
+  const [reglasSaving, setReglasSaving] = useState(false);
+  const abrirReglas = () => {
+    setShowReglas(true);
+    setReglasLoading(true);
+    obtenerReglasAsistente().then((res) => setReglasTexto(res.reglas || "")).catch((e) => setError(e.message)).finally(() => setReglasLoading(false));
+  };
+  const guardarReglas = () => {
+    setReglasSaving(true);
+    guardarReglasAsistente(reglasTexto).then(() => setShowReglas(false)).catch((e) => setError(e.message)).finally(() => setReglasSaving(false));
+  };
+
+  // Foto adjunta al PRÓXIMO mensaje (ej. una lista de canciones escrita a mano) — solo viaja una
+  // vez, en el mensaje en el que se manda; los turnos siguientes del historial vuelven a ser texto
+  // plano nada más (ver enviarMensajeAsistente).
+  const [pendingImage, setPendingImage] = useState(null); // { mediaType, data, previewUrl } | null
+  const [imageError, setImageError] = useState("");
+  const fileInputRef = useRef(null);
+  const onPickImage = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permite volver a elegir el mismo archivo después
+    if (!file) return;
+    setImageError("");
+    try {
+      setPendingImage(await reducirImagenParaAsistente(file));
+    } catch (err) {
+      setImageError(err.message || "No se pudo leer la imagen.");
+    }
+  };
+
+  const send = async () => {
+    const texto = input.trim();
+    if ((!texto && !pendingImage) || loading || pendingPlan) return;
+    const imagenParaEnviar = pendingImage;
+    const nuevoHistorial = [...messages, { role: "user", content: texto || "(imagen adjunta)", imagePreviewUrl: imagenParaEnviar?.previewUrl }];
+    setMessages(nuevoHistorial);
+    setInput("");
+    setPendingImage(null);
+    setError("");
+    setLoading(true);
+    try {
+      const res = await enviarMensajeAsistente(nuevoHistorial, imagenParaEnviar ? { mediaType: imagenParaEnviar.mediaType, data: imagenParaEnviar.data } : null);
+      // El plan crudo (tool_use) nunca se vuelve a mandar a Claude tal cual — solo su resumen en
+      // texto, así el historial que ve el modelo siempre es texto plano simple.
+      if (res.tipo === "plan") {
+        setPendingPlan(res.plan);
+        setMessages((ms) => [...ms, { role: "assistant", content: res.resumen }]);
+      } else {
+        setMessages((ms) => [...ms, { role: "assistant", content: res.texto }]);
+      }
+    } catch (e) {
+      setError(e.message || "No se pudo hablar con el asistente.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmarPlan = async () => {
+    if (!pendingPlan) return;
+    setApplying(true);
+    setError("");
+    try {
+      const res = await aplicarPlanAsistente(pendingPlan);
+      const partes = [res.resumen];
+      if (res.notificados?.length) partes.push(`Se notificó a: ${res.notificados.join(", ")}.`);
+      if (res.avisos?.length) partes.push(...res.avisos.map((a) => `⚠️ ${a}`));
+      setMessages((ms) => [...ms, { role: "assistant", content: partes.join("\n") }]);
+      setPendingPlan(null);
+    } catch (e) {
+      setError(e.message || "No se pudo aplicar el plan.");
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const cancelarPlan = () => {
+    setPendingPlan(null);
+    setMessages((ms) => [...ms, { role: "assistant", content: "Plan cancelado. ¿Qué quieres que cambie?" }]);
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  };
+
+  return (
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 6 }}>
+        <div>
+          <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Asistente</h2>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginTop: 4 }}>Puede crear, editar, borrar o duplicar eventos, su setlist y quién queda a cargo — antes de guardar (o borrar) nada, siempre te muestra el plan para que lo confirmes.</div>
+        </div>
+        <button onClick={abrirReglas} style={{ ...iconGhost, width: "auto", gap: 6, padding: "6px 10px", background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 10, flexShrink: 0 }}>
+          <ClipboardList size={14} /> <span style={{ fontSize: 12, fontWeight: 600 }}>Reglas</span>
+        </button>
+      </div>
+
+      {showReglas && (
+        <ModalShell title="Reglas fijas del asistente" icon={ClipboardList} color="var(--wf-brand-accent)" onClose={() => setShowReglas(false)}>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10 }}>
+            Excepciones y reglas que el asistente debe aplicar SIEMPRE, sin que se las repitas en cada conversación — ej. "en Multimedia, el primer domingo de cada mes va Juan en vez de María". Se guardan aparte de la conversación.
+          </div>
+          {reglasLoading ? (
+            <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Cargando…</div>
+          ) : (
+            <>
+              <textarea
+                value={reglasTexto}
+                onChange={(e) => setReglasTexto(e.target.value)}
+                rows={10}
+                placeholder="Ej. Multimedia: los domingos PM siempre va Carlos. Excepto la última semana del mes, que va Ana..."
+                style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }}
+              />
+              <button onClick={guardarReglas} disabled={reglasSaving} style={{ ...primaryBtn, marginTop: 12, opacity: reglasSaving ? 0.6 : 1 }}>{reglasSaving ? "Guardando…" : "Guardar reglas"}</button>
+            </>
+          )}
+        </ModalShell>
+      )}
+
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, padding: "12px 2px" }}>
+        {messages.length === 0 && (
+          <div style={{ fontSize: 13, color: "var(--wf-faint)", textAlign: "center", marginTop: 30 }}>
+            Ej. "Crea el culto del domingo 20 de octubre a las 10am, agrega [canción] y pon a [nombre] en Piano." También puedes adjuntar una foto (ej. una lista de canciones escrita a mano) con el clip de abajo.
+          </div>
+        )}
+        {messages.map((m, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+            <div style={{
+              maxWidth: "80%", padding: "10px 14px", borderRadius: 16,
+              background: m.role === "user" ? "var(--wf-brand-primary)" : "var(--wf-card)",
+              color: m.role === "user" ? "#fff" : "var(--wf-text)",
+              boxShadow: m.role === "user" ? "none" : "0 3px 14px rgba(22,50,79,0.09)",
+              whiteSpace: "pre-wrap", fontSize: 13, lineHeight: 1.45,
+            }}>
+              {m.imagePreviewUrl && <img src={m.imagePreviewUrl} alt="" style={{ maxWidth: "100%", borderRadius: 10, marginBottom: m.content ? 8 : 0, display: "block" }} />}
+              {m.content}
+            </div>
+          </div>
+        ))}
+        {loading && <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>Pensando…</div>}
+
+        {pendingPlan && (
+          <div style={{ background: "var(--wf-card)", border: "1px solid color-mix(in srgb, var(--wf-brand-accent) 33%, transparent)", borderRadius: 16, padding: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-brand-accent)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Plan propuesto — todavía no se guardó nada</div>
+            <div style={{ fontSize: 13, marginBottom: 12, whiteSpace: "pre-wrap" }}>{pendingPlan.resumen}</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={confirmarPlan} disabled={applying} style={{ ...primaryBtn, width: "auto", flex: 1, opacity: applying ? 0.6 : 1 }}>{applying ? "Aplicando…" : "Aplicar"}</button>
+              <button onClick={cancelarPlan} disabled={applying} style={{ ...primaryBtn, width: "auto", flex: 1, background: "var(--wf-hover)", color: "var(--wf-text)" }}>Cancelar</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {(error || imageError) && <div style={{ fontSize: 12, color: "#C23B32", marginBottom: 8 }}>{error || imageError}</div>}
+
+      {pendingImage && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, background: "var(--wf-hover)", borderRadius: 12, padding: 6 }}>
+          <img src={pendingImage.previewUrl} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8 }} />
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", flex: 1 }}>Imagen lista para mandar</div>
+          <button onClick={() => setPendingImage(null)} style={{ ...iconGhost, width: 24, height: 24 }}><X size={14} /></button>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, paddingTop: 8 }}>
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={onPickImage} style={{ display: "none" }} />
+        <button onClick={() => fileInputRef.current?.click()} disabled={loading || !!pendingPlan} style={{ ...iconGhost, width: 40, height: 40, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", opacity: (loading || !!pendingPlan) ? 0.4 : 1, flexShrink: 0 }} title="Adjuntar foto">
+          <Paperclip size={17} />
+        </button>
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={onKeyDown}
+          disabled={loading || !!pendingPlan}
+          placeholder={pendingPlan ? "Confirma o cancela el plan de arriba primero…" : "Escribe qué quieres armar, o adjunta una foto…"}
+          rows={1}
+          style={{ ...inputStyle, resize: "none", flex: 1 }}
+        />
+        <button onClick={send} disabled={loading || !!pendingPlan || (!input.trim() && !pendingImage)} style={{ ...iconGhost, width: 40, height: 40, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", opacity: (loading || !!pendingPlan || (!input.trim() && !pendingImage)) ? 0.4 : 1 }}>
+          <Send size={17} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MinistriesList({ ministries, usuariosReales, isAdminViewer, onSelect, onCreate }) {
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: "", leaderId: "", color: MINISTRY_COLORS[0] });
+  const hoy = new Date();
+  const mesActual = monthKey(hoy.getFullYear(), hoy.getMonth());
+
+  const submit = () => {
+    if (!form.name.trim()) return;
+    onCreate(form);
+    setForm({ name: "", leaderId: "", color: MINISTRY_COLORS[0] });
+    setShowForm(false);
+  };
+
+  return (
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Ministerios</h2>
+        {isAdminViewer && <button onClick={() => setShowForm(true)} style={{ ...iconGhost, width: 30, height: 30, background: "var(--wf-hover)", border: "1px solid var(--wf-border)" }}><Plus size={16} /></button>}
+      </div>
+      <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>Cada ministerio tiene su propio espacio para compartir la planificación del mes y recursos con su equipo. Cualquier miembro puede ser el líder de un grupo.</div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
+        {ministries.map((m) => (
+          <button key={m.id} onClick={() => onSelect(m.id)} className="hoverable" style={{ textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 16, cursor: "pointer" }}>
+            <div style={{ width: 34, height: 34, borderRadius: 12, background: `${m.color}22`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+              <Users size={17} color={m.color} />
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{m.name}</div>
+            <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>Líder: {m.leaderName || "Sin asignar"}</div>
+            <div style={{ fontSize: 12, color: "var(--wf-faint)", marginTop: 2 }}>{m.memberCount} miembros · {m.plan.filter((p) => (p.date || "").slice(0, 7) === mesActual).length} planes este mes</div>
+          </button>
+        ))}
+      </div>
+
+      {showForm && (
+        <ModalShell title="Nuevo ministerio" icon={LayoutGrid} color="#5661B3" onClose={() => setShowForm(false)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Field label="Nombre" required><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ej. Ministerio de Matrimonios" style={inputStyle} /></Field>
+            <Field label="Líder">
+              <select value={form.leaderId} onChange={(e) => setForm({ ...form, leaderId: e.target.value })} style={inputStyle}>
+                <option value="">Sin asignar</option>
+                {usuariosReales.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+              </select>
+            </Field>
+            <Field label="Color">
+              <div style={{ display: "flex", gap: 8 }}>
+                {MINISTRY_COLORS.map((c) => (<button key={c} onClick={() => setForm({ ...form, color: c })} style={{ width: 30, height: 30, borderRadius: "50%", background: c, border: form.color === c ? "2px solid #fff" : "1px solid var(--wf-border)", cursor: "pointer" }} />))}
+              </div>
+            </Field>
+          </div>
+          <button onClick={submit} disabled={!form.name.trim()} style={{ ...primaryBtn, marginTop: 14, opacity: form.name.trim() ? 1 : 0.4 }}>Crear ministerio</button>
+        </ModalShell>
+      )}
+    </div>
+  );
+}
+
+function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, canEdit, onBack, onSavePlan, onAddResource, onEditResource, onRemoveResource, onSetLeader, onSetName, onSetColor, onSetPermisosLider, onDelete }) {
+  const [showResourceForm, setShowResourceForm] = useState(false);
+  const [resourceDraft, setResourceDraft] = useState({ title: "", link: "" });
+  // null = agregando uno nuevo; con valor = editando ese recurso ya existente (mismo modal para los dos).
+  const [editingResourceId, setEditingResourceId] = useState(null);
+  const [subiendoArchivoRecurso, setSubiendoArchivoRecurso] = useState(false);
+  const [errorArchivoRecurso, setErrorArchivoRecurso] = useState("");
+  const resourceFileInputRef = useRef(null);
+  // El enlace de un recurso puede venir de pegarlo a mano O de subir un archivo (ver abajo) -- en
+  // ambos casos termina siendo una URL normal en resourceDraft.link, pero una URL de Storage es larga
+  // y fea para mostrarla tal cual en el campo de texto; esto la detecta para mostrar "Archivo
+  // adjunto ✓" en su lugar.
+  const esArchivoSubido = (link) => (link || "").includes("/storage/v1/object/public/recursos-ministerio/");
+  const adjuntarArchivoRecurso = async (file) => {
+    if (!file || !myIglesiaId) return;
+    setSubiendoArchivoRecurso(true); setErrorArchivoRecurso("");
+    try {
+      const url = await subirArchivoRecurso(myIglesiaId, file);
+      setResourceDraft((d) => ({ ...d, link: url, title: d.title || file.name.replace(/\.[^.]+$/, "") }));
+    } catch (e) {
+      setErrorArchivoRecurso(e.message || "No se pudo subir el archivo.");
+    } finally {
+      setSubiendoArchivoRecurso(false);
+    }
+  };
+
+  // Planificación y recursos ahora viven por mes — cada ministerio puede tener años de historial, y
+  // mezclar todos los meses en una sola lista larga (sobre todo los recursos, que antes no tenían
+  // fecha) hacía difícil encontrar lo de AHORA. El mes elegido es solo de navegación (no se guarda);
+  // siempre arranca en el mes actual al entrar al grupo.
+  const hoy = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(monthKey(hoy.getFullYear(), hoy.getMonth()));
+  const changeMonth = (delta) => {
+    const [y, m] = selectedMonth.split("-").map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    setSelectedMonth(monthKey(d.getFullYear(), d.getMonth()));
+  };
+
+  // La planificación se edita en un borrador LOCAL, no letra por letra contra Supabase — antes cada
+  // tecla disparaba un guardado (borra-todo-y-reinserta) que la sincronización en tiempo real podía
+  // llegar a pisar a mitad de camino (llega un refresco de otro dispositivo mientras el guardado de ESTE
+  // todavía va de salida, y agarra la base de datos en el instante en que ya se borró lo viejo pero
+  // todavía no se insertó lo nuevo). Ahora nada se manda hasta tocar "Guardar planificación".
+  const [planDraft, setPlanDraft] = useState(ministry?.plan || []);
+  const [planDirty, setPlanDirty] = useState(false);
+  const [savingPlan, setSavingPlan] = useState(false);
+  // El detalle de cada semana arranca colapsado (solo el título se ve de una) — con muchas semanas
+  // cargadas, un cuadro de texto grande por cada una hacía la lista larguísima. La flechita lo
+  // despliega para escribir o leer, y "Guardar planificación" vuelve a colapsar todo.
+  const [expandedPlanIds, setExpandedPlanIds] = useState({});
+  useEffect(() => {
+    if (!planDirty) setPlanDraft(ministry?.plan || []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ministry?.id, ministry?.plan]);
+
+  // Resumen del mes: texto libre aparte de la planificación semana a semana, para que el líder deje
+  // un cierre general ("este mes nos enfocamos en...", asistencia, lo que destaca). Se carga/guarda
+  // bajo demanda por mes (no viaja con el resto del ministerio) — ver la nota junto a
+  // getResumenMensual en lib/ministerios.js sobre por qué.
+  const [resumenGuardado, setResumenGuardado] = useState("");
+  const [resumenDraft, setResumenDraft] = useState("");
+  const [loadingResumen, setLoadingResumen] = useState(true);
+  const [savingResumen, setSavingResumen] = useState(false);
+  // Mismo criterio que expandedPlanIds más abajo (y que "Editar/Guardar" en el Setlist): colapsado por
+  // defecto mostrando el texto fijo, un botón lo despliega para editar (o solo leer, si no puede
+  // editar), y "Guardar" lo vuelve a colapsar — así no queda un cuadro de texto abierto todo el tiempo.
+  const [expandedResumen, setExpandedResumen] = useState(false);
+  useEffect(() => {
+    if (!ministry) return;
+    let cancelado = false;
+    setLoadingResumen(true);
+    getResumenMensual(ministry.id, selectedMonth)
+      .then((texto) => { if (!cancelado) { setResumenGuardado(texto); setResumenDraft(texto); } })
+      .catch((e) => { if (!cancelado) notifyError("No se pudo cargar el resumen del mes", e); })
+      .finally(() => { if (!cancelado) setLoadingResumen(false); });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ministry?.id, selectedMonth]);
+  const resumenDirty = resumenDraft !== resumenGuardado;
+  const saveResumen = async () => {
+    setSavingResumen(true);
+    try {
+      await guardarResumenMensual(ministry.id, selectedMonth, resumenDraft);
+      setResumenGuardado(resumenDraft);
+      setExpandedResumen(false);
+    } catch (e) {
+      notifyError("No se pudo guardar el resumen del mes", e);
+    } finally {
+      setSavingResumen(false);
+    }
+  };
+  const cancelEditResumen = () => { setResumenDraft(resumenGuardado); setExpandedResumen(false); };
+
+  if (!ministry) return null;
+
+  const addDraftPlanItem = () => {
+    const newId = nextMinistryChildId();
+    setPlanDraft((plan) => [...plan, { id: newId, date: `${selectedMonth}-01`, title: "", detail: "" }]);
+    setExpandedPlanIds((e) => ({ ...e, [newId]: true }));
+    setPlanDirty(true);
+  };
+  const updateDraftPlanItem = (itemId, field, value) => { setPlanDraft((plan) => plan.map((p) => (p.id === itemId ? { ...p, [field]: value } : p))); setPlanDirty(true); };
+  const removeDraftPlanItem = (itemId) => { setPlanDraft((plan) => plan.filter((p) => p.id !== itemId)); setPlanDirty(true); };
+  const togglePlanExpanded = (itemId) => setExpandedPlanIds((e) => ({ ...e, [itemId]: !e[itemId] }));
+  const savePlan = async () => {
+    setSavingPlan(true);
+    try {
+      await onSavePlan(planDraft);
+      setPlanDirty(false);
+      setExpandedPlanIds({});
+    } catch (e) {
+      notifyError("No se pudo guardar la planificación", e);
+    } finally {
+      setSavingPlan(false);
+    }
+  };
+
+  const submitResource = () => {
+    if (!resourceDraft.title.trim()) return;
+    if (editingResourceId) onEditResource(editingResourceId, { title: resourceDraft.title, link: resourceDraft.link });
+    else onAddResource({ ...resourceDraft, month: selectedMonth });
+    closeResourceForm();
+  };
+  const closeResourceForm = () => {
+    setShowResourceForm(false);
+    setEditingResourceId(null);
+    setResourceDraft({ title: "", link: "" });
+    setErrorArchivoRecurso("");
+  };
+  const startAddingResource = () => { setEditingResourceId(null); setResourceDraft({ title: "", link: "" }); setShowResourceForm(true); };
+  const startEditingResource = (r) => { setEditingResourceId(r.id); setResourceDraft({ title: r.title, link: r.link || "" }); setShowResourceForm(true); };
+  const planForMonth = planDraft.filter((p) => (p.date || "").slice(0, 7) === selectedMonth);
+  const resourcesForMonth = ministry.resources.filter((r) => r.month === selectedMonth);
+
+  return (
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
+        {/* Borrar un grupo es más consecuente que editarlo (afecta a los bloques del Setlist vinculados
+            en cualquier evento), así que se restringe a administradores — el líder puede editar nombre/
+            color/líder pero no borrar el grupo entero. */}
+        {isAdminViewer && <button onClick={onDelete} title="Eliminar grupo" style={iconGhost}><Trash2 size={16} color="#C23B32" /></button>}
+      </div>
+      <div style={{ borderRadius: 16, background: `linear-gradient(135deg, ${ministry.color}33, var(--wf-hover))`, padding: 20, marginBottom: 20 }}>
+        {isAdminViewer ? (
+          <input
+            value={ministry.name} onChange={(e) => onSetName(e.target.value)}
+            style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, marginBottom: 8, border: "none", background: "transparent", outline: "none", width: "100%", padding: 0 }}
+          />
+        ) : (
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, marginBottom: 8 }}>{ministry.name}</div>
+        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--wf-text-2)", marginBottom: isAdminViewer ? 10 : 0 }}>
+          Líder:
+          {isAdminViewer ? (
+            <select value={ministry.leaderId || ""} onChange={(e) => onSetLeader(e.target.value || null)} style={{ ...inputStyle, width: "auto", padding: "4px 8px", fontSize: 12 }}>
+              <option value="">Sin asignar</option>
+              {usuariosReales.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+            </select>
+          ) : (
+            <span style={{ fontWeight: 700 }}>{ministry.leaderName || "Sin asignar"}</span>
+          )}
+        </div>
+        {/* Qué puede hacer el líder (permisos por grupo, 2026-10-30) — así no hace falta darle un rol aparte. */}
+        {isAdminViewer && (
+          <div style={{ background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: "10px 14px", marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4 }}>QUÉ PUEDE HACER EL LÍDER</div>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "3px 0 4px", lineHeight: 1.4 }}>Siempre: editar este grupo y, en cada evento, el título y los encargados de los bloques vinculados a él. Además:</div>
+            {PERMISOS_LIDER.map((p) => {
+              const activo = !!ministry.permisosLider?.[p.clave];
+              return (
+                <div key={p.clave} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "7px 0", borderTop: "1px solid var(--wf-divider)" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>{p.etiqueta}</div>
+                    <div style={{ fontSize: 11, color: "var(--wf-muted)", marginTop: 1 }}>{p.detalle}</div>
+                  </div>
+                  <button
+                    type="button" role="switch" aria-checked={activo} aria-label={p.etiqueta}
+                    onClick={() => onSetPermisosLider({ ...(ministry.permisosLider || {}), [p.clave]: !activo })}
+                    style={{ flexShrink: 0, width: 42, height: 24, borderRadius: 14, border: "none", position: "relative", cursor: "pointer", background: activo ? "var(--wf-brand-accent)" : "var(--wf-border)" }}
+                  >
+                    <span style={{ position: "absolute", top: 3, left: activo ? 21 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {isAdminViewer && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {MINISTRY_COLORS.map((c) => (
+              <button key={c} onClick={() => onSetColor(c)} title="Color del grupo" style={{ width: 22, height: 22, borderRadius: "50%", background: c, border: ministry.color === c ? "2px solid var(--wf-text)" : "1px solid rgba(0,0,0,0.15)", cursor: "pointer" }} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Selector de mes: planificación y recursos viven todos en las mismas dos tablas sin importar
+          el mes (se filtran acá por fecha/mes), así que cambiar de mes no pierde nada de lo ya
+          cargado en otros meses — solo cambia qué parte de esa lista se ve y a qué mes se etiqueta
+          lo nuevo que se agregue. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginBottom: 16, background: "var(--wf-hover)", borderRadius: 14, padding: "8px 12px" }}>
+        <button onClick={() => changeMonth(-1)} className="hoverable" style={iconGhost}><ChevronLeft size={16} /></button>
+        <span style={{ fontSize: 13, fontWeight: 700, minWidth: 140, textAlign: "center" }}>{monthLabelFromKey(selectedMonth)}</span>
+        <button onClick={() => changeMonth(1)} className="hoverable" style={iconGhost}><ChevronRight size={16} /></button>
+      </div>
+
+      {/* Resumen del mes: nota de cierre general, aparte de la planificación semana a semana de abajo —
+          a diferencia de esta, no se carga junto con el resto del ministerio (ver getResumenMensual). */}
+      <div style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 14, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+          <StickyNote size={15} color={ministry.color} /> Resumen de {monthLabelFromKey(selectedMonth)}
+        </div>
+        {loadingResumen ? (
+          <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>Cargando…</div>
+        ) : !expandedResumen ? (
+          // Colapsado por defecto (y después de cada "Guardar") — el texto queda fijo, con solo una
+          // vista previa de una línea; tocar acá lo despliega, ya sea para editarlo o solo para leerlo
+          // completo si no se puede editar.
+          <div onClick={() => setExpandedResumen(true)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12.5, color: resumenGuardado ? "var(--wf-text-2)" : "var(--wf-faint)" }}>
+              {resumenGuardado || (canEdit ? "Sin resumen todavía — tocar para escribir uno." : "Sin resumen todavía.")}
+            </span>
+            <ChevronDown size={14} color="var(--wf-faint)" style={{ flexShrink: 0 }} />
+          </div>
+        ) : canEdit ? (
+          <>
+            <textarea
+              autoFocus
+              value={resumenDraft} onChange={(e) => setResumenDraft(e.target.value)}
+              placeholder="Ej. este mes nos enfocamos en identidad en Cristo, 4 reuniones, buena asistencia..."
+              rows={4} style={{ ...inputStyle, resize: "vertical" }}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+              <button onClick={saveResumen} disabled={!resumenDirty || savingResumen} className="hoverable" style={{ ...primaryBtn, width: "auto", padding: "7px 16px", fontSize: 12.5, opacity: resumenDirty && !savingResumen ? 1 : 0.5, cursor: resumenDirty && !savingResumen ? "pointer" : "default" }}>
+                {savingResumen ? "Guardando…" : "Guardar resumen"}
+              </button>
+              {!savingResumen && <button onClick={cancelEditResumen} style={{ ...iconGhost, width: "auto", padding: "0 8px", fontSize: 12, fontWeight: 700 }}>Cancelar</button>}
+              {resumenDirty && !savingResumen && <span style={{ fontSize: 11, color: "var(--wf-brand-accent)", fontWeight: 700 }}>● Cambios sin guardar</span>}
+            </div>
+          </>
+        ) : (
+          <div onClick={() => setExpandedResumen(false)} className="hoverable" style={{ cursor: "pointer" }}>
+            <div style={{ fontSize: 12.5, color: "var(--wf-text-2)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{resumenGuardado || "Sin resumen todavía."}</div>
+            <ChevronUp size={14} color="var(--wf-faint)" style={{ marginTop: 6 }} />
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><ClipboardList size={15} color={ministry.color} /> Planificación de {monthLabelFromKey(selectedMonth)}</div>
+        {canEdit && <button onClick={addDraftPlanItem} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar fecha</button>}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+        {planForMonth.map((p) => {
+          const isExpanded = !!expandedPlanIds[p.id];
+          return (
+          <div key={p.id} style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: isExpanded ? 8 : 0 }}>
+              <input type="date" disabled={!canEdit} title="Fecha del domingo (o día) al que corresponde esta planificación" value={p.date || ""} onChange={(e) => updateDraftPlanItem(p.id, "date", e.target.value)} style={{ ...inputStyle, width: 150, fontSize: 12, fontWeight: 700, flexShrink: 0 }} />
+              <input disabled={!canEdit} value={p.title} onChange={(e) => updateDraftPlanItem(p.id, "title", e.target.value)} placeholder="Título de la semana" style={{ ...inputStyle, flex: 1, fontWeight: 700 }} />
+              <button onClick={() => togglePlanExpanded(p.id)} title={isExpanded ? "Ocultar detalle" : "Ver detalle"} style={iconGhost}>{isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button>
+              {canEdit && <button onClick={() => removeDraftPlanItem(p.id)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>}
+            </div>
+            {isExpanded && (
+              canEdit ? (
+                <textarea autoFocus value={p.detail} onChange={(e) => updateDraftPlanItem(p.id, "detail", e.target.value)} placeholder="Detalle, recursos necesarios, responsables..." rows={6} style={{ ...inputStyle, resize: "vertical" }} />
+              ) : (
+                <div style={{ fontSize: 12.5, color: "var(--wf-text-2)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{p.detail || "Sin detalle."}</div>
+              )
+            )}
+          </div>
+          );
+        })}
+        {planForMonth.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>Aún no hay planificación para {monthLabelFromKey(selectedMonth)}.</div>}
+      </div>
+      {/* Nada de lo de arriba se guarda solo — a propósito, para no disparar un guardado por cada tecla
+          (ver el comentario junto al estado planDraft). Este botón es el único momento en que se manda
+          todo a Supabase de una vez. */}
+      {canEdit && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
+          <button onClick={savePlan} disabled={!planDirty || savingPlan} className="hoverable" style={{ ...primaryBtn, width: "auto", padding: "9px 18px", opacity: planDirty && !savingPlan ? 1 : 0.5, cursor: planDirty && !savingPlan ? "pointer" : "default" }}>
+            {savingPlan ? "Guardando…" : "Guardar planificación"}
+          </button>
+          {planDirty && !savingPlan && <span style={{ fontSize: 11, color: "var(--wf-brand-accent)", fontWeight: 700 }}>● Cambios sin guardar</span>}
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><FolderOpen size={15} color={ministry.color} /> Recursos de {monthLabelFromKey(selectedMonth)}</div>
+        {canEdit && <button onClick={startAddingResource} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar recurso</button>}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {resourcesForMonth.map((r) => (
+          <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "10px 12px" }}>
+            <FolderOpen size={14} color="var(--wf-faint)" />
+            <span style={{ fontSize: 13, flex: 1 }}>{r.title}</span>
+            {r.link && <a href={r.link} target="_blank" rel="noreferrer" style={{ color: "#2F5FA8" }}><ExternalLink size={14} /></a>}
+            {canEdit && <button onClick={() => startEditingResource(r)} title="Editar" style={{ ...iconGhost, color: "#2F5FA8" }}><Pencil size={14} /></button>}
+            {canEdit && <button onClick={() => onRemoveResource(r.id)} title="Eliminar" style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>}
+          </div>
+        ))}
+        {resourcesForMonth.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>No hay recursos compartidos para {monthLabelFromKey(selectedMonth)}.</div>}
+      </div>
+
+      {showResourceForm && (
+        <ModalShell title={editingResourceId ? "Editar recurso" : "Agregar recurso"} icon={FolderOpen} color={ministry.color} onClose={closeResourceForm}>
+          <Field label="Título" required><input value={resourceDraft.title} onChange={(e) => setResourceDraft({ ...resourceDraft, title: e.target.value })} placeholder="Ej. Guía de manualidades" style={inputStyle} /></Field>
+          <div style={{ height: 10 }} />
+          <Field label="Enlace (opcional si adjuntas un archivo)">
+            <input
+              value={esArchivoSubido(resourceDraft.link) ? "" : resourceDraft.link}
+              onChange={(e) => setResourceDraft({ ...resourceDraft, link: e.target.value })}
+              placeholder="https://..."
+              style={inputStyle}
+            />
+          </Field>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+            <button type="button" onClick={() => resourceFileInputRef.current?.click()} disabled={subiendoArchivoRecurso} className="hoverable" style={{ ...addBtnStyle, flex: 1, opacity: subiendoArchivoRecurso ? 0.6 : 1 }}>
+              <Paperclip size={13} color={ministry.color} />
+              <span>{subiendoArchivoRecurso ? "Subiendo…" : esArchivoSubido(resourceDraft.link) ? "Archivo adjunto ✓ — tocar para cambiar" : "O adjuntar un archivo"}</span>
+            </button>
+            {esArchivoSubido(resourceDraft.link) && !subiendoArchivoRecurso && (
+              <button type="button" onClick={() => setResourceDraft((d) => ({ ...d, link: "" }))} title="Quitar archivo" style={{ ...iconGhost, color: "#C23B32" }}><X size={14} /></button>
+            )}
+          </div>
+          <input ref={resourceFileInputRef} type="file" style={{ display: "none" }} onChange={(e) => { adjuntarArchivoRecurso(e.target.files?.[0]); e.target.value = ""; }} />
+          {errorArchivoRecurso && <div style={{ fontSize: 11, color: "#C23B32", marginTop: 6 }}>{errorArchivoRecurso}</div>}
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Hasta 20 MB — PDF, imagen, audio, lo que sea.</div>
+          <button onClick={submitResource} disabled={subiendoArchivoRecurso} style={{ ...primaryBtn, marginTop: 14, opacity: subiendoArchivoRecurso ? 0.6 : 1 }}>{editingResourceId ? "Guardar cambios" : "Agregar"}</button>
+        </ModalShell>
+      )}
+    </div>
+  );
+}
+
+// ---------------- CANCIONES: LISTA ----------------
+function CancionesList({ library, clasificaciones, puedeConfigurarClasificaciones, onGuardarClasificaciones, isAdminViewer, onToggleFavorite, onOpen, onNew, onImportarPdf, onDelete }) {
+  const [query, setQuery] = useState("");
+  // "todos" + las clasificaciones de ESTA iglesia. "sin" (Sin clasificar) solo aparece si hay
+  // canciones cuya clasificación ya no existe (ej. la borraron), para que no queden escondidas.
+  const [categoryFilter, setCategoryFilter] = useState("todos");
+  const [showClasificaciones, setShowClasificaciones] = useState(false);
+  const claves = new Set(clasificaciones.map((c) => c.clave));
+  const haySinClasificar = library.some((s) => !claves.has(s.category));
+  const enFiltro = (s, key) => key === "todos" || (key === "favoritas" ? s.favorite : key === "sin" ? !claves.has(s.category) : s.category === key);
+  // Búsqueda tolerante (sin tildes, en cualquier orden, con faltas de ortografía) — ver lib/busqueda.js.
+  const filtered = useMemo(() => buscarCanciones(library.filter((s) => enFiltro(s, categoryFilter)), query), [library, categoryFilter, query, clasificaciones]);
+  // Barra de clasificaciones (2026-10-10): cada chip dice cuántas canciones tiene, "Favoritas" va
+  // fija al inicio, el borde se difumina cuando hay más a la derecha, y la elegida se trae a la vista.
+  const filtros = [
+    ["todos", "Todos"],
+    ...(library.some((s) => s.favorite) || categoryFilter === "favoritas" ? [["favoritas", "Favoritas"]] : []),
+    ...clasificaciones.map((c) => [c.clave, c.nombre]),
+    ...(haySinClasificar ? [["sin", "Sin clasificar"]] : []),
+  ].map(([key, label]) => ({ key, label, total: library.filter((s) => enFiltro(s, key)).length }));
+  const barraRef = useRef(null);
+  const [bordes, setBordes] = useState({ izq: false, der: false });
+  const medirBordes = () => {
+    const el = barraRef.current;
+    if (!el) return;
+    setBordes({ izq: el.scrollLeft > 4, der: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+  };
+  useEffect(() => {
+    medirBordes();
+    window.addEventListener("resize", medirBordes);
+    return () => window.removeEventListener("resize", medirBordes);
+  }, [clasificaciones.length]);
+  useEffect(() => {
+    barraRef.current?.querySelector(`[data-filtro="${categoryFilter}"]`)?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [categoryFilter]);
+  return (
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>{library.length} Canciones</h2>
+        {isAdminViewer && (
+          <div style={{ display: "flex", gap: 8 }}>
+            {onImportarPdf && (
+              <button onClick={onImportarPdf} title="Importar canciones desde PDF" style={{ display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 12px", borderRadius: 10, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", color: "var(--wf-text)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <FileUp size={14} /> Importar PDF
+              </button>
+            )}
+            <button data-tour="canciones-nueva" onClick={onNew} style={{ ...iconGhost, width: 30, height: 30, background: "var(--wf-hover)", border: "1px solid var(--wf-border)" }}><Plus size={16} /></button>
+          </div>
+        )}
+      </div>
+      <div data-tour="canciones-buscar" style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 14, padding: "10px 14px", marginBottom: 12 }}>
+        <Search size={15} color="var(--wf-faint)" />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por título o letra" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 13, width: "100%" }} />
+      </div>
+      <div style={{ position: "relative", marginBottom: 12 }}>
+        <div ref={barraRef} onScroll={medirBordes} data-tour="canciones-filtros" className="chordbar-scroll" style={{ display: "flex", gap: 6, overflowX: "auto", padding: "2px 0 4px", scrollbarWidth: "none" }}>
+          {filtros.map(({ key, label, total }) => {
+            const activo = categoryFilter === key;
+            return (
+              <button
+                key={key} data-filtro={key} onClick={() => setCategoryFilter(key)} aria-pressed={activo}
+                style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, padding: "7px 12px", borderRadius: 20, cursor: "pointer",
+                  border: activo ? "1px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)",
+                  background: activo ? "var(--wf-brand-accent)" : "var(--wf-card)", color: activo ? "var(--wf-brand-primary)" : "var(--wf-text)" }}
+              >
+                {key === "favoritas" && <Heart size={12} fill={activo ? "currentColor" : "none"} />}
+                {label}
+                <span style={{ fontSize: 11, fontWeight: 600, opacity: activo ? 0.85 : 0.55 }}>{total}</span>
+              </button>
+            );
+          })}
+          {puedeConfigurarClasificaciones && (
+            <button onClick={() => setShowClasificaciones(true)} title="Editar clasificaciones" aria-label="Editar clasificaciones" style={{ flexShrink: 0, width: 34, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 20, border: "1px dashed var(--wf-border)", background: "transparent", color: "var(--wf-muted)", cursor: "pointer" }}>
+              <Pencil size={13} />
+            </button>
+          )}
+        </div>
+        {/* Difuminado en los bordes: avisa que hay más chips para deslizar. */}
+        {bordes.izq && <div aria-hidden style={{ position: "absolute", left: 0, top: 0, bottom: 4, width: 28, pointerEvents: "none", background: "linear-gradient(to left, transparent, var(--wf-bg))" }} />}
+        {bordes.der && <div aria-hidden style={{ position: "absolute", right: 0, top: 0, bottom: 4, width: 40, pointerEvents: "none", background: "linear-gradient(to right, transparent, var(--wf-bg))" }} />}
+      </div>
+      {showClasificaciones && (
+        <ClasificacionesModal
+          clasificaciones={clasificaciones}
+          library={library}
+          onClose={() => setShowClasificaciones(false)}
+          onGuardar={async (lista) => { await onGuardarClasificaciones(lista); setShowClasificaciones(false); if (!lista.some((c) => c.clave === categoryFilter)) setCategoryFilter("todos"); }}
+        />
+      )}
+      {filtered.map((s) => (
+        <div key={s.id} onClick={() => onOpen(s.id)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: "pointer" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{s.title}</div>
+            <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{s.artist || "Unknown"}</div>
+          </div>
+          {s.hasAttachment && <Paperclip size={15} color="var(--wf-faint)" />}
+          <span style={{ fontSize: 11, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 20, padding: "3px 10px", color: "var(--wf-text-2)" }}>{acordeEn(s.key)}</span>
+          <span style={{ fontSize: 11, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 20, padding: "3px 10px", color: "var(--wf-text-2)" }}>{s.tempo} bpm</span>
+          <button onClick={(e) => { e.stopPropagation(); onToggleFavorite(s.id); }} style={iconGhost}><Heart size={16} color={s.favorite ? "#C23B32" : "var(--wf-faint)"} fill={s.favorite ? "#C23B32" : "none"} /></button>
+          {isAdminViewer && <button onClick={(e) => { e.stopPropagation(); onDelete(s); }} style={iconGhost}><Trash2 size={16} color="var(--wf-faint)" /></button>}
+        </div>
+      ))}
+      {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>No hay canciones que coincidan con la búsqueda.</div>}
+    </div>
+  );
+}
+
+// Editor de las clasificaciones de canción de la iglesia — a propósito una sola lista corta (nombre +
+// bloque del Setlist), sin más opciones, para que configurarlo tome segundos. Se abre desde el botón
+// "Editar" junto a los filtros de Canciones, donde el administrador ve el resultado al instante.
+function ClasificacionesModal({ clasificaciones, library, onClose, onGuardar }) {
+  const [lista, setLista] = useState(() => clasificaciones.map((c) => ({ ...c })));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const cambiar = (i, campo, valor) => setLista((l) => l.map((c, j) => (j === i ? { ...c, [campo]: valor } : c)));
+  const quitar = async (i) => {
+    const c = lista[i];
+    const usadas = library.filter((s) => s.category === c.clave).length;
+    if (usadas > 0 && !(await confirmDialog(`${usadas} canción(es) tienen "${c.nombre || "esta clasificación"}". Si la quitas, quedarán como "Sin clasificar" hasta que les pongas otra. ¿Quitarla?`, { danger: true, textoConfirmar: "Quitar" }))) return;
+    setLista((l) => l.filter((_, j) => j !== i));
+  };
+  const agregar = () => setLista((l) => [...l, { clave: `c_${Date.now().toString(36)}`, nombre: "", bloque: l[l.length - 1]?.bloque || "Alabanza" }]);
+  const guardar = async () => {
+    const limpia = lista.map((c) => ({ clave: c.clave, nombre: (c.nombre || "").trim(), bloque: (c.bloque || "").trim() }));
+    if (limpia.length === 0) { setError("Deja al menos una clasificación."); return; }
+    if (limpia.some((c) => !c.nombre)) { setError("Ponle nombre a cada clasificación (o quita las vacías)."); return; }
+    setBusy(true); setError("");
+    try { await onGuardar(limpia); } catch (e) { setError(e.message); setBusy(false); }
+  };
+  return (
+    <ModalShell title="Clasificaciones" icon={ListMusic} color="var(--wf-brand-accent)" onClose={onClose}>
+      <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>
+        Cómo agrupa tu iglesia sus canciones, y a qué bloque del Setlist va cada una al agregarla.
+      </div>
+      <div style={{ display: "flex", fontSize: 10, fontWeight: 700, color: "var(--wf-faint)", textTransform: "uppercase", gap: 6, marginBottom: 4 }}>
+        <span style={{ flex: 1 }}>Nombre</span><span style={{ flex: 1 }}>Va al bloque</span><span style={{ width: 24 }} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+        {lista.map((c, i) => (
+          <div key={c.clave} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input value={c.nombre} onChange={(e) => cambiar(i, "nombre", e.target.value)} placeholder="Ej. Himno" style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
+            <input value={c.bloque} onChange={(e) => cambiar(i, "bloque", e.target.value)} placeholder="Al final" style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
+            <button type="button" onClick={() => quitar(i)} title="Quitar" style={iconGhost}><Trash2 size={14} color="var(--wf-faint)" /></button>
+          </div>
+        ))}
+      </div>
+      <button type="button" onClick={agregar} className="hoverable" style={{ ...addBtnStyle, justifyContent: "center", marginBottom: 8 }}><Plus size={14} /> Agregar clasificación</button>
+      <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 12 }}>Si dejas el bloque vacío, la canción se agrega al final del Setlist.</div>
+      {error && <div style={{ fontSize: 12, color: "#C23B32", marginBottom: 8 }}>{error}</div>}
+      <button type="button" onClick={guardar} disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
+    </ModalShell>
+  );
+}
+
+// ---------------- CANCIONES: EDITOR ----------------
+function blankSong() {
+  return { id: nextSongId(), title: "", tempo: "", compas: "", key: "", artist: "", themes: "", category: clasificacionesActuales[0]?.clave || "corito", favorite: false, hasAttachment: false, defaultStructure: [], blocks: {}, letra: {} };
+}
+function parseChordLine(raw) {
+  let plain = "";
+  const positions = [];
+  const regex = /\[([^\]]+)\]/g;
+  let lastIndex = 0, match;
+  while ((match = regex.exec(raw)) !== null) {
+    plain += raw.slice(lastIndex, match.index);
+    positions.push({ index: plain.length, chord: match[1] });
+    lastIndex = regex.lastIndex;
+  }
+  plain += raw.slice(lastIndex);
+  return { plain, positions };
+}
+function buildChordRow(positions) {
+  let row = "";
+  positions.forEach(({ index, chord }) => {
+    while (row.length < index) row += " ";
+    row += `${chord} `;
+  });
+  return row;
+}
+// Antes esto armaba UNA sola l\u00EDnea monoespaciada por rengl\u00F3n (acordes arriba, letra abajo, alineados
+// por car\u00E1cter con espacios de relleno) \u2014 perfecto para alinear, pero una l\u00EDnea larga nunca se
+// achicaba: en el celular se sal\u00EDa del cuadro y quedaba cortada. Tocando en vivo (guitarra/bajo/piano)
+// nadie puede estar arrastrando el dedo para ver el resto de cada l\u00EDnea. La soluci\u00F3n real es la que
+// usan las apps de acordes (OnSong, Ultimate Guitar): partir la l\u00EDnea en PALABRAS, cada una con su
+// propio acorde encima como una unidad chica independiente, y dejar que esas unidades se acomoden en
+// varios renglones (flexWrap) seg\u00FAn el ancho real de la pantalla \u2014 el acorde nunca se separa de su
+// palabra aunque el conjunto salte de l\u00EDnea, y no hace falta deslizar nada.
+function ChordsAboveLyrics({ raw, semitones = 0 }) {
+  // Do-Re-Mi o C-D-E según lo que eligió cada quien en Ajustes → Apariencia (solo cambia lo que se ve).
+  const { notacion } = usePreferencias();
+  const transposed = lineaEn(transposeLine(raw, semitones), notacion);
+  const tokens = transposed.split(/(\s+)/).filter((t) => t !== "" && !/^\s+$/.test(t));
+  if (tokens.length === 0) {
+    return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, marginBottom: 10, minHeight: "2.6em" }}>&nbsp;</div>;
+  }
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", rowGap: 6, marginBottom: 10 }}>
+      {tokens.map((token, i) => {
+        const { plain, positions } = parseChordLine(token);
+        const chordRow = buildChordRow(positions);
+        return (
+          <span key={i} style={{ display: "inline-flex", flexDirection: "column", marginRight: "0.5em", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "pre", fontSize: 13 }}>
+            <span style={{ color: "#1F8A73", fontWeight: 700, minHeight: "1.3em" }}>{chordRow || "\u00A0"}</span>
+            <span style={{ color: "var(--wf-text)" }}>{plain || "\u00A0"}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+function SlideMiniPreview({ lines }) {
+  return (
+    <div style={{ background: "radial-gradient(ellipse at center 40%, #1A1F2B 0%, #0C0E13 70%)", borderRadius: 12, padding: "16px 10px", minHeight: 70, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+      <div style={{ fontFamily: "'Fraunces', serif", fontSize: 12, lineHeight: 1.4, color: "#F3F1EC" }}>
+        {lines.filter((l) => l.trim()).length ? lines.map((l, i) => <div key={i}>{l || "\u00A0"}</div>) : <span style={{ color: "#3A4150" }}>Diapositiva vacía</span>}
+      </div>
+    </div>
+  );
+}
+
+function badgeColor(badge) {
+  const b = (badge || "").toUpperCase();
+  if (b.startsWith("IN")) return "#1F8A73"; // Intro/Instrumental (ambas sin letra): teal
+  if (b.startsWith("PC")) return "#2F5FA8"; // Pre-coro: azul (chequeado ANTES que Puente, ya que "PC" también empieza con "P")
+  if (b.startsWith("C")) return "#D98A54"; // Coro: durazno
+  if (b.startsWith("P")) return "#B15EA0"; // Puente: orquídea
+  if (b.startsWith("O") || b.startsWith("F")) return "#5661B3"; // Outro/Final (ambas de cierre): índigo
+  return "#2E86AB"; // Estrofas y cualquier otro badge personalizado: celeste
+}
+// Catálogo de tipos de sección para "Añadir secciones" (estilo OnStage) — cada tipo puede repetirse
+// (Estrofa 1, Estrofa 2...); el prefijo arma el badge numerado (V1, C2...). El color sale de
+// badgeColor() con el prefijo, así el catálogo y las tarjetas ya agregadas siempre coinciden.
+// Compases más usados, el primero es el más común. Opcional en cada canción.
+const COMPASES = ["4/4", "3/4", "6/8", "2/4", "12/8", "2/2", "5/4", "7/8"];
+// Tiempos por compás para el auto-avance por BPM. En 6/8 y 12/8 el pulso se cuenta en negra con
+// puntillo (2 y 4 tiempos), que es como se marca el BPM en la práctica. Sin compás: 4, como siempre.
+function tiemposPorCompas(compas) {
+  const m = String(compas || "").match(/^(\d+)\/(\d+)$/);
+  if (!m) return 4;
+  const num = parseInt(m[1], 10), den = parseInt(m[2], 10);
+  return den === 8 && num % 3 === 0 ? num / 3 : num;
+}
+
+const SECTION_TYPES = [
+  { id: "estrofa", label: "Estrofa", prefix: "V" },
+  { id: "precoro", label: "Pre-coro", prefix: "PC" },
+  { id: "coro", label: "Coro", prefix: "C" },
+  { id: "puente", label: "Puente", prefix: "P" },
+  { id: "intro", label: "Intro", prefix: "IN" },
+  { id: "outro", label: "Outro", prefix: "O" },
+  { id: "final", label: "Final", prefix: "F" },
+  { id: "instrumental", label: "Instrumental", prefix: "INS" },
+];
+
+// Clave de sessionStorage donde SongView guarda la cejilla de cada canción, songId → traste (ver ahí).
+// Nombre distinto al de la versión anterior ("wf-cejilla", un solo número global) para no leer ese formato.
+const CEJILLA_SESSION_KEY = "wf-cejilla-por-cancion";
+
+// Selector de tonalidad + cejilla — reemplaza al viejo <select> de transportar + la caja de Capo
+// separada. Una sola pantalla para las dos capas: la raíz (letra natural + ♭/♯, el modo mayor/menor
+// SIEMPRE se conserva del original, nunca se ofrece cambiarlo — tocar una tonalidad menor en otra
+// tonalidad sigue siendo menor) y la cejilla (traste físico, siempre ≥0 — ya NO es un "transportador"
+// con signo negativo como el Capo viejo). Quién puede tocar "Guardar" y qué hace ese guardado
+// depende de dónde se abrió este modal — ver SongView, que decide puedeCambiarPermanente/Local.
+function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResultKey, puedeCambiarPermanente, puedeCambiarLocal, onClose, onGuardarPermanente, onGuardarLocal }) {
+  const isMinorKey = song.key.endsWith("m");
+  const parsed = displayedKey.match(/^([A-G])(#|b)?/);
+  const [letra, setLetra] = useState(parsed?.[1] || "C");
+  const [alteracion, setAlteracion] = useState(parsed?.[2] || null);
+  const puedeCambiarRoot = puedeCambiarPermanente || puedeCambiarLocal;
+  const nuevaTonalidad = `${letra}${alteracion || ""}${isMinorKey ? "m" : ""}`;
+  const guardar = () => {
+    if (puedeCambiarPermanente) onGuardarPermanente(nuevaTonalidad);
+    else if (puedeCambiarLocal) onGuardarLocal(nuevaTonalidad);
+  };
+  const LETRAS = ["C", "D", "E", "F", "G", "A", "B"];
+  const activeStyle = { background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)" };
+  const inactiveStyle = { background: "var(--wf-hover)", color: "var(--wf-text)" };
+  return (
+    <ModalShell title="Cambiar tonalidad" icon={Music} color="var(--wf-brand-accent)" onClose={onClose}>
+      <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>Original {acordeEn(song.key)}</div>
+
+      {puedeCambiarRoot ? (
+        <>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+            {LETRAS.map((l) => (
+              <button key={l} onClick={() => setLetra(l)} className="hoverable" style={{ flex: "1 1 36px", padding: "10px 0", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 700, ...(letra === l ? activeStyle : inactiveStyle) }}>
+                {acordeEn(l)}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", borderRadius: 10, overflow: "hidden", border: "1px solid var(--wf-border)", marginBottom: 16 }}>
+            <button onClick={() => setAlteracion(alteracion === "b" ? null : "b")} style={{ flex: 1, padding: "9px 0", border: "none", cursor: "pointer", fontSize: 16, fontWeight: 700, ...(alteracion === "b" ? activeStyle : inactiveStyle) }}>♭</button>
+            <button onClick={() => setAlteracion(alteracion === "#" ? null : "#")} style={{ flex: 1, padding: "9px 0", border: "none", cursor: "pointer", fontSize: 16, fontWeight: 700, ...(alteracion === "#" ? activeStyle : inactiveStyle) }}>♯</button>
+          </div>
+        </>
+      ) : (
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16 }}>
+          {acordeEn(displayedKey)} <span style={{ fontWeight: 400, color: "var(--wf-faint)", fontSize: 11 }}>— solo un administrador puede cambiar la tonalidad desde la biblioteca (sería permanente)</span>
+        </div>
+      )}
+
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-faint)", marginBottom: 6, textTransform: "uppercase" }}>Cejilla</div>
+      <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 8 }}>En qué traste pones el capo — 0 es sin capo. Solo cambia lo que TÚ ves, solo en esta canción, y se recuerda hasta que cierres la app.</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 8px", marginBottom: 16 }}>
+        <button onClick={() => setCejilla((c) => Math.max(0, c - 1))} className="hoverable" style={{ ...iconGhost, width: 28, height: 28 }}><Minus size={14} /></button>
+        <span style={{ flex: 1, textAlign: "center", fontSize: 14, fontWeight: 700 }}>{cejilla}{cejillaResultKey ? ` (${acordeEn(cejillaResultKey)})` : ""}</span>
+        <button onClick={() => setCejilla((c) => Math.min(11, c + 1))} className="hoverable" style={{ ...iconGhost, width: 28, height: 28 }}><Plus size={14} /></button>
+      </div>
+
+      {puedeCambiarRoot && <button onClick={guardar} style={primaryBtn}>Guardar</button>}
+    </ModalShell>
+  );
+}
+
+// Adjuntos de la canción (PDF, imágenes y enlaces) — ver src/lib/adjuntosCancion.js. Todos los de la
+// iglesia los ven y los abren; agregan/quitan solo quienes pueden notas "para todos" (puedeEditar).
+function AdjuntosModal({ song, iglesiaId, puedeEditar, onClose, onCambio }) {
+  const [adjuntos, setAdjuntos] = useState(null);
+  const [errorCarga, setErrorCarga] = useState(false);
+  const [subiendo, setSubiendo] = useState(false);
+  const [modoEnlace, setModoEnlace] = useState(false);
+  const [enlace, setEnlace] = useState("");
+  const [tituloEnlace, setTituloEnlace] = useState("");
+  const inputArchivoRef = useRef(null);
+  useEffect(() => {
+    let vivo = true;
+    listarAdjuntos(song.id).then((r) => { if (vivo) setAdjuntos(r); }).catch(() => { if (vivo) { setAdjuntos([]); setErrorCarga(true); } });
+    return () => { vivo = false; };
+  }, [song.id]);
+  const actualizar = (lista) => { setAdjuntos(lista); onCambio?.(lista.length > 0); };
+  const elegirArchivos = async (e) => {
+    const archivos = [...(e.target.files || [])];
+    e.target.value = "";
+    if (!archivos.length) return;
+    if (!iglesiaId) { notifyError("No se pudo identificar tu iglesia. Vuelve a abrir la app."); return; }
+    setSubiendo(true);
+    let lista = adjuntos || [];
+    for (const file of archivos) {
+      if (!tipoDeArchivo(file)) { notifyError(`"${file.name}" no es PDF ni imagen.`); continue; }
+      try {
+        const nuevo = await subirAdjunto({ iglesiaId, cancionId: song.id, file });
+        lista = [...lista, nuevo];
+        actualizar(lista);
+      } catch (err) {
+        notifyError(err?.message ? `No se pudo subir "${file.name}": ${err.message}` : `No se pudo subir "${file.name}".`);
+      }
+    }
+    setSubiendo(false);
+  };
+  const guardarEnlace = async () => {
+    setSubiendo(true);
+    try {
+      const nuevo = await agregarEnlace({ cancionId: song.id, url: enlace, titulo: tituloEnlace });
+      actualizar([...(adjuntos || []), nuevo]);
+      setEnlace(""); setTituloEnlace(""); setModoEnlace(false);
+    } catch (err) {
+      notifyError(err?.message || "No se pudo guardar el enlace.");
+    }
+    setSubiendo(false);
+  };
+  const quitar = async (a) => {
+    if (!(await confirmDialog(`¿Quitar "${a.titulo}" de esta canción?`, { danger: true, textoConfirmar: "Quitar" }))) return;
+    try {
+      await borrarAdjunto(a);
+      actualizar((adjuntos || []).filter((x) => x.id !== a.id));
+    } catch (err) {
+      notifyError(err?.message || "No se pudo quitar.");
+    }
+  };
+  const abrir = (a) => window.open(a.url, "_blank", "noopener");
+  const iconoDe = (tipo) => (tipo === "pdf" ? FileText : tipo === "imagen" ? ImgIcon : Link2);
+  const colorDe = (tipo) => (tipo === "pdf" ? "#C23B32" : tipo === "imagen" ? "#B15EA0" : "#2F5FA8");
+  const campo = { width: "100%", boxSizing: "border-box", borderRadius: 10, border: "1px solid var(--wf-border)", background: "var(--wf-bg)", color: "var(--wf-text)", padding: "10px 12px", fontSize: 14, fontFamily: "inherit", marginBottom: 8, outline: "none" };
+  const botonAgregar = { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "10px 4px", fontSize: 12, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit" };
+  return (
+    <ModalShell title="Adjuntos" icon={Paperclip} color="var(--wf-brand-accent)" onClose={onClose}>
+      <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>{song.title}</div>
+      {adjuntos === null ? (
+        <div style={{ fontSize: 13, color: "var(--wf-faint)", padding: "12px 0" }}>Cargando…</div>
+      ) : adjuntos.length === 0 ? (
+        <div style={{ fontSize: 13, color: "var(--wf-faint)", padding: "8px 0 14px" }}>
+          {errorCarga ? "No se pudieron cargar los adjuntos." : puedeEditar ? "Todavía no hay nada. Agrega partituras, cifrados, fotos o enlaces (YouTube, Drive…)." : "Esta canción no tiene adjuntos."}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+          {adjuntos.map((a) => {
+            const Icono = iconoDe(a.tipo);
+            return (
+              <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-bg)", borderRadius: 12, padding: 8, boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
+                <button onClick={() => abrir(a)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 10, background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left", color: "var(--wf-text)", fontFamily: "inherit" }}>
+                  {a.tipo === "imagen" ? (
+                    <img src={a.url} alt="" loading="lazy" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8, flexShrink: 0, background: "var(--wf-hover)" }} />
+                  ) : (
+                    <span style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: `${colorDe(a.tipo)}1A` }}><Icono size={20} color={colorDe(a.tipo)} /></span>
+                  )}
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.titulo}</span>
+                    <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)" }}>{a.tipo === "pdf" ? "PDF" : a.tipo === "imagen" ? "Imagen" : "Enlace"} · tocar para abrir</span>
+                  </span>
+                </button>
+                {puedeEditar && (
+                  <button onClick={() => quitar(a)} title="Quitar" style={{ ...iconGhost, width: 32, height: 32 }}><Trash2 size={15} color="#C23B32" /></button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {puedeEditar && (
+        modoEnlace ? (
+          <div>
+            <input autoFocus type="url" inputMode="url" value={enlace} onChange={(e) => setEnlace(e.target.value)} placeholder="Pega el enlace (YouTube, Drive, Spotify…)" style={campo} />
+            <input value={tituloEnlace} onChange={(e) => setTituloEnlace(e.target.value)} placeholder="Nombre (opcional) — ej. Video del ensayo" style={campo} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => { setModoEnlace(false); setEnlace(""); setTituloEnlace(""); }} style={{ ...primaryBtn, flex: 1, background: "var(--wf-hover)", color: "var(--wf-text)" }}>Cancelar</button>
+              <button onClick={guardarEnlace} disabled={subiendo || !enlace.trim()} style={{ ...primaryBtn, flex: 1, opacity: subiendo || !enlace.trim() ? 0.6 : 1 }}>{subiendo ? "Guardando…" : "Agregar"}</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <input ref={inputArchivoRef} type="file" multiple accept="application/pdf,.pdf,image/*" onChange={elegirArchivos} style={{ display: "none" }} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button disabled={subiendo} onClick={() => inputArchivoRef.current?.click()} style={botonAgregar}><FileText size={18} color="#C23B32" />PDF o imagen</button>
+              <button disabled={subiendo} onClick={() => setModoEnlace(true)} style={botonAgregar}><Link2 size={18} color="#2F5FA8" />Enlace</button>
+            </div>
+            {subiendo && <div style={{ fontSize: 12, color: "var(--wf-muted)", marginTop: 10, textAlign: "center" }}>Subiendo…</div>}
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 10, textAlign: "center" }}>Hasta 20 MB por archivo. Puedes elegir varios a la vez.</div>
+          </>
+        )
+      )}
+    </ModalShell>
+  );
+}
+
+function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, enterDirection, structureOverride, liveSync, iglesiaId, notasCtx, onAdjuntosChange }) {
+  const sectionRefs = useRef({});
+  const [showAdjuntos, setShowAdjuntos] = useState(false);
+  // Ref aparte, por POSICIÓN en el orden (no por clave de sección): si una sección se repite (V1, V2,
+  // V1, Coro...) sectionRefs solo guarda la primera aparición (para los pills de arriba, que son un
+  // índice de secciones únicas) — pero el auto-avance de Modo Músico necesita saber a cuál repetición
+  // exacta saltar, así que usa este mapa indexado por posición.
+  const indexRefs = useRef({});
+  const containerRef = useRef(null);
+  // Cada canción nueva es un montaje fresco (key distinto en el sitio donde se usa <SongView>), pero el
+  // contenedor que hace scroll de verdad es un ancestro que NO se remonta — así que si veníamos con la
+  // anterior desplazada hasta el final, la canción siguiente arrancaba también abajo del todo en vez de
+  // arriba. Se sube ese ancestro a mano (no con scrollIntoView: esta misma raíz lleva la animación de
+  // deslizar entre canciones con transform: translateX, y scrollIntoView calcula la posición CON ese
+  // transform aplicado — a mitad de la animación podía terminar calculando mal y no subir del todo).
+  useEffect(() => {
+    let el = containerRef.current?.parentElement;
+    while (el && el !== document.body) {
+      if (el.scrollHeight > el.clientHeight) { el.scrollTop = 0; break; }
+      el = el.parentElement;
+    }
+  }, []);
+  const pointerStartRef = useRef(null);
+  const draggingRef = useRef(false); // true una vez que el gesto se confirmó horizontal (no scroll vertical)
+  // Efecto "galería de fotos": mientras se arrastra, el contenido sigue al dedo en tiempo real (sin
+  // transición, dragX se mueve 1 a 1 con el gesto); al soltar, si pasó el umbral termina de salir de la
+  // pantalla hacia ese lado (con transición) y RECIÉN AHÍ cambia de canción — la que entra se monta de
+  // cero (por el key en el sitio donde se usa <SongView>) y juega su propia animación de entrada desde
+  // el lado opuesto. Si no pasó el umbral, vuelve a 0 con transición (como soltar una foto a medio camino).
+  const [dragX, setDragX] = useState(0);
+  const [phase, setPhase] = useState("idle"); // idle | dragging | exiting
+  // blockKeys/order se calculan ANTES del "if (!song) return null" de abajo porque los hooks de Modo
+  // Músico (justo debajo) los necesitan, y los hooks no se pueden llamar condicionalmente ni después
+  // de un return — con song en null, quedan en su valor vacío por defecto sin romper nada.
+  const blockKeys = song ? Object.keys(song.blocks) : [];
+  // Lo que de verdad debe leer el músico es la canción EN ORDEN DE EJECUCIÓN — la Estructura, repitiendo
+  // cada sección las veces que corresponda (V1, V2, V1, Coro...) — no una lista de secciones únicas en
+  // el orden en que se crearon, que es lo que mostraba antes (la Estructura quedaba sin ningún efecto
+  // real para quien toca). La Estructura ACTUAL de la canción manda siempre que exista: structureOverride
+  // es solo una foto fija tomada el día que se agregó al Setlist (no hay pantalla para editarla aparte),
+  // así que si después se ajusta la Estructura de la canción, esa foto vieja no debe ganarle. Solo se usa
+  // como respaldo si la canción hoy no tiene ninguna Estructura propia; y si ninguna existe, las secciones únicas.
+  const order = !song
+    ? []
+    : song.defaultStructure && song.defaultStructure.length > 0
+      ? song.defaultStructure
+      : structureOverride && structureOverride.length > 0
+        ? structureOverride
+        : blockKeys;
+  // ---- Modo Músico. Dos formas muy distintas de funcionar:
+  // · Fuera de una transmisión en vivo (repaso/ensayo): sigue igual que siempre — auto-avance calculado
+  //   por tempo (BPM) × compases de cada sección, con "tap tempo", sincronizado por un canal ad-hoc
+  //   (song.id) entre quien tenga la MISMA canción abierta, sin un líder fijo.
+  // · EN VIVO: nada de compases ni BPM — el pedido fue explícito, la música real no siempre respeta el
+  //   tempo "de papel". El líder avanza a mano (‹›/pills) y cada movimiento se refleja al instante en
+  //   todos los demás dispositivos, como un espejo — ver más abajo. ----
+  const [autoMode, setAutoMode] = useState(false);
+  const [liveBpm, setLiveBpm] = useState(Number(song?.tempo) || 120);
+  const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
+  const tapTimesRef = useRef([]);
+
+  // ---- Tonalidad + cejilla de ESTA vista — ver TonalidadModal más abajo para el porqué de cada capa:
+  // "tonalidadLocal" es un ajuste que SOLO ve quien lo puso, nunca se guarda en ningún lado (ni
+  // siquiera para el mismo usuario en otra sesión) — sustituye a `song.key` únicamente para calcular
+  // qué se muestra, nunca lo que hay guardado de verdad (ni la canción de la biblioteca, ni el
+  // tonalidad_override compartido del ítem del Setlist, que ya viene aplicado en `song.key` cuando
+  // corresponde — ver songWithKeyOverride). "cejilla" es lo que antes se llamaba "Capo": sube/baja
+  // medio tono a la vez SOLO en lo que ve este dispositivo, nunca se manda a musico_en_vivo/
+  // musicoState ni a ningún otro dispositivo, ni siquiera si este músico es el líder — el líder solo
+  // transmite EN QUÉ SECCIÓN está, jamás su cejilla. A diferencia del capo viejo (que podía ir
+  // negativo, ej. "Capo -2"), la cejilla representa un traste FÍSICO real — nunca negativa — así que
+  // para "ver los acordes de un tono más abajo" ahora se cambia la tonalidad, no la cejilla.
+  // Como este componente se remonta entero al cambiar de canción (ver el `key=` en el sitio donde se
+  // usa <SongView>), tonalidadLocal arranca limpia en cada canción nueva. La cejilla NO: cada canción
+  // recuerda la suya (solo las que el músico decidió ponerle capo), así al ir y volver entre las
+  // canciones de una cadena no tiene que reponerla. Vive en sessionStorage como mapa songId → traste
+  // (solo este dispositivo, dura hasta cerrar la app/pestaña, nunca se manda a nadie).
+  const [tonalidadLocal, setTonalidadLocal] = useState(null);
+  const [cejilla, setCejilla] = useState(() => {
+    if (!song) return 0;
+    try { return Math.min(11, Math.max(0, parseInt(JSON.parse(sessionStorage.getItem(CEJILLA_SESSION_KEY) || "{}")[song.id]) || 0)); } catch { return 0; }
+  });
+  useEffect(() => {
+    if (!song) return;
+    try {
+      const map = JSON.parse(sessionStorage.getItem(CEJILLA_SESSION_KEY) || "{}");
+      if (cejilla > 0) map[song.id] = cejilla; else delete map[song.id];
+      sessionStorage.setItem(CEJILLA_SESSION_KEY, JSON.stringify(map));
+    } catch { /* sin storage: la cejilla solo dura mientras esta canción esté abierta */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cejilla, song?.id]);
+  const [showTonalidadModal, setShowTonalidadModal] = useState(false);
+  const displayedKey = tonalidadLocal || song?.key;
+  // Semitonos totales a aplicar sobre los acordes TAL COMO están guardados (en song.key): primero lo
+  // que haga falta para llegar a la tonalidad mostrada, y encima, la cejilla resta (tocar más abajo
+  // porque el capo físico ya sube esos semitonos al sonar).
+  const semitonesDesdeOriginal = song ? semitoneShift(song.key, displayedKey) - cejilla : 0;
+  const cejillaResultKey = song ? transposeChordToken(displayedKey, -cejilla) : null;
+
+  // ---- Fuera de una transmisión en vivo (repaso/ensayo): sigue igual que siempre — cualquiera que
+  // tenga la MISMA canción abierta se sincroniza por un canal ad-hoc (song.id), sin un líder fijo,
+  // "cualquiera que ajuste algo se transmite a los demás". ----
+  const musicoChannelRef = useRef(null);
+  // Ensayo juntos es opcional: solo quien lo activa comparte y recibe sección/tempo/auto-avance con
+  // los demás que también lo activaron. Se recuerda en este dispositivo hasta cerrar la app.
+  const [ensayoJuntos, setEnsayoJuntosState] = useState(() => { try { return sessionStorage.getItem("wf-ensayo-juntos") === "1"; } catch { return false; } });
+  const setEnsayoJuntos = (v) => { setEnsayoJuntosState(v); try { sessionStorage.setItem("wf-ensayo-juntos", v ? "1" : "0"); } catch { /* sin storage */ } };
+  useEffect(() => {
+    if (!song || liveSync?.active || !ensayoJuntos) return; // en vivo usa musico_en_vivo (líder/seguidor), no este canal
+    const channel = supabase.channel(`musico-${song.id}`);
+    channel.on("broadcast", { event: "sync" }, ({ payload }) => {
+      setAutoMode(payload.autoMode);
+      setLiveBpm(payload.liveBpm);
+      setCurrentSectionIdx(payload.currentSectionIdx);
+      indexRefs.current[payload.currentSectionIdx]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }).subscribe();
+    musicoChannelRef.current = channel;
+    return () => { supabase.removeChannel(channel); musicoChannelRef.current = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [song?.id, liveSync?.active, ensayoJuntos]);
+  const broadcastMusico = (patch) => {
+    musicoChannelRef.current?.send({ type: "broadcast", event: "sync", payload: { autoMode, liveBpm, currentSectionIdx, ...patch } });
+  };
+
+  // ---- En vivo: líder/seguidor por transmisión (ver tabla musico_en_vivo — src/lib/musicoLive.js —,
+  // DEVICE_ID/musicoState en el componente principal). El primero que toque "Modo Músico" sin que haya
+  // ya un líder activo se vuelve el líder: nada de temporizador por BPM, solo "espejo" — cada vez que
+  // mueve la sección (‹›/pill) eso se escribe ahí y el resto lo refleja al instante. Si el líder se
+  // queda callado más de MUSICO_LEADER_STALE_MS (cerró la app, se quedó sin señal), el siguiente que
+  // toque "Modo Músico" toma el mando sin que nadie quede bloqueado a mitad de un culto. Un seguidor
+  // puede seguir tocando los pills/‹› para mirar otra sección por su cuenta (no transmite nada) — en
+  // cuanto el líder mueve algo de nuevo, ese nuevo estado le llega y lo vuelve a traer.
+  const isLive = !!liveSync?.active;
+  const isLeaderMe = isLive && liveSync.state?.liderId === liveSync.deviceId;
+  const otherLeaderFresh = isLive && isMusicoLeaderFresh(liveSync.state) && liveSync.state.liderId !== liveSync.deviceId;
+  // Unido = este músico eligió seguir a quien dirige. Si no se unió, va a su propio ritmo aunque haya
+  // alguien dirigiendo (puede usar el auto-avance por BPM y TAP como en un ensayo, solo para él).
+  const siguiendo = isLive && !!liveSync.unido && !isLeaderMe;
+  const porMiCuenta = !isLive || (!isLeaderMe && !siguiendo);
+  const nombreLider = liveSync?.state?.liderNombre || "el líder";
+  const isFollowingNow = siguiendo && otherLeaderFresh && liveSync.state.songItemId === liveSync.itemId;
+  // Líder registrado pero sin heartbeat reciente (se salió de la canción sin querer, el teléfono se
+  // bloqueó, cambió de app un segundo) — TODOS quedan pausados exactamente donde estaban (nadie toma
+  // el mando solo), y si estaba siguiendo a ESE líder en ESTA misma canción se lo avisa con claridad
+  // en vez de mostrarle de golpe el botón normal de "Modo Músico" (que invitaría a tomar el mando por
+  // error). Apenas el líder vuelve a mandar un heartbeat, esto se apaga solo y sigue como si nada.
+  const leaderStale = isLive && !!liveSync.state?.liderId && liveSync.state.liderId !== liveSync.deviceId && !otherLeaderFresh;
+  const wasFollowingStaleLeader = siguiendo && leaderStale;
+
+  // BUG real (2026-08-30, culto en vivo): si el líder pierde la conexión, jamás vuelve a llegar un
+  // heartbeat por Realtime — así que este componente no tiene ningún motivo para volver a renderizar,
+  // y "otherLeaderFresh"/isFollowingNow se quedan calculados contra el Date.now() de la ÚLTIMA vez que
+  // SÍ llegó algo, "frescos" para siempre aunque hace rato pasaron los MUSICO_LEADER_STALE_MS de
+  // verdad. El botón para tomar el mando ni siquiera reaparecía: todos se quedaban viendo "Siguiendo
+  // al líder" sin poder pasar ninguna canción más. Este tick fuerza a re-evaluar la frescura cada
+  // 2s aunque no llegue ningún dato nuevo.
+  const [, forzarRevision] = useState(0);
+  useEffect(() => {
+    if (!isLive) return;
+    const id = setInterval(() => forzarRevision((t) => t + 1), 2000);
+    return () => clearInterval(id);
+  }, [isLive]);
+
+  // "Soy el líder" se deriva de musicoState (persiste solo), así que no hace falta restaurar nada al
+  // pasar de canción — pero SÍ hay que reflejar la sección donde arranca esta canción nueva (goToItem ya
+  // dejó sectionIdx en 0 en musico_en_vivo antes de navegar), para que el propio líder empiece igual que
+  // todos los demás.
+  useEffect(() => {
+    if (!isLeaderMe || !liveSync.state) return;
+    setCurrentSectionIdx(liveSync.state.sectionIdx || 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveSync?.itemId]);
+
+  // Late del líder: mientras este dispositivo sea el líder en vivo, avisa "sigo aquí" cada pocos
+  // segundos aunque no haya movido nada — si no, un tramo largo sin cambiar de sección haría ver al
+  // líder como "caído" y otro dispositivo podría tomarle el mando de encima.
+  useEffect(() => {
+    if (!isLive || !isLeaderMe) return;
+    const id = setInterval(() => liveSync.onUpdate({ heartbeat: new Date().toISOString() }), 5000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLive, isLeaderMe]);
+
+  // Seguidor: refleja la sección del líder apenas cambia — y si saltó a OTRA canción, le pide al
+  // contenedor que navegue ahí (ver onFollowItem en el sitio donde se usa <SongView>, que resuelve el
+  // id de canción a partir del ítem del Setlist). OJO: se engancha con otherLeaderFresh (hay un líder,
+  // sin importar en qué canción), NO con isFollowingNow — ese ya EXIGE que la canción coincida, así que
+  // el chequeo de "saltó a otra canción" de abajo nunca se cumplía: apenas el líder cambiaba de canción,
+  // isFollowingNow pasaba a falso de una (dejaban de coincidir) y el efecto entero se cortaba antes de
+  // llegar a onFollowItem — quien seguía se quedaba pegado en la canción vieja, tenía que deslizar él
+  // mismo para alcanzar al líder.
+  useEffect(() => {
+    if (!otherLeaderFresh || !siguiendo) return;
+    const state = liveSync.state;
+    if (state.songItemId !== liveSync.itemId) { liveSync.onFollowItem(state.songItemId); return; }
+    setCurrentSectionIdx(state.sectionIdx || 0);
+    indexRefs.current[state.sectionIdx || 0]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otherLeaderFresh, siguiendo, liveSync?.state?.sectionIdx, liveSync?.state?.songItemId]);
+
+  // ---- Notas por parte (pedido de Eldin, 2026-10-14): la del líder la ven todos; "mi nota" solo yo. ----
+  const [notas, setNotas] = useState({ disponible: false, equipo: {}, mias: {} });
+  // Modo "Anotar" (pedido de Eldin, 2026-10-14): toda la canción en edición a la vez — etiquetas de un
+  // toque (x2, Sube, Solo voz…) y un renglón por parte, más una nota de toda la canción. Se guarda solo.
+  // Todo vive en notas_seccion: la nota de la canción es seccion_clave "_cancion" y las etiquetas de una
+  // parte son "<clave>#tags" (texto separado por comas) — sin tablas nuevas.
+  useEffect(() => {
+    if (!song?.id || !notasCtx?.usuarioId) return;
+    let vivo = true;
+    cargarNotas(song.id, notasCtx.usuarioId).then((r) => { if (vivo) setNotas(r); }).catch(() => {});
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [song?.id, notasCtx?.usuarioId]);
+  const [anotando, setAnotando] = useState(false);
+  const [capaElegida, setCapa] = useState("equipo");
+  const capa = notasCtx?.puedeEquipo ? capaElegida : "mias";
+  const [guardandoNotas, setGuardandoNotas] = useState(0);
+  const timersNotasRef = useRef({});
+  const pendientesRef = useRef({});
+  const textoNota = (c, campo) => notas[c]?.[campo]?.texto || "";
+  const guardarCampo = (c, campo, texto) => {
+    setGuardandoNotas((g) => g + 1);
+    return guardarNota({ cancionId: song.id, seccionClave: campo, duenoId: c === "equipo" ? DUENO_EQUIPO : notasCtx.usuarioId, texto, nombre: notasCtx.nombre })
+      .catch((e) => notifyError("No se pudo guardar la nota", e))
+      .finally(() => setGuardandoNotas((g) => g - 1));
+  };
+  const ponerLocal = (c, campo, texto) => setNotas((prev) => ({ ...prev, [c]: { ...prev[c], [campo]: { ...(prev[c][campo] || {}), texto, editado_nombre: notasCtx.nombre } } }));
+  const escribirNota = (c, campo, texto) => {
+    ponerLocal(c, campo, texto);
+    const k = `${c}|${campo}`;
+    pendientesRef.current[k] = texto;
+    clearTimeout(timersNotasRef.current[k]);
+    timersNotasRef.current[k] = setTimeout(() => { delete timersNotasRef.current[k]; delete pendientesRef.current[k]; guardarCampo(c, campo, texto); }, 700);
+  };
+  const guardarPendientes = () => {
+    Object.entries(timersNotasRef.current).forEach(([k, t]) => {
+      clearTimeout(t);
+      const [c, campo] = k.split("|");
+      guardarCampo(c, campo, pendientesRef.current[k]);
+    });
+    timersNotasRef.current = {};
+    pendientesRef.current = {};
+  };
+  useEffect(() => () => guardarPendientes(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const etiquetasDe = (c, clave) => textoNota(c, `${clave}#tags`).split(",").map((x) => x.trim()).filter(Boolean);
+  const alternarEtiqueta = (c, clave, et) => {
+    const act = etiquetasDe(c, clave);
+    const sig = act.includes(et) ? act.filter((x) => x !== et) : [...act, et];
+    ponerLocal(c, `${clave}#tags`, sig.join(","));
+    guardarCampo(c, `${clave}#tags`, sig.join(","));
+  };
+  // Tocar una nota abre "Anotar" justo en esa parte; la × la borra de un toque.
+  const puedeEditarCapa = (c) => c === "mias" || !!notasCtx?.puedeEquipo;
+  const abrirAnotarEn = (c, campo) => {
+    if (puedeEditarCapa(c)) setCapa(c);
+    setAnotando(true);
+    setTimeout(() => {
+      const el = document.querySelector(`[data-anotar="${campo}"] textarea`);
+      if (el) { el.scrollIntoView({ block: "center", behavior: "smooth" }); el.focus({ preventScroll: true }); }
+    }, 80);
+  };
+  const borrarNota = (c, campo) => { ponerLocal(c, campo, ""); guardarCampo(c, campo, ""); showToast("Nota borrada", "info"); };
+
+  // La fila de partes sigue sola a la que suena (solo de lado: nunca mueve la página hacia arriba).
+  const filaPartesRef = useRef(null);
+  useEffect(() => {
+    const fila = filaPartesRef.current;
+    const pill = fila?.querySelector(`[data-pill="${currentSectionIdx}"]`);
+    if (!fila || !pill) return;
+    fila.scrollTo({ left: pill.offsetLeft - fila.offsetLeft - fila.clientWidth / 2 + pill.offsetWidth / 2, behavior: "smooth" });
+  }, [currentSectionIdx]);
+  const goToSectionIdx = (i) => {
+    const clamped = Math.max(0, Math.min(order.length - 1, i));
+    setCurrentSectionIdx(clamped);
+    indexRefs.current[clamped]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (isLeaderMe) liveSync.onUpdate({ sectionIdx: clamped, heartbeat: new Date().toISOString() });
+    else if (!isLive) broadcastMusico({ currentSectionIdx: clamped }); // seguidor: solo local, no transmite nada
+  };
+  const toggleAutoMode = () => {
+    if (!porMiCuenta) return; // quien dirige o sigue no usa auto-avance: todo va a mano, en espejo
+    const next = !autoMode;
+    setAutoMode(next);
+    broadcastMusico({ autoMode: next });
+  };
+  // Unirse a quien dirige: desde ahora este dispositivo refleja su canción y su sección.
+  const unirme = () => {
+    setAutoMode(false);
+    liveSync.setUnido(true);
+    if (liveSync.state?.songItemId && liveSync.state.songItemId !== liveSync.itemId) liveSync.onFollowItem(liveSync.state.songItemId);
+    else setCurrentSectionIdx(liveSync.state?.sectionIdx || 0);
+  };
+  const irAMiRitmo = () => liveSync.setUnido(false);
+  // Empezar a dirigir: solo si nadie más está dirigiendo ahora mismo. Los demás NO lo siguen solos,
+  // les aparece "Unirme a <nombre>" y cada uno decide.
+  const dirigir = () => {
+    setAutoMode(false);
+    liveSync.setUnido(false);
+    liveSync.onUpdate({ liderId: liveSync.deviceId, liderNombre: liveSync.myName || null, songItemId: liveSync.itemId, sectionIdx: currentSectionIdx, heartbeat: new Date().toISOString() });
+  };
+  const dejarDeDirigir = () => liveSync.onUpdate({ liderId: null, liderNombre: null, heartbeat: null });
+  const handleTap = () => {
+    if (!porMiCuenta) return; // quien dirige o sigue va a mano, sin BPM
+    const now = Date.now();
+    const recent = tapTimesRef.current.filter((t) => now - t < 3000).concat(now).slice(-8);
+    tapTimesRef.current = recent;
+    if (recent.length >= 2) {
+      const intervals = recent.slice(1).map((t, i) => t - recent[i]);
+      const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const bpm = Math.round(60000 / avgMs);
+      setLiveBpm(bpm);
+      broadcastMusico({ liveBpm: bpm });
+    }
+  };
+  useEffect(() => {
+    if (!autoMode || !song || !porMiCuenta) return; // quien dirige o sigue va a mano; los demás pueden usar su propio auto-avance
+    const key = order[currentSectionIdx];
+    const block = song.blocks[key];
+    if (!block) return;
+    const beatsPerBar = tiemposPorCompas(song.compas);
+    const durationMs = Math.max(1500, ((block.bars || 8) * beatsPerBar / liveBpm) * 60000);
+    const timer = setTimeout(() => {
+      if (currentSectionIdx >= order.length - 1) { setAutoMode(false); broadcastMusico({ autoMode: false }); return; } // se acabó la canción
+      goToSectionIdx(currentSectionIdx + 1);
+    }, durationMs);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoMode, currentSectionIdx, liveBpm, order, song, porMiCuenta]);
+  if (!song) return null;
+  const scrollTo = (key) => sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Modo "Anotar": cada parte UNA vez (en el orden en que se canta), con sus etiquetas y un renglón.
+  const partesUnicas = [...new Set(order.filter((k) => song.blocks[k])), ...blockKeys.filter((k) => !order.includes(k))];
+  const campoNota = { width: "100%", boxSizing: "border-box", borderRadius: 12, border: "1.5px solid var(--wf-brand-accent)", background: "var(--wf-card)", color: "var(--wf-text)", padding: "9px 11px", fontSize: 15, fontFamily: "inherit", lineHeight: 1.35, outline: "none", resize: "none" };
+  const terminarAnotar = () => { guardarPendientes(); setAnotando(false); };
+  const panelAnotar = (
+    <div>
+      <div style={{ position: "sticky", top: 0, zIndex: 3, background: "var(--wf-bg)", padding: "6px 0 10px", display: "flex", alignItems: "center", gap: 8 }}>
+        {notasCtx?.puedeEquipo ? (
+          <div style={{ flex: 1, display: "flex", background: "var(--wf-hover)", borderRadius: 12, padding: 3 }}>
+            {[["equipo", "Para todos"], ["mias", "Solo para mí"]].map(([v, t]) => (
+              <button key={v} onClick={() => setCapa(v)} style={{ flex: 1, border: "none", borderRadius: 9, padding: "8px 4px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: capa === v ? "var(--wf-card)" : "transparent", color: capa === v ? (v === "equipo" ? "#B58500" : "#2F5FA8") : "var(--wf-faint)", boxShadow: capa === v ? "0 1px 4px rgba(0,0,0,0.12)" : "none" }}>{t}</button>
+            ))}
+          </div>
+        ) : <span style={{ flex: 1, fontSize: 12.5, fontWeight: 700, color: "#2F5FA8" }}>Tus notas · solo las ves tú</span>}
+        <span style={{ fontSize: 11, color: "var(--wf-faint)", whiteSpace: "nowrap" }}>{guardandoNotas > 0 ? "Guardando…" : "✓ Guardado"}</span>
+        <button onClick={terminarAnotar} style={{ background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", border: "none", borderRadius: 12, padding: "9px 16px", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Listo</button>
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.5, color: "var(--wf-muted)", margin: "4px 0 6px" }}>NOTA DE TODA LA CANCIÓN</div>
+      <div data-anotar="_cancion"><textarea rows={2} value={textoNota(capa, "_cancion")} onChange={(e) => escribirNota(capa, "_cancion", e.target.value)} placeholder="Ej.: intro 4 compases solo guitarra · terminamos en el coro" style={{ ...campoNota, marginBottom: 18 }} /></div>
+      {partesUnicas.map((k) => {
+        const b = song.blocks[k];
+        const color = badgeColor(b.badge);
+        const activas = etiquetasDe(capa, k);
+        return (
+          <div key={k} data-anotar={k} style={{ marginBottom: 18 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${color}22`, borderRadius: 20, padding: "5px 12px", marginBottom: 8 }}>
+              <span style={{ width: 22, height: 22, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{b.badge}</span>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>{b.label}</span>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+              {ETIQUETAS_PARTE.map((et) => {
+                const on = activas.includes(et);
+                return (
+                  <button key={et} onClick={() => alternarEtiqueta(capa, k, et)}
+                    style={{ border: `1.5px solid ${on ? (capa === "equipo" ? "var(--wf-brand-primary)" : "#2F5FA8") : "var(--wf-border)"}`, background: on ? (capa === "equipo" ? "var(--wf-brand-primary)" : "#2F5FA8") : "var(--wf-card)", color: on ? "#fff" : "var(--wf-text)", borderRadius: 14, padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{et}</button>
+                );
+              })}
+            </div>
+            <textarea rows={1} value={textoNota(capa, k)} onChange={(e) => escribirNota(capa, k, e.target.value)} placeholder={`Nota para ${b.label}…`} style={campoNota} />
+          </div>
+        );
+      })}
+      <button onClick={terminarAnotar} style={{ ...primaryBtn, minHeight: 46, marginBottom: 10 }}>Listo</button>
+    </div>
+  );
+  const canSwipe = onPrev || onNext;
+  const completeSwipe = (dir, distance) => {
+    setPhase("exiting");
+    setDragX(dir === "next" ? -distance : distance);
+    setTimeout(() => { (dir === "next" ? onNext : onPrev)(); }, 200);
+  };
+  // Pointer Events (no Touch Events): unifica mouse/touch/lápiz y es más confiable en apps instaladas.
+  // setPointerCapture fuerza a que este mismo elemento reciba todo el gesto pase lo que pase con el
+  // dedo entre medio (scroll, salirse del borde) — sin esto, en algunos navegadores el "up" se pierde.
+  // OJO: se pide recién cuando el arrastre horizontal ya se confirmó (abajo en onPointerMove), NO en
+  // cada pointerdown — pedirla de una, en CUALQUIER toque (aunque nunca se convierta en arrastre), le
+  // robaba el clic a cualquier botón de adentro (empezando por "Modo Músico": el toque quedaba
+  // capturado por este contenedor y el evento de click nunca le llegaba al botón).
+  const swipeHandlers = canSwipe ? {
+    onPointerDown: (e) => {
+      pointerStartRef.current = { x: e.clientX, y: e.clientY };
+      draggingRef.current = false;
+    },
+    onPointerMove: (e) => {
+      const start = pointerStartRef.current;
+      if (!start || phase === "exiting") return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (!draggingRef.current) {
+        if (Math.abs(dx) < 8) return; // todavía no se nota la intención del gesto
+        if (Math.abs(dy) > Math.abs(dx)) { pointerStartRef.current = null; return; } // es scroll vertical
+        draggingRef.current = true;
+        setPhase("dragging");
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+      }
+      // Resistencia (se mueve, pero poco) si se arrastra hacia un lado sin canción a la que ir.
+      const resisted = (dx < 0 && !onNext) || (dx > 0 && !onPrev) ? dx * 0.25 : dx;
+      setDragX(resisted);
+    },
+    onPointerUp: () => {
+      const wasDragging = draggingRef.current;
+      pointerStartRef.current = null;
+      draggingRef.current = false;
+      if (!wasDragging) return;
+      const threshold = 70;
+      const containerWidth = containerRef.current?.offsetWidth || 400;
+      if (dragX <= -threshold && onNext) completeSwipe("next", containerWidth);
+      else if (dragX >= threshold && onPrev) completeSwipe("prev", containerWidth);
+      else { setPhase("idle"); setDragX(0); }
+    },
+    onPointerCancel: () => { pointerStartRef.current = null; draggingRef.current = false; setPhase("idle"); setDragX(0); },
+  } : {};
+  const enterClass = enterDirection === "next" ? "song-slide-in-right" : enterDirection === "prev" ? "song-slide-in-left" : "screen-enter";
+
+  return (
+    <div
+      ref={containerRef}
+      className={enterClass}
+      style={{
+        padding: 20, paddingBottom: (onPrev || onNext) ? 78 : 20, maxWidth: 820, width: "100%", minHeight: "70vh", margin: "0 auto", boxSizing: "border-box", position: "relative",
+        touchAction: canSwipe ? "pan-y" : undefined,
+        transform: dragX ? `translateX(${dragX}px)` : undefined,
+        transition: phase === "dragging" ? "none" : "transform 0.22s ease",
+      }}
+      {...swipeHandlers}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            onClick={() => setShowTonalidadModal(true)}
+            title="Cambiar tonalidad"
+            className="hoverable"
+            style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 10, padding: "5px 8px", color: "var(--wf-text-2)", cursor: "pointer" }}
+          >
+            {acordeEn(displayedKey)}{cejilla > 0 ? ` · cejilla ${cejilla}` : ""}
+            <ChevronDown size={12} />
+          </button>
+          {showTonalidadModal && (
+            <TonalidadModal
+              song={song}
+              displayedKey={displayedKey}
+              cejilla={cejilla}
+              setCejilla={setCejilla}
+              cejillaResultKey={cejillaResultKey}
+              puedeCambiarPermanente={mode === "biblioteca" && isAdminViewer}
+              puedeCambiarLocal={mode === "setlist"}
+              onClose={() => setShowTonalidadModal(false)}
+              onGuardarPermanente={(nuevaTonalidad) => { onTranspose(song.id, nuevaTonalidad); setTonalidadLocal(null); setShowTonalidadModal(false); }}
+              onGuardarLocal={(nuevaTonalidad) => { setTonalidadLocal(nuevaTonalidad === song.key ? null : nuevaTonalidad); setShowTonalidadModal(false); }}
+            />
+          )}
+          {(song.hasAttachment || notasCtx?.puedeEquipo) && (
+            <button onClick={() => setShowAdjuntos(true)} title="Adjuntos (PDF, imágenes, enlaces)" className="hoverable"
+              style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 32, background: song.hasAttachment ? "var(--wf-active-bg)" : "var(--wf-hover)", border: `1px solid ${song.hasAttachment ? "var(--wf-brand-accent)" : "var(--wf-border)"}`, borderRadius: 10, cursor: "pointer", color: song.hasAttachment ? "var(--wf-brand-accent)" : "var(--wf-text-2)" }}>
+              <Paperclip size={16} />
+            </button>
+          )}
+          {showAdjuntos && (
+            <AdjuntosModal song={song} iglesiaId={iglesiaId} puedeEditar={!!notasCtx?.puedeEquipo} onClose={() => setShowAdjuntos(false)} onCambio={(tiene) => onAdjuntosChange?.(song.id, tiene)} />
+          )}
+          {isAdminViewer && (
+            <button onClick={onEdit} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer" }}>
+              <Pencil size={14} /> Editar
+            </button>
+          )}
+          {isAdminViewer && (
+            <button onClick={() => onDelete(song)} title="Eliminar canción" style={iconGhost}>
+              <Trash2 size={14} color="#C23B32" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600, margin: "0 0 4px" }}>{song.title}</h2>
+      <div style={{ fontSize: 13, color: "var(--wf-muted)", marginBottom: 16 }}>
+        {song.artist || "Unknown"} · {song.tempo} bpm{song.compas ? ` · ${song.compas}` : ""}
+        {positionLabel && <span style={{ marginLeft: 8, fontWeight: 700, color: "var(--wf-brand-accent)" }}>· {positionLabel} en el setlist</span>}
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, background: (autoMode || isLeaderMe) ? "var(--wf-active-bg)" : "var(--wf-bg)", border: `1px solid ${(autoMode || isLeaderMe) ? "var(--wf-brand-accent)" : "var(--wf-divider)"}`, borderRadius: 16, padding: "8px 10px", marginBottom: 16, flexWrap: "wrap" }}>
+        {/* En vivo, Modo Músico es voluntario: alguien dirige, y cada músico decide si se une o va a su
+            propio ritmo. Fuera de vivo, "Ensayar juntos" hace lo mismo sin un líder fijo. */}
+        {isLeaderMe ? (
+          <>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}><Radio size={13} /> Estás dirigiendo</span>
+            <button onClick={dejarDeDirigir} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-card)", color: "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Dejar de dirigir</button>
+          </>
+        ) : siguiendo ? (
+          <>
+            {wasFollowingStaleLeader ? (
+              <span style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", color: "var(--wf-muted)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}><Pause size={13} /> Pausado: {nombreLider} se desconectó</span>
+            ) : (
+              <span style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}><Radio size={13} /> Siguiendo a {nombreLider}</span>
+            )}
+            <button onClick={irAMiRitmo} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-card)", color: "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Ir a mi ritmo</button>
+          </>
+        ) : (
+          <>
+            {isLive && otherLeaderFresh && (
+              <button onClick={unirme} className="hoverable" style={{ ...{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-card)", color: "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", border: "none" }}><Users size={13} /> Unirme a {nombreLider}</button>
+            )}
+            {isLive && !otherLeaderFresh && (
+              <button onClick={dirigir} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-card)", color: "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}><Radio size={13} /> Dirigir a los músicos</button>
+            )}
+            <button onClick={toggleAutoMode} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: autoMode ? "var(--wf-brand-accent)" : "var(--wf-card)", color: autoMode ? "var(--wf-on-brand-accent)" : "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              {autoMode ? <><Pause size={13} /> Auto-avance: ON</> : <><Play size={13} /> Auto-avance</>}
+            </button>
+            {!isLive && (
+              <button onClick={() => setEnsayoJuntos(!ensayoJuntos)} title="Comparte sección y tempo con quienes también lo activen en esta canción" className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: ensayoJuntos ? "var(--wf-active-bg)" : "var(--wf-card)", color: "var(--wf-text)", border: `1px solid ${ensayoJuntos ? "var(--wf-brand-accent)" : "var(--wf-border)"}`, borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                <Users size={13} /> {ensayoJuntos ? "Ensayando juntos" : "Ensayar juntos"}
+              </button>
+            )}
+          </>
+        )}
+        {notas.disponible && (
+          <button onClick={() => setAnotando(true)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-card)", color: "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            <PencilLine size={13} /> Anotar
+          </button>
+        )}
+        <button onClick={() => goToSectionIdx(currentSectionIdx - 1)} disabled={currentSectionIdx === 0} style={{ ...iconGhost, opacity: currentSectionIdx === 0 ? 0.4 : 1 }}><ChevronLeft size={16} /></button>
+        <button onClick={() => goToSectionIdx(currentSectionIdx + 1)} disabled={currentSectionIdx >= order.length - 1} style={{ ...iconGhost, opacity: currentSectionIdx >= order.length - 1 ? 0.4 : 1 }}><ChevronRight size={16} /></button>
+        {/* Respaldo manual: si por lo que sea el líder queda pegado (perdió señal, cerró la app) y hay
+            que esperar no es opción a mitad de un culto, cualquiera puede reiniciar Modo Músico de una —
+            nadie queda de líder, el próximo que toque "Modo Músico" toma el mando limpio. OJO: tiene que
+            seguir visible cuando el líder ya está "leaderStale" (no solo isFollowingNow, que exige
+            frescura) — si no, este botón desaparecía justo cuando más hacía falta: apenas el líder se
+            pone viejo/caído es cuando alguien necesita poder reiniciar, no antes. */}
+        {isLive && (isLeaderMe || siguiendo || leaderStale) && (
+          <button
+            onClick={async () => {
+              if (!(await confirmDialog("¿Reiniciar Modo Músico? Nadie va a quedar dirigiendo, y cualquiera podrá tocar \"Dirigir a los músicos\".", { textoConfirmar: "Reiniciar" }))) return;
+              clearMusicoLive(iglesiaId).catch((e) => notifyError("No se pudo reiniciar Modo Músico", e));
+            }}
+            title="El líder se quedó pegado (perdió conexión, cerró la app) — esto reinicia Modo Músico para todos"
+            className="hoverable" style={iconGhost}
+          >
+            <RefreshCw size={14} />
+          </button>
+        )}
+        {/* TAP tempo y el bpm ya no aplican en vivo — ahí no hay compases/BPM, solo el líder avanzando a
+            mano y todos reflejándolo. */}
+        {porMiCuenta && (
+          <>
+            <button onClick={handleTap} className="hoverable" style={{ background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 12px", fontSize: 12, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer" }}>TAP</button>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-muted)" }}>{liveBpm} bpm</span>
+          </>
+        )}
+      </div>
+
+      {anotando ? panelAnotar : (<>
+      {(["equipo", "mias"]).map((c) => textoNota(c, "_cancion").trim() && (
+        <TiraNota key={c} tipo={c} etiqueta={c === "equipo" ? "NOTA DE LA CANCIÓN · LÍDER" : "NOTA DE LA CANCIÓN · MÍA"} texto={textoNota(c, "_cancion")}
+          onAbrir={() => abrirAnotarEn(c, "_cancion")} onBorrar={puedeEditarCapa(c) ? () => borrarNota(c, "_cancion") : null} />
+      ))}
+      {/* Partes de la canción EN ORDEN (pedido de Eldin, 2026-10-14: con solo "V1"/"C" no se sabía qué
+          parte era). Se lee el nombre completo, y la parte que suena queda resaltada; en celular la fila
+          se desliza de lado y sigue sola a la parte actual. */}
+      <div ref={filaPartesRef} className="chordbar-scroll" style={{ display: "flex", gap: 6, marginBottom: 20, overflowX: "auto", paddingBottom: 2 }}>
+        {order.map((key, i) => {
+          const b = song.blocks[key];
+          if (!b) return null;
+          const color = badgeColor(b.badge);
+          const actual = (autoMode || isLive) && i === currentSectionIdx;
+          return (
+            <button key={`${key}-${i}`} data-pill={i}
+              onClick={() => goToSectionIdx(i)} className="hoverable"
+              style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, borderRadius: 18, border: `1.5px solid ${color}`, background: actual ? color : "transparent", color: actual ? "#fff" : "var(--wf-text)", fontSize: 12.5, fontWeight: 700, padding: "6px 12px 6px 6px", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}>
+              <span style={{ minWidth: 22, height: 22, borderRadius: 11, padding: "0 4px", boxSizing: "border-box", background: actual ? "rgba(255,255,255,0.25)" : `${color}22`, color: actual ? "#fff" : color, fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{b.badge}</span>
+              {b.label || b.badge}
+            </button>
+          );
+        })}
+      </div>
+
+      {order.map((key, i) => {
+        const b = song.blocks[key];
+        if (!b) return null;
+        const color = badgeColor(b.badge);
+        // Antes solo se resaltaba con el auto-avance por BPM (autoMode) — en vivo ya no hay auto-avance
+        // (ver más arriba), pero la sección "actual" del líder/seguidor sigue siendo currentSectionIdx,
+        // así que también cuenta para resaltar cuál es la que está sonando ahora.
+        const isActive = (autoMode || isLive) && i === currentSectionIdx;
+        return (
+          // Tocar la TARJETA de la sección (letra+acordes, no los círculos de arriba) salta ahí mismo —
+          // en vivo, si sos el líder, ese salto se refleja al instante en todos los demás músicos, como
+          // pedido: cada parte de la canción funciona como un botón propio, no solo el badge de arriba.
+          <div
+            key={`${key}-${i}`}
+            ref={(el) => { if (!sectionRefs.current[key]) sectionRefs.current[key] = el; indexRefs.current[i] = el; }}
+            onClick={() => goToSectionIdx(i)}
+            role="button"
+            tabIndex={0}
+            className="hoverable"
+            style={{ marginBottom: 16, borderRadius: 14, outline: isActive ? "2px solid var(--wf-brand-accent)" : "none", outlineOffset: 3, cursor: "pointer" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${color}22`, borderRadius: 20, padding: "5px 12px", marginRight: 2 }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{b.badge}</span>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{b.label}</span>
+              </div>
+              {etiquetasDe("equipo", key).map((et) => <EtiquetaParte key={`e-${et}`} texto={et} />)}
+              {etiquetasDe("mias", key).map((et) => <EtiquetaParte key={`m-${et}`} texto={et} mia />)}
+            </div>
+            {textoNota("equipo", key).trim() && <TiraNota tipo="equipo" etiqueta="LÍDER" texto={textoNota("equipo", key)} onAbrir={() => abrirAnotarEn("equipo", key)} onBorrar={puedeEditarCapa("equipo") ? () => borrarNota("equipo", key) : null} />}
+            {textoNota("mias", key).trim() && <TiraNota tipo="mias" etiqueta="MI NOTA" texto={textoNota("mias", key)} onAbrir={() => abrirAnotarEn("mias", key)} onBorrar={() => borrarNota("mias", key)} />}
+            <div style={{ background: isActive ? "var(--wf-active-bg)" : "var(--wf-hover)", borderRadius: 14, padding: 16 }}>
+              {b.lines.map((l, i2) => <ChordsAboveLyrics key={i2} raw={l} semitones={semitonesDesdeOriginal} />)}
+            </div>
+          </div>
+        );
+      })}
+
+      </>)}
+
+      {/* Fija abajo (como la barra de acordes del editor): para saber qué sigue en Modo Músico sin
+          tener que bajar hasta el final de la canción actual ni cambiar de pantalla — antes esta
+          pista solo aparecía como texto genérico ("Desliza para cambiar de canción") al final del
+          todo del scroll, así que en la práctica había que llegar hasta ahí para verla. */}
+      {(onPrev || onNext) && (
+        <div style={{ position: "fixed", left: 0, right: 0, bottom: "var(--bottom-nav-height, 78px)", background: "var(--wf-card)", borderTop: "1px solid var(--wf-divider)", boxShadow: "0 -4px 14px rgba(22,50,79,0.1)", padding: "8px 6px", zIndex: 40, display: "flex", alignItems: "stretch", gap: 6 }}>
+          <button
+            onClick={onPrev} disabled={!onPrev} className={onPrev ? "hoverable" : undefined}
+            style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", borderRadius: 12, padding: "6px 10px", cursor: onPrev ? "pointer" : "default", opacity: onPrev ? 1 : 0.35, textAlign: "left" }}
+          >
+            <ChevronLeft size={16} color="var(--wf-faint)" style={{ flexShrink: 0 }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--wf-faint)", letterSpacing: 0.5 }}>ANTERIOR</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{prevTitle || "—"}</div>
+            </div>
+          </button>
+          <div style={{ width: 1, background: "var(--wf-divider)", flexShrink: 0 }} />
+          <button
+            onClick={onNext} disabled={!onNext} className={onNext ? "hoverable" : undefined}
+            style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, background: "none", border: "none", borderRadius: 12, padding: "6px 10px", cursor: onNext ? "pointer" : "default", opacity: onNext ? 1 : 0.35, textAlign: "right" }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--wf-faint)", letterSpacing: 0.5 }}>SIGUIENTE</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nextTitle || "—"}</div>
+            </div>
+            <ChevronRight size={16} color="var(--wf-faint)" style={{ flexShrink: 0 }} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Notas por parte (ver modo "Anotar" en SongView) ----
+const ETIQUETAS_PARTE = ["x2", "Sube", "Baja", "Solo voz", "Solo piano", "Banda completa", "Corte", "Instrumental"];
+function EtiquetaParte({ texto, mia }) {
+  const naranja = /^x\d/i.test(texto);
+  return (
+    <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.3, textTransform: "uppercase", borderRadius: 9, padding: "3px 8px",
+      background: mia ? "transparent" : naranja ? "var(--wf-brand-accent)" : "var(--wf-brand-primary)",
+      color: mia ? "#2F5FA8" : naranja ? "var(--wf-on-brand-accent)" : "var(--wf-on-brand-primary)",
+      border: mia ? "1.5px solid #2F5FA8" : "1.5px solid transparent" }}>{texto}</span>
+  );
+}
+function TiraNota({ tipo, etiqueta, texto, onAbrir, onBorrar }) {
+  const lider = tipo === "equipo";
+  const parar = (e) => e.stopPropagation(); // no "saltar a esta parte" ni arrastrar de canción
+  return (
+    <div onClick={(e) => { parar(e); onAbrir?.(); }} onPointerDown={parar} role="button" title="Tocar para editar"
+      style={{ display: "flex", gap: 8, alignItems: "flex-start", background: lider ? "#F6C94526" : "#2F5FA81F", borderLeft: `3px solid ${lider ? "#E0A800" : "#2F5FA8"}`, borderRadius: 10, padding: "8px 6px 8px 10px", marginBottom: 8, fontSize: 13.5, lineHeight: 1.4, cursor: onAbrir ? "pointer" : "default" }}>
+      <span style={{ flexShrink: 0, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.4, color: lider ? "#B58500" : "#2F5FA8", background: lider ? "#F6C94540" : "#2F5FA826", borderRadius: 8, padding: "2px 6px", marginTop: 1 }}>{etiqueta}</span>
+      <span style={{ whiteSpace: "pre-wrap", flex: 1 }}>{texto}</span>
+      {onBorrar && (
+        <button onClick={(e) => { parar(e); onBorrar(); }} onPointerDown={parar} aria-label="Borrar nota"
+          style={{ flexShrink: 0, width: 28, height: 28, margin: "-4px 0", borderRadius: 14, border: "none", background: "transparent", color: "var(--wf-faint)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <X size={15} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Catálogo estilo OnStage para agregar varias secciones de una — la lista de tipos (Estrofa, Coro...)
+// se muestra sin numerar hasta que se marca la primera; a partir de ahí cada tipo va "creciendo" de a
+// una repetición por vez (marcar Estrofa 1 revela Estrofa 2, marcar esa revela Estrofa 3...), en vez de
+// mostrar de entrada un número fijo de repeticiones que probablemente no coincida con la canción real.
+// Cuántas secciones de cada tipo ya tiene la canción (el número más alto: V1, V2, V3 → 3; "C" sin
+// número cuenta como 1). Así "Añadir" arranca en la que sigue (Estrofa 4) en vez de repetir Estrofa 1.
+function ultimoNumeroPorTipo(blocks) {
+  const max = {};
+  Object.values(blocks || {}).forEach((b) => {
+    const m = String(b.badge || "").match(/^([A-Z]+)(\d*)$/);
+    if (!m) return;
+    const tipo = SECTION_TYPES.find((t) => t.prefix === m[1]);
+    if (!tipo) return;
+    const n = m[2] ? parseInt(m[2], 10) : 1;
+    max[tipo.id] = Math.max(max[tipo.id] || 0, n);
+  });
+  return max;
+}
+
+function AddSectionsModal({ existingBlocks, onClose, onAdd }) {
+  const [query, setQuery] = useState("");
+  const yaTiene = useMemo(() => ultimoNumeroPorTipo(existingBlocks), [existingBlocks]);
+  const [checkedCounts, setCheckedCounts] = useState({}); // { [typeId]: cuántas repeticiones están marcadas }
+  const toggleInstance = (typeId, n) => {
+    setCheckedCounts((c) => {
+      const current = c[typeId] || 0;
+      // Tocar una ya marcada (o cualquiera antes de ella) la desmarca A ELLA Y a las que venían
+      // después — no tendría sentido dejar "Estrofa 3" marcada sin la "Estrofa 2".
+      const next = n <= current ? n - 1 : n;
+      return { ...c, [typeId]: Math.max(0, next) };
+    });
+  };
+  const filteredTypes = SECTION_TYPES.filter((t) => t.label.toLowerCase().includes(query.toLowerCase()));
+  const totalChecked = Object.values(checkedCounts).reduce((a, b) => a + b, 0);
+  // Ref (no state) para bloquear un doble-toque en el mismo instante — el modal se cierra apenas se
+  // confirma, pero en un celular con la pantalla algo lenta dos toques rápidos podían caer ANTES de
+  // que React llegue a desmontarlo, agregando las mismas secciones dos (o más) veces.
+  const submittedRef = useRef(false);
+  const confirm = () => {
+    if (submittedRef.current) return;
+    const toAdd = [];
+    SECTION_TYPES.forEach((t) => {
+      const count = checkedCounts[t.id] || 0;
+      const base = yaTiene[t.id] || 0;
+      for (let n = base + 1; n <= base + count; n++) toAdd.push({ badge: `${t.prefix}${n}`, label: `${t.label} ${n}` });
+    });
+    if (toAdd.length === 0) return;
+    submittedRef.current = true;
+    onAdd(toAdd);
+    onClose();
+  };
+  return (
+    <ModalShell title="Añadir nuevas secciones" icon={ListMusic} color="#2F5FA8" onClose={onClose}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
+        <Search size={13} color="var(--wf-faint)" />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar una nueva sección" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 12, width: "100%" }} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "50vh", overflowY: "auto", marginBottom: 12 }}>
+        {filteredTypes.map((t) => {
+          const count = checkedCounts[t.id] || 0;
+          const color = badgeColor(t.prefix);
+          const base = yaTiene[t.id] || 0;
+          const revealed = Math.min(count + 1, 12); // tope generoso — ninguna canción real necesita más
+          return Array.from({ length: revealed }, (_, i) => {
+            const n = i + 1; // posición dentro de lo que se va a agregar
+            const numero = base + n; // número real de la sección (Estrofa 4 si ya hay 3)
+            const isChecked = n <= count;
+            const showNumber = base > 0 || revealed > 1; // con una sola instancia a la vista y ninguna previa, se ve "Estrofa" pelado
+            return (
+              <button
+                key={`${t.id}-${n}`}
+                onClick={() => toggleInstance(t.id, n)}
+                className="hoverable"
+                style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: isChecked ? `${color}18` : "var(--wf-card)", border: isChecked ? `1.5px solid ${color}` : "1px solid var(--wf-divider)", borderRadius: 14, padding: "10px 12px", cursor: "pointer" }}
+              >
+                <span style={{ width: 26, height: 26, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {showNumber ? `${t.prefix}${numero}` : t.prefix}
+                </span>
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--wf-text)" }}>{showNumber ? `${t.label} ${numero}` : t.label}</span>
+                {isChecked ? <Check size={16} color={color} /> : <span style={{ width: 16, height: 16, borderRadius: "50%", border: "1.5px solid var(--wf-border)" }} />}
+              </button>
+            );
+          });
+        })}
+        {filteredTypes.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, textAlign: "center", padding: "16px 0" }}>No hay secciones que coincidan.</div>}
+      </div>
+      <button onClick={confirm} disabled={totalChecked === 0} style={{ ...primaryBtn, opacity: totalChecked === 0 ? 0.4 : 1, cursor: totalChecked === 0 ? "not-allowed" : "pointer" }}>
+        Agregar{totalChecked > 0 ? ` (${totalChecked})` : ""}
+      </button>
+    </ModalShell>
+  );
+}
+
+function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draftGetterRef }) {
+  const canEditKey = isAdminViewer || !song;
+  const initialSnapshotRef = useRef(song ? JSON.stringify(song) : JSON.stringify(blankSong()));
+  const [draft, setDraft] = useState(() => JSON.parse(initialSnapshotRef.current));
+  // "Escribir" (pedido de Eldin, 2026-10-13): la letra se escribe directo en un cuadro grande y las
+  // diapositivas salen solas. Canción nueva o sin letra abre ahí; una ya armada, en Detalles.
+  const [subTab, setSubTab] = useState(() => {
+    const d = song || blankSong();
+    return Object.values(d.blocks || {}).every((b) => !(b.lines || []).some((l) => String(l).trim())) ? "escribir" : "detalles";
+  }); // escribir | detalles | contenido | estructura (la pestaña Letra se quitó el 2026-10-14: Escribir la reemplaza)
+  const [activeBlockKey, setActiveBlockKey] = useState(null);
+  const [showAddSections, setShowAddSections] = useState(false);
+  const textareaRefs = useRef({});
+  // "Pegar canción / Editar como texto" (ver components/EditorTextoCancion.jsx). Sin letra todavía =
+  // modo pegar (cuadro vacío); con letra = la canción completa como texto.
+  const sinLetra = Object.values(draft.blocks).every((b) => !(b.lines || []).some((l) => String(l).trim()));
+  // Lo que el cuadro "Escribir" sugirió la última vez (tonalidad/título): si la persona no lo cambió a
+  // mano, se va actualizando mientras escribe; si lo cambió, se respeta.
+  const autoRef = useRef({ key: "", title: "" });
+  const escribirTexto = ({ blocks, letra, defaultStructure, key, title }) => {
+    setDraft((d) => {
+      const auto = autoRef.current;
+      const nuevoKey = key && (!d.key || d.key === auto.key) ? key : d.key;
+      const nuevoTitulo = title && (!d.title.trim() || d.title === auto.title) ? title : d.title;
+      if (nuevoKey === key) auto.key = key;
+      if (nuevoTitulo === title) auto.title = title;
+      // Artista es obligatorio para guardar; una canción escrita aquí no lo trae → "Unknown", como las demás.
+      return { ...d, blocks, letra, defaultStructure, key: nuevoKey, title: nuevoTitulo, artist: d.artist.trim() ? d.artist : "Unknown" };
+    });
+  };
+
+  // En celular, el teclado nativo se come la mitad inferior de la pantalla pero el navegador NO
+  // achica el viewport donde vive esta barra "fixed" — se queda calculando su posición contra el
+  // alto de pantalla COMPLETO (como si el teclado no existiera), así que termina tapada debajo del
+  // teclado en vez de flotar justo encima, como sí hacen los teclados de acordes de apps nativas.
+  // window.visualViewport sí conoce el alto REAL visible (descontando el teclado) — se usa para
+  // empujar la barra hacia arriba exactamente lo que el teclado ocupa.
+  const [keyboardInset, setKeyboardInset] = useState(0);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onViewportChange = () => {
+      const inset = window.innerHeight - vv.height - vv.offsetTop;
+      // Un umbral chico filtra los cambios normales de la barra de direcciones del navegador al
+      // hacer scroll (unos pocos px) para que la barra no "salte" cuando en realidad no hay teclado.
+      setKeyboardInset(inset > 100 ? inset : 0);
+    };
+    vv.addEventListener("resize", onViewportChange);
+    vv.addEventListener("scroll", onViewportChange);
+    onViewportChange();
+    return () => { vv.removeEventListener("resize", onViewportChange); vv.removeEventListener("scroll", onViewportChange); };
+  }, []);
+
+  // Avisa al contenedor si hay cambios sin guardar (para el guard de "atrás" con confirmación) y le
+  // deja siempre a mano el borrador actual (para el botón "Guardar y salir" de esa confirmación). Todo
+  // en un solo efecto sin dependencias: la limpieza de la render anterior corre justo antes que este
+  // efecto, así que solo queda "sucio" en falso cuando de verdad se desmonta (nada la pisa después).
+  useEffect(() => {
+    if (draftGetterRef) draftGetterRef.current = () => draft;
+    if (onDirtyChange) onDirtyChange(JSON.stringify(draft) !== initialSnapshotRef.current);
+    return () => { if (onDirtyChange) onDirtyChange(false); if (draftGetterRef) draftGetterRef.current = null; };
+  });
+
+  const blockKeys = Object.keys(draft.blocks);
+  const setBlockField = (key, field, value) => setDraft((d) => ({ ...d, blocks: { ...d.blocks, [key]: { ...d.blocks[key], [field]: value } } }));
+  const setBlockLines = (key, text) => setBlockField(key, "lines", text.split("\n"));
+
+  // Agrega varias secciones de una (ver AddSectionsModal) — cada una con su propio key único aunque
+  // se hayan creado en el mismo tick (Date.now() solo no alcanza para eso).
+  const addSections = (list) => {
+    setDraft((d) => {
+      const blocks = { ...d.blocks };
+      const letra = { ...d.letra };
+      list.forEach((s, i) => {
+        const key = `b${Date.now()}_${i}`;
+        blocks[key] = { badge: s.badge, label: s.label, bars: 8, lines: [""] };
+        letra[key] = [[""]];
+      });
+      return { ...d, blocks, letra };
+    });
+  };
+  const removeBlock = (key) => setDraft((d) => {
+    const blocks = { ...d.blocks }; delete blocks[key];
+    const letra = { ...d.letra }; delete letra[key];
+    return { ...d, blocks, letra, defaultStructure: d.defaultStructure.filter((k) => k !== key) };
+  });
+
+  const insertChord = (chord) => {
+    let key = activeBlockKey;
+    if (!key || !draft.blocks[key]) key = blockKeys[0];
+    if (!key) return;
+    const el = textareaRefs.current[key];
+    const text = draft.blocks[key].lines.join("\n");
+    const start = el ? el.selectionStart : text.length;
+    const end = el ? el.selectionEnd : text.length;
+    const insertion = `[${chord}]`;
+    setBlockLines(key, text.slice(0, start) + insertion + text.slice(end));
+    setActiveBlockKey(key);
+    requestAnimationFrame(() => {
+      const el2 = textareaRefs.current[key];
+      if (el2) { el2.focus(); const pos = start + insertion.length; el2.setSelectionRange(pos, pos); }
+    });
+  };
+
+  // Retroceso con el cursor justo después del "]" de un acorde "[Am7]" borra el acorde entero. Borrar
+  // desde adentro del acorde sigue siendo letra por letra, para poder corregirlo (ej. [G] → [Gm]).
+  // Se detecta comparando el texto antes/después en onChange y no en keydown, porque los teclados de
+  // Android no siempre reportan la tecla de borrar como "Backspace".
+  const onContentChange = (key, e) => {
+    const prev = draft.blocks[key].lines.join("\n");
+    const next = e.target.value;
+    const pos = e.target.selectionStart;
+    const inputType = e.nativeEvent && e.nativeEvent.inputType;
+    const isBackspace = !inputType || inputType === "deleteContentBackward";
+    if (isBackspace && prev[pos] === "]" && next.length === prev.length - 1 && prev.slice(0, pos) + prev.slice(pos + 1) === next) {
+      const chordRe = /\[[^[\]\n]*\]/g;
+      let m;
+      while ((m = chordRe.exec(prev))) {
+        if (pos === m.index + m[0].length - 1) {
+          setBlockLines(key, prev.slice(0, m.index) + prev.slice(m.index + m[0].length));
+          requestAnimationFrame(() => {
+            const el = textareaRefs.current[key];
+            if (el) el.setSelectionRange(m.index, m.index);
+          });
+          return;
+        }
+      }
+    }
+    setBlockLines(key, next);
+  };
+
+  const entries = groupConsecutive(draft.defaultStructure);
+  const setEntries = (newEntries) => setDraft((d) => ({ ...d, defaultStructure: expandEntries(newEntries) }));
+  const changeCount = (idx, delta) => {
+    const arr = [...entries]; arr[idx] = { ...arr[idx], count: Math.max(0, arr[idx].count + delta) };
+    setEntries(arr.filter((e) => e.count > 0));
+  };
+  // Reordenar la estructura igual que el Setlist (pedido de Eldin, 2026-10-08): se agarra la sección
+  // desde cualquier parte (mouse: presionar y mover; dedo: mantener presionado) — sin flechitas.
+  const arrastreEstructura = useArrastreLista({
+    habilitado: true,
+    onReorder: (desde, destino) => { const arr = [...entries]; const [movida] = arr.splice(desde, 1); arr.splice(destino, 0, movida); setEntries(arr); },
+  });
+  const addEntry = (key) => setEntries([...entries, { key, count: 1 }]);
+
+  const canSave = draft.title.trim() && draft.key.trim() && draft.artist.trim();
+  // Guarda contra tocar "Guardar" varias veces seguidas (típico en celular, cuando no queda claro al
+  // toque si ya registró) — para una canción NUEVA, cada tap disparaba su propio insert antes de que el
+  // primero terminara y la pantalla navegara afuera, dejando la misma canción duplicada/triplicada.
+  const [isSaving, setIsSaving] = useState(false);
+  const handleSaveClick = () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    // onSave ya avisa con una alerta si falla (ver saveSong) — acá solo importa reactivar el botón,
+    // así que el rechazo se descarta a propósito en vez de dejarlo como "unhandled rejection".
+    Promise.resolve(onSave(draft)).catch(() => {}).finally(() => setIsSaving(false));
+  };
+
+  return (
+    <div style={{ padding: 20, maxWidth: subTab === "escribir" ? 1200 : 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+      {/* Fijo al hacer scroll: así "Guardar" queda siempre a mano después de agregar bloques, acordes
+          o diapositivas más abajo, sin tener que volver a subir hasta el principio. */}
+      <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--wf-bg)", paddingBottom: 10, marginBottom: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            <button onClick={onCancel} style={iconGhost}><ArrowLeft size={16} /></button>
+            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{song ? "Editar canción" : "Nueva canción"}</span>
+          </div>
+          <span style={{ flex: 1 }} />
+          <button data-tour="cancion-guardar" disabled={!canSave || isSaving} onClick={handleSaveClick} style={{ ...primaryBtn, width: "auto", padding: "8px 18px", opacity: canSave && !isSaving ? 1 : 0.4, cursor: canSave && !isSaving ? "pointer" : "not-allowed" }}>{isSaving ? "Guardando…" : "Guardar"}</button>
+        </div>
+
+        <div style={{ display: "flex", gap: 16, borderBottom: "1px solid var(--wf-divider)", marginTop: 14, overflowX: "auto", scrollbarWidth: "none" }}>
+          {[["escribir", "Escribir"], ["detalles", "Detalles"], ["contenido", "Contenido"], ["estructura", "Estructura"]].map(([val, label]) => (
+            <button key={val} data-tour={`cancion-${val === "escribir" ? "texto" : val}`} onClick={() => setSubTab(val)} style={{ background: "none", border: "none", padding: "0 0 10px", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4, color: subTab === val ? "var(--wf-text)" : "var(--wf-faint)", borderBottom: subTab === val ? "2px solid #2F5FA8" : "2px solid transparent", cursor: "pointer" }}>{val === "escribir" && <PencilLine size={13} />}{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {subTab === "escribir" && !canSave && !sinLetra && (
+        <button onClick={() => setSubTab("detalles")} style={{ display: "block", width: "100%", textAlign: "left", background: "color-mix(in srgb, var(--wf-brand-accent) 10%, transparent)", border: "none", borderRadius: 12, padding: "8px 12px", marginBottom: 10, fontSize: 12.5, color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit" }}>
+          Para guardar falta {[!draft.title.trim() && "el título", !draft.key.trim() && "la tonalidad"].filter(Boolean).join(" y ") || "completar Detalles"} → <b>ir a Detalles</b>
+        </button>
+      )}
+      {subTab === "escribir" && <EditorTextoCancion inline cancion={draft} nueva={sinLetra} onCambio={escribirTexto} />}
+      {subTab === "detalles" && sinLetra && (
+        <button onClick={() => setSubTab("escribir")} className="hoverable"
+          style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", maxWidth: 480, textAlign: "left", border: "1.5px dashed var(--wf-brand-accent)", background: "color-mix(in srgb, var(--wf-brand-accent) 8%, transparent)", borderRadius: 16, padding: "12px 14px", marginBottom: 16, cursor: "pointer", color: "var(--wf-text)", fontFamily: "inherit" }}>
+          <span style={{ width: 40, height: 40, borderRadius: 12, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ClipboardPaste size={20} /></span>
+          <span style={{ flex: 1 }}>
+            <span style={{ display: "block", fontWeight: 800, fontSize: 14.5 }}>¿Ya tienes la canción escrita?</span>
+            <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-muted)" }}>Escríbela o pégala completa en la pestaña Escribir, con o sin acordes, y se arma sola.</span>
+          </span>
+        </button>
+      )}
+      {subTab === "detalles" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 480 }}>
+          <Field label="Título" required><input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Introduce un título" style={inputStyle} /></Field>
+          <Field label="Tempo"><input value={draft.tempo} onChange={(e) => setDraft({ ...draft, tempo: e.target.value })} placeholder="Introduce el tempo" style={inputStyle} /></Field>
+          <Field label="Compás">
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {COMPASES.map((c) => (
+                <button key={c} type="button" onClick={() => setDraft({ ...draft, compas: draft.compas === c ? "" : c })} style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: "none", background: draft.compas === c ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: draft.compas === c ? "var(--wf-on-brand-accent)" : "var(--wf-text)", cursor: "pointer", fontFamily: "'JetBrains Mono', monospace" }}>{c}</button>
+              ))}
+            </div>
+            <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Opcional. Toca el elegido otra vez para quitarlo.</span>
+          </Field>
+          <Field label="Tonalidad" required>
+            {canEditKey ? (
+              <select value={draft.key} onChange={(e) => setDraft({ ...draft, key: e.target.value })} style={inputStyle}>
+                <option value="">Selecciona tonalidad</option>
+                {KEY_OPTIONS.map((k) => <option key={k} value={k}>{k}</option>)}
+              </select>
+            ) : (
+              <div style={{ ...inputStyle, color: "var(--wf-muted)", background: "var(--wf-hover)" }}>
+                {draft.key || "Sin definir"}
+                <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Solo un administrador puede cambiar la tonalidad definitiva de la canción.</span>
+              </div>
+            )}
+          </Field>
+          <Field label="Artista" required><input value={draft.artist} onChange={(e) => setDraft({ ...draft, artist: e.target.value })} placeholder="Elegir artista" style={inputStyle} /></Field>
+          <Field label="Temas"><input value={draft.themes} onChange={(e) => setDraft({ ...draft, themes: e.target.value })} placeholder="Ej. Adoración, Fe" style={inputStyle} /></Field>
+          <Field label="Clasificación" required>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {clasificacionesActuales.map(({ clave: key, nombre }) => ({ key, c: { label: nombre } })).map(({ key, c }) => (
+                <button key={key} type="button" onClick={() => setDraft({ ...draft, category: key })} style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: "none", background: draft.category === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: draft.category === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{c.label}</button>
+              ))}
+            </div>
+            <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Define a qué bloque del Setlist se manda esta canción al agregarla{(() => { const b = clasificacionesActuales.find((c) => c.clave === draft.category)?.bloque; return b ? ` (esta va a "${b}")` : " (esta va al final)"; })()}.</span>
+          </Field>
+        </div>
+      )}
+
+      {subTab === "contenido" && (
+        <div style={{ paddingBottom: draft.key ? 166 : 0 }}>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 14 }}>Escribe la letra con los acordes en formato <code style={{ color: "#1F8A73" }}>[Acorde]</code> justo antes de la sílaba, o toca un acorde de la barra de abajo para insertarlo donde esté el cursor. Esto es lo que ve el músico.</div>
+
+          {!draft.key && (
+            <div style={{ fontSize: 12, color: "var(--wf-faint)", marginBottom: 14 }}>Elige una tonalidad en "Detalles" para ver aquí los acordes que puedes usar.</div>
+          )}
+
+          {blockKeys.length === 0 && (
+            <div style={{ textAlign: "center", color: "var(--wf-faint)", fontSize: 13, padding: "40px 0" }}>
+              No se añadieron secciones,{" "}
+              <button onClick={() => setShowAddSections(true)} style={{ background: "none", border: "none", color: "#2F5FA8", fontWeight: 700, cursor: "pointer", padding: 0, fontSize: 13 }}>añadir secciones</button>
+            </div>
+          )}
+
+          {blockKeys.map((key) => (
+            <div key={key} style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 14, marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <input value={draft.blocks[key].badge} onChange={(e) => setBlockField(key, "badge", e.target.value)} style={{ ...inputStyle, width: 46, textAlign: "center", padding: "6px 4px" }} />
+                <input value={draft.blocks[key].label} onChange={(e) => setBlockField(key, "label", e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                  <input type="number" min={1} value={draft.blocks[key].bars || 8} onChange={(e) => setBlockField(key, "bars", Math.max(1, parseInt(e.target.value) || 1))} style={{ ...inputStyle, width: 48, textAlign: "center", padding: "6px 4px" }} />
+                  <span style={{ fontSize: 10, color: "var(--wf-faint)", whiteSpace: "nowrap" }}>compases</span>
+                </div>
+                <button onClick={() => removeBlock(key)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>
+              </div>
+              <textarea
+                ref={(el) => { textareaRefs.current[key] = el; }}
+                onFocus={() => setActiveBlockKey(key)}
+                value={draft.blocks[key].lines.join("\n")}
+                onChange={(e) => onContentChange(key, e)}
+                rows={draft.blocks[key].lines.length + 1}
+                style={{ ...inputStyle, resize: "vertical", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, marginBottom: 8, border: activeBlockKey === key ? "1px solid #1F8A73" : "1px solid var(--wf-border)" }}
+              />
+              <div style={{ marginTop: 4 }}>
+                {draft.blocks[key].lines.map((l, i) => <ChordsAboveLyrics key={i} raw={l} />)}
+              </div>
+            </div>
+          ))}
+          {blockKeys.length > 0 && (
+            <button onClick={() => setShowAddSections(true)} className="hoverable" style={addBtnStyle}><Plus size={14} /> Agregar secciones</button>
+          )}
+        </div>
+      )}
+
+      {subTab === "estructura" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 8 }}><ListMusic size={13} /> ESTRUCTURA ACTUAL</div>
+            {entries.map((e, idx) => (
+              <div key={idx} {...arrastreEstructura.filaProps(idx)} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "8px 10px", marginBottom: 6, ...arrastreEstructura.estiloFila(idx) }}>
+                <GripVertical size={14} color="var(--wf-border-soft)" />
+                <span style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--wf-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{draft.blocks[e.key]?.badge}</span>
+                <span style={{ fontSize: 13, flex: 1 }}>{draft.blocks[e.key]?.label}</span>
+                <button onClick={() => changeCount(idx, -1)} style={iconGhost}><Minus size={13} /></button>
+                <span style={{ fontSize: 12, width: 22, textAlign: "center" }}>x{e.count}</span>
+                <button onClick={() => changeCount(idx, 1)} style={iconGhost}><Plus size={13} /></button>
+              </div>
+            ))}
+            {entries.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12 }}>Agrega bloques desde la derecha.</div>}
+          </div>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 8 }}><ListMusic size={13} /> ESTRUCTURAS DISPONIBLES</div>
+            {blockKeys.map((key) => (
+              <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "8px 10px", marginBottom: 6 }}>
+                <span style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--wf-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{draft.blocks[key].badge}</span>
+                <span style={{ fontSize: 13, flex: 1 }}>{draft.blocks[key].label}</span>
+                <button onClick={() => addEntry(key)} style={iconGhost}><Plus size={15} color="var(--wf-brand-accent)" /></button>
+              </div>
+            ))}
+            {blockKeys.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12 }}>Primero agrega secciones en la pestaña Contenido.</div>}
+          </div>
+        </div>
+      )}
+
+      {/* Barra de acordes: fija arriba de la nav, como una barra de accesorios de teclado (estilo
+          OnStage). No vive en el flujo normal a propósito — así el scroll de las secciones de la
+          canción nunca la arrastra, y siempre queda lista para tocar un acorde. Se desliza en
+          horizontal con el dedo (overflowX) en vez de envolver en varias líneas. */}
+      {subTab === "contenido" && draft.key && (
+        <div style={{ position: "fixed", left: 0, right: 0, bottom: keyboardInset > 0 ? keyboardInset : "var(--bottom-nav-height, 78px)", background: "var(--wf-card)", borderTop: "1px solid var(--wf-divider)", boxShadow: "0 -4px 14px rgba(22,50,79,0.1)", padding: "8px 0 10px", zIndex: 45 }}>
+          <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 12px" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>ACORDES DE {draft.key.toUpperCase()} <span style={{ fontWeight: 500, color: "var(--wf-faint)" }}>· desliza para ver más</span></div>
+            <div className="chordbar-scroll" style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", alignItems: "stretch" }}>
+              {acordesDeTonalidad(draft.key).map((g, gi) => (
+                <div key={g.titulo} style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "stretch", paddingLeft: gi === 0 ? 0 : 8, borderLeft: gi === 0 ? "none" : "1px solid var(--wf-divider)" }}>
+                  <span style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", fontSize: 9, fontWeight: 700, color: "var(--wf-faint)", textTransform: "uppercase", textAlign: "center" }}>{g.titulo}</span>
+                  {g.acordes.map((c) => (
+                    <button key={c.chord + c.grado} onClick={() => insertChord(c.chord)} className="hoverable" style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "8px 12px", cursor: "pointer" }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>{c.chord}</span>
+                      <span style={{ fontSize: 10, color: "var(--wf-faint)", whiteSpace: "nowrap" }}>{c.grado}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {showAddSections && <AddSectionsModal existingBlocks={draft.blocks} onClose={() => setShowAddSections(false)} onAdd={addSections} />}
+    </div>
+  );
+}
+
+function Field({ label, required, children }) {
+  return (
+    <div>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{label} {required && <span style={{ color: "#C23B32" }}>*</span>}</div>
+      {children}
+    </div>
+  );
+}
+
+// ---------------- LISTA DE EVENTOS ----------------
+// Todo el calendario se calcula desde `event.date` (fecha real, "YYYY-MM-DD") — nunca desde `dateLabel`
+// (texto libre, ej. "10:00 am"), que solo es una nota para mostrar — ver src/lib/dates.js.
+
+function MiniTicket({ ev, isLive, onClick }) {
+  const time = (ev.dateLabel.split("·")[1] || "").trim();
+  const shortTitle = ev.title.split("–")[0].trim();
+  return (
+    <button onClick={onClick} className="hoverable" style={{ width: "100%", textAlign: "left", border: isLive ? "2px solid var(--wf-brand-accent)" : "none", cursor: "pointer", borderRadius: 12, padding: "5px 6px", background: ev.cover || DEFAULT_COVERS[0], color: "#fff", lineHeight: 1.25 }}>
+      <div style={{ fontSize: 9.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shortTitle}</div>
+      <div style={{ fontSize: 8.5, opacity: 0.85 }}>{time}</div>
+    </button>
+  );
+}
+
+function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, onSelect, onCreate, canStartLive, onStartFree, library, myUserId }) {
+  const [viewMode, setViewMode] = useState("eventos"); // eventos | plantillas (solo administradores alternan)
+  const [step, setStep] = useState(null); // null | 'template' | 'details'
+  const [templateId, setTemplateId] = useState("blank");
+  const [form, setForm] = useState({ title: "", dateLabel: "", date: "", hora: "", location: "" });
+  const [monthFilter, setMonthFilter] = useState("proximos"); // 'proximos' | mes (para revisar eventos pasados)
+
+  const isPlantillaMode = isAdminViewer && viewMode === "plantillas";
+  // Crear una plantilla no pasa por "seleccionar plantilla" (sería plantilla-de-plantilla) — va directo
+  // al formulario de detalles, y se guarda con esPlantilla: true.
+  const openCreate = () => {
+    setTemplateId("blank");
+    setForm({ title: "", dateLabel: "", date: "", hora: "", location: "" });
+    setStep(isPlantillaMode ? "details" : "template");
+  };
+  const confirmTemplate = () => setStep("details");
+  // Tocar una plantilla en la lista NO debe abrirla como si fuera un evento ya decidido, ni pasar por
+  // un formulario/modal intermedio — clona la plantilla de una vez como evento real (autoguardado,
+  // igual que cualquier otro cambio en esta app) y navega directo a su pantalla completa: Setlist ya
+  // cargado y editable ahí mismo, título/fecha/hora editables en Ajustes sin ventanas emergentes.
+  // Editar el contenido propio de la plantilla (su Setlist base) sigue siendo el lápiz aparte en cada fila.
+  const aplicarPlantilla = (pl) => {
+    onCreate({ templateId: pl.id, title: pl.title, dateLabel: "", date: null, hora: null, location: pl.location || "Por definir", esPlantilla: false });
+  };
+  const confirmCreate = () => {
+    if (!form.title.trim() || (!isPlantillaMode && !form.date)) return;
+    onCreate({ templateId: templateId === "blank" ? null : templateId, title: form.title, dateLabel: form.dateLabel || "", date: form.date || null, hora: form.hora || null, location: form.location || "Por definir", esPlantilla: isPlantillaMode });
+    setStep(null);
+  };
+
+  const today = todayLocal();
+  // Ventana fija de ±6 meses alrededor de hoy, para poder planear meses futuros aunque todavía no
+  // tengan eventos — más cualquier mes que sí tenga eventos reales aunque caiga fuera de la ventana.
+  const monthOptions = useMemo(() => {
+    const map = new Map();
+    for (let offset = -6; offset <= 6; offset++) {
+      const d = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+      const key = monthKey(d.getFullYear(), d.getMonth());
+      map.set(key, monthLabelFromKey(key));
+    }
+    events.forEach((ev) => {
+      const d = parseIsoDateLocal(ev.date);
+      if (!d) return;
+      const key = monthKey(d.getFullYear(), d.getMonth());
+      if (!map.has(key)) map.set(key, monthLabelFromKey(key));
+    });
+    return Array.from(map, ([value, label]) => ({ value, label })).sort((a, b) => a.value.localeCompare(b.value));
+  }, [events, today]);
+
+  const isProximos = monthFilter === "proximos";
+  const visibleEvents = useMemo(() => {
+    const list = isProximos
+      ? events.filter(isUpcoming)
+      : events.filter((ev) => {
+          const d = parseIsoDateLocal(ev.date);
+          return d && monthKey(d.getFullYear(), d.getMonth()) === monthFilter;
+        });
+    return list.slice().sort(compareByDay);
+  }, [events, monthFilter, isProximos]);
+
+  const hero = isProximos ? visibleEvents[0] : null;
+  const rest = isProximos ? visibleEvents.slice(1) : visibleEvents;
+  const heroDate = hero ? parseIsoDateLocal(hero.date) : null;
+
+  if (isPlantillaMode) {
+    return (
+      <div className="screen-enter" style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 12 }}>
+          <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Plantillas</h2>
+          <button onClick={() => setViewMode("eventos")} style={ghostToggleBtn}>← Ver eventos</button>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>Arma aquí bloques ya establecidos (orden del culto) que cualquier administrador podrá usar como base al crear un evento nuevo.</div>
+        {plantillas.length === 0 && <div style={{ textAlign: "center", color: "var(--wf-faint)", fontSize: 13, padding: "40px 0" }}>Todavía no hay plantillas — crea la primera con el botón +.</div>}
+        {plantillas.map((pl) => (
+          <div key={pl.id} style={{ display: "flex", alignItems: "center", gap: 4, width: "100%", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 20, padding: 10, marginBottom: 10 }}>
+            <button onClick={() => aplicarPlantilla(pl)} className="hoverable" title="Crear un evento con esta base" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, textAlign: "left", background: "transparent", border: "none", borderRadius: 14, padding: 4, cursor: "pointer" }}>
+              <div style={{ width: 34, height: 34, borderRadius: 14, background: "var(--wf-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ListMusic size={16} color="#5661B3" /></div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pl.title}</div>
+                <div style={{ fontSize: 11, color: "var(--wf-faint)" }}>{pl.serviceOrder.length} elementos · toca para crear un evento</div>
+              </div>
+            </button>
+            <button onClick={() => onSelect(pl.id)} className="hoverable" title="Editar el contenido de la plantilla" style={{ ...iconGhost, flexShrink: 0 }}>
+              <Pencil size={15} color="#5661B3" />
+            </button>
+          </div>
+        ))}
+        <button onClick={openCreate} style={{ position: "fixed", right: 20, bottom: 92, width: 54, height: 54, borderRadius: "50%", background: "#5661B3", border: "none", boxShadow: "0 8px 18px rgba(86,97,179,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 41 }}>
+          <Plus size={24} color="#fff" />
+        </button>
+        {step === "details" && (
+          <ModalShell title="Nueva plantilla" icon={ListMusic} color="#5661B3" onClose={() => setStep(null)}>
+            <Field label="Nombre de la plantilla" required><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ej. Domingo AM — estructura estándar" style={inputStyle} autoFocus /></Field>
+            <button onClick={confirmCreate} disabled={!form.title.trim()} style={{ ...primaryBtn, marginTop: 14, opacity: form.title.trim() ? 1 : 0.4 }}>Crear plantilla</button>
+          </ModalShell>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12 }}>
+        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Eventos</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {isAdminViewer && <button data-tour="eventos-plantillas" onClick={() => setViewMode("plantillas")} style={ghostToggleBtn}>Plantillas</button>}
+          <select
+            data-tour="eventos-filtro"
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            style={{ fontSize: 12, fontWeight: 700, padding: "8px 10px", borderRadius: 12, border: "1px solid var(--wf-divider)", background: "var(--wf-hover)", color: "var(--wf-heading)", cursor: "pointer" }}
+          >
+            <option value="proximos">Próximos</option>
+            {monthOptions.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {canStartLive && (
+        <button data-tour="eventos-libre" onClick={onStartFree} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: liveLibre ? "var(--wf-active-bg)" : "var(--wf-card)", border: liveLibre ? "1px solid var(--wf-brand-accent)" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 18, padding: "12px 14px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
+          <div style={{ width: 34, height: 34, borderRadius: 14, background: liveLibre ? "var(--wf-brand-accent)" : "var(--wf-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Radio size={16} color={liveLibre ? "#fff" : "#C23B32"} /></div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{liveLibre ? "Transmisión libre en vivo" : "Transmitir sin evento"}</div>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)" }}>{liveLibre ? 'Toca "En vivo" abajo para controlarla' : "Para anuncios, oración u otro contenido suelto sin un evento planificado"}</div>
+          </div>
+        </button>
+      )}
+
+      {hero && (
+        <div data-tour="eventos-primero" style={{ position: "relative", marginBottom: 26 }}>
+          <div style={{ position: "absolute", inset: "12px -8px 0 8px", background: "var(--wf-card)", borderRadius: 22, transform: "rotate(-3deg)", boxShadow: "0 4px 10px rgba(22,50,79,0.05)" }} />
+          <div style={{ position: "absolute", inset: "6px -4px 0 4px", background: "var(--wf-card)", borderRadius: 22, transform: "rotate(2deg)", boxShadow: "0 4px 10px rgba(22,50,79,0.07)" }} />
+          <button onClick={() => onSelect(hero.id)} className="hoverable" style={{ position: "relative", width: "100%", textAlign: "left", border: "none", cursor: "pointer", borderRadius: 22, padding: 0, overflow: "hidden", display: "block", boxShadow: "0 12px 26px rgba(22,50,79,0.2)" }}>
+            <div style={{ background: hero.cover || DEFAULT_COVERS[0], padding: 20, minHeight: 130, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
+                <div style={{ background: "rgba(255,255,255,0.92)", borderRadius: 14, padding: "3px 9px", textAlign: "center", minWidth: 38 }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "var(--wf-heading)", lineHeight: 1.1 }}>{heroDate ? heroDate.getDate() : "–"}</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-brand-accent)" }}>{heroDate ? MONTH_ABBR[heroDate.getMonth()] : ""}</div>
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: "rgba(255,255,255,0.85)" }}>PRÓXIMO EVENTO</span>
+              </div>
+              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, color: "#fff" }}>{hero.title}</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)" }}>{hero.location}</div>
+              {(() => {
+                const misCargos = misAsignacionesEnEvento(hero, myUserId, library);
+                return misCargos.length > 0 ? (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#fff", marginTop: 8, background: "rgba(255,255,255,0.18)", borderRadius: 12, padding: "4px 8px", display: "inline-block" }}>
+                    Te toca: {misCargos.join(", ")}
+                  </div>
+                ) : null;
+              })()}
+            </div>
+          </button>
+        </div>
+      )}
+
+      {rest.length > 0 && (
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 10 }}>
+          {isProximos ? "MÁS ADELANTE" : `${monthOptions.find((m) => m.value === monthFilter)?.label.toUpperCase()} · ${rest.length} EVENTOS`}
+        </div>
+      )}
+      {rest.length === 0 && (
+        <div style={{ textAlign: "center", color: "var(--wf-faint)", fontSize: 13, padding: "40px 0" }}>
+          {isProximos ? "No hay eventos próximos." : "No hay eventos en este mes."}
+        </div>
+      )}
+      {rest.map((ev) => {
+        const totalMembers = ev.serviceOrder.reduce((acc, item) => acc + (item.encargados?.length || 0), 0);
+        const isLive = ev.id === liveEventId;
+        const isPast = !isProximos && !isUpcoming(ev);
+        const d = parseIsoDateLocal(ev.date);
+        const misCargos = misAsignacionesEnEvento(ev, myUserId, library);
+        return (
+          <button key={ev.id} onClick={() => onSelect(ev.id)} className="hoverable" style={{ display: "flex", gap: 12, alignItems: "center", width: "100%", textAlign: "left", background: "var(--wf-card)", border: isLive ? "2px solid #C23B32" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 20, padding: 14, marginBottom: 10, cursor: "pointer", opacity: isPast ? 0.7 : 1 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 18, background: "var(--wf-hover)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--wf-heading)", lineHeight: 1.1 }}>{d ? d.getDate() : "–"}</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: "#2F5FA8" }}>{d ? MONTH_ABBR[d.getMonth()] : ""}</div>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</div>
+                {isLive && <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: "#B5342C", flexShrink: 0 }}><span className="live-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "#C23B32" }} /> EN VIVO</span>}
+                {isPast && <span style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-faint)", flexShrink: 0 }}>PASADO</span>}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--wf-muted)", fontSize: 12 }}>
+                <MapPin size={11} /> {ev.location}
+                <span style={{ marginLeft: 8, display: "flex", alignItems: "center", gap: 4 }}><Users size={11} /> {totalMembers}</span>
+              </div>
+              {misCargos.length > 0 && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-brand-accent)", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  Te toca: {misCargos.join(", ")}
+                </div>
+              )}
+            </div>
+          </button>
+        );
+      })}
+
+      {/* Botón flotante circular para crear evento — solo administradores */}
+      {isAdminViewer && (
+        <button data-tour="eventos-nuevo" onClick={openCreate} style={{ position: "fixed", right: 20, bottom: 92, width: 54, height: 54, borderRadius: "50%", background: "var(--wf-brand-accent)", border: "none", boxShadow: "0 8px 18px rgba(232,130,30,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 41 }}>
+          <Plus size={24} color="var(--wf-brand-primary)" />
+        </button>
+      )}
+
+      {step === "template" && (
+        <ModalShell title="Selecciona plantilla" icon={ListMusic} color="#5661B3" onClose={() => setStep(null)}>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>Copia el orden del culto de una plantilla ya armada por un administrador, o empieza en blanco.</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+            {plantillas.length === 0 && <div style={{ fontSize: 12, color: "var(--wf-faint)", fontStyle: "italic", marginBottom: 4 }}>Todavía no hay plantillas creadas.</div>}
+            {plantillas.map((pl) => (
+              <label key={pl.id} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, border: templateId === pl.id ? "1px solid #5661B3" : "1px solid var(--wf-divider)", cursor: "pointer" }}>
+                <input type="radio" name="template" checked={templateId === pl.id} onChange={() => setTemplateId(pl.id)} />
+                <div><div style={{ fontSize: 13, fontWeight: 600 }}>{pl.title}</div><div style={{ fontSize: 11, color: "var(--wf-faint)" }}>{pl.serviceOrder.length} elementos en el setlist</div></div>
+              </label>
+            ))}
+            <label className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, border: templateId === "blank" ? "1px solid #5661B3" : "1px solid var(--wf-divider)", cursor: "pointer" }}>
+              <input type="radio" name="template" checked={templateId === "blank"} onChange={() => setTemplateId("blank")} />
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--wf-text-2)" }}>Evento en blanco</div>
+            </label>
+          </div>
+          <button onClick={confirmTemplate} style={primaryBtn}>Continuar</button>
+        </ModalShell>
+      )}
+
+      {step === "details" && (
+        <ModalShell title="Detalles del evento" icon={Calendar} color="var(--wf-brand-accent)" onClose={() => setStep(null)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Field label="Título" required><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ej. Domingo AM – 19 Jul" style={inputStyle} /></Field>
+            <Field label="Fecha del calendario" required>
+              <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} style={inputStyle} />
+              <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Es la fecha real del evento — de aquí sale su lugar en Inicio y en el filtro de mes, y también trae sola la planificación de Ministerios de esa semana.</span>
+            </Field>
+            <Field label="Hora o nota (opcional)"><input value={form.dateLabel} onChange={(e) => setForm({ ...form, dateLabel: e.target.value })} placeholder="Ej. 10:00 am" style={inputStyle} /></Field>
+            <Field label="Hora exacta (opcional)">
+              <input type="time" value={form.hora} onChange={(e) => setForm({ ...form, hora: e.target.value })} style={inputStyle} />
+              <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Solo se usa para calcular recordatorios "por horas" — no reemplaza la nota de arriba.</span>
+            </Field>
+            <Field label="Ubicación"><input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Ej. Pastores, Sacatepéquez" style={inputStyle} /></Field>
+          </div>
+          <button onClick={confirmCreate} disabled={!form.title.trim() || !form.date} style={{ ...primaryBtn, marginTop: 14, opacity: form.title.trim() && form.date ? 1 : 0.4, cursor: form.title.trim() && form.date ? "pointer" : "not-allowed" }}>Crear evento</button>
+        </ModalShell>
+      )}
+    </div>
+  );
+}
+
+// Ensayo y nota de quien dirige la alabanza (pedido de Eldin, 2026-10-09). Lo ve todo el equipo de
+// alabanza del evento (y los administradores); lo editan los administradores y quien dirige. Lo mismo
+// aparece en el Inicio de cada músico/cantante (ver InicioView).
+function quienDirigeAlabanza(event) {
+  for (const r of event?.worshipRoles || []) for (const m of r.members || []) if (m.lead) return m;
+  return null;
+}
+function textoEnsayo(event) {
+  if (!event?.ensayoFecha && !event?.ensayoHora) return "";
+  const partes = [];
+  if (event.ensayoFecha) {
+    const d = parseIsoDateLocal(event.ensayoFecha);
+    const dias = d ? Math.round((d - todayLocal()) / 86400000) : null;
+    const corta = d ? `${["dom", "lun", "mar", "mié", "jue", "vie", "sáb"][d.getDay()]} ${d.getDate()} ${MONTH_NAMES_FULL[d.getMonth()].slice(0, 3).toLowerCase()}` : event.ensayoFecha;
+    partes.push(event.ensayoFecha === event.date ? "El mismo día" : dias === 0 ? "Hoy" : dias === 1 ? "Mañana" : corta);
+  }
+  if (event.ensayoHora) partes.push(formatHora12(event.ensayoHora));
+  return partes.join(" · ");
+}
+function formatHora12(hora) {
+  const m = String(hora || "").match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return hora || "";
+  const h = Number(m[1]);
+  return `${((h + 11) % 12) + 1}:${m[2]} ${h < 12 ? "a. m." : "p. m."}`;
+}
+function EnsayoAlabanzaCard({ event, userId, isAdminViewer, onGuardar }) {
+  const enEquipo = (event.worshipRoles || []).some((r) => (r.members || []).some((m) => m.usuarioId === userId));
+  const lider = quienDirigeAlabanza(event);
+  const puedeEditar = isAdminViewer || (lider && lider.usuarioId === userId);
+  const [editando, setEditando] = useState(false);
+  const [borrador, setBorrador] = useState({ ensayoFecha: "", ensayoHora: "", notaAlabanza: "" });
+  const [guardando, setGuardando] = useState(false);
+  if (!enEquipo && !puedeEditar) return null;
+  if (!(event.worshipRoles || []).length && !isAdminViewer) return null;
+  const tieneAlgo = !!(event.ensayoFecha || event.ensayoHora || (event.notaAlabanza || "").trim());
+  if (!tieneAlgo && !puedeEditar) return null;
+  const abrir = () => {
+    setBorrador({ ensayoFecha: event.ensayoFecha || "", ensayoHora: (event.ensayoHora || "").slice(0, 5), notaAlabanza: event.notaAlabanza || "" });
+    setEditando(true);
+  };
+  const guardar = async () => {
+    setGuardando(true);
+    try { await onGuardar(borrador); setEditando(false); } catch { /* el aviso de error ya se mostró */ } finally { setGuardando(false); }
+  };
+  return (
+    <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: editando || tieneAlgo ? 10 : 0 }}>
+        <Music size={16} color="#1F8A73" />
+        <span style={{ flex: 1, fontSize: 13.5, fontWeight: 700 }}>Ensayo de alabanza</span>
+        {puedeEditar && !editando && (
+          <button onClick={abrir} className="hoverable" style={miniBtnStyle}>{tieneAlgo ? <><Pencil size={12} /> Editar</> : <><Plus size={12} /> Agregar</>}</button>
+        )}
+      </div>
+      {editando ? (
+        <>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <Field label="Día del ensayo">
+                <input type="date" value={borrador.ensayoFecha} onChange={(e) => setBorrador({ ...borrador, ensayoFecha: e.target.value })} style={inputStyle} />
+              </Field>
+            </div>
+            <div style={{ flex: 1 }}>
+              <Field label="Hora">
+                <input type="time" value={borrador.ensayoHora} onChange={(e) => setBorrador({ ...borrador, ensayoHora: e.target.value })} style={inputStyle} />
+              </Field>
+            </div>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <Field label="Nota para el equipo (opcional)">
+              <textarea value={borrador.notaAlabanza} onChange={(e) => setBorrador({ ...borrador, notaAlabanza: e.target.value })} rows={3} placeholder="Ej. Lleguen 15 minutos antes. Repasen el coro de Alabaré en Re." style={{ ...inputStyle, resize: "vertical", minHeight: 70 }} />
+            </Field>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button onClick={() => setEditando(false)} className="hoverable" style={{ ...addBtnStyle, flex: 1, justifyContent: "center", marginBottom: 0 }}>Cancelar</button>
+            <button onClick={guardar} disabled={guardando} style={{ ...primaryBtn, flex: 1, marginTop: 0 }}>{guardando ? "Guardando…" : "Guardar"}</button>
+          </div>
+        </>
+      ) : tieneAlgo ? (
+        <>
+          {textoEnsayo(event) && <div style={{ fontSize: 14, fontWeight: 600, color: "var(--wf-text)" }}>{textoEnsayo(event)}</div>}
+          {(event.notaAlabanza || "").trim() && (
+            <div style={{ marginTop: 8, background: "var(--wf-hover)", borderRadius: 12, padding: "10px 12px" }}>
+              <div style={{ fontSize: 13, color: "var(--wf-text-2)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{event.notaAlabanza}</div>
+              {lider && <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginTop: 6 }}>— {lider.n}</div>}
+            </div>
+          )}
+        </>
+      ) : (
+        <div style={{ fontSize: 12, color: "var(--wf-faint)", marginTop: 6 }}>Pon la hora del ensayo y una nota; el equipo la verá en su pantalla de Inicio.</div>
+      )}
+    </div>
+  );
+}
+
+// ---------------- DETALLE DE EVENTO ----------------
+function EventDetail({
+  myIglesiaId, onAbrirEditor, onDisenarNueva,
+  event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onPracticar, onGoLive, onDelete,
+  isDraftFromTemplate, onPublish,
+  onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, destinoAgregar, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder,
+  onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null,
+  onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
+  onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
+  onViewMinistry, onOpenSong, onAddReminder, onRemoveReminder, onSetHora, onUpdateEventDetails, onMarkVisto, onSetEnsayo,
+  showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide,
+  showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint,
+}) {
+  const [showReminderForm, setShowReminderForm] = useState(false);
+  const [reminderDraft, setReminderDraft] = useState({ cantidad: 1, unidad: "dias" });
+  const confirmAddReminder = () => {
+    onAddReminder(Math.max(1, Number(reminderDraft.cantidad) || 1), reminderDraft.unidad);
+    setReminderDraft({ cantidad: 1, unidad: "dias" });
+    setShowReminderForm(false);
+  };
+  // Editar título/fecha/hora/ubicación DESPUÉS de creado — antes solo se fijaban una vez al crear el
+  // evento/la plantilla y no había forma de corregirlos. Pantalla completa "Ajustes del evento"
+  // (separada del Setlist), guarda en vivo campo por campo — mismo patrón que ya usa el título de
+  // cada bloque del Setlist (onChange directo, sin botón "Guardar" ni validación bloqueante).
+  const [showEventSettings, setShowEventSettings] = useState(false);
+  const patchEvent = (patch) => onUpdateEventDetails({ title: event.title, dateLabel: event.dateLabel || "", date: event.date || null, hora: event.hora || null, location: event.location || "", ...patch });
+
+  // "Ya vi mis asignaciones de este evento" — a propósito NO se marca solo con abrir el evento (eso
+  // marcaba a alguien como "visto" aunque hubiera entrado por otra razón y nunca se hubiera fijado en
+  // qué le tocaba a ella). Se marca cuando la persona misma toca el aviso "Te toca: ..." de abajo — un
+  // gesto que sí implica que se fijó en su propio cargo. Distinto de "confirmado/pendiente/rechazado"
+  // (eso lo cambia el admin a mano); esto lo dispara la propia persona, y es lo que le deja al admin ver
+  // quién de verdad se enteró de lo que le toca.
+  const misCargos = misAsignacionesEnEvento(event, userId, library);
+  const yaVistoPorMi = (event.vistas || []).some((v) => v.usuarioId === userId);
+  // Usa la misma función que el aviso emergente (confirmarAsignacionVista, pasada como onMarkVisto) en
+  // vez de su propia copia — esa copia anterior guardaba en la base pero NUNCA actualizaba el estado
+  // compartido `events`, así que ni esta misma persona en otra pestaña ni el admin viéndolo se enteraban
+  // hasta que algo más disparara una recarga completa. Ahora ambos caminos quedan sincronizados.
+  const marcarMisAsignacionesVistas = () => {
+    if (yaVistoPorMi) return;
+    onMarkVisto(event.id);
+  };
+
+  if (showEventSettings) {
+    return (
+      <div className="screen-enter" style={{ width: "100%", flex: 1, minHeight: 0, overflowY: "auto" }}>
+        <div style={{ padding: 20, maxWidth: 640, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+            <button onClick={() => setShowEventSettings(false)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: "4px 6px 4px 0", borderRadius: 12 }}>
+              <ArrowLeft size={18} color="var(--wf-text)" />
+              <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "var(--wf-text)" }}>Ajustes del evento</span>
+            </button>
+            {isAdminViewer && (
+              <button onClick={() => onDelete(event)} title="Eliminar evento" style={iconGhost}>
+                <Trash2 size={16} color="#C23B32" />
+              </button>
+            )}
+          </div>
+
+          <Field label={event.esPlantilla ? "Nombre de la plantilla" : "Nombre del evento"}>
+            <input value={event.title} onChange={(e) => patchEvent({ title: e.target.value })} style={inputStyle} />
+          </Field>
+
+          {!event.esPlantilla && (
+            <>
+              <div style={{ marginTop: 14 }}>
+                <Field label="Ubicación del evento">
+                  <input value={event.location || ""} onChange={(e) => patchEvent({ location: e.target.value })} placeholder="Ej. Pastores, Sacatepéquez" style={inputStyle} />
+                </Field>
+              </div>
+              <div style={{ display: "flex", gap: 12, marginTop: 14 }}>
+                <div style={{ flex: 1 }}>
+                  <Field label="Fecha">
+                    <input type="date" value={event.date || ""} onChange={(e) => patchEvent({ date: e.target.value || null })} style={inputStyle} />
+                  </Field>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <Field label="Hora">
+                    <input type="time" value={event.hora || ""} onChange={(e) => patchEvent({ hora: e.target.value || null })} style={inputStyle} />
+                  </Field>
+                </div>
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <Field label="Hora o nota (opcional)">
+                  <input value={event.dateLabel || ""} onChange={(e) => patchEvent({ dateLabel: e.target.value })} placeholder="Ej. 10:00 am" style={inputStyle} />
+                </Field>
+              </div>
+            </>
+          )}
+
+          {isAdminViewer && (
+            <div style={{ marginTop: 22, background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><Bell size={14} color="var(--wf-brand-accent)" /> Recordatorios</div>
+                <button onClick={() => setShowReminderForm(true)} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar</button>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: event.esPlantilla ? 0 : 10 }}>
+                {(event.reminders || []).length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12 }}>Sin recordatorios configurados{event.esPlantilla ? " en esta plantilla" : ""}.</div>}
+                {(event.reminders || []).map((r) => (
+                  <span key={r.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", borderRadius: 20, padding: "5px 6px 5px 12px", fontSize: 12, fontWeight: 600 }}>
+                    {r.cantidad} {r.unidad === "horas" ? (r.cantidad === 1 ? "hora" : "horas") : (r.cantidad === 1 ? "día" : "días")} antes
+                    <button onClick={() => onRemoveReminder(r.id)} style={{ ...iconGhost, width: 18, height: 18 }}><X size={11} /></button>
+                  </span>
+                ))}
+              </div>
+              {!event.esPlantilla && (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)" }}>HORA DEL EVENTO</span>
+                    <input type="time" value={event.hora || ""} onChange={(e) => onSetHora(e.target.value)} style={{ ...inputStyle, width: "auto", padding: "5px 8px", fontSize: 12 }} />
+                  </div>
+                  {!event.hora && <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Sin hora definida, los recordatorios "por horas" no se pueden calcular con precisión.</div>}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {showReminderForm && (
+          <ModalShell title="Agregar recordatorio" icon={Bell} color="var(--wf-brand-accent)" onClose={() => setShowReminderForm(false)}>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+              <Field label="Cantidad">
+                <input type="number" min={1} value={reminderDraft.cantidad} onChange={(e) => setReminderDraft({ ...reminderDraft, cantidad: e.target.value })} style={inputStyle} />
+              </Field>
+              <Field label="Unidad">
+                <select value={reminderDraft.unidad} onChange={(e) => setReminderDraft({ ...reminderDraft, unidad: e.target.value })} style={inputStyle}>
+                  <option value="dias">Días antes</option>
+                  <option value="horas">Horas antes</option>
+                </select>
+              </Field>
+            </div>
+            {reminderDraft.unidad === "horas" && !event.hora && (
+              <div style={{ fontSize: 11, color: "#C23B32", marginTop: 8 }}>Este evento todavía no tiene hora definida — este recordatorio no se enviará hasta que se le asigne una.</div>
+            )}
+            <button onClick={confirmAddReminder} style={{ ...primaryBtn, marginTop: 14 }}>Agregar recordatorio</button>
+          </ModalShell>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="screen-enter" style={{ width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "20px 20px 0", maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
+          {isAdminViewer && (
+            <div style={{ display: "flex", gap: 8 }}>
+              <button data-tour="evento-ajustes" onClick={() => setShowEventSettings(true)} title={event.esPlantilla ? "Ajustes de la plantilla" : "Ajustes del evento"} style={iconGhost}>
+                <Settings size={16} color="var(--wf-heading)" />
+              </button>
+              <button onClick={() => onDelete(event)} title="Eliminar evento" style={iconGhost}>
+                <Trash2 size={16} color="#C23B32" />
+              </button>
+            </div>
+          )}
+        </div>
+        <div style={{ borderRadius: 16, background: "linear-gradient(135deg, #2A3B4D, var(--wf-hover))", padding: 20, marginBottom: 16 }}>
+          <div style={{ display: "inline-block", background: event.esPlantilla ? "#5661B3" : "rgba(0,0,0,0.35)", borderRadius: 20, padding: "4px 12px", fontSize: 12, marginBottom: 10 }}>
+            {event.esPlantilla ? "PLANTILLA" : (formatFullDate(event.date) || "Sin fecha") + (event.dateLabel ? ` · ${event.dateLabel}` : "")}
+          </div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600, marginBottom: 4 }}>{event.title}</div>
+          {!event.esPlantilla && <div style={{ fontSize: 13, color: "#C8CDD6" }}>{event.location}</div>}
+        </div>
+
+        {/* Solo para quien tiene algo asignado en este evento — tocarlo (no basta con solo abrir el
+            evento) es lo que le avisa al admin que la persona de verdad se fijó en su propio cargo, no
+            solo que entró por curiosidad o por otra razón. Ver marcarMisAsignacionesVistas arriba.
+            Antes decía solo "Te toca: X" sin más — para gente que recién está aprendiendo a usar una
+            app, eso no se lee como "hay que tocar esto", parece solo un letrero informativo. Ahora,
+            mientras no lo haya tocado, el texto GRANDE es una instrucción directa ("Toca aquí..."), con
+            el detalle de qué le toca como texto más chico debajo — y una flecha, como cualquier botón
+            de "siguiente" que ya conocen de otras pantallas. Una vez tocado, cambia a una confirmación
+            clara en vez de repetir la misma instrucción. */}
+        {misCargos.length > 0 && (
+          <button
+            data-tour="evento-mi-cargo"
+            onClick={marcarMisAsignacionesVistas}
+            className="hoverable"
+            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: yaVistoPorMi ? "#EAF6F1" : "var(--wf-active-bg)", border: `1.5px solid ${yaVistoPorMi ? "#1F8A73" : "var(--wf-brand-accent)"}`, borderRadius: 14, padding: "12px 14px", marginBottom: 16, cursor: "pointer" }}
+          >
+            {yaVistoPorMi ? <Eye size={20} color="#1F8A73" style={{ flexShrink: 0 }} /> : <EyeOff size={20} color="var(--wf-active-text)" style={{ flexShrink: 0 }} />}
+            <span style={{ flex: 1, minWidth: 0 }}>
+              {yaVistoPorMi ? (
+                <>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1F8A73" }}>Ya viste tu participación ✓</div>
+                  <div style={{ fontSize: 12, color: "var(--wf-text-2)", marginTop: 2 }}>Te toca: {misCargos.join(", ")}</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--wf-active-text)" }}>Toca aquí para ver tu participación</div>
+                  <div style={{ fontSize: 12, color: "var(--wf-active-text)", marginTop: 2 }}>Te toca: {misCargos.join(", ")}</div>
+                </>
+              )}
+            </span>
+            {!yaVistoPorMi && <ChevronRight size={18} color="var(--wf-brand-accent)" style={{ flexShrink: 0 }} />}
+          </button>
+        )}
+
+        {!event.esPlantilla && onSetEnsayo && (
+          <EnsayoAlabanzaCard event={event} userId={userId} isAdminViewer={isAdminViewer} onGuardar={onSetEnsayo} />
+        )}
+
+        <button data-tour="evento-pdf" onClick={() => window.print()} className="hoverable" style={{ ...addBtnStyle, marginBottom: 16, justifyContent: "center" }}>
+          <Download size={14} color="var(--wf-heading)" /> Exportar Setlist a PDF
+        </button>
+
+        {/* Oculta en pantalla (ver .print-only en index.css) — solo aparece al imprimir/"Guardar como
+            PDF", como respaldo en papel del Setlist si algún día falla la app o el internet en pleno culto. */}
+        <div className="print-only" style={{ padding: 28, fontFamily: "'Poppins', sans-serif", color: "#111" }}>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, marginBottom: 2 }}>{event.title}</div>
+          <div style={{ fontSize: 12, color: "#444", marginBottom: 20 }}>
+            {(formatFullDate(event.date) || event.dateLabel || "")}{event.hora ? ` · ${event.hora}` : ""}
+          </div>
+          <ol style={{ paddingLeft: 20, margin: 0 }}>
+            {serviceOrderVisiblePara(event, isAdminViewer || puedeEditarSetlist, userId, usuariosReales.find((u) => u.id === userId)?.rol === "supervisor", new Set((ministries || []).filter((m) => m.leaderId === userId).map((m) => m.id))).map((item) => {
+              if (item.type === "seccion") {
+                const names = isWorshipBlock(item)
+                  ? (event.worshipRoles || []).flatMap((r) => r.members.map((m) => `${m.n} (${r.name})`)).join(", ")
+                  : (item.encargados || []).map((m) => m.n).join(", ");
+                return (
+                  <li key={item.id} style={{ marginBottom: 10, fontSize: 14 }}>
+                    <strong>{item.title}</strong>{item.description ? ` — ${item.description}` : ""}
+                    {names && <div style={{ fontSize: 12, color: "#444" }}>Encargado(s): {names}</div>}
+                  </li>
+                );
+              }
+              if (item.type === "cancion") {
+                const song = library.find((s) => s.id === item.songId);
+                return (
+                  <li key={item.id} style={{ marginBottom: 6, fontSize: 14 }}>
+                    {song ? `${song.title} — ${acordeEn(item.keyOverride || song.key)}, ${song.tempo} bpm` : "Canción"}
+                  </li>
+                );
+              }
+              if (item.type === "biblia") {
+                return <li key={item.id} style={{ marginBottom: 6, fontSize: 14 }}>{item.reference} ({item.version})</li>;
+              }
+              return <li key={item.id} style={{ marginBottom: 6, fontSize: 14 }}>{item.title || "Slide"}{item.subtitle ? ` — ${item.subtitle}` : ""}</li>;
+            })}
+          </ol>
+        </div>
+
+        {event.esPlantilla ? (
+          <div style={{ fontSize: 12, color: "var(--wf-faint)", marginBottom: 14 }}>Esta es una plantilla — no se transmite en vivo, solo sirve como base para nuevos eventos ("Selecciona plantilla" al crear uno).</div>
+        ) : canStartLive ? (
+          <>
+            <button data-tour="evento-iniciar" onClick={isLive ? onGoLive : onStart} style={{ ...primaryBtn, width: "100%", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: isLive ? "#C23B32" : "var(--wf-brand-accent)", color: isLive ? "#fff" : "var(--wf-text)" }}>
+              <Play size={15} /> {isLive ? "Ya en vivo · Ir al control" : "Iniciar evento"}
+            </button>
+            {/* Practicar: la consola con este culto, sin proyectar nada (ver empezarPractica). Solo en
+                computadora, que es donde se usa la consola. */}
+            {!isLive && !isCompact && onPracticar && (
+              <button data-tour="evento-practicar" onClick={onPracticar} className="hoverable" title="Abre la consola con este culto para aprender a usarla. Nada sale en la pantalla de la iglesia."
+                style={{ width: "100%", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 13.5, fontWeight: 700, padding: "10px 14px", borderRadius: 14, border: "1.5px solid #1F8A73", background: "transparent", color: "#1F8A73", cursor: "pointer", fontFamily: "inherit" }}>
+                <GraduationCap size={16} /> Practicar sin proyectar
+              </button>
+            )}
+            <div style={{ marginBottom: 20 }} />
+          </>
+        ) : (
+          isLive && <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-brand-accent)", marginBottom: 14 }}><span className="live-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--wf-brand-accent)" }} /> Este evento está en vivo ahora mismo.</div>
+        )}
+      </div>
+      {isDraftFromTemplate && isAdminViewer && (
+        <div style={{ padding: "0 20px", maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box", flexShrink: 0 }}>
+          <button onClick={onPublish} className="hoverable" style={{ ...primaryBtn, width: "100%", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#1F8A73", color: "#fff" }}>
+            <Check size={15} /> Publicar evento
+          </button>
+        </div>
+      )}
+      <SetlistPane
+        onAbrirEditor={onAbrirEditor}
+        onDisenarNueva={onDisenarNueva}
+        myIglesiaId={myIglesiaId}
+        event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer || puedeEditarSetlist} userId={userId} usuariosReales={usuariosReales}
+        onAddSong={onAddSong} onAddSeccion={onAddSeccion}
+        onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick} onAddItems={onAddItems}
+        destinoAgregar={destinoAgregar} onDestinoAgregar={onDestinoAgregar} onEditarItem={onEditarItem}
+        onRemove={onRemove} onRestaurar={onRestaurar} onDuplicate={onDuplicate} onReorder={onReorder}
+        onLinkMinistry={onLinkMinistry} onUpdateSeccionText={onUpdateSeccionText}
+        onSetSongKey={onSetSongKey}
+        canAddBibleReading={canAddBibleReading} canAddSermonPoints={canAddSermonPoints} bosquejoInfo={bosquejoInfo}
+        onAddEncargado={onAddEncargado} onSetEncargadoStatus={onSetEncargadoStatus} onSetEncargadoLead={onSetEncargadoLead} onRemoveEncargado={onRemoveEncargado}
+        onAddWorshipRole={onAddWorshipRole} onRemoveWorshipRole={onRemoveWorshipRole} onAddWorshipRoleMember={onAddWorshipRoleMember} onSetWorshipRoleMemberStatus={onSetWorshipRoleMemberStatus} onSetWorshipRoleMemberLead={onSetWorshipRoleMemberLead} onRemoveWorshipRoleMember={onRemoveWorshipRoleMember}
+        onViewMinistry={onViewMinistry} onOpenSong={onOpenSong}
+        showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
+        showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
+        showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
+      />
+    </div>
+  );
+}
+
+const NEXT_STATUS = { pendiente: "confirmado", confirmado: "rechazado", rechazado: "pendiente" };
+const STATUS_STYLE = {
+  confirmado: { border: "none", background: "#3FA772", icon: Check },
+  rechazado: { border: "none", background: "#C23B32", icon: X },
+  pendiente: { border: "1px solid var(--wf-border-soft)", background: "transparent", icon: null },
+};
+// Encargados de un ítem del Setlist: chips con estado (pendiente/confirmado/rechazado), estrella de
+// "encargado principal" y selector para agregar de entre los usuarios ya registrados en la app (no
+// texto libre). Solo quien tiene permiso sobre este bloque (admin, o el líder del ministerio vinculado)
+// puede editar la lista — para los demás se muestra de solo lectura.
+function EncargadosList({ encargados, canEdit, allUsuarios, onSetStatus, onSetLead, onAddEncargado, onRemove, vistasPorUsuario, showVistas }) {
+  // Id seleccionado en el desplegable de "agregar persona" — se vuelve a "" apenas se agrega a alguien,
+  // así el desplegable queda listo para la siguiente persona en vez de quedarse mostrando a la última.
+  const [seleccionId, setSeleccionId] = useState("");
+  const disponibles = allUsuarios.filter((u) => !encargados.some((m) => m.usuarioId === u.id));
+  return (
+    <div>
+      {encargados.map((m, i) => {
+        const style = STATUS_STYLE[m.status || "pendiente"];
+        const StatusIcon = style.icon;
+        const vistoAt = m.usuarioId && vistasPorUsuario ? vistasPorUsuario.get(m.usuarioId) : null;
+        return (
+          <div key={m.id || i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--wf-divider)" }}>
+            <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0, color: "#fff" }}>{m.n.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</div>
+            <span style={{ fontSize: 13, flex: 1 }}>{m.n}{m.lead && <span style={{ fontSize: 10, color: "var(--wf-brand-accent)", fontWeight: 700 }}> · Encargado</span>}</span>
+            {/* Solo visible para administradores — le dice si la persona siquiera abrió el evento a ver
+                qué le toca, algo que "confirmado/pendiente" no puede responder porque ESE estado lo
+                cambia el admin a mano, no la persona misma. A propósito NO depende de "canEdit": el
+                admin necesita poder chequear esto viendo el Setlist normal, sin tener que entrar al
+                modo "Editar" primero solo para consultarlo. */}
+            {showVistas && vistasPorUsuario && m.usuarioId && (
+              vistoAt
+                ? <Eye size={14} color="#1F8A73" title={`Vio sus asignaciones el ${new Date(vistoAt).toLocaleString("es")}`} />
+                : <EyeOff size={14} color="var(--wf-border-soft)" title="Todavía no ha abierto el evento para ver qué le toca" />
+            )}
+            {canEdit && (
+              <button onClick={() => onSetLead(i)} title={m.lead ? "Quitar como encargado principal" : "Marcar como encargado principal"} style={{ ...iconGhost, color: m.lead ? "var(--wf-brand-accent)" : "var(--wf-border-soft)" }}>
+                <Star size={14} fill={m.lead ? "var(--wf-brand-accent)" : "none"} />
+              </button>
+            )}
+            {canEdit ? (
+              <button onClick={() => onSetStatus(i, NEXT_STATUS[m.status || "pendiente"])} title={m.status === "rechazado" ? "No puede asistir — click para cambiar" : undefined} style={{ width: 22, height: 22, borderRadius: "50%", border: style.border, background: style.background, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                {StatusIcon && <StatusIcon size={13} color="#fff" />}
+              </button>
+            ) : (
+              <div style={{ width: 22, height: 22, borderRadius: "50%", border: style.border, background: style.background, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {StatusIcon && <StatusIcon size={13} color="#fff" />}
+              </div>
+            )}
+            {canEdit && <button onClick={() => onRemove(i)} title="Quitar" style={{ ...iconGhost, color: "#C23B32" }}><X size={13} /></button>}
+          </div>
+        );
+      })}
+      {encargados.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, padding: "6px 0" }}>Nadie asignado todavía.</div>}
+      {/* Tocar el nombre agrega a esa persona de una vez — sin un segundo botón "Añadir" aparte, que
+          antes se prestaba a elegir a alguien del selector y no darle a añadir, dejando la impresión
+          de que la asignación "no se guardó". */}
+      {canEdit && (
+        <div style={{ marginTop: 10 }}>
+          <select
+            value={seleccionId}
+            onChange={(e) => {
+              const u = disponibles.find((x) => x.id === e.target.value);
+              if (u) onAddEncargado(u);
+              setSeleccionId("");
+            }}
+            disabled={disponibles.length === 0}
+            style={{ ...inputStyle, color: seleccionId ? "var(--wf-text)" : "var(--wf-faint)", cursor: disponibles.length ? "pointer" : "default" }}
+          >
+            <option value="" disabled>{disponibles.length === 0 ? "No hay más personas disponibles para agregar" : "+ Agregar persona…"}</option>
+            {disponibles.map((u) => (
+              <option key={u.id} value={u.id}>{u.nombre}</option>
+            ))}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Equipo de alabanza: roles con nombre fijo (Guitarra, Batería, Voz...) en vez de una lista libre de
+// encargados — el mismo roster se muestra y se edita igual desde el bloque de Alabanza que desde el de
+// Adoración (es un solo array compartido a nivel de evento, no una copia por bloque).
+function WorshipRolesEditor({ roles, canEdit, allUsuarios, onAddRole, onRemoveRole, onAddMember, onSetStatus, onSetLead, onRemoveMember, vistasPorUsuario, showVistas }) {
+  const [newRoleName, setNewRoleName] = useState("");
+  return (
+    <div>
+      {roles.map((r) => (
+        <div key={r.id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--wf-divider)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)" }}>{r.name}</span>
+            {canEdit && <button onClick={() => onRemoveRole(r.id)} title="Quitar rol" style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={13} /></button>}
+          </div>
+          <EncargadosList
+            encargados={r.members}
+            canEdit={canEdit}
+            allUsuarios={allUsuarios}
+            onAddEncargado={(usuario) => onAddMember(r.id, usuario)}
+            onSetStatus={(mi, status) => onSetStatus(r.id, mi, status)}
+            onSetLead={(mi) => onSetLead(r.id, mi)}
+            onRemove={(mi) => onRemoveMember(r.id, mi)}
+            vistasPorUsuario={vistasPorUsuario}
+            showVistas={showVistas}
+          />
+        </div>
+      ))}
+      {roles.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, marginBottom: 10 }}>Aún no hay roles definidos para el equipo de alabanza.</div>}
+      {canEdit && (
+        <div style={{ display: "flex", gap: 6 }}>
+          <input
+            value={newRoleName}
+            onChange={(e) => setNewRoleName(e.target.value)}
+            placeholder="Nuevo rol (ej. Guitarra)"
+            style={{ ...inputStyle, flex: 1 }}
+            onKeyDown={(e) => { if (e.key === "Enter" && newRoleName.trim()) { onAddRole(newRoleName); setNewRoleName(""); } }}
+          />
+          <button
+            onClick={() => { if (newRoleName.trim()) { onAddRole(newRoleName); setNewRoleName(""); } }}
+            style={{ ...addBtnStyle, width: "auto", padding: "0 12px", color: "#5661B3" }}
+          >
+            <Plus size={14} color="#5661B3" /> Agregar rol
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Botón "Encargados": ícono de personas con una insignia del conteo actual — es el punto de entrada
+// para agregar/gestionar a los encargados de este ítem del Setlist, sin necesitar una pantalla aparte.
+function EncargadosToggleButton({ count, onClick }) {
+  return (
+    <button onClick={onClick} title="Encargados" style={{ ...iconGhost, position: "relative" }}>
+      <Users size={14} color={count > 0 ? "var(--wf-brand-accent)" : undefined} />
+      {count > 0 && (
+        <span style={{ position: "absolute", top: -2, right: -2, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", fontSize: 8, fontWeight: 800, borderRadius: 12, minWidth: 12, height: 12, lineHeight: "12px", textAlign: "center", padding: "0 2px" }}>{count}</span>
+      )}
+    </button>
+  );
+}
+
+// ---------------- SETLIST (orden del culto) ----------------
+function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, destinoAgregar = null, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+  const [showImportar, setShowImportar] = useState(false); // Importar presentación (ver ImportarPresentacion)
+  // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
+  // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
+  // el encargado de ese bloque de Lectura bíblica/Oración (ver canAddBibleReading más arriba).
+  // Además de eso, el Setlist se ve de solo lectura (sin agregar/quitar/mover nada) hasta tocar "Editar"
+  // — UN SOLO candado para todo (antes Encargados/equipo de alabanza tenían su propio candado por
+  // bloque además de este, y era fácil elegir a alguien del selector sin haber destrabado ESE candado
+  // aparte, o creer que ya había quedado asignado sin haber tocado "Añadir" — de ahí que pareciera que
+  // las asignaciones "se perdían"). Los cambios se siguen guardando solos apenas se hacen; "Guardar"
+  // solo regresa a la vista de solo lectura.
+  // Sin candado "Editar" (2026-10-10, para que sea fácil de usar): quien puede editar edita directo,
+  // y si se equivoca al quitar algo aparece "Deshacer" (ver quitarConDeshacer).
+  const canEditNow = isAdminViewer;
+  // Líder de un grupo (2026-10-30): además del administrador, quien lidera el grupo vinculado a un
+  // bloque puede editar ESE bloque — título, descripción y encargados. Nada más del Setlist (no
+  // mueve, no borra, no agrega ni toca canciones u otros bloques).
+  const gruposQueLidero = useMemo(() => new Set(ministries.filter((m) => m.leaderId === userId).map((m) => m.id)), [ministries, userId]);
+  const canEditItem = (item) => canEditNow || lideraBloque(item, gruposQueLidero);
+  const [showAgregar, setShowAgregar] = useState(false); // hoja "+ Agregar" con todas las opciones
+  const [pickerCancion, setPickerCancion] = useState(false);
+  // Orden en que se van eligiendo canciones en "Agregar canciones" (pedido de Eldin, 2026-10-21: "que al
+  // elegir una aparezca entre paréntesis un número uno y si son dos dos"). Se reinicia al abrirlo.
+  const [elegidasPicker, setElegidasPicker] = useState([]);
+  useEffect(() => { if (pickerCancion) setElegidasPicker([]); }, [pickerCancion]);
+  const numerosElegida = (id) => elegidasPicker.reduce((acc, x, i) => (x === id ? [...acc, i + 1] : acc), []);
+  const [menuItem, setMenuItem] = useState(null); // { id, x, y } — menú "⋯" de un elemento
+  // "Empieza aquí" se puede ocultar por evento (por si esta iglesia no usa el equipo de alabanza, etc.).
+  const claveOcultarPasos = `worshipflow_pasos_ocultos_${event.id}`;
+  const [pasosOcultos, setPasosOcultos] = useState(() => { try { return localStorage.getItem(claveOcultarPasos) === "1"; } catch { return false; } });
+  const ocultarPasos = () => { setPasosOcultos(true); try { localStorage.setItem(claveOcultarPasos, "1"); } catch { /* sin almacenamiento */ } };
+  useEffect(() => {
+    if (!menuItem) return;
+    const cerrar = () => setMenuItem(null);
+    window.addEventListener("pointerdown", cerrar);
+    window.addEventListener("scroll", cerrar, true);
+    return () => { window.removeEventListener("pointerdown", cerrar); window.removeEventListener("scroll", cerrar, true); };
+  }, [menuItem]);
+  // usuarioId -> cuándo vio sus asignaciones de ESTE evento (ver marcarAsignacionVista) — se le pasa a
+  // cada EncargadosList (bloques, equipo de alabanza) para el ícono de ojo junto a cada persona.
+  const vistasPorUsuario = useMemo(() => new Map((event.vistas || []).map((v) => [v.usuarioId, v.vistoAt])), [event.vistas]);
+  // La fila de una canción en el buscador se queda ahí, tocable de nuevo, después de agregarla (no
+  // desaparece ni se deshabilita) — sin este freno, un doble toque rápido (dedo apurado, sin feedback
+  // inmediato de que ya se agregó) la duplicaba o triplicaba en el Setlist. Medio segundo alcanza para
+  // frenar un toque accidental sin bloquear a alguien que de verdad quiera repetir la misma canción más
+  // adelante en el Setlist (ej. un coro que se canta dos veces).
+  const lastAddSongRef = useRef({ id: null, at: 0 });
+  const handleAddSong = (songId) => {
+    const now = Date.now();
+    if (lastAddSongRef.current.id === songId && now - lastAddSongRef.current.at < 600) return false;
+    lastAddSongRef.current = { id: songId, at: now };
+    onAddSong(songId);
+    return true;
+  };
+  const [query, setQuery] = useState("");
+  // Igual que en Canciones: poder ver solo los coros (para armar una cadena de coros seguidos), o solo
+  // los himnos disponibles, etc., en vez de buscar a ojo en toda la biblioteca mezclada.
+  const [libraryCategoryFilter, setLibraryCategoryFilter] = useState("todos");
+  const [expandedSections, setExpandedSections] = useState({});
+  const [showSeccionForm, setShowSeccionForm] = useState(false);
+  // Editar una diapositiva de texto con el mismo formulario con que se creó (sin el editor de diseño).
+  const [editTexto, setEditTexto] = useState(null); // { id, draft }
+  const abrirEditarTexto = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", escalaSubtitulo: it.escalaSubtitulo, bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "" } });
+  // La parte del culto elegida en "+ Agregar" solo vale mientras se está agregando: al cerrarse todo
+  // (o cancelar), vuelve a "al final" para que lo siguiente no caiga en un bloque viejo.
+  const agregando = showAgregar || pickerCancion || showImportar || showBibleForm || showSlideForm || showSermonForm;
+  useEffect(() => { if (!agregando && destinoAgregar) onDestinoAgregar?.(null); }, [agregando, destinoAgregar, onDestinoAgregar]);
+  const [seccionDraft, setSeccionDraft] = useState({ title: "", description: "" });
+  const confirmAddSeccion = () => {
+    if (!seccionDraft.title.trim()) return;
+    onAddSeccion(seccionDraft.title, seccionDraft.description);
+    setSeccionDraft({ title: "", description: "" });
+    setShowSeccionForm(false);
+  };
+  // Reordenar estilo OnStage: se agarra el elemento desde cualquier parte (con el dedo, manteniéndolo
+  // presionado un instante; con mouse, presionando y moviendo) y los demás se apartan para mostrar
+  // dónde va a caer — ver useArrastreLista. Un bloque desplegado no se mueve hasta que se cierre.
+  // Modo "Ordenar" (pedido de Eldin, 2026-10-21): fuera de este modo el Setlist no se arrastra, para que
+  // nada se mueva por accidente al leer o hacer scroll. Dentro, la lista se ve compacta (todas las filas
+  // del mismo alto, también las diapositivas que el celular esconde) con flechas y "Mover a…".
+  const [ordenando, setOrdenando] = useState(false);
+  useEffect(() => { setOrdenando(false); }, [event.id]);
+  const arrastre = useArrastreLista({
+    habilitado: canEditNow && ordenando,
+    puedeArrastrar: (idx) => {
+      const it = event.serviceOrder[idx];
+      return !(it?.type === "seccion" && expandedSections[it.id]);
+    },
+    onReorder,
+  });
+  // Visibilidad del Setlist por grupo — ver decidirVisibilidadSetlist. Va DESPUÉS de todos los hooks
+  // de arriba: un return anticipado antes de un useState rompe las reglas de hooks en cuanto ese mismo
+  // componente vuelva a renderizar sin la restricción activa.
+  const visibilidadSetlist = decidirVisibilidadSetlist(event, isAdminViewer, userId, usuariosReales.find((u) => u.id === userId)?.rol === "supervisor", gruposQueLidero);
+  // Si entre sus bloques hay alguno de un grupo que lidera, se usa la vista normal del Setlist (solo con
+  // sus bloques) en vez del panel de solo lectura, para que pueda editarlos.
+  const lideraAlgunoDeSusBloques = visibilidadSetlist.modo === "bloque-propio" && visibilidadSetlist.blocks.some((b) => lideraBloque(b, gruposQueLidero));
+  if (visibilidadSetlist.modo === "bloque-propio" && !lideraAlgunoDeSusBloques) {
+    return <RestrictedGroupPanel blocks={visibilidadSetlist.blocks} worshipRoles={[]} ministries={ministries} event={event} bosquejoInfo={bosquejoInfo} />;
+  }
+  // Alabanza/Multimedia: NO es un panel simplificado — ven el Setlist normal de siempre (canciones,
+  // letra, versículos, slides), solo que sin los bloques organizativos de otros grupos (ver
+  // visibleServiceOrder más abajo, usado en vez de event.serviceOrder en el render principal).
+  const visibleServiceOrder = visibilidadSetlist.modo === "filtrado" ? visibilidadSetlist.visibleOrder
+    : visibilidadSetlist.modo === "bloque-propio" ? visibilidadSetlist.blocks : event.serviceOrder;
+  const filtered = buscarCanciones(library.filter((s) => libraryCategoryFilter === "todos" || s.category === libraryCategoryFilter), query);
+  // ---- Fácil de usar (2026-10-10): "+ Agregar", menú "⋯" y "Empieza aquí" ----
+  const puedeAgregarAlgo = isAdminViewer || canAddBibleReading || canAddSermonPoints;
+  const nombreDeItem = (it) => (it.type === "cancion" ? library.find((x) => x.id === it.songId)?.title || "Canción"
+    : it.type === "biblia" ? it.reference || "Versículo" : it.title || (it.type === "seccion" ? "Bloque" : "Diapositiva"));
+  const quitarConDeshacer = (it) => {
+    const indice = event.serviceOrder.findIndex((x) => x.id === it.id);
+    onRemove(it.id);
+    showToast(`Se quitó "${nombreDeItem(it)}".`, "info", onRestaurar ? { label: "Deshacer", onClick: () => onRestaurar(it, indice) } : null);
+  };
+  const moverItem = (it, paso) => {
+    const desde = event.serviceOrder.findIndex((x) => x.id === it.id);
+    const hacia = desde + paso;
+    if (desde === -1 || hacia < 0 || hacia >= event.serviceOrder.length) return;
+    onReorder(desde, hacia);
+  };
+  const abrirMenuItem = (e, it) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    setMenuItem({ id: it.id, x: Math.min(r.right - 210, window.innerWidth - 220), y: Math.min(r.bottom + 4, window.innerHeight - 260) });
+  };
+  const botonMenu = (it) => (
+    <button onClick={(e) => abrirMenuItem(e, it)} onPointerDown={(e) => e.stopPropagation()} title="Más opciones" aria-label={`Opciones de ${nombreDeItem(it)}`} style={{ ...iconGhost, width: 32, height: 32, borderRadius: 10, border: "1px solid var(--wf-border)", flexShrink: 0 }}><MoreHorizontal size={16} /></button>
+  );
+  const cancionesEvento = event.serviceOrder.filter((i) => i.type === "cancion").length;
+  const bloqueAlabanza = event.serviceOrder.find((i) => isWorshipBlock(i));
+  const personasAlabanza = (event.worshipRoles || []).reduce((acc, r) => acc + (r.members || []).length, 0);
+  const tieneOtros = event.serviceOrder.some((i) => i.type === "slide" || i.type === "biblia");
+  const pasosInicio = isAdminViewer && !event.esPlantilla && !pasosOcultos && (cancionesEvento === 0 || (bloqueAlabanza && personasAlabanza === 0)) ? [
+    { clave: "canciones", titulo: "Agrega las canciones", detalle: cancionesEvento ? `${cancionesEvento} ${cancionesEvento === 1 ? "canción" : "canciones"}` : "Búscalas en la biblioteca", hecho: cancionesEvento > 0, accion: () => setPickerCancion(true) },
+    ...(bloqueAlabanza ? [{
+      clave: "equipo", titulo: "Asigna quién toca y canta", detalle: personasAlabanza ? `${personasAlabanza} personas` : "Piano, voz, batería…", hecho: personasAlabanza > 0,
+      accion: () => {
+        setExpandedSections((e) => ({ ...e, [bloqueAlabanza.id]: true }));
+        setTimeout(() => document.querySelector(`[data-item-id="${bloqueAlabanza.id}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+      },
+    }] : []),
+    { clave: "avisos", titulo: "Agrega avisos o el bosquejo", detalle: "Opcional", hecho: tieneOtros, accion: () => setShowAgregar(true) },
+  ] : null;
+  // Opciones de "+ Agregar", según lo que cada quien puede hacer.
+  const opcionesAgregar = [
+    isAdminViewer && { clave: "cancion", Icon: Music, color: "#1F8A73", titulo: "Canción", detalle: "De la biblioteca, con su letra lista", accion: () => setPickerCancion(true) },
+    canAddBibleReading && { clave: "biblia", Icon: BookOpen, color: "#2F5FA8", titulo: "Versículo", detalle: "Búscalo en la Biblia", accion: onAddBibleClick },
+    isAdminViewer && { clave: "texto", Icon: Type, color: "#B15EA0", titulo: "Texto rápido", detalle: "Un aviso o un título en segundos", accion: onAddSlideClick },
+    isAdminViewer && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(destinoAgregar ? anclaDeBloque(event.serviceOrder, destinoAgregar)?.id : undefined) },
+    isAdminViewer && { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
+    canAddSermonPoints && { clave: "bosquejo", Icon: Mic2, color: "var(--wf-heading)", titulo: "Punto del bosquejo", detalle: "Lo que el predicador va a ir mostrando", accion: () => setShowSermonForm(true) },
+    isAdminViewer && { clave: "bloque", Icon: ListMusic, color: "#5661B3", titulo: "Bloque del culto", detalle: "Una parte del culto: Bienvenida, Ofrenda…", accion: () => setShowSeccionForm(true) },
+  ].filter(Boolean);
+  const itemDelMenu = menuItem ? event.serviceOrder.find((x) => x.id === menuItem.id) : null;
+  return (
+    <div style={{ display: "flex", flexDirection: isCompact ? "column" : "row", flex: 1, minHeight: 0 }}>
+      {/* Computadora: la biblioteca a la izquierda para agregar canciones con un toque. Todo lo demás
+          (versículo, diapositivas, importar, bloques...) está en "+ Agregar". En el celular, la
+          biblioteca se abre desde "+ Agregar → Canción". */}
+      {!isCompact && isAdminViewer && (
+      <div style={{ width: 270, margin: "14px 0 14px 14px", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, display: "flex", flexDirection: "column", minHeight: 0, boxSizing: "border-box", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 4 }}><ListMusic size={13} /> AGREGAR CANCIONES</div>
+        <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginBottom: 10 }}>
+          Toca una canción para agregarla al final.
+          {elegidasPicker.length > 0 && <> <b style={{ color: "#1F8A73" }}>{elegidasPicker.length} {elegidasPicker.length === 1 ? "agregada" : "agregadas"}</b> · <button onClick={() => setElegidasPicker([])} style={{ background: "none", border: "none", padding: 0, fontSize: 11.5, fontWeight: 700, color: "#2F5FA8", cursor: "pointer" }}>Reiniciar números</button></>}
+        </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
+            <Search size={13} color="var(--wf-faint)" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 12, width: "100%" }} />
+          </div>
+          <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
+            {[["todos", "Todos"], ...clasificacionesActuales.map((c) => [c.clave, c.nombre])].map(([key, label]) => (
+              <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 20, border: "none", background: libraryCategoryFilter === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: libraryCategoryFilter === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
+            ))}
+          </div>
+        <div style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
+          {filtered.map((s) => {
+            const numeros = numerosElegida(s.id);
+            return (
+            <button key={s.id} onClick={() => { if (handleAddSong(s.id)) setElegidasPicker((l) => [...l, s.id]); }} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 6, borderRadius: 12, background: numeros.length ? "var(--wf-active-bg)" : "transparent", border: "none", boxShadow: numeros.length ? "inset 0 0 0 1.5px #1F8A73" : "0 3px 14px rgba(22,50,79,0.09)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div><div style={{ fontSize: 13, fontWeight: 600 }}>{numeros.length > 0 && <span style={{ color: "#1F8A73", fontWeight: 800, marginRight: 5 }}>({numeros.join(", ")})</span>}{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)} · {s.tempo} bpm</div></div>
+              <Plus size={15} color="var(--wf-brand-accent)" />
+            </button>
+            );
+          })}
+          {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, padding: "6px 0" }}>Ninguna canción coincide.</div>}
+        </div>
+      </div>
+      )}
+
+      <div style={{ flex: 1, padding: 16, overflowY: "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, gap: 8 }}>
+          <h2 data-tour="evento-setlist" style={{ fontFamily: "'Fraunces', serif", fontSize: 20, margin: 0 }}>Setlist</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {!isCompact && <span style={{ fontSize: 12, color: "var(--wf-faint)" }}>{formatFullDate(event.date) || event.dateLabel}</span>}
+            {canEditNow && event.serviceOrder.length > 1 && (
+              <button
+                onClick={() => { setOrdenando((v) => !v); setMenuItem(null); }}
+                className={ordenando ? undefined : "hoverable"}
+                title={ordenando ? "Terminar de ordenar" : "Cambiar el orden del culto"}
+                style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 800, padding: "7px 14px", borderRadius: 18, cursor: "pointer",
+                  border: ordenando ? "none" : "1px solid var(--wf-border)", background: ordenando ? "#1F8A73" : "var(--wf-card)", color: ordenando ? "#fff" : "var(--wf-text)" }}
+              >
+                {ordenando ? <><Check size={15} /> Listo</> : <><ArrowUpDown size={15} /> Ordenar</>}
+              </button>
+            )}
+            {puedeAgregarAlgo && !ordenando && (
+              <button
+                data-tour="evento-editar-setlist"
+                onClick={() => { onDestinoAgregar?.(null); setShowAgregar(true); }}
+                className="hoverable"
+                style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 800, padding: "7px 14px", borderRadius: 18, border: "none", cursor: "pointer", background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)" }}
+              >
+                <Plus size={15} /> Agregar
+              </button>
+            )}
+          </div>
+        </div>
+        <div style={{ height: 10 }} />
+        {/* Evento nuevo: en vez de verse vacío, dice por dónde empezar. Cada paso se toca para hacerlo
+            y se tacha solo cuando ya está listo; desaparece cuando lo principal está hecho. */}
+        {pasosInicio && (
+          <div style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", marginBottom: 14, overflow: "hidden" }}>
+            <div style={{ padding: "12px 14px 6px", display: "flex", alignItems: "flex-start", gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14.5, fontWeight: 700 }}>Empieza aquí</div>
+                <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>Arma este culto en este orden</div>
+              </div>
+              <button onClick={ocultarPasos} title="Ocultar" aria-label="Ocultar Empieza aquí" style={{ ...iconGhost, width: 26, height: 26 }}><X size={14} /></button>
+            </div>
+            {pasosInicio.map((p, i) => (
+              <button key={p.clave} onClick={p.hecho ? undefined : p.accion} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "11px 14px", border: "none", borderTop: "1px solid var(--wf-divider)", background: "transparent", cursor: p.hecho ? "default" : "pointer", color: "var(--wf-text)" }}>
+                <span style={{ width: 28, height: 28, borderRadius: 14, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, background: p.hecho ? "#E1F5EE" : i === pasosInicio.findIndex((x) => !x.hecho) ? "var(--wf-active-bg)" : "var(--wf-hover)", color: p.hecho ? "#1F8A73" : "var(--wf-active-text)" }}>
+                  {p.hecho ? <Check size={15} /> : i + 1}
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 14, fontWeight: 600, textDecoration: p.hecho ? "line-through" : "none", color: p.hecho ? "var(--wf-muted)" : "var(--wf-text)" }}>{p.titulo}</span>
+                  <span style={{ display: "block", fontSize: 12, color: "var(--wf-muted)" }}>{p.detalle}</span>
+                </span>
+                {!p.hecho && <ChevronRight size={16} color="var(--wf-faint)" />}
+              </button>
+            ))}
+          </div>
+        )}
+        {ordenando ? (
+          <div style={{ paddingBottom: 120 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--wf-text-2)", background: "var(--wf-active-bg)", border: "1px solid #1F8A73", borderRadius: 12, padding: "8px 12px", margin: "6px 0 10px" }}>
+              <ArrowUpDown size={15} color="#1F8A73" style={{ flexShrink: 0 }} />
+              <span>Arrastra cada elemento a su lugar, o usa <b>Mover a…</b>. Toca <b>Listo</b> al terminar.</span>
+            </div>
+            {event.serviceOrder.map((item, idx) => {
+              const meta = TYPE_META[item.type] || TYPE_META.slide;
+              const Icon = meta.icon;
+              const total = event.serviceOrder.length;
+              const esBloque = item.type === "seccion";
+              return (
+                <div key={item.id} {...arrastre.filaProps(idx)} data-item-id={item.id}
+                  style={{ display: "flex", alignItems: "center", gap: 8, height: 50, boxSizing: "border-box", padding: "0 8px 0 10px", marginBottom: 6, borderRadius: 12,
+                    background: esBloque ? "rgba(124,140,216,0.16)" : "var(--wf-card)", border: esBloque ? "1px solid #5661B3" : "1px solid var(--wf-border)",
+                    ...arrastre.estiloFila(idx) }}>
+                  <GripVertical size={16} color={esBloque ? "#5661B3" : "var(--wf-faint)"} style={{ flexShrink: 0 }} />
+                  <span style={{ width: 22, fontSize: 11.5, fontWeight: 700, color: "var(--wf-faint)", textAlign: "right", flexShrink: 0 }}>{idx + 1}</span>
+                  <Icon size={15} color={meta.color} style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: esBloque ? 800 : 600, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nombreDeItem(item)}</span>
+                  <select aria-label={`Mover ${nombreDeItem(item)} a otro lugar`} value="" onChange={(e) => { const h = Number(e.target.value); if (Number.isFinite(h) && h !== idx) onReorder(idx, h); }}
+                    style={{ width: isCompact ? 34 : 104, height: 32, borderRadius: 9, border: "1px solid var(--wf-border)", background: "var(--wf-card)", color: "var(--wf-text)", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0, padding: isCompact ? 0 : "0 6px", fontFamily: "inherit" }}>
+                    <option value="" disabled>{isCompact ? "⋯" : "Mover a…"}</option>
+                    {idx !== 0 && <option value={0}>Al principio</option>}
+                    {event.serviceOrder.map((otro, j) => (j === idx || j === idx - 1 || j === total - 1 ? null : (
+                      <option key={otro.id} value={j > idx ? j : j + 1}>Después de {j + 1}. {nombreDeItem(otro)}</option>
+                    )))}
+                    {idx !== total - 1 && <option value={total - 1}>Al final</option>}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+        ) : visibleServiceOrder.map((item, idx) => {
+          const meta = TYPE_META[item.type];
+          const filaArrastre = arrastre.filaProps(idx);
+          if (item.type === "seccion") {
+            const linkedMinistry = item.ministryId ? ministries.find((m) => m.id === item.ministryId) : null;
+            // La planificación que aparece es la que tiene la MISMA fecha que este evento (no siempre la
+            // primera de la lista) — así, por ejemplo, la Escuelita bíblica trae sola el tema de ese domingo.
+            const currentPlan = linkedMinistry && event.date ? linkedMinistry.plan.find((p) => p.date === event.date) : null;
+            const planStatusText = !linkedMinistry ? null : !event.date ? "Este evento no tiene fecha de calendario — asígnale una para traer la planificación sola." : currentPlan ? null : "Sin planificación cargada para esta fecha.";
+            // Los recursos también son por mes — se traen los del mes de ESTE evento (no "el mes actual",
+            // para que un evento pasado siga mostrando los recursos que de verdad usó ese día).
+            const eventMonth = event.date ? event.date.slice(0, 7) : null;
+            const resourcesForEventMonth = linkedMinistry ? linkedMinistry.resources.filter((r) => r.month === eventMonth) : [];
+            // Quien no es administrador (Miembro, Músico, Multimedia, Supervisor...) ve el equipo
+            // asignado de una, sin tener que tocar el botón de "Encargados" para desplegarlo — mismo
+            // espíritu que ya tenía la vista de Limpieza, ahora aplicado a todo el Setlist.
+            const isExpanded = isAdminViewer ? !!expandedSections[item.id] : true;
+            const canEdit = canEditItem(item);
+            return (
+              <div
+                key={item.id} {...filaArrastre} data-item-id={item.id}
+                style={{
+                  background: "rgba(124,140,216,0.16)", border: "1px solid #5661B3", borderRadius: 14, padding: "12px 14px", marginBottom: 8,
+                  ...arrastre.estiloFila(idx),
+                }}
+              >
+                <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <input
+                      value={item.title} onChange={(e) => onUpdateSeccionText(item.id, "title", e.target.value)} readOnly={!canEdit}
+                      style={{ border: "none", background: "transparent", outline: "none", fontSize: 14, fontWeight: 700, color: "var(--wf-text)", width: "100%", padding: 0, fontFamily: "inherit" }}
+                    />
+                    {linkedMinistry ? (
+                      // Solo el título de la planificación acá (no el detalle completo, que sería
+                      // ilegible en una sola línea) — tocarlo despliega el bosquejo completo y los
+                      // recursos del ministerio abajo, mismo interruptor que el botón de encargados.
+                      <div
+                        onClick={() => setExpandedSections((e) => ({ ...e, [item.id]: !e[item.id] }))}
+                        title={isExpanded ? "Ocultar planificación" : "Ver planificación"}
+                        style={{ fontSize: 12, color: "var(--wf-text-2)", marginTop: 2, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}
+                      >
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{currentPlan ? currentPlan.title : planStatusText}</span>
+                        {isExpanded ? <ChevronUp size={12} style={{ flexShrink: 0 }} /> : <ChevronDown size={12} style={{ flexShrink: 0 }} />}
+                      </div>
+                    ) : (
+                      <input
+                        value={item.description} onChange={(e) => onUpdateSeccionText(item.id, "description", e.target.value)} readOnly={!canEdit}
+                        placeholder="Descripción del bloque..."
+                        style={{ border: "none", background: "transparent", outline: "none", fontSize: 12, color: "var(--wf-text-2)", marginTop: 2, width: "100%", padding: 0, fontFamily: "inherit" }}
+                      />
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                    {/* Para quien no es administrador el equipo ya está siempre visible abajo (ver
+                        isExpanded) — el botón no tendría nada que desplegar, así que se cambia por un
+                        conteo de solo lectura en vez de un botón que no hace nada. */}
+                    {isAdminViewer ? (
+                      <EncargadosToggleButton
+                        count={isWorshipBlock(item) ? (event.worshipRoles || []).reduce((acc, r) => acc + r.members.length, 0) : (item.encargados || []).length}
+                        onClick={() => setExpandedSections((e) => ({ ...e, [item.id]: !e[item.id] }))}
+                      />
+                    ) : (
+                      <span title="Personas asignadas a este bloque" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", padding: "0 4px" }}>
+                        <Users size={14} />
+                        {isWorshipBlock(item) ? (event.worshipRoles || []).reduce((acc, r) => acc + r.members.length, 0) : (item.encargados || []).length}
+                      </span>
+                    )}
+                    {canEditNow && botonMenu(item)}
+                  </div>
+                </div>
+                {bosquejoInfo?.puede(item) && (
+                  <div style={{ marginTop: 10 }}><BotonBosquejo bosquejo={bosquejoInfo.bosquejos[item.id]} onAbrir={() => bosquejoInfo.abrir(item.id)} /></div>
+                )}
+                {!bosquejoInfo?.puede(item) && esBloquePredicacion(item) && bosquejoInfo?.bosquejos[item.id]?.enviadoAt && (
+                  <div style={{ marginTop: 8 }}><EtiquetaBosquejoListo /></div>
+                )}
+
+                {isExpanded && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(124,140,216,0.3)" }}>
+                    {canEditNow && (
+                      <>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>VINCULAR A UN MINISTERIO</div>
+                        <select value={item.ministryId || ""} onChange={(e) => onLinkMinistry(item.id, e.target.value)} style={{ ...inputStyle, marginBottom: linkedMinistry ? 10 : 0 }}>
+                          <option value="">Sin vincular (usar descripción escrita arriba)</option>
+                          {ministries.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
+                      </>
+                    )}
+                    {linkedMinistry && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "10px 12px", marginBottom: 10 }}>
+                        <div style={{ width: 28, height: 28, borderRadius: 12, background: `${linkedMinistry.color}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Users size={14} color={linkedMinistry.color} /></div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700 }}>{linkedMinistry.name}</div>
+                          <div style={{ fontSize: 11, color: "var(--wf-muted)" }}>Líder: {linkedMinistry.leaderName || "Sin asignar"}</div>
+                        </div>
+                        <button onClick={() => onViewMinistry(linkedMinistry.id)} style={{ fontSize: 11, fontWeight: 700, color: "#2F5FA8", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>Ver ministerio <ExternalLink size={12} /></button>
+                      </div>
+                    )}
+                    {/* Bosquejo completo de la semana — el título ya se ve arriba sin desplegar, acá va
+                        el detalle completo para quien esté encargado de este bloque. */}
+                    {linkedMinistry && currentPlan?.detail && (
+                      <div style={{ background: "var(--wf-card)", borderRadius: 12, padding: "10px 12px", marginBottom: 10, boxShadow: "0 3px 14px rgba(22,50,79,0.09)" }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 4 }}>PLANIFICACIÓN DE ESTA SEMANA</div>
+                        <div style={{ fontSize: 12.5, color: "var(--wf-text-2)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{currentPlan.detail}</div>
+                      </div>
+                    )}
+                    {/* Recursos del ministerio (enlaces a documentos, videos, etc.) — antes solo se veían
+                        entrando al ministerio; ahora quien lleva este bloque los tiene aquí mismo. */}
+                    {linkedMinistry && resourcesForEventMonth.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>RECURSOS</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {resourcesForEventMonth.map((r) => (
+                            <a key={r.id} href={r.link || undefined} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", borderRadius: 12, padding: "8px 10px", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", textDecoration: "none", color: "var(--wf-text)", fontSize: 12, fontWeight: 600 }}>
+                              <FolderOpen size={13} color="var(--wf-faint)" />
+                              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</span>
+                              {r.link && <ExternalLink size={12} color="#2F5FA8" style={{ flexShrink: 0 }} />}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {isWorshipBlock(item) ? (
+                      <>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>EQUIPO DE ALABANZA (compartido con Alabanza/Adoración)</div>
+                        <WorshipRolesEditor
+                          roles={event.worshipRoles || []}
+                          canEdit={canEditNow || (lideraBloque(item, gruposQueLidero) && !!linkedMinistry?.permisosLider?.equipo)}
+                          allUsuarios={usuariosReales}
+                          onAddRole={onAddWorshipRole}
+                          onRemoveRole={onRemoveWorshipRole}
+                          onAddMember={onAddWorshipRoleMember}
+                          onSetStatus={onSetWorshipRoleMemberStatus}
+                          onSetLead={onSetWorshipRoleMemberLead}
+                          onRemoveMember={onRemoveWorshipRoleMember}
+                          vistasPorUsuario={vistasPorUsuario}
+                          showVistas={isAdminViewer}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>ENCARGADOS DE ESTE BLOQUE</div>
+                        <EncargadosList
+                          encargados={item.encargados || []}
+                          canEdit={canEdit}
+                          allUsuarios={usuariosReales}
+                          onAddEncargado={(usuario) => onAddEncargado(item.id, usuario)}
+                          onSetStatus={(mi, status) => onSetEncargadoStatus(item.id, mi, status)}
+                          onSetLead={(mi) => onSetEncargadoLead(item.id, mi)}
+                          onRemove={(mi) => onRemoveEncargado(item.id, mi)}
+                          vistasPorUsuario={vistasPorUsuario}
+                          showVistas={isAdminViewer}
+                        />
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          }
+          // En el celular las diapositivas no se muestran (pedido de Eldin, 2026-10-10): ahí solo sirven
+          // los cantos y el orden; las diapositivas se preparan y proyectan desde la computadora.
+          // Excepción (2026-10-25, diseñador en el celular): las diapositivas DISEÑADAS sí se ven, para poder
+          // abrir y retocar desde el teléfono los anuncios que se hicieron ahí.
+          if (isCompact && item.type === "slide" && !item.isSermonPoint && !esGrupoDiapositivas(item)) return null;
+          const song = item.type === "cancion" ? library.find((s) => s.id === item.songId) : null;
+          const effectiveKey = song ? item.keyOverride || song.key : null;
+          const Icon = meta.icon;
+          const canEdit = canEditItem(item);
+          // Miniatura solo de lo que se proyecta tal cual (diseño propio o página importada); las de texto
+          // simple usan el estilo en vivo del momento y se siguen mostrando con su ícono.
+          const diapsItem = esGrupoDiapositivas(item) || esPaginaPresentacion(item) ? diapositivasDeItem(item) : null;
+          return (
+            <div key={item.id} style={{ marginBottom: 8 }}>
+              <div
+                {...filaArrastre}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)",
+                  ...arrastre.estiloFila(idx),
+                }}
+              >
+                {item.type === "cancion" && song ? (
+                  <>
+                    {canEdit ? (
+                      <select
+                        value={effectiveKey}
+                        onChange={(e) => onSetSongKey(item.id, e.target.value, song.key)}
+                        title="Tonalidad para este evento"
+                        style={{ width: getNotacion() === "solfeo" ? 62 : 46, borderRadius: 10, border: `1px solid ${item.keyOverride ? "var(--wf-brand-accent)" : "var(--wf-border-soft)"}`, fontSize: 10, fontWeight: 700, padding: "3px 2px", color: item.keyOverride ? "var(--wf-brand-accent)" : "var(--wf-text-2)", background: "var(--wf-card)", flexShrink: 0 }}
+                      >
+                        {(() => {
+                          const opciones = opcionesTonalidadSetlist(song.key);
+                          // Un cambio viejo que no encaje (ej. hecho antes de esta regla) se sigue mostrando tal cual.
+                          return (opciones.includes(effectiveKey) ? opciones : [effectiveKey, ...opciones]).map((k) => <option key={k} value={k}>{acordeEn(k)}</option>);
+                        })()}
+                      </select>
+                    ) : (
+                      <span style={{ minWidth: 22, height: 22, padding: "0 4px", boxSizing: "border-box", borderRadius: 11, border: "1px solid var(--wf-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{acordeEn(effectiveKey)}</span>
+                    )}
+                    <span style={{ fontSize: 11, color: "var(--wf-muted)", background: "var(--wf-hover)", borderRadius: 16, padding: "3px 8px", flexShrink: 0 }}>{song.tempo} bpm</span>
+                    <span onClick={() => onOpenSong(song.id, item.id)} title="Abrir para tocar en vivo" style={{ fontSize: 13, fontWeight: 600, flex: 1, cursor: "pointer" }}>{song.title}</span>
+                    {song.hasAttachment && <Paperclip size={14} color="var(--wf-faint)" />}
+                  </>
+                ) : (
+                  <>
+                    {diapsItem?.length ? (
+                      <div style={{ position: "relative", width: 64, aspectRatio: "16/9", borderRadius: 6, overflow: "hidden", flexShrink: 0, boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}><DiapositivaDisenada diapositiva={diapsItem[0]} /></div>
+                    ) : (
+                      <div style={{ width: 26, height: 26, borderRadius: 10, background: `${meta.color}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={13} color={meta.color} /></div>
+                    )}
+                    <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{item.type === "biblia" ? item.reference : item.name || item.title}</span>
+                    {diapsItem?.length > 1 && <span style={{ fontSize: 11, color: "var(--wf-muted)", background: "var(--wf-hover)", borderRadius: 14, padding: "2px 8px", flexShrink: 0 }}>{diapsItem.length} diapositivas</span>}
+                    {item.type === "slide" && isAdminViewer && !esGrupoDiapositivas(item) && onEditarItem && (
+                      <button onClick={() => abrirEditarTexto(item)} title="Editar el texto" style={{ ...iconGhost, color: "#2F5FA8" }}><Pencil size={14} /></button>
+                    )}
+                    {item.type === "slide" && isAdminViewer && esGrupoDiapositivas(item) && onAbrirEditor && (
+                      <button onClick={() => onAbrirEditor(item.id)} title="Editar el diseño" style={{ ...iconGhost, color: "#2F5FA8" }}><Pencil size={14} /></button>
+                    )}
+                    {item.isSermonPoint && <span style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-heading)", background: "var(--wf-hover)", borderRadius: 14, padding: "2px 8px", flexShrink: 0 }}>BOSQUEJO</span>}
+                  </>
+                )}
+                {/* Asignar encargados (Encargados) es solo de bloques — una canción/versículo/slide
+                    individual ya no lo ofrece, no tiene sentido asignar una persona "responsable" de
+                    proyectar una diapositiva puntual. */}
+                {canEditNow && botonMenu(item)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {showBibleForm && <BibleModal onClose={() => setShowBibleForm(false)} onAdd={addBible} splitVersesIndividually />}
+      {showSlideForm && <SlideModal iglesiaId={myIglesiaId} draft={slideDraft} setDraft={setSlideDraft} onClose={() => setShowSlideForm(false)} onAdd={addSlide} />}
+      {editTexto && (
+        <SlideModal iglesiaId={myIglesiaId} title="Editar diapositiva" submitLabel="Guardar cambios" draft={editTexto.draft}
+          setDraft={(d) => setEditTexto((e) => ({ ...e, draft: d }))} onClose={() => setEditTexto(null)}
+          onAdd={() => { onEditarItem(editTexto.id, editTexto.draft); setEditTexto(null); }} />
+      )}
+      {showSermonForm && (
+        <ModalShell title="Agregar punto del bosquejo" icon={Mic2} color="var(--wf-heading)" onClose={() => setShowSermonForm(false)}>
+          <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 10 }}>Cada punto se agrega como su propia diapositiva, en el orden en que los escribas — así Multimedia los proyecta uno por uno mientras predicas.</div>
+          <textarea value={sermonPointText} onChange={(e) => setSermonPointText(e.target.value)} placeholder="Ej. Dios cumple sus promesas a su tiempo" style={{ ...inputStyle, height: 80, resize: "none" }} autoFocus />
+          <button onClick={addSermonPoint} style={{ ...primaryBtn, marginTop: 10 }}>Agregar punto</button>
+        </ModalShell>
+      )}
+      {/* Menú "⋯" de un elemento del Setlist */}
+      {itemDelMenu && (() => {
+        const it = itemDelMenu;
+        const indice = event.serviceOrder.findIndex((x) => x.id === it.id);
+        const opcion = (Icon, label, accion, peligro) => (
+          <button key={label} onPointerDown={(e) => e.stopPropagation()} onClick={() => { setMenuItem(null); accion(); }}
+            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "transparent", border: "none", borderRadius: 8, padding: "10px 12px", cursor: "pointer", color: peligro ? "#C23B32" : "var(--wf-text)", fontSize: 14, textAlign: "left", fontFamily: "inherit" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--wf-hover)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+            <Icon size={16} /> {label}
+          </button>
+        );
+        return createPortal(
+          <div onPointerDown={(e) => e.stopPropagation()} role="menu" style={{ position: "fixed", left: Math.max(8, menuItem.x), top: menuItem.y, zIndex: 3000, width: 210, background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: 4, boxShadow: "0 12px 30px rgba(0,0,0,0.3)" }}>
+            {it.type === "slide" && !esGrupoDiapositivas(it) && onEditarItem && opcion(Pencil, "Editar texto", () => abrirEditarTexto(it))}
+            {it.type === "slide" && onAbrirEditor && opcion(PenTool, esGrupoDiapositivas(it) ? "Editar diseño" : "Diseñar (imágenes, plantillas)", () => onAbrirEditor(it.id))}
+            {it.type === "cancion" && opcion(Music, "Abrir la canción", () => onOpenSong(it.songId, it.id))}
+            {it.type === "seccion" && opcion(Users, expandedSections[it.id] ? "Ocultar encargados" : "Ver encargados", () => setExpandedSections((e) => ({ ...e, [it.id]: !e[it.id] })))}
+            {opcion(Copy, "Duplicar", () => onDuplicate(it.id))}
+            {indice > 0 && opcion(ChevronUp, "Subir", () => moverItem(it, -1))}
+            {indice < event.serviceOrder.length - 1 && opcion(ChevronDown, "Bajar", () => moverItem(it, 1))}
+            <div style={{ height: 1, background: "var(--wf-border)", margin: "4px 8px" }} />
+            {opcion(Trash2, it.type === "seccion" ? "Quitar el bloque" : "Quitar", () => quitarConDeshacer(it), true)}
+          </div>,
+          document.body,
+        );
+      })()}
+      {/* "+ Agregar": todas las formas de agregar algo, cada una con su explicación. */}
+      {showAgregar && (
+        <ModalShell title="Agregar al culto" icon={Plus} color="var(--wf-brand-accent)" onClose={() => setShowAgregar(false)}>
+          {onDestinoAgregar && <ElegirParteDelCulto orden={event.serviceOrder} valor={destinoAgregar} onCambiar={onDestinoAgregar} textoSinElegir="Al final del culto" />}
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, margin: "0 -6px" }}>
+            {opcionesAgregar.map((o) => (
+              <button key={o.clave} onClick={() => { setShowAgregar(false); o.accion(); }} className="hoverable"
+                style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "transparent", border: "none", borderRadius: 12, padding: "10px 8px", cursor: "pointer", color: "var(--wf-text)", fontFamily: "inherit" }}>
+                <span style={{ width: 38, height: 38, borderRadius: 11, background: `color-mix(in srgb, ${o.color} 16%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><o.Icon size={19} color={o.color} /></span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>{o.titulo}</span>
+                  <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-muted)" }}>{o.detalle}</span>
+                </span>
+                <ChevronRight size={16} color="var(--wf-faint)" />
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginTop: 10 }}>Luego lo puedes mover con ⋯ → Subir/Bajar, o con el botón Ordenar.</div>
+        </ModalShell>
+      )}
+      {/* Buscar y agregar canciones (en el celular es la forma de agregarlas; en computadora también
+          está la biblioteca a la izquierda). Se queda abierto para agregar varias seguidas. */}
+      {pickerCancion && (
+        <ModalShell alto title="Agregar canciones" icon={Music} color="#1F8A73" onClose={() => { setPickerCancion(false); onDestinoAgregar?.(null); }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10, flexShrink: 0 }}>
+              <Search size={13} color="var(--wf-faint)" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 13, width: "100%" }} />
+            </div>
+          <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginBottom: 10, flexShrink: 0 }}>
+            {[["todos", "Todos"], ...clasificacionesActuales.map((c) => [c.clave, c.nombre])].map(([key, label]) => (
+              <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 20, border: "none", background: libraryCategoryFilter === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: libraryCategoryFilter === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
+            ))}
+          </div>
+          {/* Antes la lista medía media pantalla y en el celular solo se veían ~7 canciones, sin notarse que
+              había más (pedido de Eldin, 2026-10-25). Ahora usa casi todo el alto y dice cuántas hay. */}
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", margin: "0 2px 6px", flexShrink: 0 }}>
+            {filtered.length} {filtered.length === 1 ? "canción" : "canciones"}{libraryCategoryFilter !== "todos" ? ` en ${clasificacionesActuales.find((c) => c.clave === libraryCategoryFilter)?.nombre || "esta sección"}` : ""}{filtered.length > 6 ? " · desliza para ver todas" : ""}
+          </div>
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", margin: "0 -4px", padding: "0 4px" }}>
+            {filtered.map((s) => {
+              const veces = event.serviceOrder.filter((i) => i.type === "cancion" && i.songId === s.id).length;
+              const numeros = numerosElegida(s.id);
+              return (
+                <button key={s.id} onClick={() => { if (!handleAddSong(s.id)) return; setElegidasPicker((l) => [...l, s.id]); showToast(`"${s.title}" se agregó al culto (${elegidasPicker.length + 1}).`, "info"); }} className="hoverable" style={{ width: "100%", textAlign: "left", padding: "10px 10px", marginBottom: 6, borderRadius: 12, background: numeros.length ? "var(--wf-active-bg)" : "transparent", border: numeros.length ? "1px solid #1F8A73" : "1px solid var(--wf-border)", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, color: "var(--wf-text)", fontFamily: "inherit" }}>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>{numeros.length > 0 && <span aria-label={`elegida en el lugar ${numeros.join(" y ")}`} style={{ color: "#1F8A73", fontWeight: 800, marginRight: 6 }}>({numeros.join(", ")})</span>}{s.title}</span>
+                    <span style={{ display: "block", fontSize: 11.5, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)} · {s.tempo} bpm{veces ? <span style={{ color: "var(--wf-muted)", fontFamily: "'Poppins', sans-serif" }}> · ya está en el culto</span> : null}</span>
+                  </span>
+                  <Plus size={18} color="var(--wf-brand-accent)" />
+                </button>
+              );
+            })}
+            {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, padding: "6px 0" }}>Ninguna canción coincide.</div>}
+          </div>
+          <button onClick={() => { setPickerCancion(false); onDestinoAgregar?.(null); }} style={{ ...primaryBtn, marginTop: 10, flexShrink: 0 }}>{elegidasPicker.length ? `Listo · ${elegidasPicker.length} ${elegidasPicker.length === 1 ? "canción agregada" : "canciones agregadas"}` : "Listo"}</button>
+        </ModalShell>
+      )}
+      {showImportar && (
+        <ImportarPresentacion
+          iglesiaId={myIglesiaId} destino="Entra al final del culto. Luego la puedes mover con ⋯ → Subir/Bajar."
+          onClose={() => setShowImportar(false)}
+          onImportar={(items) => { onAddItems(items); setShowImportar(false); }}
+        />
+      )}
+      {showSeccionForm && (
+        <ModalShell title="Agregar bloque del culto" icon={ListMusic} color="#5661B3" onClose={() => setShowSeccionForm(false)}>
+          <Field label="Título" required><input value={seccionDraft.title} onChange={(e) => setSeccionDraft({ ...seccionDraft, title: e.target.value })} placeholder="Ej. Bloque de Alabanza" style={inputStyle} autoFocus /></Field>
+          <div style={{ height: 10 }} />
+          <Field label="Descripción"><textarea value={seccionDraft.description} onChange={(e) => setSeccionDraft({ ...seccionDraft, description: e.target.value })} placeholder="Ej. Guiar a la congregación a una expresión activa de gozo y gratitud." style={{ ...inputStyle, height: 80, resize: "none" }} /></Field>
+          <button onClick={confirmAddSeccion} disabled={!seccionDraft.title.trim()} style={{ ...primaryBtn, marginTop: 14, opacity: seccionDraft.title.trim() ? 1 : 0.4, cursor: seccionDraft.title.trim() ? "pointer" : "not-allowed" }}>Agregar bloque</button>
+        </ModalShell>
+      )}
+    </div>
+  );
+}
+
+// ---------- Biblia completa y buscable: se consulta en vivo (fetch) a la API pública bolls.life, así el
+// operador navega Libro → Capítulo → Versículo(s) sin tener que escribir ni copiar/pegar el texto. Se
+// cachea por versión a nivel de módulo para no repetir la descarga de la lista de libros en cada apertura. ----------
+const bibleBooksCache = {};
+// Si falla el pedido en vivo (sin internet, API caída) se cae a la última lista de libros guardada
+// localmente — es un archivo chico (unos 66 nombres), así que basta con offlineCache. El texto de
+// cada capítulo, mucho más pesado, vive aparte en IndexedDB (ver bibleOfflineStore.js).
+async function fetchBibleBooks(version) {
+  if (bibleBooksCache[version]) return bibleBooksCache[version];
+  try {
+    const res = await fetch(`https://bolls.life/get-books/${version}/`);
+    if (!res.ok) throw new Error("No se pudo cargar la lista de libros.");
+    const data = await res.json();
+    bibleBooksCache[version] = data;
+    saveCache(`biblia_libros_${version}`, data);
+    return data;
+  } catch (e) {
+    const cached = loadCache(`biblia_libros_${version}`);
+    if (cached) { bibleBooksCache[version] = cached; return cached; }
+    throw e;
+  }
+}
+async function fetchBibleChapter(version, bookId, chapter) {
+  try {
+    const res = await fetch(`https://bolls.life/get-chapter/${version}/${bookId}/${chapter}/`);
+    if (!res.ok) throw new Error("No se pudo cargar el capítulo.");
+    const data = await res.json();
+    guardarCapituloOffline(version, bookId, chapter, data); // sin esperarlo: no atrasa la lectura por guardar
+    return data;
+  } catch (e) {
+    const offline = await obtenerCapituloOffline(version, bookId, chapter);
+    if (offline) return offline;
+    throw e;
+  }
+}
+// La API devuelve <mark> alrededor de las palabras encontradas y a veces <br> dentro del texto (saltos de
+// línea de poesía) — se limpia para mostrarlo como texto plano, igual que el resto de la app.
+
+// Búsqueda por palabras (pedido de Eldin, 2026-10-21 — antes pedía la frase exacta y fallaba mucho):
+// 1. Si se escribió una cita ("stgo 4:1", "jn 3 16", "salmo 23") abre ese pasaje.
+// 2. Con la Biblia guardada en el equipo: todas las palabras en cualquier orden, sin tildes y con faltas
+//    de ortografía (índice en memoria, ver lib/buscarBiblia.js).
+// 3. Si no está guardada: la API (palabras bien escritas), filtrada a los que tienen TODAS las palabras.
+// 4. Si en esta versión no aparece (ej. "cosecharemos" no existe en RV1960, ahí dice "segaremos"),
+//    busca en NTV/LBLA/PDT y ofrece proyectar ese mismo versículo en la versión elegida.
+const indicesBiblia = {};
+// La consola baja sola la RV1960 al equipo la primera vez que se abre la Biblia (unos minutos, en segundo
+// plano): con ella guardada la búsqueda aguanta faltas de ortografía y funciona sin internet.
+const descargaAuto = { estado: "inactivo", hechos: 0, total: 0, oyentes: new Set() };
+const avisarDescargaAuto = () => descargaAuto.oyentes.forEach((f) => f());
+async function arrancarDescargaAuto() {
+  if (descargaAuto.estado !== "inactivo" || (typeof navigator !== "undefined" && navigator.onLine === false)) return;
+  descargaAuto.estado = "revisando";
+  try {
+    const libros = await fetchBibleBooks(BIBLE_OFFLINE_VERSION);
+    const total = libros.reduce((acc, b) => acc + b.chapters, 0);
+    const guardados = await contarCapitulosGuardados(BIBLE_OFFLINE_VERSION);
+    if (guardados >= total) { descargaAuto.estado = "lista"; avisarDescargaAuto(); return; }
+    descargaAuto.estado = "bajando"; descargaAuto.hechos = guardados; descargaAuto.total = total; avisarDescargaAuto();
+    const r = await descargarBibliaCompleta(BIBLE_OFFLINE_VERSION, {
+      fetchBooks: fetchBibleBooks, fetchChapter: fetchBibleChapter,
+      onProgress: (h, t) => { descargaAuto.hechos = h; descargaAuto.total = t; if (h % 25 === 0) avisarDescargaAuto(); },
+    });
+    delete indicesBiblia[BIBLE_OFFLINE_VERSION];
+    descargaAuto.estado = r.cancelado ? "inactivo" : "lista";
+  } catch {
+    descargaAuto.estado = "inactivo"; // se vuelve a intentar la próxima vez que se abra la Biblia
+  }
+  avisarDescargaAuto();
+}
+function useBibliaParaBuscar() {
+  const [, redibujar] = useState(0);
+  useEffect(() => {
+    const f = () => redibujar((x) => x + 1);
+    descargaAuto.oyentes.add(f);
+    arrancarDescargaAuto();
+    return () => { descargaAuto.oyentes.delete(f); };
+  }, []);
+  return { lista: descargaAuto.estado === "lista", bajando: descargaAuto.estado === "bajando", porcentaje: descargaAuto.total ? Math.round((descargaAuto.hechos / descargaAuto.total) * 100) : 0 };
+}
+async function indiceBibliaLocal(version) {
+  if (!indicesBiblia[version]) {
+    indicesBiblia[version] = todosLosVersiculosOffline(version).then((caps) => (caps.length >= 1100 ? crearIndice(caps) : null));
+  }
+  const indice = await indicesBiblia[version].catch(() => null);
+  if (!indice) delete indicesBiblia[version]; // incompleta: se vuelve a intentar cuando termine de bajar
+  return indice;
+}
+async function buscarEnApiBiblia(version, texto) {
+  const res = await fetch(`https://bolls.life/v2/find/${version}?search=${encodeURIComponent(texto)}&match_case=false`);
+  if (!res.ok) throw new Error("No se pudo buscar en la Biblia.");
+  const data = await res.json();
+  // Por si otra versión también queda bloqueada: nunca ofrecer un "versículo" que es un aviso legal.
+  return (data.results || []).filter((r) => !/prohibi[oó] usar la traducci[oó]n/i.test(stripBibleSearchMarkup(r.text)));
+}
+async function searchBibleVerses(version, query, books) {
+  const cita = leerCita(query, books);
+  if (cita) {
+    const { libro, capitulo, desde, hasta } = cita;
+    const verses = await fetchBibleChapter(version, libro.bookid, capitulo);
+    const elegidos = desde ? verses.filter((v) => v.verse >= desde && v.verse <= hasta) : verses;
+    return {
+      cita: `${libro.name} ${capitulo}${desde ? `:${desde}${hasta > desde ? `-${hasta}` : ""}` : ""}`,
+      resultados: elegidos.map((v) => ({ pk: `${libro.bookid}-${capitulo}-${v.verse}`, book: libro.bookid, chapter: capitulo, verse: v.verse, text: stripBibleSearchMarkup(v.text) })),
+    };
+  }
+  const indice = await indiceBibliaLocal(version);
+  if (indice) {
+    const r = buscarEnIndice(indice, query);
+    if (r.length) return { resultados: r };
+  }
+  let resultados = [];
+  let sinInternet = null;
+  try {
+    resultados = filtrarResultadosApi(await buscarEnApiBiblia(version, query), query);
+    if (!resultados.length) {
+      // La API a veces no trae nada con varias palabras: se prueba con las más largas una por una.
+      const largas = normalizarBusqueda(query).split(" ").filter((p) => p.length >= 4).sort((a, b) => b.length - a.length).slice(0, 2);
+      for (const w of largas) {
+        resultados = filtrarResultadosApi(await buscarEnApiBiblia(version, w), query);
+        if (resultados.length) break;
+      }
+    }
+  } catch (e) {
+    sinInternet = e;
+    // Sin conexión y sin la Biblia completa: busca en lo que sí se haya guardado.
+    if (!indice) {
+      const capitulos = await todosLosVersiculosOffline(version);
+      if (!capitulos.length) throw e;
+      const todos = capitulos.flatMap((cap) => cap.verses.map((v) => ({ pk: `${cap.bookId}-${cap.chapter}-${v.verse}`, book: cap.bookId, chapter: cap.chapter, verse: v.verse, text: v.text })));
+      resultados = filtrarResultadosApi(todos, query);
+    }
+  }
+  if (resultados.length) return { resultados: resultados.slice(0, 60) };
+  if (!sinInternet) {
+    for (const otra of ["NTV", "LBLA", "PDT"].filter((v) => v !== version)) {
+      try {
+        const r = filtrarResultadosApi(await buscarEnApiBiblia(otra, query), query);
+        if (r.length) return { resultados: r.slice(0, 30), otraVersion: otra };
+      } catch { /* sigue con la siguiente */ }
+    }
+  }
+  return { resultados: [] };
+}
+// Para "Siguiente/Anterior versículo" en vivo: busca el versículo justo después (direction=1) o antes
+// (direction=-1) de fromVerse, cruzando al capítulo siguiente/anterior del mismo libro si hace falta.
+// Devuelve null cuando ya no hay más (por ejemplo, se llegó al final del libro).
+async function fetchAdjacentBibleVerse(version, bookId, chapter, fromVerse, direction) {
+  const chapterVerses = await fetchBibleChapter(version, bookId, chapter);
+  const idx = chapterVerses.findIndex((v) => v.verse === fromVerse);
+  const nextIdx = (idx === -1 ? (direction > 0 ? -1 : chapterVerses.length) : idx) + direction;
+  if (nextIdx >= 0 && nextIdx < chapterVerses.length) {
+    const v = chapterVerses[nextIdx];
+    return { chapter, verse: v.verse, text: stripBibleSearchMarkup(v.text) };
+  }
+  const books = await fetchBibleBooks(version);
+  const book = books.find((b) => b.bookid === bookId);
+  const targetChapter = chapter + direction;
+  if (!book || targetChapter < 1 || targetChapter > book.chapters) return null;
+  const targetVerses = await fetchBibleChapter(version, bookId, targetChapter);
+  if (!targetVerses.length) return null;
+  const v = direction > 0 ? targetVerses[0] : targetVerses[targetVerses.length - 1];
+  return { chapter: targetChapter, verse: v.verse, text: stripBibleSearchMarkup(v.text), bookName: book.name };
+}
+
+// Cuerpo del buscador de Biblia, sin el modal alrededor — se reutiliza tal cual dentro de un <ModalShell>
+// (Setlist: "Agregar versículo") y también suelto dentro de un panel lateral angosto (En vivo: versículo
+// improvisado), que es justo la manera compacta en la que se quería ver esto en el dashboard en vivo.
+function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", splitVersesIndividually = false }) {
+  const [mode, setMode] = useState("browse"); // browse: biblia completa en vivo · manual: escribir a mano
+  const [version, setVersion] = useState(BIBLE_VERSIONS[0].code);
+  const [books, setBooks] = useState(null);
+  const [bookFilter, setBookFilter] = useState("");
+  const [selectedBook, setSelectedBook] = useState(null);
+  const [selectedChapter, setSelectedChapter] = useState(null);
+  const [verses, setVerses] = useState(null);
+  const [range, setRange] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [custom, setCustom] = useState({ ref: "", version: BIBLE_VERSIONS[0].code, text: "" });
+
+  useEffect(() => {
+    if (mode !== "browse") return;
+    setLoading(true); setLoadError("");
+    fetchBibleBooks(version).then(setBooks).catch((e) => setLoadError(e.message)).finally(() => setLoading(false));
+  }, [mode, version]);
+
+  const backToBooks = () => { setSelectedBook(null); setSelectedChapter(null); setVerses(null); setRange(null); };
+  const backToChapters = () => { setSelectedChapter(null); setVerses(null); setRange(null); };
+  const openChapter = (book, chapter) => {
+    setSelectedBook(book); setSelectedChapter(chapter); setRange(null); setVerses(null);
+    setLoading(true); setLoadError("");
+    fetchBibleChapter(version, book.bookid, chapter).then(setVerses).catch((e) => setLoadError(e.message)).finally(() => setLoading(false));
+  };
+  const pickVerse = (v) => {
+    setRange((r) => {
+      if (!r || r.start !== r.end) return { start: v, end: v }; // sin selección, o el rango anterior ya estaba cerrado: empieza uno nuevo
+      return { start: Math.min(r.start, v), end: Math.max(r.start, v) }; // había un solo versículo elegido: lo convierte en rango
+    });
+  };
+  const confirmRange = () => {
+    if (!range || !verses) return;
+    const picked = verses.filter((v) => v.verse >= range.start && v.verse <= range.end);
+    // bookId/chapter/verseStart/verseEnd quedan guardados para poder usar "Siguiente versículo" y cambiar de
+    // versión en vivo más adelante sin tener que volver a abrir este buscador (ver MultimediaControl).
+    if (splitVersesIndividually && picked.length > 1) {
+      // Cada versículo del rango se agrega como su propia diapositiva — así quien lee puede avanzar
+      // versículo por versículo en vivo, en vez de tener un solo bloque con todos juntos.
+      picked.forEach((v) => {
+        onAdd({ ref: `${selectedBook.name} ${selectedChapter}:${v.verse}`, version, text: stripBibleSearchMarkup(v.text), bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: v.verse, verseEnd: v.verse });
+      });
+      return;
+    }
+    const text = picked.map((v) => stripBibleSearchMarkup(v.text)).join(" ");
+    const ref = range.start === range.end ? `${selectedBook.name} ${selectedChapter}:${range.start}` : `${selectedBook.name} ${selectedChapter}:${range.start}-${range.end}`;
+    onAdd({ ref, version, text, bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: range.start, verseEnd: range.end });
+  };
+  const filteredBooks = books ? books.filter((b) => normalizarBusqueda(b.name).includes(normalizarBusqueda(bookFilter))) : [];
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 12, width: "fit-content" }}>
+        {[["browse", "Buscar en la Biblia"], ["manual", "Escribir manualmente"]].map(([val, label]) => (
+          <button key={val} onClick={() => setMode(val)} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: mode === val ? "var(--wf-brand-accent)" : "transparent", color: mode === val ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{label}</button>
+        ))}
+      </div>
+
+      {mode === "manual" && (
+        <>
+          <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, marginBottom: 8 }}>ACCESO RÁPIDO</div>
+          {BIBLE_QUICK.map((b) => (
+            <button key={b.ref} onClick={() => onAdd(b)} className="hoverable" style={{ ...addBtnStyle, textAlign: "left", marginBottom: 6 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{b.ref}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "#2F5FA8", background: "#EAF0FA", borderRadius: 10, padding: "1px 5px" }}>{b.version}</span>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{b.text}</div>
+              </div>
+            </button>
+          ))}
+          <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, margin: "14px 0 8px" }}>O ESCRIBE UNO NUEVO</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input placeholder="Referencia (ej. Juan 3:16)" value={custom.ref} onChange={(e) => setCustom({ ...custom, ref: e.target.value })} style={{ ...inputStyle, flex: 1 }} />
+            <select value={custom.version} onChange={(e) => setCustom({ ...custom, version: e.target.value })} style={{ ...inputStyle, width: 100 }}>
+              {BIBLE_VERSIONS.map((v) => <option key={v.code} value={v.code}>{v.code}</option>)}
+            </select>
+          </div>
+          <textarea placeholder="Texto a proyectar..." value={custom.text} onChange={(e) => setCustom({ ...custom, text: e.target.value })} style={{ ...inputStyle, height: 70, marginTop: 8, resize: "none" }} />
+          <button onClick={() => custom.ref && custom.text && onAdd(custom)} style={{ ...primaryBtn, marginTop: 10 }}>{submitLabel}</button>
+        </>
+      )}
+
+      {mode === "browse" && (
+        <>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+            {BIBLE_VERSIONS.map((v) => (
+              <button key={v.code} onClick={() => setVersion(v.code)} title={v.label} style={{ fontSize: 11, fontWeight: 700, padding: "5px 9px", borderRadius: 12, border: version === v.code ? "2px solid #2F5FA8" : "1px solid var(--wf-border)", background: version === v.code ? "#EAF0FA" : "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer" }}>{v.code}</button>
+            ))}
+          </div>
+
+          {(selectedBook || selectedChapter) && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#2F5FA8", fontWeight: 700, marginBottom: 10 }}>
+              <span onClick={backToBooks} style={{ cursor: "pointer" }}>Libros</span>
+              {selectedBook && <><ChevronRight size={12} /><span onClick={backToChapters} style={{ cursor: "pointer" }}>{selectedBook.name}</span></>}
+              {selectedChapter && <><ChevronRight size={12} /><span>Cap. {selectedChapter}</span></>}
+            </div>
+          )}
+
+          {loading && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 0", textAlign: "center" }}>Cargando…</div>}
+          {loadError && <div style={{ fontSize: 12, color: "#C23B32", padding: "10px 0" }}>{loadError} Revisa tu conexión a internet e intenta de nuevo.</div>}
+
+          {!loading && !loadError && !selectedBook && books && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
+                <Search size={13} color="var(--wf-faint)" />
+                <input value={bookFilter} onChange={(e) => setBookFilter(e.target.value)} placeholder="Buscar libro (ej. Juan, Salmos)…" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 12, width: "100%" }} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, maxHeight: 320, overflowY: "auto" }}>
+                {filteredBooks.map((b) => (
+                  <button key={b.bookid} onClick={() => setSelectedBook(b)} className="hoverable" style={{ ...addBtnStyle, textAlign: "left" }}>{b.name}</button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {!loading && !loadError && selectedBook && !selectedChapter && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6, maxHeight: 320, overflowY: "auto" }}>
+              {Array.from({ length: selectedBook.chapters }, (_, i) => i + 1).map((c) => (
+                <button key={c} onClick={() => openChapter(selectedBook, c)} style={{ padding: "8px 0", borderRadius: 12, border: "1px solid var(--wf-border)", background: "var(--wf-card)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{c}</button>
+              ))}
+            </div>
+          )}
+
+          {!loading && !loadError && selectedBook && selectedChapter && verses && (
+            <>
+              <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 8 }}>
+                Toca un versículo para empezar, y otro para armar un rango.
+                {splitVersesIndividually && " Cada versículo del rango se agrega como su propia diapositiva."}
+              </div>
+              <div style={{ maxHeight: 300, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+                {verses.map((v) => {
+                  const inRange = range && v.verse >= range.start && v.verse <= range.end;
+                  return (
+                    <button key={v.verse} onClick={() => pickVerse(v.verse)} style={{ textAlign: "left", padding: "6px 8px", borderRadius: 12, border: inRange ? "1px solid #2F5FA8" : "1px solid transparent", background: inRange ? "#EAF0FA" : "transparent", cursor: "pointer", fontSize: 12.5, color: "var(--wf-text)", lineHeight: 1.45 }}>
+                      <b style={{ color: "#2F5FA8" }}>{v.verse}</b> {stripBibleSearchMarkup(v.text)}
+                    </button>
+                  );
+                })}
+              </div>
+              {range && (
+                <button onClick={confirmRange} style={{ ...primaryBtn, marginTop: 12 }}>
+                  {submitLabel} · {selectedBook.name} {selectedChapter}:{range.start === range.end ? range.start : `${range.start}-${range.end}`}
+                  {splitVersesIndividually && range.end > range.start ? ` (${range.end - range.start + 1} diapositivas)` : ""}
+                </button>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+function BibleModal({ onClose, onAdd, title = "Agregar versículo", submitLabel = "Agregar al servicio", splitVersesIndividually = false }) {
+  return (
+    <ModalShell title={title} icon={BookOpen} color="#2F5FA8" onClose={onClose}>
+      <BibleBrowserBody onAdd={onAdd} submitLabel={submitLabel} splitVersesIndividually={splitVersesIndividually} />
+    </ModalShell>
+  );
+}
+// Subir una imagen/video de fondo + elegir entre lo ya subido antes -- reemplaza el patrón viejo de
+// "subir = FileReader.readAsDataURL" (guardaba el archivo entero como texto base64 dentro del propio
+// registro, pesadísimo y sin forma de reutilizarlo). Ahora sube a Supabase Storage (lib/multimedia.js)
+// y la galería de abajo deja elegir cualquier archivo ya subido antes por esta iglesia, sin resubirlo.
+function MediaPicker({ iglesiaId, tipo, value, onChange, color = "#B15EA0" }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const [showGallery, setShowGallery] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const cargar = () => {
+    if (!iglesiaId) return;
+    setLoading(true);
+    listarFondos(iglesiaId, tipo).then(setItems).catch(() => {}).finally(() => setLoading(false));
+  };
+  useEffect(() => {
+    if (showGallery) cargar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showGallery, iglesiaId, tipo]);
+
+  const subir = async (file) => {
+    if (!file || !iglesiaId) return;
+    setUploading(true); setError("");
+    try {
+      const url = await subirFondo(iglesiaId, tipo, file);
+      onChange(url);
+      setShowGallery(true);
+      cargar();
+    } catch (e) {
+      setError(e.message || "No se pudo subir el archivo.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const eliminar = async (item, e) => {
+    e.stopPropagation();
+    if (!(await confirmDialog(`¿Quitar "${item.nombre}" de la biblioteca? Donde ya esté puesto como fondo no cambia, pero ya no se podrá volver a elegir.`, { danger: true, textoConfirmar: "Quitar" }))) return;
+    try {
+      await borrarFondo(item.ruta);
+      setItems((its) => its.filter((i) => i.ruta !== item.ruta));
+    } catch (err) {
+      notifyError("No se pudo quitar el archivo", err);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="hoverable" style={{ ...addBtnStyle, flex: 1, opacity: uploading ? 0.6 : 1 }}>
+          {value ? (
+            tipo === "imagen"
+              ? <span style={{ width: 16, height: 16, borderRadius: 8, backgroundImage: `url(${value})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />
+              : <Play size={13} color={color} />
+          ) : tipo === "imagen" ? <ImgIcon size={13} color="var(--wf-faint)" /> : <Play size={13} color="var(--wf-faint)" />}
+          <span>{uploading ? "Subiendo…" : value ? "Cambiar — tocar para subir otro" : `Subir ${tipo === "imagen" ? "imagen" : "video"} nuevo`}</span>
+        </button>
+        <button type="button" onClick={() => setShowGallery((s) => !s)} className="hoverable" title="Elegir de lo ya subido antes" style={{ ...addBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}>
+          <LayoutGrid size={13} color={color} /> Biblioteca
+        </button>
+      </div>
+      <input ref={fileInputRef} type="file" accept={tipo === "imagen" ? "image/*" : "video/*"} style={{ display: "none" }} onChange={(e) => { subir(e.target.files?.[0]); e.target.value = ""; }} />
+      {error && <div style={{ fontSize: 11, color: "#C23B32", marginTop: 6 }}>{error}</div>}
+      {showGallery && (
+        <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 8, maxHeight: 220, overflowY: "auto", background: "var(--wf-hover)", borderRadius: 12, padding: 8 }}>
+          {loading && <div style={{ fontSize: 11, color: "var(--wf-faint)", gridColumn: "1/-1" }}>Cargando…</div>}
+          {!loading && items.length === 0 && <div style={{ fontSize: 11, color: "var(--wf-faint)", gridColumn: "1/-1" }}>Todavía no hay {tipo === "imagen" ? "imágenes" : "videos"} guardados — sube el primero arriba.</div>}
+          {items.map((item) => (
+            <div key={item.ruta} onClick={() => onChange(item.url)} title={item.nombre} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", cursor: "pointer", background: "#000", border: value === item.url ? `2px solid ${color}` : "1px solid var(--wf-border)" }}>
+              {tipo === "imagen" ? (
+                <div style={{ width: "100%", height: "100%", backgroundImage: `url(${item.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+              ) : (
+                <video src={item.url} muted preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              )}
+              <button type="button" onClick={(e) => eliminar(item, e)} title="Quitar de la biblioteca" style={{ position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: 9, border: "none", background: "rgba(0,0,0,0.65)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}><Trash2 size={10} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+// "¿En qué parte del culto va?" — fila de botones con los bloques del culto (pedido de Eldin,
+// 2026-10-11). valor: id del bloque elegido o null (textoSinElegir: "Al final del culto", "Después de
+// lo que estás viendo"...). Se usa en "+ Agregar" del Setlist y de la consola.
+function ElegirParteDelCulto({ orden, valor, onCambiar, textoSinElegir }) {
+  // Lista desplegable (pedido de Eldin, 2026-10-11: mejor que burbujas).
+  const bloques = bloquesDelCulto(orden);
+  if (bloques.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--wf-divider)" }}>
+      <label htmlFor="parte-del-culto" style={{ display: "block", fontSize: 12, fontWeight: 800, color: "var(--wf-text)", marginBottom: 7 }}>¿En qué parte del culto va?</label>
+      <select id="parte-del-culto" value={valor || ""} onChange={(e) => onCambiar(e.target.value || null)}
+        style={{ ...inputStyle, fontSize: 14, fontWeight: 600, cursor: "pointer", borderColor: valor ? "var(--wf-brand-accent)" : undefined }}>
+        <option value="">{textoSinElegir}</option>
+        {bloques.map((b) => <option key={b.id} value={b.id}>{b.titulo}</option>)}
+      </select>
+    </div>
+  );
+}
+const etiquetaCampo = { display: "block", fontSize: 11.5, fontWeight: 800, color: "var(--wf-text)", marginBottom: 6, letterSpacing: 0.2 };
+function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositiva de texto", submitLabel = "Agregar al culto", iglesiaId }) {
+  const bgOptions = ["#1B2029", "#2A1F33", "#1F2A2C", "#332420"];
+  const bgType = draft.bgType || "color";
+  return (
+    <ModalShell title={title} icon={ImgIcon} color="#B15EA0" onClose={onClose}>
+      {/* Textarea, no input: para un texto largo se puede tocar Enter y armar el salto de línea a mano
+          (dónde se corta cada línea en la proyección), en vez de dejarlo todo al ajuste automático. */}
+      {/* Contenido (lo que se proyecta) separado del NOMBRE (cómo aparece en la lista y en la miniatura)
+          — pedido de Eldin, 2026-10-11, para que no se confundan. */}
+      <label style={etiquetaCampo}>Contenido · lo que se ve en la pantalla</label>
+      <textarea placeholder="Escribe el texto que se va a proyectar (Enter para cambiar de línea). Opcional si es solo imagen o video." value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} style={{ ...inputStyle, height: 80, resize: "none" }} />
+      <textarea placeholder="Texto pequeño debajo (opcional)" value={draft.subtitle} onChange={(e) => setDraft({ ...draft, subtitle: e.target.value })} style={{ ...inputStyle, height: 44, resize: "none", marginTop: 8 }} />
+      {(draft.subtitle || "").trim() && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 2 }}>
+            <span>Tamaño del texto pequeño (comparado con el contenido)</span><b>{Math.round((draft.escalaSubtitulo ?? 0.65) * 100)}%</b>
+          </div>
+          <input type="range" min={0.4} max={0.9} step={0.05} value={draft.escalaSubtitulo ?? 0.65} onChange={(e) => setDraft({ ...draft, escalaSubtitulo: parseFloat(e.target.value) })} style={{ width: "100%", accentColor: "var(--wf-brand-accent)" }} />
+        </div>
+      )}
+      <label style={{ ...etiquetaCampo, marginTop: 14 }}>Nombre de la diapositiva · no se proyecta</label>
+      <input placeholder={`Ej. "Anuncio de ayuno" — así sale en el orden del culto y en la miniatura`} value={draft.name || ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={inputStyle} />
+      <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 5 }}>Si lo dejas vacío, se usa el contenido como nombre.</div>
+      <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, margin: "14px 0 8px" }}>FONDO</div>
+      <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 10, width: "fit-content" }}>
+        {[["color", "Color"], ["imagen", "Imagen"], ["video", "Video"]].map(([val, label]) => (
+          <button key={val} onClick={() => setDraft({ ...draft, bgType: val })} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: bgType === val ? "var(--wf-brand-accent)" : "transparent", color: bgType === val ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{label}</button>
+        ))}
+      </div>
+      {bgType === "color" && (
+        <div style={{ display: "flex", gap: 8 }}>
+          {bgOptions.map((c) => (<button key={c} onClick={() => setDraft({ ...draft, bg: c })} style={{ width: 34, height: 34, borderRadius: 12, background: c, border: draft.bg === c ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", cursor: "pointer" }} />))}
+        </div>
+      )}
+      {bgType === "imagen" && (
+        <div>
+          <MediaPicker iglesiaId={iglesiaId} tipo="imagen" value={draft.imageUrl} onChange={(url) => setDraft({ ...draft, imageUrl: url })} />
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Se estira para cubrir toda la pantalla. Si dejas el título vacío, se proyecta a pantalla completa sin texto encima.</div>
+        </div>
+      )}
+      {bgType === "video" && (
+        <div>
+          {/* El filtro !startsWith("http") es solo para no mostrar un video base64 viejo (de antes de
+              este cambio) hecho ilegible dentro de este campo de texto -- uno nuevo (subido o elegido de
+              la biblioteca) siempre es una URL https:// real, así que nunca lo oculta. */}
+          <input placeholder="o pega un enlace https://... (mp4 de fondo)" value={draft.videoUrl && !draft.videoUrl.startsWith("http") ? "" : draft.videoUrl || ""} onChange={(e) => setDraft({ ...draft, videoUrl: e.target.value })} style={{ ...inputStyle, marginBottom: 8 }} />
+          <MediaPicker iglesiaId={iglesiaId} tipo="video" value={draft.videoUrl} onChange={(url) => setDraft({ ...draft, videoUrl: url })} />
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Se reproduce en bucle y sin sonido. Si dejas el título vacío, se proyecta a pantalla completa sin texto encima.</div>
+        </div>
+      )}
+      <button onClick={onAdd} style={{ ...primaryBtn, marginTop: 14 }}>{submitLabel}</button>
+    </ModalShell>
+  );
+}
+// ---------------- CONTENIDO IMPROVISADO EN VIVO (no toca el setlist) ----------------
+function AdHocSongModal({ library, onClose, onPick, Icono = null, color = "#5661B3", titulo = "Proyectar una canción", ayuda = "Busca cualquier canción de la biblioteca, aunque no esté en el setlist de hoy." }) {
+  const [query, setQuery] = useState("");
+  const filtered = buscarCanciones(library, query);
+  return (
+    <ModalShell title={titulo} icon={Icono || Music} color={color} onClose={onClose}>
+      <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 10 }}>{ayuda}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
+        <Search size={13} color="var(--wf-faint)" />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} autoFocus placeholder="Buscar canción (aunque esté mal escrita)…" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 12, width: "100%" }} />
+      </div>
+      {filtered.map((s) => (
+        <button key={s.id} onClick={() => onPick(s)} className="hoverable" style={{ ...addBtnStyle, textAlign: "left", marginBottom: 6 }}>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</div><div style={{ fontSize: 11, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)} · {s.tempo} bpm</div></div>
+          {Icono && <Icono size={16} color={color} style={{ flexShrink: 0 }} />}
+        </button>
+      ))}
+      {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>No hay canciones que coincidan.</div>}
+    </ModalShell>
+  );
+}
+function AdHocVideoModal({ onClose, onPlay }) {
+  const [url, setUrl] = useState("");
+  const fileInputRef = useRef(null);
+  const uploadVideoFile = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => onPlay(reader.result);
+    reader.readAsDataURL(file);
+  };
+  return (
+    <ModalShell title="Proyectar un video" icon={ImgIcon} color="#C23B32" onClose={onClose}>
+      <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 10 }}>Se proyecta a pantalla completa de inmediato, sin agregarse al setlist.</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input placeholder="https://... (mp4)" value={url} onChange={(e) => setUrl(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+        <button onClick={() => fileInputRef.current?.click()} style={{ ...addBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}><Paperclip size={14} color="#C23B32" /> Subir video</button>
+        <input ref={fileInputRef} type="file" accept="video/*" style={{ display: "none" }} onChange={(e) => { uploadVideoFile(e.target.files?.[0]); e.target.value = ""; }} />
+      </div>
+      <button onClick={() => url && onPlay(url)} style={{ ...primaryBtn, marginTop: 14 }}>Proyectar ahora</button>
+    </ModalShell>
+  );
+}
+function ModalShell({ title, icon: Icon, color, onClose, children, alto = false }) {
+  // Portal a document.body (no un <div> normal en el sitio donde se usa <ModalShell>) — "position:
+  // fixed" por sí solo no basta: si algún ancestro tiene un transform activo (ej. SongView, que anima
+  // transform al deslizar entre canciones del Setlist), ese ancestro se vuelve el "contenedor" del
+  // fixed y el modal queda atrapado ahí en vez de la pantalla real — mezclado con el scroll de esa
+  // vista, a veces cortado a la mitad. Un portal a <body> lo saca del todo de ese árbol, así que
+  // siempre se ve completo y centrado en la pantalla real, sin importar desde dónde se abra.
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+      {/* alto: usa casi toda la pantalla y deja que una lista de adentro (flex: 1) llene el espacio. */}
+      <div style={alto
+        ? { background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 16, padding: 18, width: "min(440px, calc(100vw - 20px))", height: "calc(100dvh - 24px)", maxHeight: "calc(100vh - 24px)", boxSizing: "border-box", display: "flex", flexDirection: "column", overflow: "hidden" }
+        : { background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 16, padding: 20, width: 360, maxHeight: "80vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Icon size={16} color={color} /><span style={{ fontWeight: 700, fontSize: 14 }}>{title}</span></div>
+          <button onClick={onClose} style={iconGhost}><X size={16} /></button>
+        </div>
+        {children}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ---------------- BIBLIA EN VIVO (estilo Proyektor: 3 columnas, clic en un versículo proyecta al instante) ----------------
+// Columna 1: libros divididos en Antiguo/Nuevo Testamento (bookid 1-39 = AT, 40-66 = NT en bolls.life).
+// Columna 2: versión arriba, capítulos del libro elegido, e historial de versículos ya proyectados esta
+// sesión — así el operador vuelve rápido a un pasaje que el pastor ya citó antes, sin tener que buscarlo
+// de nuevo. Columna 3: el capítulo completo; tocar un versículo lo proyecta de inmediato, sin botón de
+// confirmación (a diferencia del buscador del Setlist, aquí no se arma un rango: es lectura en vivo).
+function BibleLivePanel({ version, setVersion, history, setHistory, onProject, liveVerse, palabrasPorParte = 40 }) {
+  const [books, setBooks] = useState(null);
+  const [loadError, setLoadError] = useState("");
+  const [bookFilter, setBookFilter] = useState("");
+  const [selectedBook, setSelectedBook] = useState(null);
+  const [selectedChapter, setSelectedChapter] = useState(1);
+  const [verses, setVerses] = useState(null);
+  const [loadingChapter, setLoadingChapter] = useState(false);
+  // Búsqueda de frase dentro del texto (no solo nombre de libro): mientras hay una búsqueda activa, la
+  // columna 3 muestra los versículos encontrados en TODA la Biblia en vez del capítulo seleccionado.
+  const [searchResults, setSearchResults] = useState(null); // null = sin búsqueda activa; [] = sin resultados
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [searchInfo, setSearchInfo] = useState({}); // { cita, otraVersion }
+  const bibliaLista = useBibliaParaBuscar(); // descarga sola la RV1960 para buscar con errores
+
+  useEffect(() => {
+    setLoadError("");
+    fetchBibleBooks(version).then(setBooks).catch((e) => setLoadError(e.message));
+  }, [version]);
+
+  // Con al menos 3 caracteres busca la frase completa en el texto de los versículos — con menos, se
+  // asume que todavía está escribiendo el nombre de un libro y no vale la pena golpear la API.
+  // Debounce de 400ms: no dispara una búsqueda por cada tecla mientras escribe.
+  useEffect(() => {
+    const query = bookFilter.trim();
+    // Solo el nombre de un libro ("jua", "salmos") no es búsqueda: filtra la lista de libros.
+    const esSoloLibro = books && !/\d/.test(query) && books.some((b) => normalizarBusqueda(b.name).startsWith(normalizarBusqueda(query)));
+    if (query.length < 3 || esSoloLibro) { setSearchResults(null); setSearchError(""); return; }
+    setSearching(true); setSearchError("");
+    let vigente = true;
+    const timer = setTimeout(() => {
+      searchBibleVerses(version, query, books)
+        .then(({ resultados, ...info }) => { if (!vigente) return; setSearchResults(resultados.slice(0, 60)); setSearchInfo(info); })
+        .catch((e) => { if (!vigente) return; setSearchError(e.message); setSearchResults([]); setSearchInfo({}); })
+        .finally(() => { if (vigente) setSearching(false); });
+    }, 350);
+    return () => { vigente = false; clearTimeout(timer); };
+  }, [bookFilter, version, books, bibliaLista.lista]);
+
+  const loadChapter = (bookId, chapter, v) => {
+    setLoadingChapter(true); setLoadError("");
+    fetchBibleChapter(v || version, bookId, chapter).then(setVerses).catch((e) => setLoadError(e.message)).finally(() => setLoadingChapter(false));
+  };
+  // Elegir un libro/capítulo a mano siempre gana sobre una búsqueda de frase que haya quedado pendiente.
+  const openBook = (book) => { setSearchResults(null); setSelectedBook(book); setSelectedChapter(1); loadChapter(book.bookid, 1); };
+  const openChapter = (chapter) => { setSearchResults(null); setSelectedChapter(chapter); loadChapter(selectedBook.bookid, chapter); };
+  const changeVersion = (v) => { setVersion(v); if (selectedBook) loadChapter(selectedBook.bookid, selectedChapter, v); };
+
+  const rememberAndProject = (entry) => {
+    onProject(entry);
+    const { parte, ...paraHistorial } = entry; // el historial guarda el versículo completo
+    setHistory((h) => [paraHistorial, ...h.filter((x) => x.ref !== entry.ref || x.version !== entry.version)].slice(0, 25));
+  };
+  // parte: en un versículo largo, en cuál de sus partes arrancar (ver la lista de abajo).
+  const pickVerse = (v, parte = 0) => {
+    rememberAndProject({
+      ref: `${selectedBook.name} ${selectedChapter}:${v.verse}`, version, text: stripBibleSearchMarkup(v.text),
+      bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: v.verse, verseEnd: v.verse, parte,
+    });
+  };
+  const openHistoryEntry = (entry) => {
+    rememberAndProject(entry);
+    // Igual que abrir un libro/capítulo a mano: si había quedado una búsqueda de frase activa, se
+    // limpia — si no, la columna 3 se quedaba mostrando esos resultados viejos en vez del capítulo
+    // completo del versículo que se acaba de elegir del historial.
+    setBookFilter(""); setSearchResults(null);
+    const book = books?.find((b) => b.bookid === entry.bookId);
+    if (book) setSelectedBook(book);
+    setSelectedChapter(entry.chapter);
+    if (entry.version !== version) setVersion(entry.version);
+    loadChapter(entry.bookId, entry.chapter, entry.version);
+  };
+  // Elegir un resultado de búsqueda: proyecta ese versículo Y salta a su capítulo completo (limpiando la
+  // búsqueda), para poder seguir leyendo alrededor de ese versículo con la vista normal de capítulo.
+  const pickSearchResult = async (r) => {
+    const book = books?.find((b) => b.bookid === r.book);
+    const bookName = book?.name || `Libro ${r.book}`;
+    // Encontrado en otra versión: se proyecta el MISMO versículo en la versión elegida.
+    let texto = stripBibleSearchMarkup(r.text);
+    if (searchInfo.otraVersion) {
+      try {
+        const cap = await fetchBibleChapter(version, r.book, r.chapter);
+        const v = cap.find((x) => x.verse === r.verse);
+        if (v) texto = stripBibleSearchMarkup(v.text);
+      } catch { /* sin conexión: se queda con el texto encontrado */ }
+    }
+    rememberAndProject({
+      ref: `${bookName} ${r.chapter}:${r.verse}`, version, text: texto,
+      bookId: r.book, bookName, chapter: r.chapter, verseStart: r.verse, verseEnd: r.verse,
+    });
+    if (book) setSelectedBook(book);
+    setSelectedChapter(r.chapter);
+    loadChapter(r.book, r.chapter);
+    setBookFilter(""); setSearchResults(null);
+  };
+
+  // Mientras hay resultados de una frase o cita, la lista de libros se queda completa.
+  const matchesFilter = (name) => !bookFilter || searchResults !== null || normalizarBusqueda(name).includes(normalizarBusqueda(bookFilter));
+  const oldTestament = books ? books.filter((b) => b.bookid <= 39 && matchesFilter(b.name)) : [];
+  const newTestament = books ? books.filter((b) => b.bookid >= 40 && matchesFilter(b.name)) : [];
+  const bookListStyle = (b) => ({ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", padding: "3px 4px", borderRadius: 10, cursor: "pointer", fontSize: 12, fontWeight: selectedBook?.bookid === b.bookid ? 700 : 500, color: selectedBook?.bookid === b.bookid ? "var(--wf-brand-accent)" : "#2F5FA8" });
+
+  return (
+    <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0 }}>
+      {/* Columna 1: libros AT/NT */}
+      <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 9px", marginBottom: 8, flexShrink: 0 }}>
+          <Search size={12} color="var(--wf-faint)" />
+          <input value={bookFilter} onChange={(e) => setBookFilter(e.target.value)} placeholder="Libro, cita (jn 3:16) o palabras…" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 11.5, width: "100%" }} />
+          {bookFilter && <button onClick={() => { setBookFilter(""); setSearchResults(null); }} style={iconGhost}><X size={12} /></button>}
+        </div>
+        {bibliaLista.bajando && version === BIBLE_OFFLINE_VERSION && (
+          <div title="Se guarda la Reina-Valera 1960 en esta computadora: así la búsqueda entiende faltas de ortografía y funciona sin internet." style={{ fontSize: 10.5, color: "var(--wf-muted)", margin: "-4px 2px 8px", lineHeight: 1.35 }}>
+            Preparando búsqueda con faltas de ortografía… {bibliaLista.porcentaje}%
+          </div>
+        )}
+        {loadError && <div style={{ fontSize: 11, color: "#C23B32", marginBottom: 8 }}>{loadError}</div>}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingBottom: 64 }}>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ position: "sticky", top: 0, background: "var(--wf-bg)", fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", padding: "2px 0 6px" }}>ANTIGUO TESTAMENTO</div>
+              {oldTestament.map((b) => (<button key={b.bookid} onClick={() => openBook(b)} style={bookListStyle(b)}>{b.name}</button>))}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ position: "sticky", top: 0, background: "var(--wf-bg)", fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", padding: "2px 0 6px" }}>NUEVO TESTAMENTO</div>
+              {newTestament.map((b) => (<button key={b.bookid} onClick={() => openBook(b)} style={bookListStyle(b)}>{b.name}</button>))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Columna 2: versión, capítulos, historial */}
+      <div style={{ width: 210, flexShrink: 0, minHeight: 0, overflowY: "auto", paddingBottom: 64 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>VERSIÓN</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 14 }}>
+          {BIBLE_VERSIONS.map((v) => (
+            <button key={v.code} onClick={() => changeVersion(v.code)} title={v.label} style={{ fontSize: 10.5, fontWeight: 700, padding: "4px 7px", borderRadius: 10, border: version === v.code ? "2px solid #2F5FA8" : "1px solid var(--wf-border)", background: version === v.code ? "#EAF0FA" : "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer" }}>{v.code}</button>
+          ))}
+        </div>
+
+        {selectedBook ? (
+          <>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>CAPÍTULOS DE {selectedBook.name.toUpperCase()}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4, marginBottom: 14 }}>
+              {Array.from({ length: selectedBook.chapters }, (_, i) => i + 1).map((c) => (
+                <button key={c} onClick={() => openChapter(c)} style={{ padding: "6px 0", borderRadius: 10, border: "none", background: selectedChapter === c ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: selectedChapter === c ? "var(--wf-brand-primary)" : "var(--wf-text)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{c}</button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 14 }}>Elige un libro para ver sus capítulos.</div>
+        )}
+
+        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>HISTORIAL</div>
+        {history.length === 0 ? (
+          <div style={{ fontSize: 11, color: "var(--wf-faint)" }}>Los versículos que proyectes van a aparecer aquí para volver rápido a ellos.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {history.map((h) => {
+              const isLive = liveVerse && liveVerse.ref === h.ref && liveVerse.version === h.version;
+              return (
+                <button key={`${h.ref}-${h.version}`} onClick={() => openHistoryEntry(h)} style={{ textAlign: "left", background: isLive ? "var(--wf-active-bg)" : "#fff", border: isLive ? "1px solid var(--wf-brand-accent)" : "1px solid transparent", borderRadius: 10, padding: "5px 7px", cursor: "pointer", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)" }}>{h.ref} <span style={{ color: "#2F5FA8", fontWeight: 700 }}>· {h.version}</span></div>
+                  <div style={{ fontSize: 10.5, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.text}</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Columna 3: resultados de búsqueda de frase (si hay una activa), si no el capítulo completo —
+          en ambos casos, clic en un versículo proyecta al instante */}
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: "auto", paddingBottom: 64 }}>
+        {searchResults !== null ? (
+          <>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)", marginBottom: 8 }}>
+              {searching ? "Buscando…" : searchInfo.cita ? searchInfo.cita : `"${bookFilter.trim()}" · ${searchResults.length} versículo${searchResults.length === 1 ? "" : "s"}`}
+            </div>
+            {!searching && searchInfo.otraVersion && searchResults.length > 0 && (
+              <div style={{ fontSize: 11.5, color: "var(--wf-text-2)", background: "var(--wf-hover)", borderRadius: 10, padding: "7px 9px", marginBottom: 8, lineHeight: 1.45 }}>
+                Con esas palabras no aparece en {version}; esto es de la <b>{searchInfo.otraVersion}</b>. Al tocar uno se proyecta ese mismo versículo en {version}.
+              </div>
+            )}
+            {searchError && <div style={{ fontSize: 12, color: "#C23B32", padding: "10px 0" }}>{searchError} Revisa tu conexión a internet e intenta de nuevo.</div>}
+            {!searching && !searchError && searchResults.length === 0 && (
+              <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 0", textAlign: "center" }}>No se encontró ningún versículo con esas palabras. Prueba con menos palabras, o escribe la cita (ej. <b>stgo 4:1</b>).</div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {searchResults.map((r) => {
+                const bookName = books?.find((b) => b.bookid === r.book)?.name || `Libro ${r.book}`;
+                const isLive = liveVerse && liveVerse.bookId === r.book && liveVerse.chapter === r.chapter && liveVerse.verseStart === r.verse && liveVerse.version === version;
+                return (
+                  <button key={r.pk} onClick={() => pickSearchResult(r)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 12, border: "none", background: isLive ? "var(--wf-divider)" : "transparent", cursor: "pointer", fontSize: 13, color: "var(--wf-text)", lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#2F5FA8", marginBottom: 2 }}>{bookName} {r.chapter}:{r.verse}</div>
+                    {stripBibleSearchMarkup(r.text)}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            {!selectedBook && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 0", textAlign: "center" }}>Elige un libro y capítulo para ver los versículos.</div>}
+            {selectedBook && <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)", marginBottom: 8 }}>{selectedBook.name} {selectedChapter}</div>}
+            {loadingChapter && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 0", textAlign: "center" }}>Cargando…</div>}
+            {!loadingChapter && verses && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {verses.map((v) => {
+                  const isLive = liveVerse && liveVerse.bookId === selectedBook.bookid && liveVerse.chapter === selectedChapter && liveVerse.verseStart === v.verse && liveVerse.version === version;
+                  // Versículo largo (pedido de Eldin, 2026-10-08): cada parte aparece en la lista como
+                  // si fuera su propio versículo — "9 (1/2)", "9 (2/2)" — para tocar directo la que
+                  // toque; las flechas siguen avanzando parte por parte. Mismo corte que la proyección.
+                  const partes = partesDeVersiculo(stripBibleSearchMarkup(v.text), palabrasPorParte);
+                  if (partes.length > 1) {
+                    return partes.map((texto, k) => {
+                      const parteEnVivo = isLive && (liveVerse.parte ?? 0) === k;
+                      return (
+                        <button key={`${v.verse}-${k}`} onClick={() => pickVerse(v, k)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 12, border: "none", background: parteEnVivo ? "var(--wf-divider)" : "transparent", cursor: "pointer", fontSize: 13, color: "var(--wf-text)", lineHeight: 1.5 }}>
+                          <b style={{ color: "#2F5FA8" }}>{v.verse}</b> <span style={{ fontSize: 10.5, fontWeight: 700, color: "#2F5FA8" }}>({k + 1}/{partes.length})</span> {texto}
+                        </button>
+                      );
+                    });
+                  }
+                  return (
+                    <button key={v.verse} onClick={() => pickVerse(v)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 12, border: "none", background: isLive ? "var(--wf-divider)" : "transparent", cursor: "pointer", fontSize: 13, color: "var(--wf-text)", lineHeight: 1.5 }}>
+                      <b style={{ color: "#2F5FA8" }}>{v.verse}</b> {stripBibleSearchMarkup(v.text)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
+
+function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {}, onEditarLetraCompleta, mensajeEscenario = "", onMensajeEscenario = null, iglesiaSlug = null, temporizador = null, onTemporizador = null, autoTemporizador = null, onAutoTemporizador = null }) {
+  // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
+  // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
+  // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
+  const [mmPanel, setMmPanel] = useState("transmision"); // "biblia" | "transmision" | "estilo" | "insertar" (este último solo en escritorio)
+  // La Biblia se monta la primera vez que se abre y ya no se desmonta (solo se esconde) mientras dure la consola.
+  const [bibliaAbierta, setBibliaAbierta] = useState(false);
+  useEffect(() => { if (mmPanel === "biblia") setBibliaAbierta(true); }, [mmPanel]);
+  // ---- Consola fácil (pedido de Eldin, 2026-10-11: "que alguien que nunca la haya usado la pueda usar
+  // en 5 minutos") ----
+  // Modo sencillo (escritorio): sin cinta de pestañas — solo una barra de botones grandes (Anterior,
+  // Siguiente, Negro, + Agregar, Biblia) sobre orden | diapositivas | al aire. Estilo, Insertar y lo
+  // demás quedan en "Modo completo". Se recuerda por computadora; empieza en sencillo.
+  const [sencillo, setSencillo] = useState(() => { const v = loadCache("consola_sencilla"); return v === null ? true : !!v; });
+  useEffect(() => { saveCache("consola_sencilla", sencillo); }, [sencillo]);
+  useEffect(() => { if (sencillo && (mmPanel === "estilo" || mmPanel === "insertar")) setMmPanel("transmision"); }, [sencillo, mmPanel]);
+  // ¿Hay una pantalla de proyección abierta? (ver escucharProyeccion). null = todavía no se sabe: los
+  // primeros segundos no se avisa nada, la ventana de proyección tarda en abrir.
+  const [hayProyeccion, setHayProyeccion] = useState(null);
+  const [avisoProyeccionOculto, setAvisoProyeccionOculto] = useState(false);
+  useEffect(() => {
+    if (!myIglesiaId || enPractica) return;
+    const inicio = Date.now();
+    return escucharProyeccion(myIglesiaId, (hay) => { if (hay || Date.now() - inicio > 8000) setHayProyeccion(hay); });
+  }, [myIglesiaId, enPractica]);
+  const mostrarAvisoProyeccion = !enPractica && hayProyeccion === false && !avisoProyeccionOculto;
+  // Finalizar siempre pide confirmar: un clic de más no debe cortar la proyección a mitad del culto.
+  const finalizarConConfirmacion = async () => {
+    if (enPractica) { onEnd(); return; }
+    if (await confirmDialog("La pantalla de proyección se va a apagar y el culto deja de estar en vivo.", { titulo: "¿Finalizar el culto en vivo?", danger: true, textoConfirmar: "Sí, finalizar" })) onEnd();
+  };
+  // Escritorio: qué elemento del orden del culto se está viendo al centro (null = el que está al aire),
+  // si se ven todas las diapositivas juntas, y si la cinta de Estilo muestra sus opciones extra.
+  const [itemVisto, setItemVisto] = useState(null);
+  const [verTodas, setVerTodas] = useState(false);
+  const [estiloMas, setEstiloMas] = useState(false);
+  // Menú flotante de "Letra animada" en la cinta de Estilo (computadora).
+  const [animMenu, setAnimMenu] = useState(false);
+  // "Pantalla en otro equipo": enlace corto + QR para abrir la proyección en un TV/tablet/otra computadora.
+  const [showOtroEquipo, setShowOtroEquipo] = useState(false);
+  const [showEscenario, setShowEscenario] = useState(false); // Pantalla de escenario: mensaje + enlace (ver PanelEscenario)
+  // Al poner un fondo propio con letras animadas, se avisa una vez que la letra irá sobre ese fondo (oscurecido para que se lea).
+  const avisarFondoPropioAnimada = () => {
+    if (animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") showToast("La letra animada ahora va sobre tu fondo, un poco oscurecido para que se lea. Para volver al fondo del estilo: Letras animadas → Fondo animado del estilo.", "info");
+  };
+  // Letra completa de la canción del centro, para corregirla toda de una vez: { songId, titulo, texto }.
+  const [letraCompleta, setLetraCompleta] = useState(null);
+  const abrirLetraCompleta = (songId) => {
+    const song = library.find((x) => x.id === songId);
+    if (!song) return;
+    setLetraCompleta({ songId, titulo: song.title, texto: letraATexto({ ...song, letra: letraEfectiva(song) }) });
+  };
+  const guardarLetraCompleta = () => {
+    const avisos = onEditarLetraCompleta?.(letraCompleta.songId, letraCompleta.texto);
+    if (avisos === null) return;
+    setLetraCompleta(null);
+    const importantes = (avisos || []).filter((a) => a.tipo === "aviso");
+    showToast(importantes.length ? importantes[0].texto : "Letra guardada: ya se ve así en la proyección y en la canción.", "info");
+  };
+  // Las letras de los estilos animados se piden apenas se abre la consola, no en pleno culto.
+  useEffect(() => { precargarFuentesAnimacion(); }, []);
+  const [fondoDestino, setFondoDestino] = useState("todo"); // "todo" | "cancion" — ver "Fondo por canción"
+  // Versión e historial de la Biblia en vivo: se guardan aquí (no dentro de BibleLivePanel) para que
+  // sobrevivan al cambiar de pestaña e ir a Estilo/Transmisión y volver a Biblia — y también en
+  // localStorage (mismo mecanismo que offlineCache) para que sobrevivan a salir de "En vivo" del todo
+  // (MultimediaControl se desmonta con la pestaña) o recargar la app a medio culto.
+  const [bibleVersion, setBibleVersion] = useState(() => { const v = loadCache("bible_version"); return BIBLE_VERSIONS.some((x) => x.code === v) ? v : BIBLE_VERSIONS[0].code; });
+  // Historial de versículos POR EVENTO (pedido de Eldin, 2026-10-11): solo los que se usaron en este
+  // culto, no todos los de siempre. La consola se vuelve a montar al cambiar de evento (key).
+  const claveHistorial = `bible_historial_${eventoId || "libre"}`;
+  const [bibleHistory, setBibleHistory] = useState(() => loadCache(claveHistorial) || []);
+  useEffect(() => { saveCache("bible_version", bibleVersion); }, [bibleVersion]);
+  useEffect(() => { saveCache(claveHistorial, bibleHistory); }, [bibleHistory, claveHistorial]);
+  const [showAdHocSong, setShowAdHocSong] = useState(false);
+  const [showAdHocVideo, setShowAdHocVideo] = useState(false);
+  const [showImportar, setShowImportar] = useState(false);
+  const [showAddSlide, setShowAddSlide] = useState(false);
+  const [showAgregarConsola, setShowAgregarConsola] = useState(false); // "+ Agregar" (igual que en el Setlist)
+  const [newSlideDraft, setNewSlideDraft] = useState({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" });
+  // Editar una diapositiva ya agregada (versículo/slide/punto del bosquejo) por si algo se escribió mal.
+  const [editingSlide, setEditingSlide] = useState(null); // la slide original que se está editando, o null
+  const [editDraft, setEditDraft] = useState(null);
+  const startEditingSlide = (s) => {
+    setEditingSlide(s);
+    setEditDraft(
+      s.type === "biblia" ? { reference: s.baseReference ?? s.reference, text: s.baseText ?? s.text }
+      : s.type === "cancion" ? { text: (s.baseLines || s.lines).join("\n") }
+      : { title: s.title, subtitle: s.subtitle || "", name: s.nombre || "", escalaSubtitulo: s.escalaSubtitulo, bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "" }
+    );
+  };
+  const saveSlideEdit = () => {
+    if (!editingSlide) return;
+    // Canción: el cambio queda guardado en la CANCIÓN (permanente, ver editSongSlideLive), no en el
+    // plan de este evento — las demás (versículo/diapositiva suelta) siguen igual que antes, viven en
+    // el propio ítem del Setlist.
+    if (editingSlide.type === "cancion") {
+      if (editingSlide.nueva) {
+        // Sin texto no se crea nada (una diapositiva vacía nunca se proyecta): se queda el cuadro abierto.
+        if (!editDraft.text.trim()) return;
+        onAddSongSlide(editingSlide.songId, editingSlide.blockKey, editingSlide.slideIndexInBlock, editDraft.text, editingSlide.cortarDespuesDeLinea);
+      } else {
+        onEditSongSlide(editingSlide.songId, editingSlide.blockKey, editingSlide.slideIndexInBlock, editDraft.text);
+      }
+    } else {
+      onEditLiveSlide(editingSlide.baseSlideId || editingSlide.slideId, editDraft);
+    }
+    setEditingSlide(null); setEditDraft(null);
+  };
+  const customBgType = liveStyle.customBgType || "imagen";
+  const font = LIVE_FONTS[liveStyle.font || "elegante"];
+  const fontScale = liveStyle.fontScale ?? 1;
+  const navIdx = adHoc ? adHocIdx : activeIdx;
+
+  // Flechas del teclado para cambiar de diapositiva sin soltar el mouse — como en PowerPoint. Arriba/
+  // abajo SIEMPRE avanzan versículo por versículo cuando lo que está en vivo es una lectura bíblica
+  // navegable (viene de "Buscar en la Biblia", no escrita a mano). Izquierda/derecha avanzan por el plan
+  // — EXCEPTO en modo improvisado con un versículo navegable y sin otra diapositiva a la que ir (el caso
+  // típico: "Proyectar ahora" desde el buscador, fuera de la planificación), donde también avanzan
+  // versículo por versículo — así cualquiera de las dos flechas funciona ahí, no solo arriba/abajo.
+  // Se ignora si el foco está en un campo de texto, para no pisar lo que se esté escribiendo.
+  // Siguiente/Anterior — lo mismo con las flechas del teclado que con los botones de la cinta. Un
+  // versículo de la Biblia partido en varias partes: primero recorre sus partes y, ya en la última (o la
+  // primera), salta al versículo de al lado.
+  const avanzar = (dir) => {
+    // Diapositiva diseñada con elementos "al clic": primero se revelan (o se esconden al volver) sus pasos.
+    const pasosTotales = current?.diseno ? pasosDeDiapositiva(current.diseno) : 0;
+    if (dir > 0 && pasosTotales > 0 && pasoDiseno < pasosTotales) { setPasoDiseno(pasoDiseno + 1); return; }
+    if (dir < 0 && pasosTotales > 0 && pasoDiseno > 0) { setPasoDiseno(pasoDiseno - 1); return; }
+    const isNavigableBible = current?.type === "biblia" && current.bookId;
+    const sinMasAdelante = adHoc && navIdx >= adHoc.slides.length - 1;
+    const sinMasAtras = adHoc && navIdx <= 0;
+    if (dir > 0) { if (isNavigableBible && sinMasAdelante) onNavigateBibleVerse(1); else goto(navIdx + 1); }
+    else { if (isNavigableBible && sinMasAtras) onNavigateBibleVerse(-1); else goto(navIdx - 1); }
+  };
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      const el = document.activeElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      const isNavigableBible = current?.type === "biblia" && current.bookId;
+      // Espacio y AvPág/RePág también: los clickers de presentación mandan esas teclas.
+      if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); avanzar(1); }
+      else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); avanzar(-1); }
+      else if ((e.key === "b" || e.key === "B" || e.key === "n" || e.key === "N") && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); setBlanked((x) => !x); }
+      else if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && !e.altKey && onFijar) { e.preventDefault(); if (fijada) onSoltar(); else onFijar(); }
+      else if (e.key === "ArrowDown" && isNavigableBible) { e.preventDefault(); onNavigateBibleVerse(1); }
+      else if (e.key === "ArrowUp" && isNavigableBible) { e.preventDefault(); onNavigateBibleVerse(-1); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [navIdx, current, adHoc, goto, onNavigateBibleVerse, setBlanked, fijada, onFijar, onSoltar]);
+
+  // Saltar a una sección (Coro/Puente/Estrofa…) de la canción que está sonando ahora — como el panel "Current" de FreeShow.
+  // Funciona igual para el plan y para una canción improvisada (fuera del plan): busca en la lista que
+  // esté activa en cada caso, para poder saltar entre Coro/Puente/Estrofa sin salir del modo improvisado.
+  const activeSongSlides = adHoc ? adHoc.slides : slides;
+  // Una sola entrada por sección: "Coro (1/3)", "Coro (2/3)"... son la misma sección "Coro" — al tocarla
+  // se salta a su PRIMERA parte (la siguiente aparición, si la canción la repite).
+  const seccionBase = (s) => String(s.blockLabel || "").replace(/\s*\(\d+\/\d+\)$/, "");
+  const esInicioDeSeccion = (s, i) => i === 0 || seccionBase(activeSongSlides[i - 1]) !== seccionBase(s) || activeSongSlides[i - 1].songTitle !== s.songTitle;
+  const jumpToLabel = (label) => {
+    const from = adHoc ? adHocIdx : activeIdx;
+    const coincide = (s, i) => s.type === "cancion" && seccionBase(s) === label && esInicioDeSeccion(s, i);
+    const upcoming = activeSongSlides.findIndex((s, i) => i > from && coincide(s, i));
+    const idx = upcoming !== -1 ? upcoming : activeSongSlides.findIndex((s, i) => coincide(s, i));
+    if (idx === -1) return;
+    if (adHoc) goto(idx); else gotoPlanSlide(idx);
+  };
+  const currentSongSections = useMemo(() => {
+    if (!current || current.type !== "cancion") return [];
+    const seen = new Map();
+    activeSongSlides.forEach((s) => {
+      if (s.type === "cancion" && s.songTitle === current.songTitle && !seen.has(seccionBase(s))) seen.set(seccionBase(s), sectionColorFor(s));
+    });
+    return [...seen.entries()];
+  }, [activeSongSlides, current]);
+  // Diapositivas agregadas a mano vía "Improvisar" (ver DIAPOSITIVAS más abajo) — se identifican solo
+  // por ser type "slide" dentro del plan en vivo, ya sea el de un evento real o el de una libre.
+  const customSlides = slides.filter((s) => s.type === "slide");
+  // ---- Diapositivas con diseño / presentaciones agrupadas (2026-10-10) ----
+  // De qué elemento del orden del culto es una diapositiva, y cuál es dentro de su grupo.
+  const refDiap = (s) => ({ itemId: s.grupoId || s.baseSlideId || s.slideId, indice: s.indiceEnGrupo ?? 0 });
+  // El editor de diseño y el menú de clic derecho: solo en escritorio y sobre el orden del culto (no improvisado).
+  const puedeDisenar = !isCompact && !adHoc && !!onAbrirEditor;
+  const abrirEditor = (s) => { const r = refDiap(s); onAbrirEditor(r.itemId, r.indice); };
+  const [menuDiap, setMenuDiap] = useState(null); // { x, y, s, sub: null | "mover" | "copiar" }
+  useEffect(() => {
+    if (!menuDiap) return;
+    const cerrar = () => setMenuDiap(null);
+    window.addEventListener("pointerdown", cerrar);
+    window.addEventListener("scroll", cerrar, true);
+    return () => { window.removeEventListener("pointerdown", cerrar); window.removeEventListener("scroll", cerrar, true); };
+  }, [menuDiap]);
+  // Una fila por elemento en "Diapositivas agregadas": un grupo es UNA fila, no una por página.
+  const customItems = [];
+  customSlides.forEach((s) => {
+    const r = refDiap(s);
+    if (!customItems.some((x) => x.itemId === r.itemId)) customItems.push({ itemId: r.itemId, s, total: s.totalGrupo || 1 });
+  });
+  const enviarDiapositiva = async (s, destino, copiar) => {
+    const r = refDiap(s);
+    let nombreNuevo;
+    if (destino === "nuevo") {
+      nombreNuevo = await promptDialog("Nombre del grupo nuevo", { titulo: copiar ? "Copiar a un grupo nuevo" : "Mover a un grupo nuevo", placeholder: "Ej. Anuncios", textoConfirmar: copiar ? "Copiar" : "Mover" });
+      if (!nombreNuevo) return;
+    }
+    onMoverDiapositiva({ itemId: r.itemId, indice: r.indice, destino, copiar, nombreNuevo });
+    showToast(copiar ? "Diapositiva copiada." : destino === "suelta" ? "La diapositiva quedó fuera del grupo." : "Diapositiva movida.", "info");
+  };
+
+  // ---- Escritorio (cinta tipo Office): orden del culto por bloques y diapositivas por elemento ----
+  const perteneceA = (s, itemId) => !!s && (s.slideId === itemId || String(s.slideId).startsWith(`${itemId}-`) || String(s.slideId).startsWith(`${itemId}~`));
+  const itemDeDiapositiva = (s) => (s ? serviceOrder.find((it) => it.type !== "seccion" && perteneceA(s, it.id)) || null : null);
+  const indicePrimeraDiapositiva = (itemId) => slides.findIndex((s) => perteneceA(s, itemId));
+  const tituloItem = (it) => (it.type === "cancion" ? library.find((x) => x.id === it.songId)?.title || "Canción"
+    : it.type === "biblia" ? it.reference || "Versículo"
+    : it.name || it.title || (it.bgType === "video" ? "Video" : it.bgType === "imagen" ? "Imagen" : "Diapositiva"));
+  const bloquesOrden = [];
+  serviceOrder.forEach((it) => {
+    if (it.type === "seccion") { bloquesOrden.push({ id: it.id, titulo: it.title || "Bloque", items: [] }); return; }
+    if (bloquesOrden.length === 0) bloquesOrden.push({ id: "_inicio", titulo: null, items: [] });
+    bloquesOrden[bloquesOrden.length - 1].items.push(it);
+  });
+  // Con la pantalla fijada, "al aire" es la diapositiva fijada (no a donde se mueva el operador).
+  const itemAlAire = fijada ? itemDeDiapositiva(fijada) : adHoc ? null : itemDeDiapositiva(current);
+  const alAire = fijada || current;
+  // ---- Editar el orden del culto desde la consola, igual que el Setlist (ver agregarCancionEnVivo y
+  // compañía en el componente principal: lo que está al aire no se mueve al reordenar) ----
+  const arrastreOrden = useArrastreLista({ habilitado: true, onReorder: (desde, hacia) => onReordenarOrden(desde, hacia) });
+  // ---- Ocultar en la consola (no borra del setlist; ver ocultarEnConsola en el componente principal) ----
+  const estaOculto = (it) => !!ocultos?.has(it.id);
+  const visiblesDeBloque = (bloqueId) => (bloquesOrden.find((b) => b.id === bloqueId)?.items || []).filter((x) => !estaOculto(x));
+  const cuantosOcultos = ocultos ? serviceOrder.filter((it) => ocultos.has(it.id)).length : 0;
+  const ocultar = (it) => {
+    if (!onOcultar) return;
+    const ids = it.type === "seccion" ? [it.id, ...(bloquesOrden.find((b) => b.id === it.id)?.items || []).map((x) => x.id)] : [it.id];
+    if (ids.includes(itemVisto)) setItemVisto(null);
+    onOcultar(ids);
+    const nombre = it.type === "seccion" ? (it.title || "Bloque") : tituloItem(it);
+    showToast(`"${nombre}" ya no se ve en la consola. Sigue en el setlist.`, "info", { label: "Deshacer", onClick: () => onMostrarOcultos?.(ids) });
+  };
+  const quitarDelOrden = async (it) => {
+    const nombre = it.type === "seccion" ? `el bloque "${it.title || "Bloque"}"` : `"${tituloItem(it)}"`;
+    const ok = await confirmDialog(
+      `¿Quitar ${nombre} del orden de este culto? Se quitará permanentemente del evento.${it.type === "seccion" ? " Lo que tenía adentro se queda en el orden, solo se quita el título del bloque." : it.type === "cancion" ? " La canción sigue en la biblioteca." : ""}`,
+      { titulo: "Quitar del orden del culto", danger: true, textoConfirmar: "Quitar" }
+    );
+    if (!ok) return;
+    if (itemVisto === it.id) setItemVisto(null);
+    onQuitarDelOrden(it.id);
+  };
+  // La canción nueva entra justo DESPUÉS de lo que se está viendo al centro (o de lo que está al aire);
+  // si no hay nada, al final. Luego se puede arrastrar a donde se quiera.
+  // Si en "+ Agregar" se eligió una parte del culto, entra al final de ese bloque.
+  const [destinoConsola, setDestinoConsola] = useState(null);
+  const anclaParaAgregar = () => (destinoConsola && anclaDeBloque(serviceOrder, destinoConsola)) || itemCentro || itemAlAire || null; // función: itemCentro se declara más abajo
+  const agregandoConsola = showAgregarConsola || showAdHocSong || showImportar || showAddSlide;
+  useEffect(() => { if (!agregandoConsola && destinoConsola) setDestinoConsola(null); }, [agregandoConsola, destinoConsola]);
+  // "Proyectar ya" (pedido de Eldin, 2026-10-21: "si cantamos algo que no está, que la pueda buscar y
+  // transmitir"): se agrega después de lo que está al aire y, apenas aparecen sus diapositivas, sale la
+  // primera en pantalla.
+  const [proyectarAlAparecer, setProyectarAlAparecer] = useState(null);
+  useEffect(() => {
+    if (!proyectarAlAparecer) return;
+    const idx = slides.findIndex((sl) => perteneceA(sl, proyectarAlAparecer));
+    if (idx === -1) return;
+    setProyectarAlAparecer(null);
+    // Después del ajuste que mantiene "lo que está al aire" al cambiar el orden (efecto del padre, que
+    // corre después de este): si no, ese ajuste devolvía la pantalla a lo que estaba antes.
+    setTimeout(() => { setItemVisto(null); gotoPlanSlide(idx); }, 0);
+  }, [slides, proyectarAlAparecer]);
+  const proyectarCancionYa = (song) => {
+    const ancla = itemAlAire || anclaParaAgregar();
+    const nuevoId = onAgregarCancion(song.id, ancla?.id || null);
+    setShowAdHocSong(false);
+    if (mmPanel === "biblia") setMmPanel("transmision");
+    if (nuevoId) { setItemVisto(nuevoId); setVerTodas(false); setProyectarAlAparecer(nuevoId); }
+    showToast(`"${song.title}" está en pantalla y quedó en el orden del culto.`, "info");
+  };
+  const agregarCancionAqui = (song) => {
+    const ancla = anclaParaAgregar();
+    const nuevoId = onAgregarCancion(song.id, ancla?.id || null);
+    setShowAdHocSong(false);
+    if (nuevoId) { setItemVisto(nuevoId); setVerTodas(false); }
+    if (mmPanel === "biblia") setMmPanel("transmision");
+    showToast(ancla ? `"${song.title}" se agregó después de "${tituloItem(ancla)}".` : `"${song.title}" se agregó al final del culto.`, "info");
+  };
+  // Las flechas recorren TODO el culto: al pasar de la última diapositiva de una canción a la
+  // siguiente, el centro se va solo a la canción nueva — antes se quedaba fijado en la que se había
+  // tocado en el orden del culto y parecía que no avanzaba (reportado por Eldin, 2026-10-08).
+  const idAlAire = itemAlAire?.id ?? null;
+  useEffect(() => { setItemVisto(null); }, [idAlAire]);
+  const itemCentro = verTodas ? null : (itemVisto && serviceOrder.find((it) => it.id === itemVisto)) || itemAlAire;
+  const indicesCentro = slides.map((_, i) => i).filter((i) => !itemCentro || perteneceA(slides[i], itemCentro.id));
+  // Lo que viene después de lo que está al aire, cuando al avanzar se cambia de elemento (otro canto,
+  // la despedida...) — para avisarlo: "Al avanzar pasas a: ¡Gloria a Dios!".
+  const itemSiguiente = adHoc ? null : itemDeDiapositiva(next);
+  const cambiaDeElemento = !!itemSiguiente && !!itemAlAire && itemSiguiente.id !== itemAlAire.id;
+  const nombreSiguiente = itemSiguiente ? tituloItem(itemSiguiente) : null;
+
+  // ---- Fondo por canción (pedido de Eldin, 2026-10-08) ----
+  // Por defecto el fondo que se elige en Estilo es para TODO (canciones, Biblia, diapositivas). Solo si
+  // quien transmite activa "Fondo por canción" (liveStyle.fondoPorCancion) se le puede dar a una canción
+  // su propio fondo, guardado en liveStyle.fondosCanciones[songId]. Viaja dentro del mismo estilo en
+  // vivo, así que la pantalla de proyección lo aplica sola (ver fondoEfectivo en ProjectionPanel).
+  // "Esta canción" = la que se está viendo al centro (para dejarla lista antes de que salga al aire),
+  // o la que está al aire si es improvisada.
+  const cancionObjetivo = itemCentro?.type === "cancion" ? { id: itemCentro.songId, titulo: tituloItem(itemCentro) }
+    : current?.type === "cancion" && current.songId ? { id: current.songId, titulo: current.songTitle } : null;
+  const fondoPorCancion = !!liveStyle.fondoPorCancion;
+  const editandoCancion = fondoPorCancion && fondoDestino === "cancion" && !!cancionObjetivo;
+  const fondoCancionObjetivo = editandoCancion ? liveStyle.fondosCanciones?.[cancionObjetivo.id] : null;
+  // Lo que se está editando ahora (para marcar el botón activo): el fondo de la canción si tiene, si no el general.
+  const fondoEditado = fondoCancionObjetivo ? { ...liveStyle, ...fondoCancionObjetivo } : liveStyle;
+  const fondoEditadoTipo = fondoEditado.customBgType || "imagen";
+  const aplicarFondo = (cambios) => setLiveStyle((st) => {
+    // Elegir un fondo de los de siempre con una letra animada puesta = "quiero mi fondo" (no el del estilo).
+    if (!editandoCancion) return { ...st, ...cambios, ...(animacionActiva(st) ? { animFondo: "propio" } : {}) };
+    const previo = st.fondosCanciones?.[cancionObjetivo.id] || { theme: st.theme, customBgType: st.customBgType, customImage: st.customImage, customVideo: st.customVideo };
+    return { ...st, fondosCanciones: { ...(st.fondosCanciones || {}), [cancionObjetivo.id]: { ...previo, ...cambios } } };
+  });
+  const quitarFondoCancion = () => setLiveStyle((st) => {
+    const resto = { ...(st.fondosCanciones || {}) };
+    delete resto[cancionObjetivo.id];
+    return { ...st, fondosCanciones: resto };
+  });
+  // Funciones que devuelven JSX (no componentes): así un <select> o el slider dentro de la cinta no se
+  // desmontan en cada render y no pierden el foco mientras se usan.
+  const grupoCinta = (titulo, contenido, ultimo = false) => (
+    <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 2, padding: "0 10px", borderRight: ultimo ? "none" : "1px solid var(--wf-divider)", flexShrink: 0 }}>
+      <div style={{ display: "flex", gap: 2, alignItems: "center", flex: 1 }}>{contenido}</div>
+      <span style={{ fontSize: 10, color: "var(--wf-faint)", textAlign: "center", whiteSpace: "nowrap" }}>{titulo}</span>
+    </div>
+  );
+  // Anterior / Siguiente / Negro en TODAS las pestañas de la cinta (pedido de Eldin, 2026-10-08): las
+  // diapositivas se manejan igual estando en Biblia, Estilo o Insertar, sin volver a Transmisión.
+  const navegacionRapida = () => (<>
+    {botonCinta({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1), ancho: 54 })}
+    {botonCinta({ icon: ChevronRight, label: "Siguiente", onClick: () => avanzar(1), acento: true, ancho: 58 })}
+    {botonCinta({ icon: MonitorOff, label: "Negro", onClick: () => setBlanked((b) => !b), activo: blanked, ancho: 50 })}
+  </>);
+  // Grupo de la cinta como dato (CintaAdaptable decide si va a la vista o en "Más opciones").
+  const grupoItem = (titulo, contenido, _ultimo, clave) => ({ clave: clave || titulo, titulo, contenido });
+  // Botones de la cinta al estilo Office: sin relleno (solo se marcan al pasar el mouse), ícono arriba
+  // y texto chico abajo — solo "Siguiente" (acento) y lo que está encendido (activo) llevan color.
+  const botonCinta = ({ icon: Icon, label, onClick, activo, acento, title, tour, ancho = 58 }) => (
+    <button
+      onClick={onClick} title={title || label} data-tour={tour} className={activo || acento ? undefined : "hoverable"}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, minWidth: ancho, minHeight: 50, padding: "4px 6px", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 500, lineHeight: 1.15, whiteSpace: "nowrap",
+        background: activo ? "var(--wf-brand-primary)" : acento ? "var(--wf-brand-accent)" : "transparent",
+        color: activo ? "var(--wf-on-brand-primary)" : acento ? "var(--wf-brand-primary)" : "var(--wf-text)" }}
+    ><Icon size={20} strokeWidth={1.75} />{label}</button>
+  );
+  // ---- "+ Agregar" de la consola (pedido de Eldin, 2026-10-11): el mismo botón naranja y la misma
+  // hoja del Setlist, para que alguien nuevo vea de una vez cómo meter algo al culto en vivo. ----
+  const nuevaDiapositivaTexto = () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); };
+  const opcionesAgregarConsola = [
+    { clave: "proyectar", Icon: Radio, color: "var(--wf-brand-accent)", titulo: "Proyectar desde biblioteca", detalle: "Busca una canción y sale en pantalla de una vez", accion: () => setShowAdHocSong("proyectar") },
+    { clave: "cancion", Icon: Music, color: "#1F8A73", titulo: "Canción", detalle: "De la biblioteca — queda en el orden del culto", accion: () => setShowAdHocSong(true) },
+    { clave: "biblia", Icon: BookOpen, color: "#2F5FA8", titulo: "Versículo", detalle: "Búscalo en la Biblia y proyéctalo al momento", accion: () => setMmPanel("biblia") },
+    { clave: "texto", Icon: Type, color: "#B15EA0", titulo: "Texto rápido", detalle: "Un aviso o el título de la prédica, en segundos", accion: nuevaDiapositivaTexto },
+    !isCompact && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(anclaParaAgregar()?.id || null) },
+    { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
+    { clave: "video", Icon: ImgIcon, color: "#C23B32", titulo: "Video", detalle: "Se proyecta una vez (no queda en el orden)", accion: () => setShowAdHocVideo(true) },
+  ].filter(Boolean);
+  const botonAgregarConsola = ({ ancho = false, tour } = {}) => (
+    <button
+      onClick={() => { setDestinoConsola(null); setShowAgregarConsola(true); }} data-tour={tour} className="hoverable"
+      title="Agregar algo al culto: canción, versículo, diapositiva, presentación o video"
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 13, fontWeight: 800, padding: "7px 14px", borderRadius: 18, border: "none", cursor: "pointer", background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", flexShrink: 0, width: ancho ? "100%" : undefined, boxSizing: "border-box", fontFamily: "inherit" }}
+    ><Plus size={15} /> Agregar</button>
+  );
+  // ---- Borrar y mover diapositivas desde la consola (pedido de Eldin, 2026-10-08) ----
+  // Una "sección" aquí = una aparición de una sección de la canción en el plan (mismo prefijo de
+  // slideId: `${item}-${posición en la estructura}`), con todos sus pedazos. Moverlas solo se puede
+  // dentro de la misma sección; cualquier cambio queda guardado en la canción (ver rearmarSeccion).
+  const ocurrenciaDe = (s) => String(s.slideId).replace(/~l\d+$/, "").replace(/-\d+$/, "");
+  const segmentoDe = (s) => ({ indice: s.slideIndexInBlock, desde: s.segmento?.desde ?? 0, hasta: s.segmento?.hasta ?? null });
+  const seccionDe = (s) => slides.filter((x) => x.type === "cancion" && x.songId === s.songId && ocurrenciaDe(x) === ocurrenciaDe(s));
+  const borrarDiapositiva = async (s) => {
+    if (s.type === "cancion") {
+      const ok = await confirmDialog(
+        `¿Borrar esta diapositiva de "${s.songTitle}" (${s.blockLabel})? Se borrará permanentemente de la canción en la biblioteca — no solo de esta transmisión — y no se puede deshacer.`,
+        { titulo: "Borrar diapositiva", danger: true, textoConfirmar: "Borrar para siempre" }
+      );
+      if (!ok) return;
+      const quedan = seccionDe(s).filter((x) => x.slideId !== s.slideId).map(segmentoDe);
+      onRearmarSeccion(s.songId, s.blockKey, quedan, "No se pudo borrar la diapositiva");
+      return;
+    }
+    if (s.grupoId && s.totalGrupo > 1) {
+      const okGrupo = await confirmDialog(`¿Borrar la diapositiva ${s.indiceEnGrupo + 1} de "${tituloBase(s.title)}"? Las demás del grupo se quedan.`, { titulo: "Borrar diapositiva", danger: true, textoConfirmar: "Borrar" });
+      if (okGrupo) onQuitarDiapositivaGrupo(s.grupoId, s.indiceEnGrupo);
+      return;
+    }
+    const ok = await confirmDialog(
+      s.type === "biblia"
+        ? `¿Quitar "${s.baseReference ?? s.reference}" del orden del culto? Se borrará permanentemente de este evento.`
+        : `¿Borrar la diapositiva "${s.title || "(sin título)"}"? Se borrará permanentemente de este evento.`,
+      { titulo: "Borrar diapositiva", danger: true, textoConfirmar: "Borrar para siempre" }
+    );
+    if (ok) onRemoveLiveSlide(s.baseSlideId || s.slideId);
+  };
+  // Mismo gesto que el Setlist, en cuadrícula (ver useArrastreGrid): grupo = una sección de una canción.
+  const arrastreMini = useArrastreGrid({
+    habilitado: !adHoc,
+    grupoDe: (idx) => { const s = slides[idx]; return s && s.type === "cancion" ? `${s.songId}|${ocurrenciaDe(s)}` : s?.grupoId && s.totalGrupo > 1 && onReordenarEnGrupo ? `g|${s.grupoId}` : null; },
+    onReorder: (desde, hacia) => moverDiapositiva(desde, hacia),
+  });
+  const moverDiapositiva = (desde, hacia) => {
+    const a = slides[desde], b = slides[hacia];
+    if (!a || !b || desde === hacia) return;
+    if (a.grupoId && a.grupoId === b.grupoId) { onReordenarEnGrupo(a.grupoId, a.indiceEnGrupo, b.indiceEnGrupo); return; }
+    if (a.type !== "cancion" || b.type !== "cancion" || a.songId !== b.songId || ocurrenciaDe(a) !== ocurrenciaDe(b)) {
+      showToast("Solo se puede mover dentro de la misma sección de la canción.", "info");
+      return;
+    }
+    const seccion = seccionDe(a);
+    const i = seccion.findIndex((x) => x.slideId === a.slideId);
+    const j = seccion.findIndex((x) => x.slideId === b.slideId);
+    const orden = [...seccion];
+    const [movida] = orden.splice(i, 1);
+    orden.splice(j, 0, movida);
+    onRearmarSeccion(a.songId, a.blockKey, orden.map(segmentoDe), "No se pudo mover la diapositiva");
+  };
+  const miniatura = (s, i) => {
+    const color = sectionColorFor(s);
+    const label = s.type === "cancion" ? s.blockLabel : s.type === "biblia" ? s.reference : s.nombre || s.title;
+    const preview = s.type === "cancion" ? s.lines.join(" ") : s.type === "biblia" ? s.text : s.nombre ? [s.title, s.subtitle].filter(Boolean).join(" · ") : s.subtitle; // con nombre: el cuadro muestra el contenido
+    const isActive = !adHoc && i === activeIdx;
+    return (
+      <div
+        key={s.slideId} onClick={() => { setItemVisto(null); gotoPlanSlide(i); }} className="thumb" role="button" tabIndex={0}
+        // Arrastrar para reordenar (solo letra de canciones, dentro de su misma sección) — ver arrastreMini.
+        {...arrastreMini.itemProps(i)}
+        // Escritorio: clic derecho abre el menú (editar diseño, mover/copiar...). Sin doble clic a
+        // propósito: el primer clic ya proyecta la diapositiva.
+        onContextMenu={puedeDisenar && s.type === "slide" ? (e) => { e.preventDefault(); setMenuDiap({ x: e.clientX, y: e.clientY, s, sub: null }); } : arrastreMini.itemProps(i).onContextMenu}
+        style={{ textAlign: "left", padding: 0, borderRadius: 10, cursor: "pointer", outline: isActive ? "3px solid var(--wf-brand-accent)" : "none", outlineOffset: 2, background: "transparent", overflow: "hidden",
+          boxShadow: isActive ? "0 4px 14px rgba(232,130,30,0.3)" : "0 1px 4px rgba(22,50,79,0.14)",
+          ...arrastreMini.estiloItem(i) }}
+      >
+        <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: esPaginaPresentacion(s) ? `center / contain no-repeat url(${s.imageUrl}), #000` : "#0a0e14", display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 10px", boxSizing: "border-box" }}>
+          {s.diseno && <DiapositivaDisenada diapositiva={s.diseno} />}
+          <span style={{ position: "absolute", top: 3, left: 6, fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.45)", zIndex: 1 }}>{i + 1}</span>
+          {!esPaginaPresentacion(s) && !s.diseno && <span style={{ fontSize: 10.5, lineHeight: 1.3, textAlign: "center", color: "#fff", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{preview}</span>}
+          {((!esPaginaPresentacion(s) && !s.diseno) || (puedeDisenar && s.type === "slide")) && <button
+            onClick={(e) => { e.stopPropagation(); if (puedeDisenar && s.type === "slide" && s.diseno) abrirEditor(s); else startEditingSlide(s); }}
+            title={puedeDisenar && s.type === "slide" ? "Editar el diseño de esta diapositiva" : "Editar esta diapositiva (corregir texto)"}
+            style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 7, padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          ><Pencil size={11} color="#fff" /></button>}
+          {/* "⋯" visible: el mismo menú del clic derecho (mover, copiar, sacar del grupo...). */}
+          {puedeDisenar && s.type === "slide" && (
+            <button
+              onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setMenuDiap({ x: r.left, y: r.bottom + 4, s, sub: null }); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="Más opciones: mover, copiar, sacar del grupo"
+              style={{ position: "absolute", top: 4, right: 56, width: 22, height: 22, background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 7, padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1 }}
+            ><MoreHorizontal size={12} color="#fff" /></button>
+          )}
+          {!adHoc && (
+            <button
+              onClick={(e) => { e.stopPropagation(); borrarDiapositiva(s); }}
+              title="Borrar esta diapositiva"
+              style={{ position: "absolute", top: 4, right: 30, width: 22, height: 22, background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 7, padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            ><Trash2 size={11} color="#FF8A80" /></button>
+          )}
+        </div>
+        <div style={{ background: color, color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 7px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+      </div>
+    );
+  };
+
+
+  const botonFinalizar = (
+    <button data-tour="envivo-finalizar" onClick={finalizarConConfirmacion} disabled={!canEnd && !enPractica} title={canEnd || enPractica ? undefined : `Solo ${liveOwner} o un administrador puede finalizar esta transmisión`} style={{ fontSize: 11, fontWeight: 700, color: canEnd || enPractica ? "#C23B32" : "#B7BEC9", background: "transparent", border: `1px solid ${canEnd || enPractica ? "#C23B32" : "var(--wf-border)"}`, borderRadius: 20, padding: "3px 10px", cursor: canEnd || enPractica ? "pointer" : "not-allowed", flexShrink: 0 }}>{enPractica ? "Salir de la práctica" : "Finalizar evento"}</button>
+  );
+  // Franjas de estado, arriba de todo y en cualquier modo: práctica, pantalla en negro y proyección
+  // cerrada. Que la consola diga en grande cuando algo no está normal.
+  const franja = (fondo, color, icono, texto, accion) => (
+    <div role="status" style={{ display: "flex", alignItems: "center", gap: 10, padding: isCompact ? "8px 16px" : "7px 16px", background: fondo, color, fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+      {icono}<span style={{ flex: 1, minWidth: 0 }}>{texto}</span>{accion}
+    </div>
+  );
+  const botonFranja = (label, onClick, extra = {}) => (
+    <button onClick={onClick} style={{ fontSize: 12, fontWeight: 800, border: "none", borderRadius: 16, padding: "5px 12px", cursor: "pointer", background: "rgba(255,255,255,0.95)", color: "#16324F", flexShrink: 0, fontFamily: "inherit", ...extra }}>{label}</button>
+  );
+  const franjasDeEstado = (
+    <>
+      {enPractica && franja("#1F8A73", "#fff", <GraduationCap size={17} />, <>MODO PRÁCTICA · nada de esto sale en la pantalla de la iglesia. Toca, avanza y equivócate tranquilo.</>, botonFranja("Salir de la práctica", onEnd))}
+      {fijada && franja("#7B3FA0", "#fff", <Pin size={17} />, <>Pantalla FIJADA en "{fijada.type === "cancion" ? `${fijada.songTitle} · ${fijada.blockLabel}` : fijada.type === "biblia" ? fijada.reference : fijada.nombre || fijada.title || "Diapositiva"}" · puedes tocar y moverte, nada sale en la pantalla</>, botonFranja("Soltar y proyectar lo que veo", onSoltar))}
+      {mensajeEscenario && onMensajeEscenario && franja("#E8821E", "#16233A", <MessageSquare size={17} />, <>En el ESCENARIO: «{mensajeEscenario}» · el público no lo ve</>, botonFranja("Quitar", () => onMensajeEscenario("")))}
+      {blanked && franja("#C23B32", "#fff", <MonitorOff size={17} />, <>La pantalla está en NEGRO · la iglesia no ve nada</>, botonFranja("Volver a mostrar", () => setBlanked(false)))}
+      {mostrarAvisoProyeccion && franja("#F6C344", "#16324F", <AlertTriangle size={17} />, <>La pantalla de proyección no está abierta · lo que pases aquí no se ve en el proyector</>, <>
+        {botonFranja("Abrir proyección", onOpenPublicScreen, { background: "#16324F", color: "#fff" })}
+        {botonFranja("Conectar un TV", () => setShowOtroEquipo(true))}
+        {botonFranja("Ya está abierta en otro equipo", () => setAvisoProyeccionOculto(true), { background: "transparent", color: "#16324F", textDecoration: "underline", padding: "5px 4px" })}
+      </>)}
+    </>
+  );
+  const tecla = { display: "inline-block", minWidth: 16, padding: "0 6px", borderRadius: 6, border: "1px solid var(--wf-border)", borderBottomWidth: 2, background: "var(--wf-card)", color: "var(--wf-text)", fontWeight: 700, fontSize: 11, lineHeight: "18px", textAlign: "center" };
+  // Botones grandes del modo sencillo (escritorio).
+  const botonGrande = ({ icon: Icon, label, sub, onClick, fondo = "var(--wf-hover)", color = "var(--wf-text)", tour, ancho = 120, titulo }) => (
+    <button onClick={onClick} data-tour={tour} title={titulo || label} className="hoverable"
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minWidth: ancho, height: 52, padding: "0 16px", border: "none", borderRadius: 14, cursor: "pointer", background: fondo, color, fontFamily: "inherit", flexShrink: 0, boxShadow: "0 2px 8px rgba(22,50,79,0.10)" }}>
+      <Icon size={22} strokeWidth={2} />
+      <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.1, minWidth: 0 }}>
+        <span style={{ fontSize: 15, fontWeight: 800 }}>{label}</span>
+        {sub && <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.85, maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</span>}
+      </span>
+    </button>
+  );
+  const barraSencilla = (
+    <div data-tour="envivo-paneles" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)", flexShrink: 0, flexWrap: "wrap", rowGap: 8 }}>
+      {botonGrande({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1), ancho: 130 })}
+      {botonGrande({ icon: ChevronRight, label: "Siguiente", sub: cambiaDeElemento ? `Pasas a: ${nombreSiguiente}` : next ? null : "Es la última", onClick: () => avanzar(1), fondo: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", tour: "envivo-siguiente", ancho: 190 })}
+      {botonGrande({ icon: MonitorOff, label: blanked ? "Volver a mostrar" : "Negro", sub: blanked ? null : "Esconde todo", onClick: () => setBlanked((b) => !b), fondo: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)", tour: "envivo-negro", ancho: 140 })}
+      {onFijar && botonGrande({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", sub: fijada ? "Volver a transmitir" : "Congela la pantalla", onClick: () => (fijada ? onSoltar() : onFijar()), fondo: fijada ? "#7B3FA0" : "var(--wf-hover)", color: fijada ? "#fff" : "var(--wf-text)", tour: "envivo-fijar", ancho: 140, titulo: "Deja la pantalla quieta en lo que se ve ahora, para moverte por la consola sin que se proyecte (tecla F)" })}
+      <div style={{ width: 1, alignSelf: "stretch", background: "var(--wf-divider)", margin: "4px 4px" }} />
+      {botonGrande({ icon: Plus, label: "Agregar", sub: "Canción, texto, video…", onClick: () => { setDestinoConsola(null); setShowAgregarConsola(true); }, tour: "envivo-agregar", ancho: 140 })}
+      {botonGrande({ icon: BookOpen, label: mmPanel === "biblia" ? "Volver" : "Biblia", sub: mmPanel === "biblia" ? "a las diapositivas" : "Buscar un versículo", onClick: () => setMmPanel((p) => (p === "biblia" ? "transmision" : "biblia")), fondo: mmPanel === "biblia" ? "#2F5FA8" : "var(--wf-hover)", color: mmPanel === "biblia" ? "#fff" : "var(--wf-text)", tour: "envivo-biblia", ancho: 140 })}
+      <div style={{ flex: 1 }} />
+      <div style={{ fontSize: 11.5, color: "var(--wf-muted)", lineHeight: 1.9, textAlign: "right", flexShrink: 0 }}>
+        <span style={tecla}>→</span> o <span style={tecla}>Espacio</span> avanza · <span style={tecla}>←</span> regresa<br /><span style={tecla}>B</span> negro · <span style={tecla}>F</span> fijar
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ width: "100%", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, flex: 1 }}>
+      {/* En escritorio el título y "Finalizar" van en la misma fila de las pestañas (más abajo). */}
+      {isCompact && (
+      <div style={{ padding: "14px 16px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6 }}><Radio size={13} /> MULTIMEDIA</div>
+          <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{eventTitle}</div>
+        </div>
+        {botonFinalizar}
+      </div>
+      )}
+      {/* canEnd ya incluye a los administradores (isAdminViewer) además de a quien inició la
+          transmisión -- antes SOLO ese dispositivo podía finalizarla, así que si se cerraba sin tocar
+          "Finalizar evento" (compu apagada, batería muerta) la transmisión quedaba bloqueada para
+          absolutamente todos, incluido el admin, hasta que pasaran las 24h del cierre automático por
+          abandono (ver LIVE_SESSION_STALE_MS) -- un admin necesita poder cortarla al instante. */}
+      {!canEnd && <div style={{ padding: "0 16px 6px", fontSize: 10, color: "var(--wf-faint)" }}>Solo {liveOwner} o un administrador puede finalizar esta transmisión.</div>}
+
+      {isCompact ? (
+      <>
+      {/* Barra de herramientas: pantalla 2, negro */}
+      <div style={{ display: "flex", gap: 8, padding: "8px 16px 10px", flexWrap: "wrap" }}>
+        <button data-tour="envivo-proyeccion" onClick={onOpenPublicScreen} style={{ ...ctrlBtn, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)" }}><Radio size={14} /> Reabrir proyección</button>
+        {onMensajeEscenario && <button onClick={() => setShowEscenario(true)} style={{ ...ctrlBtn, ...(mensajeEscenario || temporizadorActivo(temporizador) ? { background: "#E8821E", color: "#16233A", border: "none" } : {}) }}><MessageSquare size={14} /> Escenario</button>}
+        <button data-tour="envivo-negro" onClick={() => setBlanked((b) => !b)} style={{ ...ctrlBtn, background: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)" }}><MonitorOff size={14} /> {blanked ? "Reanudar" : "Pantalla en negro"}</button>
+        <div style={{ flex: 1 }} />
+        {botonAgregarConsola({ tour: "envivo-agregar" })}
+      </div>
+      {franjasDeEstado}
+
+      {/* Sin letrero de "improvisado" (pedido de Eldin, 2026-10-08): para volver al plan basta tocar
+          cualquier diapositiva o elemento del orden del culto (gotoPlanSlide). */}
+
+      {/* Cuerpo: riel de íconos + panel principal (izquierda) + vista previa y controles (derecha), estilo Proyektor */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 16, padding: "0 16px 16px" }}>
+        {/* Riel de íconos: cambia qué panel se ve a la izquierda sin tocar la vista previa/controles de la derecha */}
+        <div data-tour="envivo-paneles" style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, paddingTop: 2 }}>
+          {[
+            { key: "biblia", icon: BookOpen, title: "Biblia" },
+            { key: "transmision", icon: ListMusic, title: "Transmisión" },
+            { key: "estilo", icon: Palette, title: "Estilo" },
+          ].map(({ key, icon: Icon, title }) => (
+            <button
+              key={key} onClick={() => setMmPanel(key)} title={title}
+              style={{ width: 40, height: 40, borderRadius: 16, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: mmPanel === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: mmPanel === key ? "#fff" : "var(--wf-muted)", boxShadow: mmPanel === key ? "0 3px 10px rgba(232,130,30,0.35)" : "none" }}
+            ><Icon size={18} /></button>
+          ))}
+        </div>
+
+        {/* La Biblia se queda abierta (escondida) al cambiar de pestaña: así recuerda el libro, el
+            capítulo y la búsqueda donde ibas (pedido de Eldin, 2026-10-18). */}
+        {(bibliaAbierta || mmPanel === "biblia") && (
+          <div style={{ display: mmPanel === "biblia" ? "contents" : "none" }}>
+          <BibleLivePanel
+              version={bibleVersion} setVersion={setBibleVersion}
+              history={bibleHistory} setHistory={setBibleHistory}
+              onProject={(b) => onStartAdHocBible(b)}
+              liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.baseReference ?? current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart, parte: current.parte ?? 0 } : null}
+              palabrasPorParte={palabrasPorParte}
+            />
+          </div>
+        )}
+
+        {mmPanel === "estilo" && (
+          <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>LETRA ANIMADA</div>
+            <div style={{ marginBottom: 16 }}>
+              <SelectorAnimacion liveStyle={liveStyle} setLiveStyle={setLiveStyle} columnas={2} iglesiaId={myIglesiaId} iglesiaNombre={iglesiaNombre} usuarioId={usuarioId} />
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>FONDO DE LA PROYECCIÓN</div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+              {Object.entries(LIVE_THEMES).map(([key, t]) => (
+                <button key={key} onClick={() => { avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: key, ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: 12, border: liveStyle.theme === key && !(animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", background: "var(--wf-card)" }}>
+                  <span style={{ width: 16, height: 16, borderRadius: 8, background: t.bg }} />
+                  <span style={{ fontSize: 11, fontWeight: 600 }}>{t.label}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 8, width: "fit-content" }}>
+              <button onClick={() => { avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "imagen" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "imagen" ? "#fff" : "var(--wf-muted)" }}><ImgIcon size={12} /> Imagen</button>
+              <button onClick={() => { avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "video" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "video" ? "#fff" : "var(--wf-muted)" }}><Play size={12} /> Video (movimiento)</button>
+            </div>
+            {customBgType === "imagen" ? (
+              <div style={{ marginBottom: 12 }}>
+                <MediaPicker iglesiaId={myIglesiaId} tipo="imagen" value={liveStyle.customImage} onChange={(url) => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", customImage: url }))} />
+              </div>
+            ) : (
+              <div style={{ marginBottom: 12 }}>
+                {/* El filtro !startsWith("http") es solo para no mostrar un video base64 viejo (de antes
+                    de este cambio) hecho ilegible acá -- uno nuevo siempre es una URL https:// real. */}
+                <input
+                  placeholder="o pega un enlace https://... (mp4 de fondo con movimiento)"
+                  value={liveStyle.customVideo && !liveStyle.customVideo.startsWith("http") ? "" : liveStyle.customVideo || ""}
+                  onChange={(e) => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", customVideo: e.target.value }))}
+                  style={{ ...inputStyle, marginBottom: 8 }}
+                />
+                <MediaPicker iglesiaId={myIglesiaId} tipo="video" value={liveStyle.customVideo} onChange={(url) => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", customVideo: url }))} />
+                {liveStyle.customVideo && (
+                  <div style={{ fontSize: 11, color: "#1F8A73", marginTop: 6 }}>Video de fondo configurado ✓ — se reproduce en bucle detrás de toda la letra/versículos.</div>
+                )}
+              </div>
+            )}
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>TIPOGRAFÍA</div>
+            {/* Desplegable en vez de fila de botones -- con 20 fuentes ya no cabían cómodas en una
+                fila (pedido de Eldin, 2026-10-05). El propio <select> y cada <option> llevan la
+                fuente real como estilo, así que al abrirlo cada opción ya se ve con su propia letra. */}
+            <select
+              value={liveStyle.font || "elegante"}
+              onChange={(e) => setLiveStyle((s) => ({ ...s, font: e.target.value }))}
+              style={{ ...inputStyle, marginBottom: 16, fontFamily: font.family, fontWeight: font.weight, fontStyle: font.italic ? "italic" : "normal", textTransform: font.transform }}
+            >
+              {Object.entries(LIVE_FONTS).map(([key, f]) => (
+                <option key={key} value={key} style={{ fontFamily: f.family, fontWeight: f.weight, fontStyle: f.italic ? "italic" : "normal", textTransform: f.transform }}>{f.label}</option>
+              ))}
+            </select>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>COLOR DE LETRA</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+              {Object.entries(LIVE_TEXT_COLORS).map(([key, c]) => (
+                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, textColor: c.value }))} title={c.label} style={{ width: 28, height: 28, borderRadius: "50%", background: c.value, border: (liveStyle.textColor || "#FFFFFF") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
+              ))}
+              <label title="Elegir otro color" style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--wf-border)", cursor: "pointer", padding: 0, position: "relative", overflow: "hidden", background: !Object.values(LIVE_TEXT_COLORS).some((c) => c.value === (liveStyle.textColor || "#FFFFFF")) ? (liveStyle.textColor || "#FFFFFF") : "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)", display: "flex" }}>
+                <input type="color" value={liveStyle.textColor || "#FFFFFF"} onChange={(e) => setLiveStyle((s) => ({ ...s, textColor: e.target.value }))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+              </label>
+            </div>
+            {/* Diseño de transmisión para canciones: cambia solo cómo se destaca la 2a línea de cada
+                diapositiva (la que cierra la frase), no el contenido ni el tamaño. Primeros 3 de una
+                lista más larga -- Eldin ya vio las otras 7+ opciones sugeridas y decidió empezar por
+                estas. */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>DISEÑO DE LAS LETRAS</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+              {Object.entries(LINE_STYLES).map(([key, s]) => (
+                <button key={key} onClick={() => setLiveStyle((st) => ({ ...st, lineStyle: key }))} style={{ padding: "6px 11px", borderRadius: 12, border: (liveStyle.lineStyle || "tradicional") === key ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", background: "var(--wf-card)", color: "var(--wf-text)", fontSize: 12, fontWeight: 600 }}>{s.label}</button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>TAMAÑO DE LETRA</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-faint)" }}>A</span>
+              <input
+                type="range" min={0.6} max={1.8} step={0.05}
+                value={fontScale}
+                onChange={(e) => setLiveStyle((s) => ({ ...s, fontScale: parseFloat(e.target.value) }))}
+                style={{ flex: 1, accentColor: "var(--wf-brand-accent)", cursor: "pointer" }}
+              />
+              <span style={{ fontSize: 19, fontWeight: 700, color: "var(--wf-faint)" }}>A</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)", width: 34, textAlign: "right" }}>{Math.round(fontScale * 100)}%</span>
+            </div>
+            {/* Versículos: antes el texto usaba el mismo COLOR DE LETRA que canciones/slides (sigue
+                siendo el valor por defecto si no se toca nada acá) y la cita ("Mateo 5:25") tenía un
+                color fijo en el código -- ahora los dos son configurables por separado. */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", margin: "16px 0 6px" }}>VERSÍCULOS</div>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 6 }}>Color del texto del versículo</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+              {Object.entries(LIVE_TEXT_COLORS).map(([key, c]) => (
+                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, bibliaTextColor: c.value }))} title={c.label} style={{ width: 24, height: 24, borderRadius: "50%", background: c.value, border: (liveStyle.bibliaTextColor || liveStyle.textColor || "#FFFFFF") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
+              ))}
+              <label title="Elegir otro color" style={{ width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--wf-border)", cursor: "pointer", padding: 0, position: "relative", overflow: "hidden", background: liveStyle.bibliaTextColor || liveStyle.textColor || "#FFFFFF", display: "flex" }}>
+                <input type="color" value={liveStyle.bibliaTextColor || liveStyle.textColor || "#FFFFFF"} onChange={(e) => setLiveStyle((s) => ({ ...s, bibliaTextColor: e.target.value }))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+              </label>
+            </div>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 6 }}>Color de la cita (ej. "Mateo 5:25")</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              {Object.entries(LIVE_REFERENCE_COLORS).map(([key, c]) => (
+                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, bibliaReferenciaColor: c.value }))} title={c.label} style={{ width: 24, height: 24, borderRadius: "50%", background: c.value, border: (liveStyle.bibliaReferenciaColor || "#6E9BD1") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
+              ))}
+              <label title="Elegir otro color" style={{ width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--wf-border)", cursor: "pointer", padding: 0, position: "relative", overflow: "hidden", background: liveStyle.bibliaReferenciaColor || "#6E9BD1", display: "flex" }}>
+                <input type="color" value={liveStyle.bibliaReferenciaColor || "#6E9BD1"} onChange={(e) => setLiveStyle((s) => ({ ...s, bibliaReferenciaColor: e.target.value }))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+              </label>
+            </div>
+          </div>
+        )}
+
+        {mmPanel === "transmision" && (
+        <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700 }}>TODAS LAS SLIDES</span>
+            <button
+              onClick={() => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); }}
+              title="Agregar una diapositiva (ej. el título de la predica o un anuncio) — queda aquí para poder volver a proyectarla"
+              style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#2F5FA8", background: "#EAF0FA", border: "none", borderRadius: 18, padding: "4px 10px", cursor: "pointer" }}
+            ><Plus size={13} /> Agregar diapositiva</button>
+          </div>
+          {isFreeSession && slides.length === 0 && (
+            <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 10px", textAlign: "center" }}>Esta es una transmisión sin evento — usa "Agregar diapositiva" arriba para un título/aviso, o Biblia/Improvisar (abajo, a la derecha) para versículos, canciones o videos.</div>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
+            {slides.map((s, i) => {
+              const color = sectionColorFor(s);
+              const label = s.type === "cancion" ? s.blockLabel : s.type === "biblia" ? s.reference : s.nombre || s.title;
+              const preview = s.type === "cancion" ? s.lines.join(" ") : s.type === "biblia" ? s.text : s.nombre ? [s.title, s.subtitle].filter(Boolean).join(" · ") : s.subtitle; // con nombre: el cuadro muestra el contenido
+              const isActive = !adHoc && i === activeIdx;
+              const isEditable = s.type === "biblia" || s.type === "slide" || s.type === "cancion";
+              return (
+                <div
+                  key={s.slideId} onClick={() => gotoPlanSlide(i)} className="thumb" role="button" tabIndex={0}
+                  style={{ textAlign: "left", padding: 0, borderRadius: 14, cursor: "pointer", border: isActive ? "2px solid var(--wf-brand-accent)" : "1px solid transparent", background: "transparent", overflow: "hidden", boxShadow: isActive ? "0 4px 14px rgba(232,130,30,0.3)" : "0 1px 5px rgba(22,50,79,0.12)" }}
+                >
+                  <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#0a0e14", display: "flex", alignItems: "center", justifyContent: "center", padding: 8 }}>
+                    <span style={{ position: "absolute", top: 4, left: 6, fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.45)" }}>{i + 1}</span>
+                    <span style={{ fontSize: 9, lineHeight: 1.35, textAlign: "center", color: "#fff", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{preview}</span>
+                    {isEditable && (
+                      // Antes 10px de ícono en 3px de relleno — un blanco casi imposible de acertar en un
+                      // celular real, sobre todo con una miniatura tan chica; de ahí que pareciera que la
+                      // diapositiva "no se podía editar" cuando en realidad el botón sí estaba, solo que
+                      // nadie lograba tocarlo bien.
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startEditingSlide(s); }}
+                        title="Editar esta diapositiva (corregir texto)"
+                        style={{ position: "absolute", top: 3, right: 3, width: 24, height: 24, background: "rgba(0,0,0,0.65)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 10, padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      ><Pencil size={13} color="#fff" /></button>
+                    )}
+                  </div>
+                  <div style={{ background: color, color: "#fff", fontSize: 9, fontWeight: 700, padding: "3px 6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        )}
+
+        <div style={{ width: 250, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+          {/* Fija arriba (no se va con el scroll): así siempre puedes ver cuánto estás agrandando la letra
+              aunque tengas que bajar para llegar al slider u otros controles del panel. */}
+          <div style={{ position: "sticky", top: 0, zIndex: 3, background: "var(--wf-bg)", paddingBottom: 10, flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4, marginBottom: 6 }}><Radio size={11} /> VISTA PREVIA</div>
+            <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)" }}>
+              <ProjectionPanel slide={current} blanked={blanked} split={false} liveStyle={liveStyle} thumbnail />
+            </div>
+          </div>
+
+          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => goto(0)} style={{ ...ctrlBtn, width: 38, justifyContent: "center", padding: "9px 0" }}><SkipBack size={15} /></button>
+            <button onClick={() => avanzar(-1)} aria-label="Anterior" style={{ ...ctrlBtn, flex: 1, justifyContent: "center", minHeight: 48 }}><ChevronLeft size={20} /></button>
+            <button data-tour="envivo-siguiente" onClick={() => avanzar(1)} aria-label="Siguiente" style={{ ...ctrlBtn, flex: 2, justifyContent: "center", minHeight: 48, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", border: "none", fontWeight: 800 }}>Siguiente <ChevronRight size={20} /></button>
+            <button onClick={() => goto(Infinity)} style={{ ...ctrlBtn, width: 38, justifyContent: "center", padding: "9px 0" }}><SkipForward size={15} /></button>
+          </div>
+
+          {currentSongSections.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>SECCIONES</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {currentSongSections.map(([label, color]) => (
+                  <button key={label} onClick={() => jumpToLabel(label)} style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: color, border: "none", borderRadius: 18, padding: "4px 10px", cursor: "pointer" }}>{label}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {current && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: TYPE_META[current.type].color, letterSpacing: 0.5, marginBottom: 4 }}>AHORA · {TYPE_META[current.type].label.toUpperCase()}</div>
+              <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>{next ? `Siguiente: ${next.type === "cancion" ? next.blockLabel : next.type === "biblia" ? next.reference : next.nombre || next.title}` : adHoc ? "No hay más diapositivas" : "Última slide del servicio"}</div>
+            </div>
+          )}
+
+          <div>
+            <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, marginBottom: 6 }}>IMPROVISAR</div>
+            {/* Grid en vez de una sola fila: "Diapositiva" no cabía junto a Canción/Video sin desbordar
+                el ancho fijo de esta columna y obligar a hacer scroll horizontal para verla completa. */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <button onClick={() => setShowAdHocSong(true)} style={{ ...ctrlBtn, justifyContent: "center" }}><Music size={13} /> Canción</button>
+              <button onClick={() => setShowAdHocVideo(true)} style={{ ...ctrlBtn, justifyContent: "center" }}><ImgIcon size={13} /> Video</button>
+              {/* A diferencia de Canción/Video (que se proyectan una vez y no quedan en ningún lado),
+                  "Diapositiva" usa el mismo "Agregar diapositiva" de la pestaña Transmisión — queda fija
+                  aquí mismo (ver DIAPOSITIVAS abajo) para poder volver a mandarla a proyección. */}
+              <button onClick={() => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); }} style={{ ...ctrlBtn, justifyContent: "center", gridColumn: "1 / -1" }}><Type size={13} /> Diapositiva</button>
+            </div>
+          </div>
+
+          {/* Diapositivas agregadas a mano (título de la predica, avisos...) — se quedan listadas aquí
+              mismo, en el mismo panel donde se crean (Biblia/Improvisar), sin tener que ir a la pestaña
+              Transmisión a buscarlas. Tocar el nombre la vuelve a mandar a proyección; la X la borra. */}
+          {customItems.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, marginBottom: 6 }}>DIAPOSITIVAS</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {customItems.map(({ itemId, s, total }) => {
+                  const isLive = !adHoc && !!current && current.type === "slide" && refDiap(current).itemId === itemId;
+                  return (
+                    <div key={itemId} style={{ display: "flex", alignItems: "center", gap: 6, background: isLive ? "var(--wf-active-bg)" : "var(--wf-card)", border: isLive ? "1px solid var(--wf-brand-accent)" : "1px solid transparent", borderRadius: 12, padding: "5px 6px", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
+                      <button onClick={() => gotoPlanSlide(slides.findIndex((x) => x.slideId === s.slideId))} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {(total > 1 ? tituloBase(s.title) : s.title) || "(sin título)"}{total > 1 && <span style={{ fontWeight: 500, color: "var(--wf-muted)" }}> · {total}</span>}
+                      </button>
+                      {!s.diseno && <button onClick={() => startEditingSlide(s)} title="Editar esta diapositiva (corregir texto)" style={{ ...iconGhost, color: "#2F5FA8", flexShrink: 0 }}><Pencil size={13} /></button>}
+                      <button onClick={() => onRemoveLiveSlide(itemId)} title={total > 1 ? "Quitar el grupo completo" : "Borrar esta diapositiva"} style={{ ...iconGhost, color: "#C23B32", flexShrink: 0 }}><X size={13} /></button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          </div>
+        </div>
+      </div>
+
+      </>
+      ) : (
+      <>
+      {/* ===== ESCRITORIO: cinta tipo Office arriba, orden del culto | diapositivas | vista previa =====
+          (pedido de Eldin, 2026-10-07). La idea: cambiar el estilo, buscar en la Biblia o insertar algo
+          SIN dejar de ver las diapositivas ni lo que está al aire. En celular se queda el riel de
+          íconos de siempre (rama isCompact de arriba). */}
+      <nav aria-label="Pestañas de En vivo" data-tour="envivo-pestanas" style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 16px 0", borderBottom: "1px solid var(--wf-divider)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, maxWidth: 300, marginRight: 14, flexShrink: 1 }} title={eventTitle}>
+          <Radio size={13} color="#C23B32" style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{eventTitle}</span>
+        </div>
+        {!sencillo && [["transmision", "Transmisión"], ["biblia", "Biblia"], ["estilo", "Estilo"], ["insertar", "Insertar"]].map(([key, label]) => (
+          <button
+            key={key} onClick={() => setMmPanel(key)}
+            style={{ padding: "7px 12px 6px", border: "none", background: "transparent", cursor: "pointer", fontSize: 12.5, fontWeight: mmPanel === key ? 700 : 500, color: mmPanel === key ? "var(--wf-text)" : "var(--wf-muted)", borderBottom: `2px solid ${mmPanel === key ? "var(--wf-brand-accent)" : "transparent"}`, flexShrink: 0 }}
+          >{label}</button>
+        ))}
+        <div style={{ flex: 1 }} />
+        {!sencillo && <div style={{ marginRight: 10, padding: "3px 0" }}>{botonAgregarConsola({ tour: "envivo-agregar" })}</div>}
+        <button
+          data-tour="envivo-modo" onClick={() => setSencillo((v) => !v)} className="hoverable"
+          title={sencillo ? "Ver todas las herramientas: Estilo, Insertar, secciones de la canción…" : "Volver a la vista sencilla, solo con lo esencial"}
+          style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 16, padding: "5px 11px", cursor: "pointer", marginRight: 8, flexShrink: 0, fontFamily: "inherit" }}
+        >{sencillo ? <><SlidersHorizontal size={13} /> Más herramientas</> : <><Sparkles size={13} /> Vista sencilla</>}</button>
+        {onAyuda && (
+          <button data-tour="envivo-ayuda" onClick={onAyuda} title="¿Cómo se usa? Ver la guía otra vez" aria-label="Ayuda" className="hoverable"
+            style={{ width: 28, height: 28, borderRadius: 14, border: "none", background: "var(--wf-hover)", color: "var(--wf-text)", cursor: "pointer", fontSize: 14, fontWeight: 800, marginRight: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>?</button>
+        )}
+        {botonFinalizar}
+      </nav>
+      {franjasDeEstado}
+      {sencillo && barraSencilla}
+      {!sencillo && (
+        <CintaAdaptable
+          tour="envivo-paneles" dibujarGrupo={grupoCinta}
+          estilo={{ padding: "6px 8px 4px", minHeight: 76, boxSizing: "border-box", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)" }}
+          grupos={(mmPanel === "biblia" ? [
+          grupoItem("Proyección", navegacionRapida()),
+          grupoItem("", <div style={{ display: "flex", alignItems: "center", padding: "0 16px", maxWidth: 440 }}>
+              <span style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.5 }}>Busca un libro, una cita (ej. stgo 4:1) o palabras del versículo, aunque no estén exactas. Toca el versículo para proyectarlo. Los versículos largos aparecen en partes (1/2, 2/2): toca la que quieras o avanza con la flecha →.</span>
+            </div>, false, "ayuda-biblia"),
+        ] : mmPanel === "estilo" ? [
+          grupoItem("Proyección", navegacionRapida()),
+          grupoItem("Letra animada", botonCinta({ icon: Sparkles, label: (() => { const n = nombreAnimacion(liveStyle) || "Animación"; return n.length > 12 ? n.slice(0, 11) + "…" : n; })(), onClick: () => { setEstiloMas(false); setAnimMenu((v) => !v); }, activo: !!animacionActiva(liveStyle) || animMenu, title: "Letras animadas: elegir un estilo con movimiento", ancho: 76 })),
+          grupoItem(editandoCancion ? `Fondo de "${cancionObjetivo.titulo.length > 22 ? cancionObjetivo.titulo.slice(0, 21) + "…" : cancionObjetivo.titulo}"` : "Fondo", <>
+              {Object.entries(LIVE_THEMES).map(([key, t]) => (
+                <button key={key} onClick={() => aplicarFondo({ theme: key })} title={t.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 5px", borderRadius: 10, cursor: "pointer", background: "var(--wf-card)", border: fondoEditado.theme === key && !(animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") ? "2px solid #B15EA0" : "1px solid var(--wf-border)" }}>
+                  <span style={{ width: 34, height: 20, borderRadius: 5, background: t.bg }} />
+                  <span style={{ fontSize: 9.5, fontWeight: 600, color: "var(--wf-text)", whiteSpace: "nowrap" }}>{t.label}</span>
+                </button>
+              ))}
+              {botonCinta({ icon: ImgIcon, label: "Imagen", onClick: () => { aplicarFondo({ theme: "custom", customBgType: "imagen" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen", ancho: 62 })}
+              {botonCinta({ icon: Play, label: "Video", onClick: () => { aplicarFondo({ theme: "custom", customBgType: "video" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "video", ancho: 62 })}
+            </>, false, "fondo"),
+          grupoItem("Fondo por canción", (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <input
+                    type="checkbox" checked={fondoPorCancion}
+                    onChange={(e) => { const on = e.target.checked; setLiveStyle((st) => ({ ...st, fondoPorCancion: on })); setFondoDestino(on ? "cancion" : "todo"); }}
+                    style={{ accentColor: "var(--wf-brand-accent)", cursor: "pointer" }}
+                  />
+                  Cada canción con su fondo
+                </label>
+                {fondoPorCancion && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <div style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 8, padding: 2 }}>
+                      {[["todo", "Todo"], ["cancion", "Esta canción"]].map(([k, l]) => (
+                        <button
+                          key={k} onClick={() => setFondoDestino(k)} disabled={k === "cancion" && !cancionObjetivo}
+                          title={k === "cancion" ? (cancionObjetivo ? `Cambiar solo el fondo de "${cancionObjetivo.titulo}"` : "Elige una canción en el orden del culto") : "Cambiar el fondo general (Biblia, diapositivas y canciones sin fondo propio)"}
+                          style={{ fontSize: 11, fontWeight: 600, border: "none", borderRadius: 6, padding: "3px 8px", cursor: k === "cancion" && !cancionObjetivo ? "not-allowed" : "pointer", opacity: k === "cancion" && !cancionObjetivo ? 0.45 : 1, whiteSpace: "nowrap",
+                            background: (editandoCancion ? "cancion" : "todo") === k ? "var(--wf-card)" : "transparent", boxShadow: (editandoCancion ? "cancion" : "todo") === k ? "0 1px 3px rgba(22,50,79,0.15)" : "none", color: "var(--wf-text)" }}
+                        >{l}</button>
+                      ))}
+                    </div>
+                    {fondoCancionObjetivo && (
+                      <button onClick={quitarFondoCancion} title="Esta canción vuelve a usar el fondo general" style={{ ...iconGhost, color: "#C23B32" }}><X size={13} /></button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )),
+          grupoItem("Texto", <>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <select
+                  aria-label="Tipografía" value={liveStyle.font || "elegante"}
+                  onChange={(e) => setLiveStyle((st) => ({ ...st, font: e.target.value }))}
+                  style={{ ...inputStyle, width: 160, padding: "5px 8px", fontSize: 12, fontFamily: font.family, fontWeight: font.weight, fontStyle: font.italic ? "italic" : "normal", textTransform: font.transform }}
+                >
+                  {Object.entries(LIVE_FONTS).map(([key, f]) => (
+                    <option key={key} value={key} style={{ fontFamily: f.family, fontWeight: f.weight, fontStyle: f.italic ? "italic" : "normal", textTransform: f.transform }}>{f.label}</option>
+                  ))}
+                </select>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {Object.entries(LIVE_TEXT_COLORS).map(([key, c]) => (
+                    <button key={key} onClick={() => setLiveStyle((st) => ({ ...st, textColor: c.value }))} title={c.label} aria-label={`Letra ${c.label}`} style={{ width: 18, height: 18, borderRadius: "50%", background: c.value, border: (liveStyle.textColor || "#FFFFFF") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
+                  ))}
+                </div>
+              </div>
+            </>),
+          grupoItem("Diseño de la letra", (
+              <select
+                aria-label="Diseño de la letra" value={liveStyle.lineStyle || "tradicional"}
+                onChange={(e) => setLiveStyle((st) => ({ ...st, lineStyle: e.target.value }))}
+                style={{ ...inputStyle, width: 190, padding: "6px 8px", fontSize: 12 }}
+              >
+                {Object.entries(LINE_STYLES).map(([key, ls]) => <option key={key} value={key}>{ls.label}</option>)}
+              </select>
+            )),
+          grupoItem("Tamaño de letra", (
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-faint)" }}>A</span>
+                <input
+                  type="range" min={0.6} max={1.8} step={0.05} value={fontScale} aria-label="Tamaño de letra"
+                  onChange={(e) => setLiveStyle((st) => ({ ...st, fontScale: parseFloat(e.target.value) }))}
+                  style={{ width: 120, accentColor: "var(--wf-brand-accent)", cursor: "pointer" }}
+                />
+                <span style={{ fontSize: 17, fontWeight: 700, color: "var(--wf-faint)" }}>A</span>
+                <span style={{ fontSize: 11, fontWeight: 700, width: 34, textAlign: "right" }}>{Math.round(fontScale * 100)}%</span>
+              </div>
+            )),
+          grupoItem("Ajustes de la letra", botonCinta({ icon: estiloMas ? ChevronUp : SlidersHorizontal, label: estiloMas ? "Cerrar" : "Sombra y más", title: "Sombra, alineación, interlineado e imagen o video de fondo", onClick: () => { setAnimMenu(false); setEstiloMas((v) => !v); }, activo: estiloMas, ancho: 84 }), true),
+        ] : mmPanel === "insertar" ? [
+          grupoItem("Proyección", navegacionRapida()),
+          grupoItem("Del culto", <>
+              {botonCinta({ icon: Music, label: "Canción", onClick: () => setShowAdHocSong(true) })}
+              {botonCinta({ icon: BookOpen, label: "Versículo", onClick: () => setMmPanel("biblia") })}
+            </>),
+          grupoItem("Presentación", botonCinta({ icon: FileUp, label: "Importar", onClick: () => setShowImportar(true), title: "Importar un PDF, imágenes de Canva, o un Word con el bosquejo", ancho: 64 })),
+          grupoItem("De último momento", <>
+              {onDisenarNueva && botonCinta({ icon: PenTool, label: "Diseñar", title: "Diseñar una diapositiva desde cero (con plantillas)", onClick: () => onDisenarNueva(anclaParaAgregar()?.id || null) })}
+              {botonCinta({ icon: Type, label: "Diapositiva", onClick: () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); } })}
+              {botonCinta({ icon: ImgIcon, label: "Video", onClick: () => setShowAdHocVideo(true) })}
+            </>, true),
+        ] : [
+          grupoItem("Navegación", <>
+              {botonCinta({ icon: SkipBack, label: "Inicio", onClick: () => goto(0) })}
+              {botonCinta({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1) })}
+              {botonCinta({ icon: ChevronRight, label: "Siguiente", onClick: () => avanzar(1), acento: true, tour: "envivo-siguiente" })}
+              {botonCinta({ icon: SkipForward, label: "Final", onClick: () => goto(Infinity) })}
+            </>),
+          grupoItem("Pantalla", <>
+              {botonCinta({ icon: MonitorOff, label: "Negro", onClick: () => setBlanked((b) => !b), activo: blanked, tour: "envivo-negro" })}
+              {onFijar && botonCinta({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", onClick: () => (fijada ? onSoltar() : onFijar()), activo: !!fijada, title: "Congelar la pantalla para moverte sin proyectar (tecla F)" })}
+              {botonCinta({ icon: Radio, label: "Proyección", onClick: onOpenPublicScreen, title: "Reabrir la pantalla de proyección", tour: "envivo-proyeccion" })}
+              {onMensajeEscenario && botonCinta({ icon: MessageSquare, label: "Escenario", onClick: () => setShowEscenario(true), activo: !!mensajeEscenario || temporizadorActivo(temporizador), title: "Pantalla de escenario: mensajes, temporizador del mensaje y enlace del monitor" })}
+              {botonCinta({ icon: Tv, label: "Pantallas y TV", onClick: () => setShowOtroEquipo(true), title: "Conectar un Smart TV con número, o abrir en celular/tablet con QR", ancho: 76 })}
+            </>),
+          grupoItem("Proyectar", botonCinta({ icon: Music, label: "Desde biblioteca", onClick: () => setShowAdHocSong("proyectar"), title: "Buscar una canción de la biblioteca y ponerla en pantalla de una vez", ancho: 96 })),
+          grupoItem("Secciones de la canción", currentSongSections.length > 0 ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxWidth: 560, alignContent: "center" }}>
+                {currentSongSections.map(([label, color]) => (
+                  <button key={label} onClick={() => jumpToLabel(label)} style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", background: color, border: "none", borderRadius: 14, padding: "3px 9px", cursor: "pointer" }}>{label}</button>
+                ))}
+              </div>
+            ) : <span style={{ fontSize: 11, color: "var(--wf-faint)", maxWidth: 200 }}>Aparecen cuando hay una canción al aire.</span>, true),
+        ]).filter(Boolean)}
+        />
+      )}
+      {/* "Más opciones" de Estilo: menú flotante encima de las diapositivas, como los desplegables
+          de Office — antes empujaba todo hacia abajo y se comía media pantalla (pedido de Eldin,
+          2026-10-08). Se cierra con la X, con "Menos" o con un clic afuera. */}
+      {letraCompleta && (
+        <ModalShell title={`Letra de "${letraCompleta.titulo}"`} icon={Pencil} color="#1F8A73" onClose={() => setLetraCompleta(null)}>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.5, marginBottom: 8 }}>
+            Corrige lo que necesites. Cada parte empieza con su nombre entre corchetes (ej. <b>[Coro]</b>) y una <b>línea en blanco</b> separa una diapositiva de otra. Se guarda en la canción para siempre.
+          </div>
+          <textarea
+            value={letraCompleta.texto} autoFocus spellCheck
+            onChange={(e) => setLetraCompleta((l) => ({ ...l, texto: e.target.value }))}
+            style={{ ...inputStyle, height: "min(56vh, 520px)", resize: "vertical", fontSize: 14, lineHeight: 1.5, fontFamily: "inherit" }}
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button onClick={() => setLetraCompleta(null)} style={{ ...primaryBtn, background: "var(--wf-hover)", color: "var(--wf-text)" }}>Cancelar</button>
+            <button onClick={guardarLetraCompleta} style={primaryBtn}>Guardar letra</button>
+          </div>
+        </ModalShell>
+      )}
+      {showOtroEquipo && <PantallaOtroEquipo iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipo(false)} />}
+      {showEscenario && onMensajeEscenario && <PanelEscenario mensaje={mensajeEscenario} onMensaje={onMensajeEscenario} iglesiaId={myIglesiaId} slug={iglesiaSlug} onCerrar={() => setShowEscenario(false)}
+        temporizador={temporizador} onTemporizador={onTemporizador} autoTemporizador={autoTemporizador} onAutoTemporizador={onAutoTemporizador} />}
+      {mmPanel === "estilo" && animMenu && (
+        <div style={{ position: "relative", height: 0, zIndex: 36 }}>
+          <div onClick={() => setAnimMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />
+          <div style={{ position: "absolute", top: 6, left: 16, zIndex: 1, width: "min(760px, calc(100vw - 32px))", maxHeight: "min(560px, 70vh)", overflowY: "auto", padding: "12px 14px 14px", background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 12px 36px rgba(22,50,79,0.25)", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-heading)" }}>Letra animada</span>
+              <button onClick={() => setAnimMenu(false)} title="Cerrar" aria-label="Cerrar" style={iconGhost}><X size={15} /></button>
+            </div>
+            <SelectorAnimacion liveStyle={liveStyle} setLiveStyle={setLiveStyle} columnas={5} iglesiaId={myIglesiaId} iglesiaNombre={iglesiaNombre} usuarioId={usuarioId} />
+          </div>
+        </div>
+      )}
+      {mmPanel === "estilo" && estiloMas && (
+        <div style={{ position: "relative", height: 0, zIndex: 35 }}>
+          <div onClick={() => setEstiloMas(false)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />
+          <div style={{ position: "absolute", top: 6, right: 16, zIndex: 1, width: "min(640px, calc(100vw - 32px))", maxHeight: "min(420px, 60vh)", overflowY: "auto", display: "flex", gap: 20, flexWrap: "wrap", padding: "12px 14px 14px", background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 12px 36px rgba(22,50,79,0.25)", boxSizing: "border-box" }}>
+          <button onClick={() => setEstiloMas(false)} title="Cerrar" aria-label="Cerrar" style={{ ...iconGhost, position: "absolute", top: 8, right: 8 }}><X size={15} /></button>
+          {/* Ajustes finos de la letra (ver LIVE_SOMBRAS y compañía): para canciones, versículos y
+              diapositivas, en vivo y guardados para la próxima transmisión como el resto del estilo. */}
+          <div style={{ flex: "1 1 100%", minWidth: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "10px 18px", paddingBottom: 12, borderBottom: "1px solid var(--wf-divider)" }}>
+            <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", justifyContent: "space-between", paddingRight: 28 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)" }}>LETRA</span>
+              <button
+                onClick={() => setLiveStyle((st) => { const { interlineado, espaciado, sombra, oscurecer, posicion, alineacion, ...resto } = st; return resto; })}
+                className="hoverable" style={{ fontSize: 11, fontWeight: 600, color: "var(--wf-muted)", background: "transparent", border: "none", borderRadius: 8, padding: "2px 6px", cursor: "pointer" }}
+              >Restablecer</button>
+            </div>
+            {[
+              { clave: "interlineado", label: "Interlineado", min: 0.9, max: 2.2, paso: 0.05, defecto: 1.35, mostrar: (v) => v.toFixed(2) },
+              { clave: "espaciado", label: "Espacio entre letras", min: -0.05, max: 0.3, paso: 0.01, defecto: 0, mostrar: (v) => (v === 0 ? "Normal" : `${v > 0 ? "+" : ""}${Math.round(v * 100)}`) },
+              { clave: "oscurecer", label: "Oscurecer imagen o video", min: 0, max: 0.85, paso: 0.05, defecto: 0.45, mostrar: (v) => `${Math.round(v * 100)}%` },
+            ].map((c) => {
+              const valor = liveStyle[c.clave] ?? c.defecto;
+              return (
+                <label key={c.clave} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <span style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--wf-text)" }}>{c.label}<b style={{ fontSize: 11 }}>{c.mostrar(valor)}</b></span>
+                  <input type="range" min={c.min} max={c.max} step={c.paso} value={valor} onChange={(e) => setLiveStyle((st) => ({ ...st, [c.clave]: parseFloat(e.target.value) }))} style={{ accentColor: "var(--wf-brand-accent)", cursor: "pointer" }} />
+                </label>
+              );
+            })}
+            {[
+              { clave: "sombra", label: "Sombra de la letra", opciones: LIVE_SOMBRAS, defecto: "ninguna" },
+              { clave: "posicion", label: "Posición", opciones: LIVE_POSICIONES, defecto: "centro" },
+              { clave: "alineacion", label: "Alineación", opciones: LIVE_ALINEACIONES, defecto: "centro" },
+            ].map((c) => (
+              <div key={c.clave} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ fontSize: 11.5, color: "var(--wf-text)" }}>{c.label}</span>
+                <div style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 8, padding: 2, gap: 2 }}>
+                  {Object.entries(c.opciones).map(([k, o]) => {
+                    const activo = (liveStyle[c.clave] || c.defecto) === k;
+                    return (
+                      <button key={k} onClick={() => setLiveStyle((st) => ({ ...st, [c.clave]: k }))} style={{ flex: 1, fontSize: 11, fontWeight: 600, border: "none", borderRadius: 6, padding: "4px 4px", cursor: "pointer", whiteSpace: "nowrap", color: "var(--wf-text)", background: activo ? "var(--wf-card)" : "transparent", boxShadow: activo ? "0 1px 3px rgba(22,50,79,0.15)" : "none" }}>{o.label}</button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ flex: "1 1 340px", minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>{fondoEditadoTipo === "imagen" ? "IMAGEN DE FONDO" : "VIDEO DE FONDO"}{editandoCancion ? ` · SOLO "${cancionObjetivo.titulo.toUpperCase()}"` : ""}</div>
+            {fondoEditadoTipo === "imagen" ? (
+              <MediaPicker iglesiaId={myIglesiaId} tipo="imagen" value={fondoEditado.customImage} onChange={(url) => aplicarFondo({ theme: "custom", customBgType: "imagen", customImage: url })} />
+            ) : (
+              <>
+                <input
+                  placeholder="o pega un enlace https://... (mp4 de fondo con movimiento)"
+                  value={fondoEditado.customVideo && !fondoEditado.customVideo.startsWith("http") ? "" : fondoEditado.customVideo || ""}
+                  onChange={(e) => aplicarFondo({ theme: "custom", customBgType: "video", customVideo: e.target.value })}
+                  style={{ ...inputStyle, marginBottom: 8 }}
+                />
+                <MediaPicker iglesiaId={myIglesiaId} tipo="video" value={fondoEditado.customVideo} onChange={(url) => aplicarFondo({ theme: "custom", customBgType: "video", customVideo: url })} />
+              </>
+            )}
+          </div>
+          <div style={{ flex: "0 1 300px" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>VERSÍCULOS</div>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 4 }}>Color del texto</div>
+            <div style={{ display: "flex", gap: 5, marginBottom: 10, flexWrap: "wrap" }}>
+              {Object.entries(LIVE_TEXT_COLORS).map(([key, c]) => (
+                <button key={key} onClick={() => setLiveStyle((st) => ({ ...st, bibliaTextColor: c.value }))} title={c.label} aria-label={`Versículo ${c.label}`} style={{ width: 22, height: 22, borderRadius: "50%", background: c.value, border: (liveStyle.bibliaTextColor || liveStyle.textColor || "#FFFFFF") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 4 }}>Color de la cita</div>
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+              {Object.entries(LIVE_REFERENCE_COLORS).map(([key, c]) => (
+                <button key={key} onClick={() => setLiveStyle((st) => ({ ...st, bibliaReferenciaColor: c.value }))} title={c.label} aria-label={`Cita ${c.label}`} style={{ width: 22, height: 22, borderRadius: "50%", background: c.value, border: (liveStyle.bibliaReferenciaColor || "#6E9BD1") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
+              ))}
+            </div>
+          </div>
+          </div>
+        </div>
+      )}
+
+
+      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 12, padding: "10px 12px 12px" }}>
+        {/* Orden del culto, dividido por bloques igual que el Setlist */}
+        <aside aria-label="Orden del culto" data-tour="envivo-orden" style={{ width: "clamp(200px, 17vw, 260px)", flexShrink: 0, overflowY: "auto", background: "var(--wf-card)", borderRadius: 12, boxShadow: "0 2px 10px rgba(22,50,79,0.08)", padding: "10px 8px", display: "flex", flexDirection: "column", gap: 6, boxSizing: "border-box" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, padding: "0 4px" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.5 }}>ORDEN DEL CULTO</span>
+          </div>
+          {!sencillo && <div style={{ padding: "0 2px 4px" }}>{botonAgregarConsola({ ancho: true })}</div>}
+          {sencillo && serviceOrder.length > 0 && <div style={{ fontSize: 11, color: "var(--wf-faint)", padding: "0 4px 2px" }}>Toca cualquiera para proyectarlo.</div>}
+          {serviceOrder.length === 0 && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "8px 4px" }}>Todavía no hay nada en el orden de este culto.</div>}
+          {/* Una fila por elemento, en el orden real del Setlist (los bloques son filas más), para poder
+              arrastrar con el mismo gesto del Setlist — ver arrastreOrden. */}
+          {serviceOrder.map((it, idx) => {
+            const filaArrastre = arrastreOrden.filaProps(idx);
+            const quitar = (
+              <button
+                className="orden-quitar" onClick={(e) => { e.stopPropagation(); if (onOcultar) ocultar(it); else quitarDelOrden(it); }}
+                title={onOcultar ? (it.type === "seccion" ? "Ocultar este bloque en la consola (sigue en el setlist)" : "Ocultar en la consola (sigue en el setlist)") : it.type === "seccion" ? "Quitar este bloque" : "Quitar del orden del culto"}
+                aria-label="Ocultar en la consola"
+                style={{ ...iconGhost, padding: 2, color: "var(--wf-faint)", flexShrink: 0 }}
+              >{onOcultar ? <EyeOff size={13} /> : <X size={12} />}</button>
+            );
+            if (estaOculto(it)) return null;
+            if (it.type === "seccion") {
+              const cuantos = visiblesDeBloque(it.id).length;
+              // Un bloque sin nada que proyectar (Orden y limpieza, Multimedia...) no se muestra en la consola.
+              if (cuantos === 0) return null;
+              return (
+                <div key={it.id} {...filaArrastre} className="orden-fila" style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 9px", borderRadius: 10, background: "rgba(124,140,216,0.16)", border: "1px solid #5661B3", marginTop: idx === 0 ? 0 : 4, ...arrastreOrden.estiloFila(idx) }}>
+                  <ListMusic size={13} color="#5661B3" />
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 700, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.title || "Bloque"}</span>
+                  {cuantos > 0 && <span style={{ fontSize: 10.5, color: "#5661B3", fontWeight: 700 }}>{cuantos}</span>}
+                  {quitar}
+                </div>
+              );
+            }
+            const alAire = itemAlAire?.id === it.id;
+            const visto = !verTodas && itemCentro?.id === it.id;
+            const dentroDeBloque = serviceOrder.slice(0, idx).some((x) => x.type === "seccion");
+            return (
+              <div
+                key={it.id} {...filaArrastre} className="orden-fila" role="button" tabIndex={0}
+                // Un clic = proyectar su primera diapositiva (pedido de Eldin, 2026-10-11: antes eran dos
+                // clics y quien no sabía se quedaba tocando). Si ya está AL AIRE no se reinicia — solo se
+                // ven sus diapositivas — para no regresar un canto al inicio por accidente.
+                onClick={() => {
+                  // Desde la Biblia (en plena prédica) se proyecta sin salir de ella: el operador pone el
+                  // título del mensaje y sigue con los versículos (pedido de Eldin, 2026-10-18).
+                  setItemVisto(it.id); setVerTodas(false);
+                  if (alAire) return;
+                  const i = indicePrimeraDiapositiva(it.id);
+                  if (i !== -1) gotoPlanSlide(i);
+                }}
+                title={alAire ? "Ya está al aire · Arrastra para cambiar el orden" : "Clic: proyectar · Arrastra para cambiar el orden"}
+                style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: dentroDeBloque ? 12 : 0, padding: "7px 9px", borderRadius: 10, textAlign: "left", cursor: "pointer", fontSize: 12.5, color: "var(--wf-text)", fontWeight: alAire || visto ? 700 : 500, background: alAire ? "var(--wf-active-bg)" : visto ? "var(--wf-hover)" : "var(--wf-card)", border: visto ? "1px solid var(--wf-border)" : "1px solid transparent", ...arrastreOrden.estiloFila(idx) }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: TYPE_META[it.type]?.color || "#5B6472" }} />
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tituloItem(it)}{it.diapositivas?.length > 1 && <span style={{ fontWeight: 500, color: "var(--wf-muted)" }}> · {it.diapositivas.length}</span>}</span>
+                {fondoPorCancion && it.type === "cancion" && liveStyle.fondosCanciones?.[it.songId] && <span title="Tiene su propio fondo" style={{ display: "flex", flexShrink: 0 }}><ImgIcon size={11} color="#B15EA0" /></span>}
+                {alAire && <span style={{ fontSize: 9, fontWeight: 800, color: "#C23B32" }}>●</span>}
+                {quitar}
+              </div>
+            );
+          })}
+          {cuantosOcultos > 0 && onMostrarOcultos && (
+            <button onClick={() => onMostrarOcultos()} className="hoverable"
+              style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11.5, fontWeight: 600, color: "var(--wf-muted)", background: "transparent", border: "1px dashed var(--wf-border)", borderRadius: 10, padding: "6px 9px", cursor: "pointer", fontFamily: "inherit" }}>
+              <Eye size={13} /> Mostrar ocultos ({cuantosOcultos})
+            </button>
+          )}
+        </aside>
+
+        {(bibliaAbierta || mmPanel === "biblia") && (
+          <div style={{ display: mmPanel === "biblia" ? "contents" : "none" }}>
+          <BibleLivePanel
+              version={bibleVersion} setVersion={setBibleVersion}
+              history={bibleHistory} setHistory={setBibleHistory}
+              onProject={(b) => onStartAdHocBible(b)}
+              liveVerse={current?.type === "biblia" && current.bookId ? { ref: current.baseReference ?? current.reference, version: current.version, bookId: current.bookId, chapter: current.chapter, verseStart: current.verseStart, parte: current.parte ?? 0 } : null}
+              palabrasPorParte={palabrasPorParte}
+            />
+          </div>
+        )}
+        {mmPanel !== "biblia" && (
+          <section aria-label="Diapositivas" data-tour="envivo-diapositivas" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "0 4px calc(var(--bottom-nav-height, 80px) + 8px)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 16, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{itemCentro ? tituloItem(itemCentro) : "Todas las diapositivas"}</div>
+                <div style={{ fontSize: 11.5, color: "var(--wf-muted)" }}>{indicesCentro.length} diapositiva{indicesCentro.length === 1 ? "" : "s"}{itemCentro && itemAlAire?.id !== itemCentro.id ? " · no está al aire" : ""}</div>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                {itemCentro?.type === "cancion" && onEditarLetraCompleta && (
+                  <button onClick={() => abrirLetraCompleta(itemCentro.songId)} title="Corregir toda la letra de esta canción de una vez" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 18, padding: "5px 10px", cursor: "pointer" }}><Pencil size={12} /> Editar letra</button>
+                )}
+                <button onClick={() => { setVerTodas((v) => !v); setItemVisto(null); }} style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 18, padding: "5px 10px", cursor: "pointer" }}>{verTodas ? "Ver por elemento" : "Ver todas"}</button>
+              </div>
+            </div>
+            {isFreeSession && slides.length === 0 && (
+              <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 10px", textAlign: "center" }}>Transmisión sin evento — usa la pestaña Insertar para una diapositiva, canción o video, o Biblia para un versículo.</div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10, padding: 3 }}>
+              {indicesCentro.map((i) => miniatura(slides[i], i))}
+            </div>
+          </section>
+        )}
+
+        {/* Lo que está al aire y lo que sigue — siempre visibles, en cualquier pestaña */}
+        <aside aria-label="Vista previa" data-tour="envivo-alaire" style={{ width: "clamp(260px, 25vw, 400px)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, minHeight: 0, overflowY: "auto", paddingRight: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#C23B32", letterSpacing: 0.4 }}><Radio size={11} /> AL AIRE</span>
+            {alAire && <span style={{ fontSize: 11, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{blanked ? "Pantalla en negro" : alAire.type === "cancion" ? `${alAire.songTitle} · ${alAire.blockLabel}` : alAire.type === "biblia" ? alAire.reference : alAire.nombre || alAire.title}</span>}
+          </div>
+          <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)", border: "2px solid #C23B32", flexShrink: 0 }}>
+            <ProjectionPanel slide={alAire} blanked={blanked} split={false} liveStyle={liveStyle} thumbnail />
+          </div>
+          {fijada && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#7B3FA0", letterSpacing: 0.4, marginTop: 4 }}>DONDE ESTÁS · SE PROYECTA AL SOLTAR</div>
+              <div style={{ width: "62%", aspectRatio: "16/9", borderRadius: 12, overflow: "hidden", border: "2px dashed #7B3FA0", flexShrink: 0 }}>
+                <ProjectionPanel slide={current} blanked={false} split={false} liveStyle={liveStyle} thumbnail />
+              </div>
+            </>
+          )}
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4, marginTop: 4 }}>SIGUIENTE</div>
+          {cambiaDeElemento && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-brand-primary)", background: "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)", borderRadius: 10, padding: "6px 9px" }}>
+              <ChevronRight size={14} /> <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Termina esto · al avanzar pasas a <b>{nombreSiguiente}</b></span>
+            </div>
+          )}
+          <div style={{ width: "62%", aspectRatio: "16/9", borderRadius: 12, overflow: "hidden", opacity: next ? 1 : 0.4, flexShrink: 0 }}>
+            <ProjectionPanel slide={next} blanked={false} split={false} liveStyle={liveStyle} thumbnail />
+          </div>
+          <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>{next ? (next.type === "cancion" ? `${next.songTitle} · ${next.blockLabel}` : next.type === "biblia" ? next.reference : next.nombre || next.title) : adHoc ? "No hay más diapositivas" : "Última diapositiva del servicio"}</div>
+          {/* Lo agregado (textos, diapositivas, canciones) se ve solo en el ORDEN DEL CULTO de la
+              izquierda (pedido de Eldin, 2026-10-11): aquí abajo ya no se repite. */}
+        </aside>
+      </div>
+      </>
+      )}
+      {/* Clic derecho sobre una diapositiva (escritorio): editar diseño, mover/copiar a otro grupo,
+          sacarla del grupo o borrarla. */}
+      {menuDiap && (() => {
+        const s = menuDiap.s;
+        const r = refDiap(s);
+        const grupos = serviceOrder.filter((it) => it.type === "slide" && (menuDiap.sub === "copiar" || it.id !== r.itemId));
+        const nombreDe = (it) => tituloBase(it.title) || "Diapositiva";
+        const fila = (Icon, label, accion, extra = {}) => (
+          <button key={label} onClick={(e) => { e.stopPropagation(); accion(); }} onPointerDown={(e) => e.stopPropagation()}
+            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "transparent", border: "none", borderRadius: 7, padding: "7px 10px", cursor: "pointer", color: extra.peligro ? "#C23B32" : "var(--wf-text)", fontSize: 12.5, textAlign: "left" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--wf-hover)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+            {Icon && <Icon size={14} />}<span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>{extra.flecha && <ChevronRight size={13} />}
+          </button>
+        );
+        const x = Math.min(menuDiap.x, window.innerWidth - 250);
+        const y = Math.min(menuDiap.y, window.innerHeight - 280);
+        return (
+          <div onPointerDown={(e) => e.stopPropagation()} role="menu" style={{ position: "fixed", left: x, top: y, zIndex: 3000, background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: 4, width: 240, maxHeight: 360, overflowY: "auto", boxShadow: "0 12px 30px rgba(0,0,0,0.35)" }}>
+            {!menuDiap.sub ? (
+              <>
+                {!s.diseno && fila(Pencil, "Editar texto", () => { setMenuDiap(null); startEditingSlide(s); })}
+                {fila(PenTool, s.diseno ? "Editar diseño" : "Diseñar (imágenes, plantillas)", () => { setMenuDiap(null); abrirEditor(s); })}
+                {fila(ArrowRightLeft, "Mover a…", () => setMenuDiap({ ...menuDiap, sub: "mover" }), { flecha: true })}
+                {fila(CopyPlus, "Copiar a…", () => setMenuDiap({ ...menuDiap, sub: "copiar" }), { flecha: true })}
+                {s.totalGrupo > 1 && fila(Ungroup, "Sacar del grupo", () => { setMenuDiap(null); enviarDiapositiva(s, "suelta", false); })}
+                <div style={{ height: 1, background: "var(--wf-border)", margin: "4px 6px" }} />
+                {fila(Trash2, "Eliminar", () => { setMenuDiap(null); borrarDiapositiva(s); }, { peligro: true })}
+              </>
+            ) : (
+              <>
+                {fila(ChevronLeft, menuDiap.sub === "mover" ? "Mover a…" : "Copiar a…", () => setMenuDiap({ ...menuDiap, sub: null }))}
+                <div style={{ height: 1, background: "var(--wf-border)", margin: "4px 6px" }} />
+                {grupos.map((it) => fila(null, `${nombreDe(it)}${it.id === r.itemId ? " (este mismo)" : ""}`, () => { setMenuDiap(null); enviarDiapositiva(s, it.id, menuDiap.sub === "copiar"); }))}
+                {fila(Plus, "Grupo nuevo…", () => { setMenuDiap(null); enviarDiapositiva(s, "nuevo", menuDiap.sub === "copiar"); })}
+              </>
+            )}
+          </div>
+        );
+      })()}
+      {/* Agregar una canción = queda en el orden del culto (ya no "improvisada"), después de lo que se
+          está viendo; luego se arrastra a donde se quiera. */}
+      {/* Dos funciones separadas (pedido de Eldin, 2026-10-21: "no le gusta que haya un montón de botones
+          de proyectar"): "Proyectar desde biblioteca" pone la canción en pantalla con un toque; "Agregar →
+          Canción" solo la mete al orden del culto. */}
+      {showAdHocSong === "proyectar" && (
+        <AdHocSongModal
+          library={library} onClose={() => setShowAdHocSong(false)} onPick={proyectarCancionYa}
+          titulo="Proyectar desde biblioteca" Icono={Radio} color="var(--wf-brand-accent)"
+          ayuda="Toca una canción y sale en pantalla de una vez. También queda en el orden del culto, después de lo que está al aire."
+        />
+      )}
+      {showAdHocSong === true && (
+        <AdHocSongModal
+          library={library} onClose={() => setShowAdHocSong(false)} onPick={agregarCancionAqui} Icono={Plus} color="#1F8A73"
+          titulo="Agregar canción al culto"
+          ayuda={`Toca una canción para agregarla ${anclaParaAgregar() ? `después de "${tituloItem(anclaParaAgregar())}"` : "al final del culto"}. No sale en pantalla hasta que la proyectes.`}
+        />
+      )}
+      {showImportar && (
+        <ImportarPresentacion
+          iglesiaId={myIglesiaId}
+          destino={anclaParaAgregar() ? `Entra después de "${tituloItem(anclaParaAgregar())}". Luego puedes arrastrarla a otro lugar.` : "Entra al final del orden del culto."}
+          onClose={() => setShowImportar(false)}
+          onImportar={(items) => {
+            onInsertarItems(items, anclaParaAgregar()?.id || null);
+            setShowImportar(false);
+            const primero = items.find((it) => it.type !== "seccion");
+            if (primero) { setItemVisto(primero.id); setVerTodas(false); }
+            if (mmPanel === "biblia") setMmPanel("transmision");
+            showToast(`Se agregaron ${items.filter((it) => it.type !== "seccion").length} diapositivas al orden del culto.`, "info");
+          }}
+        />
+      )}
+      {/* "+ Agregar" de la consola: las mismas opciones que el Setlist, con lo que pasa con cada una. */}
+      {showAgregarConsola && (
+        <ModalShell title="Agregar al culto" icon={Plus} color="var(--wf-brand-accent)" onClose={() => setShowAgregarConsola(false)}>
+          {!isFreeSession && <ElegirParteDelCulto orden={serviceOrder} valor={destinoConsola} onCambiar={setDestinoConsola} textoSinElegir={itemCentro || itemAlAire ? `Después de "${tituloItem(itemCentro || itemAlAire)}"` : "Al final del culto"} />}
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, margin: "0 -6px" }}>
+            {opcionesAgregarConsola.map((o) => (
+              <button key={o.clave} onClick={() => { setShowAgregarConsola(false); o.accion(); }} className="hoverable"
+                style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "transparent", border: "none", borderRadius: 12, padding: "10px 8px", cursor: "pointer", color: "var(--wf-text)", fontFamily: "inherit" }}>
+                <span style={{ width: 38, height: 38, borderRadius: 11, background: `color-mix(in srgb, ${o.color} 16%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><o.Icon size={19} color={o.color} /></span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>{o.titulo}</span>
+                  <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-muted)" }}>{o.detalle}</span>
+                </span>
+                <ChevronRight size={16} color="var(--wf-faint)" />
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginTop: 10 }}>
+            {anclaParaAgregar() ? `Entra después de "${tituloItem(anclaParaAgregar())}". ` : "Entra al final del orden del culto. "}
+            Nada sale a la pantalla hasta que tú lo proyectes. Luego lo puedes arrastrar a otro lugar del orden.
+          </div>
+        </ModalShell>
+      )}
+      {showAdHocVideo && <AdHocVideoModal onClose={() => setShowAdHocVideo(false)} onPlay={(url) => { onStartAdHocVideo(url); setShowAdHocVideo(false); }} />}
+      {showAddSlide && (
+        <SlideModal
+          iglesiaId={myIglesiaId}
+          draft={newSlideDraft} setDraft={setNewSlideDraft}
+          onClose={() => setShowAddSlide(false)}
+          onAdd={() => { if (!newSlideDraft.title && !(newSlideDraft.bgType === "video" && newSlideDraft.videoUrl) && !(newSlideDraft.bgType === "imagen" && newSlideDraft.imageUrl)) return; onAddLiveSlide(newSlideDraft, anclaParaAgregar()?.id); setShowAddSlide(false); }}
+        />
+      )}
+      {editingSlide && editingSlide.type === "biblia" && (
+        <ModalShell title="Editar versículo" icon={BookOpen} color="#2F5FA8" onClose={() => setEditingSlide(null)}>
+          <Field label="Referencia"><input value={editDraft.reference} onChange={(e) => setEditDraft({ ...editDraft, reference: e.target.value })} style={inputStyle} /></Field>
+          <div style={{ height: 10 }} />
+          <Field label="Texto"><textarea value={editDraft.text} onChange={(e) => setEditDraft({ ...editDraft, text: e.target.value })} style={{ ...inputStyle, height: 100, resize: "none" }} /></Field>
+          <button onClick={saveSlideEdit} style={{ ...primaryBtn, marginTop: 14 }}>Guardar cambios</button>
+        </ModalShell>
+      )}
+      {editingSlide && editingSlide.type === "slide" && (
+        <SlideModal iglesiaId={myIglesiaId} title="Editar diapositiva" submitLabel="Guardar cambios" draft={editDraft} setDraft={setEditDraft} onClose={() => setEditingSlide(null)} onAdd={saveSlideEdit} />
+      )}
+      {editingSlide && editingSlide.type === "cancion" && (
+        <ModalShell title={editingSlide.nueva ? "Nueva diapositiva" : "Corregir letra"} icon={editingSlide.nueva ? Plus : Music} color="var(--wf-brand-accent)" onClose={() => setEditingSlide(null)}>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>
+            {editingSlide.songTitle} · {editingSlide.nueva ? `después de ${editingSlide.blockLabel}` : editingSlide.blockLabel}
+          </div>
+          <Field label="Texto"><textarea key={editingSlide.nueva ? "nueva" : "editar"} autoFocus value={editDraft.text} onChange={(e) => setEditDraft({ ...editDraft, text: e.target.value })} placeholder={editingSlide.nueva ? "Escribe la letra de la diapositiva nueva" : undefined} style={{ ...inputStyle, height: 120, resize: "vertical" }} /></Field>
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Este cambio queda guardado en la canción de la biblioteca — no solo para esta transmisión.</div>
+          <button onClick={saveSlideEdit} disabled={editingSlide.nueva && !editDraft.text.trim()} style={{ ...primaryBtn, marginTop: 14, opacity: editingSlide.nueva && !editDraft.text.trim() ? 0.5 : 1 }}>{editingSlide.nueva ? "Agregar diapositiva" : "Guardar cambios"}</button>
+          {!editingSlide.nueva && <button
+            onClick={() => { setEditingSlide({ ...editingSlide, nueva: true }); setEditDraft({ text: "" }); }}
+            className="hoverable"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", background: "var(--wf-hover)", border: "none", borderRadius: 12, padding: "9px 0", fontSize: 13, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer", marginTop: 8 }}
+          >
+            <Plus size={14} /> Agregar otra diapositiva a "{editingSlide.sectionLabel}"
+          </button>}
+        </ModalShell>
+      )}
+    </div>
+  );
+}
+
+// ---------------- PROYECCIÓN ----------------
+// Ajusta el tamaño de letra automáticamente (como el autofit de PowerPoint): el slider de tamaño en
+// Multimedia define el tamaño DESEADO, pero este componente lo mide contra el espacio real disponible y
+// lo va reduciendo hasta que quepa entero — así, sin importar cuántas líneas tenga la diapositiva ni qué
+// tan arriba se suba el slider, el texto nunca se corta ni se sale de la pantalla.
+
+export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeight, thumbnail }) {
+  const font = LIVE_FONTS[liveStyle?.font || "elegante"];
+  const scale = liveStyle?.fontScale ?? 1;
+  // Tamaño real (medido, en px) al que AutoFitText terminó dejando el texto del versículo después de
+  // achicarlo para que quepa — puede ser bastante menor que el "deseado" (bibliaRatio) si el versículo
+  // es largo. La cita se calcula a partir de ESTE valor medido (no del tamaño deseado) para que nunca
+  // pueda verse más grande que el propio versículo, sin importar cuánto se haya tenido que achicar.
+  const [bibliaFontPx, setBibliaFontPx] = useState(null);
+  // Tamaño real al que quedó el contenido de una diapositiva de texto: el texto pequeño de abajo sigue
+  // ese tamaño (escalaSubtitulo, 65% por defecto) en vez de un px fijo — pedido de Eldin, 2026-10-11.
+  const [slideFontPx, setSlideFontPx] = useState(null);
+  // Fondo por canción: solo si quien transmite lo activó y ESTA canción tiene uno propio — si no, el
+  // fondo general de siempre (que también es el de la Biblia y las diapositivas).
+  const fondoCancion = liveStyle?.fondoPorCancion && slide?.type === "cancion" && slide.songId ? liveStyle.fondosCanciones?.[slide.songId] : null;
+  const fondo = fondoCancion ? { ...liveStyle, ...fondoCancion } : liveStyle;
+  // Prioridad de fondo: video propio de esta slide > video de fondo global (Estilo > Video) > imagen
+  // propia de esta slide > imagen de fondo global (Estilo > Imagen) > tema de color.
+  const slideVideoBg = slide?.type === "slide" && slide.bgType === "video" && slide.videoUrl;
+  // Bug real: antes esto no miraba customBgType -- con liveStyle.customVideo puesto alguna vez
+  // (queda guardado aunque ya no se esté usando, por si se vuelve a esa pestaña), el video ganaba
+  // SIEMPRE, sin importar que la pestaña activa fuera "Imagen" con una imagen ya elegida -- cambiar a
+  // imagen no se veía nunca. customBgType (la pestaña que de verdad está activa en Estilo) es lo que
+  // decide cuál de los dos usar, no solo cuál de los dos campos tiene algo guardado.
+  // Letras animadas (ver components/LetrasAnimadas.jsx): el fondo animado del estilo reemplaza al fondo
+  // general, salvo que se haya elegido "Mi fondo", o que la diapositiva o la canción traigan uno propio.
+  const animDef = definicionAnimacion(liveStyle);
+  const animKey = animDef?.clave || null;
+  const anim = animDef?.def || null;
+  const slideTraeFondo = slide?.type === "slide" && ((slide.bgType === "video" && slide.videoUrl) || (slide.bgType === "imagen" && slide.imageUrl));
+  const fondoAnimado = anim && liveStyle?.animFondo !== "propio" && !fondoCancion && !slideTraeFondo ? anim.fondo : null;
+  const customBgEsVideo = !fondoAnimado && fondo?.theme === "custom" && (fondo.customBgType || "imagen") === "video";
+  const customBgEsImagen = !fondoAnimado && fondo?.theme === "custom" && (fondo.customBgType || "imagen") === "imagen";
+  const globalVideoBg = !slideVideoBg && customBgEsVideo && fondo.customVideo;
+  const videoSrc = slideVideoBg ? slide.videoUrl : globalVideoBg ? fondo.customVideo : null;
+  const slideImageBg = !videoSrc && slide?.type === "slide" && slide.bgType === "imagen" && slide.imageUrl;
+  const globalImageBg = !videoSrc && !slideImageBg && customBgEsImagen && fondo.customImage;
+  const imageSrc = slideImageBg || globalImageBg || null;
+  // Bug real (no de hoy, ya existía): al tocar la pestaña "Imagen" o "Video (movimiento)" del fondo
+  // global, liveStyle.theme pasa a "custom" DE UNA -- antes incluso de subir o elegir algo -- pero
+  // "custom" nunca fue una clave de LIVE_THEMES. Mientras no hubiera ni video ni imagen todavía (justo
+  // el instante entre tocar la pestaña y terminar de subir el archivo), esto hacía LIVE_THEMES["custom"]
+  // undefined y el siguiente .bg reventaba -- se caía TODA la app (sin pantalla de error, solo en
+  // blanco/negro), tanto en la vista previa del panel de control como en la Proyección real, porque las
+  // dos usan este mismo componente. El `|| LIVE_THEMES.stage` cubre ese y cualquier otro valor de tema
+  // que no sea una clave real.
+  const theme = videoSrc || imageSrc ? null : (LIVE_THEMES[fondo?.theme || "stage"] || LIVE_THEMES.stage);
+  const bg = fondoAnimado && !videoSrc && !imageSrc ? "#000" : videoSrc ? "#000" : imageSrc ? `center / cover no-repeat url(${imageSrc})` : theme.bg;
+  // El tamaño de letra "deseado" viene del slider (liveStyle.fontScale) multiplicando una proporción del
+  // alto del contenedor (ver AutoFitText) en vez de un px fijo — así se ve igual de grande en la
+  // mini-preview y en la pantalla real, y ese mismo % sigue aplicando de una diapositiva a la siguiente
+  // (liveStyle.fontScale es un solo valor compartido, no por diapositiva) sin nunca desbordarse, porque
+  // AutoFitText siempre lo achica más si hace falta para esa diapositiva en particular.
+  // Piso en 94% de este tamaño (minRatio, ver AutoFitText) SOLO en los formatos de pantalla chica
+  // (diapositivas reorganizadas: traen baseLines, ver reorganizarLetra): ahí todas quedan más o menos
+  // del mismo tamaño y una línea larga se parte en dos renglones en vez de achicarse. En "2 líneas por
+  // diapositiva" (pantallas grandes) no: cada línea debe verse completa en su renglón, así que se
+  // achica lo necesario, como siempre.
+  const cancionRatio = 0.16 * scale;
+  // Antes 0.12 — bastante más chica que la letra de canción (0.16), lo que la hacía difícil de leer
+  // desde lejos en la pantalla real, incluso para quienes siguen con su propia Biblia en mano.
+  const bibliaRatio = 0.155 * scale;
+  const slideRatio = 0.18 * scale;
+  const textColor = liveStyle?.textColor || "#FFFFFF";
+  // Ajustes finos (ver LIVE_SOMBRAS y compañía) — sin valor, como siempre.
+  const espaciadoLetras = liveStyle?.espaciado != null ? `${liveStyle.espaciado}em` : font.tracking;
+  const sombraTexto = (LIVE_SOMBRAS[liveStyle?.sombra] || LIVE_SOMBRAS.ninguna).css;
+  const alineacion = LIVE_ALINEACIONES[liveStyle?.alineacion] || LIVE_ALINEACIONES.centro;
+  const posicion = LIVE_POSICIONES[liveStyle?.posicion] || LIVE_POSICIONES.centro;
+  // Letra animada sobre un fondo propio (imagen o video de Estilo, de la canción o de la diapositiva):
+  // los colores del estilo están pensados para su fondo oscuro, así que se oscurece al menos un 40% y la
+  // letra lleva sombra (2026-11-02, "que la letra animada siempre se lea").
+  const animSobreFondoPropio = !!anim && !fondoAnimado;
+  const oscurecerFondo = animSobreFondoPropio ? Math.max(liveStyle?.oscurecer ?? 0.45, OSCURECER_MINIMO_ANIMADA) : (liveStyle?.oscurecer ?? 0.45);
+  const ubicacion = { alinearH: alineacion.flex, alinearV: posicion.flex };
+  // Diseño de transmisión (solo canciones, ver LINE_STYLES): cambia cómo se destaca la 2a línea de la
+  // diapositiva (la que cierra la frase) -- nunca la 1a, y nunca si la diapositiva es de una sola
+  // línea (no hay "2a línea" que destacar). "tradicional" no toca nada (ambas líneas iguales, como
+  // siempre fue).
+  const lineStyleMode = liveStyle?.lineStyle || "tradicional";
+  // Con letra animada el estilo ya decide cómo se ve cada línea: el "diseño de las letras" no aplica.
+  const animarLetra = !!anim && slide?.type === "cancion" && Array.isArray(slide?.lines);
+  const lineasAnimadas = animarLetra ? armarLineasAnimadas(anim, slide.lines, slide.slideId, velocidadLetra(liveStyle)) : null;
+  const cancionLineStyles =
+    slide?.type === "cancion" && lineStyleMode !== "tradicional" && !animarLetra
+      ? slide.lines.map((_, i) => {
+          // Más contraste (pedido de Eldin, 2026-10-05): antes la línea en minúscula no tenía ningún
+          // estilo propio, así que heredaba el peso de la fuente elegida en TIPOGRAFÍA -- con una
+          // fuente ya gruesa (ej. Audaz, Extra negrita) casi no se notaba diferencia contra la 2a
+          // línea en mayúscula. Ahora la 1a línea fuerza un peso liviano sin importar la fuente, y la
+          // 2a además de mayúscula/negrita queda más grande y con más espacio entre letras.
+          if (lineStyleMode === "mayuscula") return i === 0 ? { fontWeight: 400 } : i === 1 ? { textTransform: "uppercase", fontWeight: 900, fontSize: "1.1em", letterSpacing: "0.03em" } : undefined;
+          if (lineStyleMode === "acento") return i === 1 ? { color: "var(--wf-brand-accent)" } : undefined;
+          if (lineStyleMode === "editorial") return i === 1 ? { fontStyle: "italic", fontFamily: "'Playfair Display', serif" } : undefined;
+          // La línea principal más grande, la segunda (como un eco/aclaración) más chica -- al revés
+          // de mayuscula/acento, que destacan la 2a línea; acá se destaca la 1a.
+          if (lineStyleMode === "descendente") return i === 0 ? { fontSize: "1.15em" } : i === 1 ? { fontSize: "0.78em" } : undefined;
+          // Asimétrico a propósito (no centrado) -- cada línea ocupa el ancho completo del bloque de
+          // texto (ver nota en AutoFitText: los <div> hijos son block-level, heredan el ancho del
+          // contenedor ya encogido a la línea más larga) así que left/right sí se nota.
+          if (lineStyleMode === "revista") return i === 0 ? { textAlign: "left" } : i === 1 ? { textAlign: "right" } : undefined;
+          // Fundido/deslizante: las DOS líneas animan (no solo la 2a, como mayuscula/acento) con un
+          // pequeño desfase entre ellas -- "both" como fill-mode para que la línea se quede invisible
+          // ANTES de que le toque su turno, en vez de destellar visible un instante y luego animar.
+          if (lineStyleMode === "fundido") return { animation: `wfLyricFadeIn 0.6s ease ${i * 0.35}s both` };
+          if (lineStyleMode === "deslizante") return { animation: `wfLyricSlideIn 0.55s ease ${i * 0.3}s both` };
+          return undefined; // "cita" y "franja": no tocan el estilo de línea (ver más abajo)
+        })
+      : undefined;
+  const estiloRaiz = { flex: thumbnail ? "none" : compactHeight ? "none" : split ? 1.3 : 1, width: thumbnail ? "100%" : "auto", height: thumbnail ? "100%" : compactHeight || "auto", minHeight: thumbnail ? "auto" : compactHeight || "auto", background: bg, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", position: "relative", padding: thumbnail ? 10 : 32, minWidth: thumbnail ? 0 : 320, overflow: "hidden" };
+  // Página de una presentación importada (PDF, Canva...): se proyecta TAL CUAL, completa (sin recortar),
+  // sobre negro, sin oscurecer ni letra encima — ya trae su propio diseño. "Pantalla en negro" sí la
+  // esconde: aquí la imagen ES el contenido, no un fondo.
+  // Diapositiva con diseño propio (editor de diapositivas / presentación agrupada): se dibuja tal cual.
+  if (slide?.diseno) {
+    return (
+      <div style={{ ...estiloRaiz, background: "#000", padding: 0 }}>
+        <DiapositivaDisenada diapositiva={slide.diseno} blanked={blanked} animar={!thumbnail} paso={slide.paso ?? 0} />
+      </div>
+    );
+  }
+  if (esPaginaPresentacion(slide)) {
+    return (
+      <div style={{ ...estiloRaiz, background: "#000", padding: 0 }}>
+        {blanked ? <div style={{ color: "#2A3140" }}><Mic2 size={thumbnail ? 20 : 40} /></div>
+          : <img src={slide.imageUrl} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />}
+      </div>
+    );
+  }
+  return (
+    <div style={estiloRaiz}>
+      {/* Etiquetas chicas (este letrero, la sección de la canción, el título abajo) solo en la vista
+          previa del propio operador (thumbnail) -- útiles ahí para ubicarse entre los paneles del
+          control, pero de la pantalla real que ve la congregación se quitan: solo debe verse el
+          contenido en sí, sin nada de chrome encima (pedido de Eldin, 2026-10-04). */}
+      {thumbnail && <div style={{ position: "absolute", top: 18, left: 22, display: "flex", alignItems: "center", gap: 6, color: "#5B6472", fontSize: 11, fontWeight: 700, letterSpacing: 1, zIndex: 2 }}><Radio size={12} /> PANTALLA DE PROYECCIÓN</div>}
+      {/* El fondo (video/imagen propios, o el de la slide) se renderiza SIEMPRE, incluso con "Pantalla
+          en negro" -- antes vivía adentro del bloque de abajo (solo cuando NO estaba en negro), así que
+          "pantalla en negro" con un video de fondo se veía como negro sólido de verdad (el <video> ni
+          se montaba) en vez de seguir el video andando sin la letra encima, que es lo que de verdad se
+          quiere: ocultar SOLO la letra/texto que se está transmitiendo, no el fondo. */}
+      {fondoAnimado && !videoSrc && !imageSrc && <FondoAnimado tipo={fondoAnimado} pulso={slide?.slideId ?? slide?.reference ?? slide?.title} chico={!!thumbnail} quieto={!!thumbnail} ajustes={anim?.ajustesFondo} />}
+      {animarLetra && anim.flash && !blanked && <div key={`flash-${slide.slideId}`} className="wfa-flash" />}
+      {videoSrc && (
+        <>
+          <video src={videoSrc} autoPlay muted loop playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }} />
+          <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${oscurecerFondo})`, zIndex: 0 }} />
+        </>
+      )}
+      {imageSrc && <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${oscurecerFondo})`, zIndex: 0 }} />}
+      {blanked || !slide ? (
+        <div style={{ color: "#2A3140", position: "relative", zIndex: 1 }}><Mic2 size={thumbnail ? 20 : 40} /></div>
+      ) : (
+        <>
+          {!videoSrc && !fondoAnimado && <div className="spotlight-glow" style={{ position: "absolute", width: thumbnail ? 140 : 420, height: thumbnail ? 140 : 420, borderRadius: "50%", background: `radial-gradient(circle, ${TYPE_META[slide.type].color}22 0%, transparent 70%)` }} />}
+          {slide.type === "cancion" && (
+            <>
+              {thumbnail && <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "var(--wf-brand-accent)", marginBottom: 6, zIndex: 1 }}>{slide.blockLabel.toUpperCase()}</div>}
+              {/* "Cita destacada": una comilla grande y translúcida detrás del texto -- a diferencia de
+                  los demás diseños, este no cambia el estilo de ninguna línea (ver cancionLineStyles),
+                  solo agrega este adorno detrás. */}
+              {lineStyleMode === "cita" && !animarLetra && (
+                <div aria-hidden style={{ position: "absolute", top: thumbnail ? 4 : 10, left: "50%", transform: "translateX(-50%)", fontFamily: "'Fraunces', serif", fontSize: thumbnail ? 50 : 160, lineHeight: 1, color: textColor, opacity: 0.18, zIndex: 1, pointerEvents: "none" }}>❝</div>
+              )}
+              {(() => {
+                const cancionAutoFit = (
+                  <AutoFitText
+                    key={slide.slideId}
+                    lines={slide.lines} targetRatio={cancionRatio} minRatio={slide.baseLines ? cancionRatio * 0.94 : undefined} minPx={thumbnail ? 7 : 15} maxWidth="90%" {...ubicacion}
+                    // whiteSpace:nowrap es lo que de verdad garantiza "2 líneas nada más" (pedido de
+                    // Eldin, 2026-10-05): sin esto, una sola línea larga podía ENVOLVER a una fila
+                    // visual extra (el ajuste automático de tamaño permitía eso, porque envolver
+                    // también baja el ancho usado) -- con nowrap, la única forma de caber es achicar
+                    // la letra hasta que esa línea quepa completa en una sola fila, nunca partirla.
+                    // key={slide.slideId}: fuerza a React a desmontar/montar de nuevo en cada
+                    // diapositiva -- sin esto, "fundido"/"deslizante" solo se verían la PRIMERA vez
+                    // (los mismos <div> de línea se reutilizan, así que la animación CSS no se repite
+                    // sola con solo cambiar el texto adentro).
+                    style={animarLetra
+                      ? { fontFamily: anim.fuente.family, fontWeight: anim.fuente.weight, textTransform: anim.fuente.transform || "none", letterSpacing: anim.fuente.tracking || "normal", textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.25, textShadow: animSobreFondoPropio ? reforzarSombraAnimada(anim.sombra) : anim.sombra, color: animSobreFondoPropio ? colorLegibleAnimada(anim.color) : anim.color, whiteSpace: "nowrap", ...lineasAnimadas.vars }
+                      : { fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: espaciadoLetras, fontStyle: font.italic ? "italic" : "normal", textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.35, textShadow: sombraTexto, color: textColor, whiteSpace: "nowrap", textWrap: "balance" }}
+                    lineStyles={cancionLineStyles}
+                    className={animarLetra ? claseAnimacion(animKey) : undefined}
+                    contenidoLineas={lineasAnimadas?.lineas}
+                  />
+                );
+                // "Franja inferior": en vez de centrada en toda la pantalla, la letra vive en una
+                // barra angosta abajo con su propio fondo semitransparente -- deja ver mucho más del
+                // fondo/video arriba, estilo noticiero. Necesita su propio contenedor flex con alto
+                // definido (a diferencia del resto, que usa el alto completo del panel) para que
+                // AutoFitText (flex:1 por dentro) tenga contra qué medirse.
+                if (lineStyleMode !== "franja" || animarLetra) return cancionAutoFit;
+                return (
+                  <div style={{ position: "absolute", left: thumbnail ? 8 : 28, right: thumbnail ? 8 : 28, bottom: thumbnail ? 8 : 36, height: thumbnail ? "42%" : "30%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(8,10,14,0.55)", borderRadius: thumbnail ? 8 : 16, padding: thumbnail ? "4px 8px" : "10px 28px", zIndex: 1, boxSizing: "border-box" }}>
+                    {cancionAutoFit}
+                  </div>
+                );
+              })()}
+              {thumbnail && <div style={{ position: "absolute", bottom: 18, display: "flex", alignItems: "center", gap: 8, color: "#5B6472", fontSize: 12, zIndex: 1 }}><Music size={12} /> {slide.songTitle}</div>}
+            </>
+          )}
+          {slide.type === "biblia" && (
+            <>
+              {/* Antes la cita vivía como hermana de AutoFitText dentro del mismo flex column: al medir
+                  su tamaño DESDE bibliaFontPx (ver abajo) y compartir el mismo alto disponible, cambiar
+                  su tamaño encogía/agrandaba el espacio que le quedaba al versículo, lo que disparaba el
+                  ResizeObserver de AutoFitText de nuevo, que volvía a medir, volvía a cambiar bibliaFontPx,
+                  volvía a cambiar el tamaño de la cita... un ciclo sin fin que se veía como parpadeo/
+                  "el texto se agranda y achica solo" en algunos versículos (los que quedaban cerca del
+                  punto donde ese vaivén no se estabilizaba). Reservando aquí un espacio FIJO (no depende
+                  de bibliaFontPx) y sacando la cita del flujo con position:absolute, el alto que mide
+                  AutoFitText deja de depender de su propio resultado anterior — se rompe el ciclo. */}
+              {/* paddingBottom fijo (NO depende de `scale`): antes crecía junto con el control de tamaño de
+                  letra (`* scale`) — así que subir el tamaño del versículo al mismo tiempo le quitaba
+                  espacio disponible para ese mismo versículo, compitiendo consigo mismo. En un versículo
+                  largo (que ya necesita achicarse para caber) ese espacio perdido podía anular por
+                  completo el aumento pedido, o incluso dejarlo más chico que antes — el control de tamaño
+                  se sentía "roto" justo en los casos donde más hacía falta. */}
+              {/* flexDirection:"column" es lo que de verdad arregla el tamaño de letra de los versículos:
+                  sin esto (display:flex por defecto es "row"), align-items:center pasa a controlar el
+                  eje vertical (cruzado en una fila) y este div, en vez de estirarse al alto real
+                  disponible, se encoge al tamaño de SU PROPIO contenido -- que es circular con lo que
+                  AutoFitText está midiendo. El resultado: container.clientHeight quedaba casi en 0/20px
+                  sin importar la pantalla, así que el tamaño "deseado" (containerHeight * bibliaRatio)
+                  siempre caía al piso mínimo (minPx) y el control de tamaño de letra no tenía ningún
+                  efecto real -- por eso el versículo se seguía viendo chico pase lo que pase. */}
+              <div style={{ flex: 1, minHeight: 0, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingBottom: thumbnail ? 22 : 76 }}>
+                <AutoFitText
+                  lines={`"${slide.text}"`} targetRatio={bibliaRatio} minPx={thumbnail ? 7 : 14} maxWidth="90%" {...ubicacion}
+                  onFontSize={setBibliaFontPx}
+                  style={{ fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: espaciadoLetras, textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.4, textShadow: sombraTexto, fontStyle: font.italic || font.family.includes("Fraunces") ? "italic" : "normal", color: liveStyle?.bibliaTextColor || textColor }}
+                />
+              </div>
+              {/* La cita ("Génesis 6:6") tiene que leerse desde lejos SIN necesidad de escuchar — hay gente
+                  que sigue con su propia Biblia en mano y solo mira la pantalla para ubicar el pasaje.
+                  Pero nunca debe verse MÁS grande que el propio versículo: en vez de un tamaño calculado
+                  aparte (que no sabía cuánto se había achicado el versículo para caber), se deriva del
+                  tamaño ya medido de arriba (bibliaFontPx) — así siempre queda un porcentaje fijo de él,
+                  se achique lo que se achique el versículo. */}
+              <div style={{ position: "absolute", left: 0, right: 0, bottom: thumbnail ? 6 : 28, textAlign: "center", fontSize: thumbnail ? 10 : Math.round((bibliaFontPx || 20) * 0.62), color: liveStyle?.bibliaReferenciaColor || "#6E9BD1", fontWeight: 800, zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "0.3em" }}>
+                {slide.reference}
+                {!thumbnail && slide.version && <span style={{ fontSize: "0.4em", background: "rgba(110,155,209,0.2)", borderRadius: 10, padding: "0.2em 0.6em" }}>{slide.version}</span>}
+              </div>
+            </>
+          )}
+          {slide.type === "slide" && (
+            <div style={{ textAlign: "center", zIndex: 1, width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <AutoFitText
+                // Un renglón vacío se proyecta como espacio (pedido de Eldin, 2026-10-11): una línea "" medía
+                // 0 de alto y el texto quedaba junto. Solo se quitan los renglones vacíos de las orillas.
+                lines={(slide.title || "").replace(/^\s*\n+|\n+\s*$/g, "").split("\n").map((l) => (l.trim() === "" ? "\u00A0" : l))} targetRatio={slideRatio} onFontSize={setSlideFontPx} minPx={thumbnail ? 8 : 16} maxPx={thumbnail ? 30 : 130} maxWidth="90%" {...ubicacion}
+                // Con texto pequeño: el contenido se pega a él (abajo de su espacio) y un espacio debajo
+                // los centra juntos como un solo bloque, en vez de quedar uno arriba y otro abajo.
+                {...(slide.subtitle && slide.title && posicion.flex !== "flex-start" ? { alinearV: "flex-end" } : {})}
+                style={{ fontFamily: font.family, fontWeight: Math.max(font.weight, 600), textTransform: font.transform, letterSpacing: espaciadoLetras, fontStyle: font.italic ? "italic" : "normal", textAlign: alineacion.text, lineHeight: liveStyle?.interlineado ?? undefined, textShadow: sombraTexto, color: textColor }}
+              />
+              {slide.subtitle && (
+                <div style={{
+                  fontSize: slide.title && slideFontPx ? Math.max(thumbnail ? 5 : 14, slideFontPx * (slide.escalaSubtitulo ?? 0.65)) : thumbnail ? 9 : 44,
+                  fontFamily: font.family, fontWeight: 500, color: textColor, opacity: 0.85, textShadow: sombraTexto, textAlign: alineacion.text,
+                  marginTop: "0.4em", flexShrink: 0, whiteSpace: "pre-line", maxWidth: "90%", lineHeight: 1.25, zIndex: 1,
+                  display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden",
+                }}>{slide.subtitle}</div>
+              )}
+              {slide.subtitle && slide.title && posicion.flex === "center" && <div style={{ flex: 0.55, minHeight: 0 }} />}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------- estilos compartidos ----------------
+const iconGhost = { background: "transparent", border: "none", color: "var(--wf-muted)", cursor: "pointer", width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 10 };
+const miniBtnStyle = { display: "flex", alignItems: "center", gap: 4, background: "transparent", border: "1px solid var(--wf-border)", borderRadius: 10, padding: "4px 8px", fontSize: 10, color: "#2F5FA8", cursor: "pointer" };
+const ctrlBtn = { display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", color: "var(--wf-text)", borderRadius: 12, padding: "9px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer" };
+const ghostToggleBtn = { fontSize: 12, fontWeight: 700, padding: "8px 12px", borderRadius: 12, border: "1px solid var(--wf-border)", background: "var(--wf-hover)", color: "var(--wf-heading)", cursor: "pointer" };
+const addBtnStyle = { display: "flex", alignItems: "center", gap: 8, width: "100%", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "9px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer" };
+const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "9px 10px", fontSize: 13, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
+const primaryBtn = { width: "100%", background: "var(--wf-brand-accent)", border: "none", borderRadius: 12, padding: "10px", fontSize: 13, fontWeight: 700, color: "var(--wf-on-brand-accent)", cursor: "pointer" };
