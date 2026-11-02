@@ -3,8 +3,8 @@ import { X, Minus, Plus, Maximize, Music, BookOpen, Type, MessageSquare } from "
 import AutoFitText from "./components/AutoFitText.jsx";
 import { leerEscenarioDeUrl } from "./lib/enlacePantalla.js";
 import { tiempoTranscurrido } from "./lib/escenario.js";
-import { getLiveSession, subscribeLiveSession, subscribeLiveBroadcast, pedirEstadoActual, guardarUltimaFila, leerUltimaFila } from "./lib/liveSession.js";
-import { supabase } from "./lib/supabaseClient.js";
+import { useSesionPublica } from "./lib/usarSesionPublica.js";
+import EnlaceVencido from "./components/EnlaceVencido.jsx";
 import { soportaPantallaCompleta, pedirPantallaCompleta, salirDePantallaCompleta } from "./lib/pantallaCompleta.js";
 import AvisoIphone from "./components/AvisoIphone.jsx";
 
@@ -35,43 +35,16 @@ function Tarjeta({ children, style }) {
 }
 
 export default function PantallaEscenario() {
-  const [fila, setFila] = useState(null);
-  const [iglesiaId, setIglesiaId] = useState(null);
   const [ahora, setAhora] = useState(() => Date.now());
   const [tamano, setTamano] = useState(leerTamano);
   const [cursorOculto, setCursorOculto] = useState(false);
   const [vertical, setVertical] = useState(() => typeof window !== "undefined" && window.innerHeight > window.innerWidth);
   const idleRef = useRef(null);
 
-  // Misma resolución de iglesia que la Proyección (ver PublicScreen.jsx): slug de la URL → id, con
-  // copia en este dispositivo para arrancar aunque no haya internet.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const slug = leerEscenarioDeUrl(window.location.pathname, window.location.search)?.slug || null;
-    const claveCache = `worshipflow_iglesia_por_slug_${slug || "_defecto"}`;
-    const directo = params.get("iid");
-    let guardado = null;
-    try { guardado = localStorage.getItem(claveCache); } catch { /* sin storage */ }
-    if (directo || guardado) setIglesiaId(directo || guardado);
-    const resolver = slug ? supabase.rpc("iglesia_id_por_slug", { p_slug: slug }) : supabase.rpc("iglesia_id_por_defecto");
-    resolver.then(({ data }) => {
-      if (!data) return;
-      setIglesiaId(data);
-      try { localStorage.setItem(claveCache, data); } catch { /* sin storage */ }
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (!iglesiaId) return;
-    const aplicar = (f) => { setFila(f); guardarUltimaFila(iglesiaId, f); };
-    const ultima = leerUltimaFila(iglesiaId);
-    if (ultima) setFila(ultima);
-    const quitarLocal = subscribeLiveBroadcast(iglesiaId, aplicar);
-    pedirEstadoActual(iglesiaId);
-    getLiveSession(iglesiaId).then(aplicar).catch(() => {});
-    const quitarRealtime = subscribeLiveSession(iglesiaId, aplicar);
-    return () => { quitarRealtime(); quitarLocal(); };
-  }, [iglesiaId]);
+  // Iglesia y código secreto vienen del enlace (/e/<iglesia>/<código>); el código vence al finalizar cada
+  // transmisión. Misma lectura que la Proyección — ver useSesionPublica.
+  const [enlace] = useState(() => leerEscenarioDeUrl(window.location.pathname, window.location.search) || {});
+  const { fila, vencido } = useSesionPublica({ slug: enlace.slug || null, codigo: enlace.codigo || null });
 
   useEffect(() => { const t = setInterval(() => setAhora(Date.now()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => {
@@ -152,7 +125,9 @@ export default function PantallaEscenario() {
         </div>
       </div>
 
-      {!enVivo || !slide ? (
+      {vencido ? (
+        <div style={{ flex: 1, display: "flex" }}><EnlaceVencido tipo="escenario" /></div>
+      ) : !enVivo || !slide ? (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, textAlign: "center" }}>
           <div style={{ fontSize: "clamp(22px, 4vh, 48px)", fontWeight: 700 }}>Pantalla de escenario</div>
           <div style={{ fontSize: "clamp(14px, 2.2vh, 26px)", color: GRIS, maxWidth: 700 }}>{enVivo ? "En vivo. Cuando Multimedia ponga algo al aire, aparece aquí." : "Esperando a que Multimedia inicie la transmisión."}</div>

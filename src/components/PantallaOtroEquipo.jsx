@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Copy, Check, MessageCircle, MonitorSmartphone } from "lucide-react";
+import { X, Copy, Check, MessageCircle, MonitorSmartphone, RefreshCw, Clock } from "lucide-react";
 import qrcode from "qrcode-generator";
 import { supabase } from "../lib/supabaseClient.js";
 import { enlacePantalla, enlaceEscenario } from "../lib/enlacePantalla.js";
+import { obtenerCodigoPantalla, renovarCodigoPantalla } from "../lib/liveSession.js";
 
 // "Pantalla en otro equipo" (pedido de Eldin, 2026-10-18): la proyección se puede abrir en cualquier
 // TV, tablet o computadora con navegador y se sincroniza sola por internet. Aquí se muestra el enlace
@@ -13,20 +14,33 @@ export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCer
   // Se puede cambiar entre las dos pantallas desde aquí mismo (Proyección · Escenario).
   const [tipo, setTipo] = useState(tipoInicial === "escenario" ? "escenario" : "proyeccion");
   const esEscenario = tipo === "escenario";
+  // Código secreto que va en el enlace (vence solo al finalizar cada transmisión). undefined = cargando;
+  // null = la base todavía no lo tiene (enlace de siempre, sin código).
+  const [codigo, setCodigo] = useState(undefined);
+  const [renovando, setRenovando] = useState(false);
+  const [avisoRenovar, setAvisoRenovar] = useState("");
+  useEffect(() => { let vivo = true; obtenerCodigoPantalla().then((c) => { if (vivo) setCodigo(c); }); return () => { vivo = false; }; }, []);
+  const renovar = async () => {
+    setRenovando(true); setAvisoRenovar("");
+    try { setCodigo(await renovarCodigoPantalla()); setCopiado(false); setAvisoRenovar("Listo: el enlace anterior ya no sirve. Vuelve a escanear este QR en las pantallas."); }
+    catch { setAvisoRenovar("Solo Multimedia o un administrador puede renovar el enlace."); }
+    finally { setRenovando(false); }
+  };
   const [slug, setSlug] = useState(slugInicial || null);
   const [copiado, setCopiado] = useState(false);
   useEffect(() => {
     if (slug || !iglesiaId) return;
     supabase.from("iglesias").select("slug").eq("id", iglesiaId).single().then(({ data }) => { if (data?.slug) setSlug(data.slug); });
   }, [slug, iglesiaId]);
-  const enlace = esEscenario ? enlaceEscenario(slug) : enlacePantalla(slug);
+  const origen = typeof window !== "undefined" ? window.location.origin : "";
+  const enlace = esEscenario ? enlaceEscenario(slug, origen, codigo) : enlacePantalla(slug, origen, codigo);
   const svgQr = useMemo(() => {
-    if (!slug) return "";
+    if (!slug || codigo === undefined) return "";
     const qr = qrcode(0, "M");
     qr.addData(enlace);
     qr.make();
     return qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
-  }, [enlace, slug]);
+  }, [enlace, slug, codigo]);
   const copiar = async () => {
     try { await navigator.clipboard.writeText(enlace); setCopiado(true); setTimeout(() => setCopiado(false), 2200); }
     catch { window.prompt?.("Copia este enlace:", enlace); }
@@ -68,6 +82,18 @@ export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCer
           <button type="button" onClick={copiar} style={boton}>{copiado ? <Check size={16} color="#1F8A73" /> : <Copy size={16} />}{copiado ? "Copiado" : "Copiar enlace"}</button>
           <a href={`https://wa.me/?text=${encodeURIComponent(textoWhatsApp)}`} target="_blank" rel="noopener noreferrer" style={boton}><MessageCircle size={16} color="#1F8A73" /> Enviar por WhatsApp</a>
         </div>
+        {codigo && (
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "rgba(232,130,30,0.12)", borderRadius: 12, padding: "10px 12px", marginBottom: 14 }}>
+            <Clock size={16} color="var(--wf-brand-accent)" style={{ flexShrink: 0, marginTop: 2 }} />
+            <div style={{ flex: 1, fontSize: 12.5, color: "var(--wf-text)", lineHeight: 1.5 }}>
+              <b>Este enlace vence solo</b> cuando Multimedia finaliza la transmisión. Para el próximo culto, vuelve aquí por el nuevo QR.
+              <button type="button" onClick={renovar} disabled={renovando} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, background: "transparent", border: "1px solid var(--wf-border)", borderRadius: 10, padding: "6px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit" }}>
+                <RefreshCw size={13} /> {renovando ? "Renovando…" : "Renovar ahora"}
+              </button>
+              {avisoRenovar && <div style={{ marginTop: 6, fontSize: 12, color: "var(--wf-muted)" }}>{avisoRenovar}</div>}
+            </div>
+          </div>
+        )}
         <ol style={{ margin: 0, paddingLeft: 20, listStyle: "decimal", fontSize: 12.5, color: "var(--wf-text)", lineHeight: 1.6 }}>
           <li>Escanea el código con la cámara del otro equipo, o escribe el enlace en su navegador.</li>
           <li>Toca la pantalla una vez para ponerla en pantalla completa.</li>

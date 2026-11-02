@@ -3,15 +3,15 @@ import { X } from "lucide-react";
 import { ProjectionPanel } from "./PrototipoWorshipFlow.jsx";
 import { precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
 import { leerPantallaDeUrl } from "./lib/enlacePantalla.js";
-import { getLiveSession, subscribeLiveSession, subscribeLiveBroadcast, anunciarProyeccion, pedirEstadoActual, guardarUltimaFila, leerUltimaFila } from "./lib/liveSession.js";
-import { supabase } from "./lib/supabaseClient.js";
+import { anunciarProyeccion } from "./lib/liveSession.js";
+import { useSesionPublica } from "./lib/usarSesionPublica.js";
+import EnlaceVencido from "./components/EnlaceVencido.jsx";
 import { soportaPantallaCompleta, estaEnPantallaCompleta, pedirPantallaCompleta, salirDePantallaCompleta, alCambiarPantallaCompleta } from "./lib/pantallaCompleta.js";
 import AvisoIphone from "./components/AvisoIphone.jsx";
 
 const CURSOR_IDLE_MS = 3000;
 
 export default function PublicScreen() {
-  const [live, setLive] = useState({ slide: null, blanked: false, liveStyle: { theme: "stage", font: "elegante" } });
   const [cursorHidden, setCursorHidden] = useState(false);
   const [needsTapToFullscreen, setNeedsTapToFullscreen] = useState(false);
   // Distinto de needsTapToFullscreen (la primera vez, antes de que se vea nada todavía): esta pantalla
@@ -26,63 +26,20 @@ export default function PublicScreen() {
   const everFullscreenRef = useRef(false);
   const idleTimerRef = useRef(null);
 
-  // Fase 2b (multi-iglesia): esta pantalla no tiene sesión iniciada (es la que ve la congregación,
-  // anclada a una URL fija), así que no puede saber "mi iglesia" vía auth.uid() como el resto de la
-  // app — lo trae de la URL (?screen=publico&igl=<slug>, puesta por openOnOtherScreen en
-  // PrototipoWorshipFlow.jsx) y la resuelve a un id con la función iglesia_id_por_slug (de solo
-  // lectura, ejecutable sin sesión — ver migración 20260930000300_sesion_en_vivo_por_iglesia.sql).
-  // Sin slug en la URL (pantalla instalada antes de este cambio), cae a iglesia_id_por_defecto() —
-  // correcto mientras exista una sola iglesia.
-  const [iglesiaId, setIglesiaId] = useState(null);
-  // Sin internet (2026-10-17): la consola ahora manda también el id de la iglesia en la URL (&iid=), y
-  // el último id resuelto se guarda en este dispositivo — así la pantalla arranca aunque no haya señal
-  // para preguntarle a Supabase.
   // Las letras de los estilos animados se descargan al abrir la proyección, antes de que salga la primera diapositiva.
   useEffect(() => { precargarFuentesAnimacion(); }, []);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const slug = leerPantallaDeUrl(window.location.pathname, window.location.search)?.slug || null;
-    const claveCache = `worshipflow_iglesia_por_slug_${slug || "_defecto"}`;
-    const directo = params.get("iid");
-    let guardado = null;
-    try { guardado = localStorage.getItem(claveCache); } catch { /* sin storage */ }
-    if (directo || guardado) setIglesiaId(directo || guardado);
-    const resolver = slug
-      ? supabase.rpc("iglesia_id_por_slug", { p_slug: slug })
-      : supabase.rpc("iglesia_id_por_defecto");
-    resolver.then(({ data }) => {
-      if (!data) return;
-      setIglesiaId(data);
-      try { localStorage.setItem(claveCache, data); } catch { /* sin storage */ }
-    }).catch(() => {});
-  }, []);
-
-  // Dos caminos a la vez: BroadcastChannel llega al instante (sin depender de internet) cuando esta
-  // pantalla está en la MISMA computadora que el panel de control — el caso típico: TV conectado por
-  // HDMI como segunda pantalla, igual que un presentador local (tipo PowerPoint). Supabase Realtime
-  // sigue siendo el camino real cuando esta pantalla está en otro dispositivo de verdad — se lee la
-  // sesión en vivo al entrar y se sigue seguido por Realtime, más lento si el internet del lugar anda
-  // mal, pero funciona aunque control y proyección estén en computadoras distintas.
-  useEffect(() => {
-    if (!iglesiaId) return;
-    const aplicar = (fila) => {
-      setLive({ slide: fila.slide_actual, blanked: fila.blanked, liveStyle: fila.estilo_en_vivo || { theme: "stage", font: "elegante" } });
-      guardarUltimaFila(iglesiaId, fila);
-    };
-    // Primero lo último que se vio en este dispositivo (por si no hay internet), luego lo que diga la
-    // consola de esta misma computadora, y por último Supabase cuando haya señal.
-    const ultima = leerUltimaFila(iglesiaId);
-    if (ultima) setLive({ slide: ultima.slide_actual, blanked: ultima.blanked, liveStyle: ultima.estilo_en_vivo || { theme: "stage", font: "elegante" } });
-    const unsubscribeBroadcast = subscribeLiveBroadcast(iglesiaId, aplicar);
-    pedirEstadoActual(iglesiaId);
-    getLiveSession(iglesiaId).then(aplicar).catch(() => {});
-    const unsubscribeRealtime = subscribeLiveSession(iglesiaId, aplicar);
-    return () => { unsubscribeRealtime(); unsubscribeBroadcast(); };
-  }, [iglesiaId]);
+  // Esta pantalla no tiene sesión iniciada: la iglesia y el código secreto vienen del enlace
+  // (/p/<iglesia>/<código>). Lo que está al aire llega por el canal local (misma computadora que la
+  // consola) o por Supabase con el código, que vence al finalizar cada transmisión — ver useSesionPublica.
+  const [enlace] = useState(() => leerPantallaDeUrl(window.location.pathname, window.location.search) || {});
+  const { fila, vencido, iglesiaId } = useSesionPublica({ slug: enlace.slug || null, codigo: enlace.codigo || null });
+  const live = fila
+    ? { slide: fila.slide_actual, blanked: fila.blanked, liveStyle: fila.estilo_en_vivo || { theme: "stage", font: "elegante" } }
+    : { slide: null, blanked: false, liveStyle: { theme: "stage", font: "elegante" } };
 
   // Avisa a la consola que esta pantalla está abierta (ver anunciarProyeccion): si no, la consola
-  // muestra "La pantalla de proyección no está abierta".
-  useEffect(() => (iglesiaId ? anunciarProyeccion(iglesiaId) : undefined), [iglesiaId]);
+  // muestra "La pantalla de proyección no está abierta". Con el enlace vencido no se anuncia.
+  useEffect(() => (iglesiaId && !vencido ? anunciarProyeccion(iglesiaId) : undefined), [iglesiaId, vencido]);
 
   useEffect(() => {
     const resetIdle = () => {
@@ -154,7 +111,7 @@ export default function PublicScreen() {
 
   return (
     <div style={{ height: "100vh", display: "flex", cursor: cursorHidden ? "none" : "default" }}>
-      <ProjectionPanel slide={live.slide} blanked={live.blanked} split={false} liveStyle={live.liveStyle} />
+      {vencido ? <EnlaceVencido tipo="proyeccion" /> : <ProjectionPanel slide={live.slide} blanked={live.blanked} split={false} liveStyle={live.liveStyle} />}
       {!cursorHidden && (
         <button
           onClick={salirDePantallaPublica}
