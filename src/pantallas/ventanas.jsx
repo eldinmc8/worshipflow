@@ -1,0 +1,357 @@
+// Ventanas sueltas de Ajustes y del Setlist (contraseña, identidad de la iglesia, ajustes de la proyección, selector de fondos). Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "../lib/supabaseClient.js";
+import { Radio, Palette, Download, KeyRound, Play, Image as ImgIcon, LayoutGrid, Trash2 } from "lucide-react";
+import { FORMATOS_LETRA } from "../lib/dividirTexto.js";
+import AppLogo from "../AppLogo.jsx";
+import { validarPassword } from "../lib/passwordSegura.js";
+import MedidorPassword from "../MedidorPassword.jsx";
+import { listarFondos, subirFondo, borrarFondo } from "../lib/multimedia.js";
+import { confirmDialog } from "../lib/confirm.js";
+import { notifyError } from "../lib/toast.js";
+import { ModalShell, Field, primaryBtn, inputStyle, addBtnStyle } from "./compartido.jsx";
+
+// +502 4054 4813, sin "+" ni espacios para wa.me
+
+// Cambiar la propia contraseña sin depender de un administrador — a diferencia de "Reiniciar
+// contraseña" en Usuarios (que un admin usa para OTRA persona), esto es autoservicio: updateUser()
+// de Supabase Auth ya cambia la contraseña de la sesión actual sin pedir la anterior.
+// Zonas de ejemplo más comunes — mismo criterio que CrearIglesia.jsx (la base acepta cualquier
+// nombre IANA válido, esto es solo para no obligar a escribir uno a mano).
+const ZONAS_HORARIAS = [
+  { value: "Etc/GMT+6", label: "Guatemala / El Salvador / Honduras (UTC-6, sin horario de verano)" },
+  { value: "America/Mexico_City", label: "Ciudad de México" },
+  { value: "America/Managua", label: "Nicaragua" },
+  { value: "America/Costa_Rica", label: "Costa Rica" },
+  { value: "America/Bogota", label: "Colombia" },
+  { value: "America/Lima", label: "Perú" },
+];
+
+// Fase 5: nombre, zona horaria, logo y colores de ESTA iglesia — antes de esto, lo único que existía
+// era la base de datos lista para guardarlos (Fase 3) y mostrarlos (ver myIglesia en
+// WorshipFlowPrototype), pero ningún administrador podía cambiarlos desde la app. Recarga la página
+// al guardar en vez de propagar el cambio en memoria -- es la forma más simple y confiable de que el
+// logo/colores nuevos se vean de una en TODA la app (nav, header, botones...), y esto no se usa
+// seguido como para que valga la pena evitar ese recargo.
+// Peso máximo que deja subir el bucket "logos-iglesias" (ver migración 20261001000100) — se
+// comprueba también acá, antes de intentar subir, para un error inmediato en vez de esperar a que
+// el servidor lo rechace.
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+
+const LOGO_TIPOS_VALIDOS = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+
+// Ajustes → Pantalla de proyección (pedido de Eldin, 2026-10-09): todo lo que depende del tamaño de la
+// pantalla de cada iglesia, en un solo lugar. Antes "letra de canciones" vivía en Identidad.
+export function PantallaProyeccionModal({ iglesiaId, onClose }) {
+  const [cargando, setCargando] = useState(true);
+  const [formatoLetra, setFormatoLetra] = useState("dos_lineas");
+  const [dividirVersiculos, setDividirVersiculos] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    supabase.from("iglesias").select("formato_letra, dividir_versiculos").eq("id", iglesiaId).single()
+      .then(({ data }) => {
+        if (data) {
+          setFormatoLetra(data.formato_letra || "dos_lineas");
+          setDividirVersiculos(!!data.dividir_versiculos);
+        }
+        setCargando(false);
+      });
+  }, [iglesiaId]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true); setError("");
+    const { error } = await supabase.from("iglesias").update({ formato_letra: formatoLetra, dividir_versiculos: dividirVersiculos }).eq("id", iglesiaId);
+    if (error) { setError(error.message); setBusy(false); return; }
+    window.location.reload();
+  };
+
+  return (
+    <ModalShell title="Pantalla de proyección" icon={Radio} color="var(--wf-brand-accent)" onClose={onClose}>
+      {cargando ? (
+        <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Cargando…</div>
+      ) : (
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>Ajusta cómo se reparte el texto según el tamaño de la pantalla de tu iglesia. Se aplica al proyectar: las canciones y versículos guardados no cambian.</div>
+          <Field label="Letra de canciones en pantalla">
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {FORMATOS_LETRA.map((f) => {
+                const elegido = formatoLetra === f.value;
+                const ejemplo = f.value === "dos_lineas" ? ["Eres mi refugio eterno", "mi lugar seguro, Señor"]
+                  : f.value === "una_linea_dos_renglones" ? ["Eres mi refugio", "eterno, Señor"] : ["Eres mi refugio eterno, Señor"];
+                return (
+                  <button
+                    key={f.value} type="button" onClick={() => setFormatoLetra(f.value)}
+                    style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", padding: 8, borderRadius: 12, cursor: "pointer", background: "var(--wf-card)", border: elegido ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)" }}
+                  >
+                    <div style={{ width: 92, height: 52, flexShrink: 0, borderRadius: 8, background: "#0C0E13", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 4, boxSizing: "border-box", textAlign: "center", lineHeight: 1.25, fontSize: f.value === "dos_lineas" ? 7 : f.value === "una_linea" ? 7.5 : 10 }}>
+                      {ejemplo.map((l, i) => <div key={i} style={f.value === "una_linea_dos_renglones" && i === 1 ? { fontWeight: 800, textTransform: "uppercase" } : undefined}>{l}</div>)}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>{f.label}</div>
+                      <div style={{ fontSize: 11, color: "var(--wf-muted)" }}>{f.ayuda}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Se aplica al proyectar — las canciones de la biblioteca no cambian.</div>
+          </Field>
+          <Field label="Versículos largos">
+            <button
+              type="button" onClick={() => setDividirVersiculos((v) => !v)} aria-pressed={dividirVersiculos}
+              style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: 10, borderRadius: 12, cursor: "pointer", background: "var(--wf-card)", border: dividirVersiculos ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)" }}
+            >
+              <span style={{ width: 40, height: 24, borderRadius: 12, flexShrink: 0, position: "relative", background: dividirVersiculos ? "var(--wf-brand-accent)" : "var(--wf-border)", transition: "background 0.15s" }}>
+                <span style={{ position: "absolute", top: 3, left: dividirVersiculos ? 19 : 3, width: 18, height: 18, borderRadius: 9, background: "#fff", transition: "left 0.15s" }} />
+              </span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>Dividir versículos largos en 2 o 3 partes</span>
+                <span style={{ display: "block", fontSize: 11, color: "var(--wf-muted)" }}>Para pantallas chicas: cada parte lleva su "(1/2)" en la cita. Apagado, el versículo se proyecta completo.</span>
+              </span>
+            </button>
+          </Field>
+          {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
+          <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
+        </form>
+      )}
+    </ModalShell>
+  );
+}
+
+export function IdentidadIglesiaModal({ iglesiaId, onClose }) {
+  const [cargando, setCargando] = useState(true);
+  const [nombre, setNombre] = useState("");
+  const [zonaHoraria, setZonaHoraria] = useState("Etc/GMT+6");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [colorPrimario, setColorPrimario] = useState("#16324F");
+  const [colorAcento, setColorAcento] = useState("#E8821E");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
+  const [mostrarEnlaceManual, setMostrarEnlaceManual] = useState(false);
+
+  useEffect(() => {
+    supabase.from("iglesias").select("nombre, zona_horaria, logo_url, color_primario, color_acento").eq("id", iglesiaId).single()
+      .then(({ data }) => {
+        if (data) {
+          setNombre(data.nombre || "");
+          setZonaHoraria(data.zona_horaria || "Etc/GMT+6");
+          setLogoUrl(data.logo_url || "");
+          setColorPrimario(data.color_primario || "#16324F");
+          setColorAcento(data.color_acento || "#E8821E");
+        }
+        setCargando(false);
+      });
+  }, [iglesiaId]);
+
+  // Un archivo por iglesia, siempre en la MISMA ruta ("<iglesia_id>/logo.<ext>") — volver a subir
+  // reemplaza el anterior (upsert). Como el navegador podría tener cacheada la imagen vieja en esa
+  // misma URL, se le agrega "?v=<hora>" al guardar para que SIEMPRE pida la versión nueva.
+  const subirLogo = async (file) => {
+    if (!LOGO_TIPOS_VALIDOS.includes(file.type)) { setError("El logo debe ser una imagen (PNG, JPG, WEBP o SVG)."); return; }
+    if (file.size > LOGO_MAX_BYTES) { setError("El logo no puede pesar más de 2 MB."); return; }
+    setSubiendoLogo(true); setError("");
+    const ext = file.name.split(".").pop().toLowerCase();
+    const ruta = `${iglesiaId}/logo.${ext}`;
+    const { error: uploadError } = await supabase.storage.from("logos-iglesias").upload(ruta, file, { upsert: true, contentType: file.type });
+    if (uploadError) { setError("No se pudo subir el logo: " + uploadError.message); setSubiendoLogo(false); return; }
+    const { data } = supabase.storage.from("logos-iglesias").getPublicUrl(ruta);
+    setLogoUrl(`${data.publicUrl}?v=${Date.now()}`);
+    setSubiendoLogo(false);
+  };
+
+  const HEX_VALIDO = /^#[0-9A-Fa-f]{6}$/;
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!nombre.trim()) { setError("El nombre no puede quedar vacío."); return; }
+    // El selector de color SIEMPRE escribe un hex válido, pero el campo de texto a su lado se puede
+    // editar a mano -- un valor inválido ahí (ej. "naranja" en vez de "#E8821E") dejaría ese color
+    // sin efecto en TODA la app (var() sin valor válido = transparente), no solo en esta pantalla.
+    if (!HEX_VALIDO.test(colorPrimario) || !HEX_VALIDO.test(colorAcento)) {
+      setError("Los colores deben ser un código hexadecimal válido, ej. #16324F.");
+      return;
+    }
+    setBusy(true); setError("");
+    const { error } = await supabase.from("iglesias").update({
+      nombre: nombre.trim(), zona_horaria: zonaHoraria,
+      logo_url: logoUrl.trim() || null, color_primario: colorPrimario, color_acento: colorAcento,
+    }).eq("id", iglesiaId);
+    if (error) { setError(error.message); setBusy(false); return; }
+    window.location.reload();
+  };
+
+  return (
+    <ModalShell title="Identidad de la iglesia" icon={Palette} color="var(--wf-brand-accent)" onClose={onClose}>
+      {cargando ? (
+        <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Cargando…</div>
+      ) : (
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 2 }}>
+            <AppLogo width={64} logoUrl={logoUrl.trim() || null} />
+          </div>
+          <Field label="Nombre de la iglesia"><input required value={nombre} onChange={(e) => setNombre(e.target.value)} style={inputStyle} /></Field>
+          <Field label="Logo (opcional)">
+            <label className="hoverable" style={{ ...addBtnStyle, justifyContent: "center", opacity: subiendoLogo ? 0.6 : 1, cursor: subiendoLogo ? "not-allowed" : "pointer" }}>
+              <Download size={14} style={{ transform: "rotate(180deg)" }} />
+              {subiendoLogo ? "Subiendo…" : logoUrl ? "Cambiar imagen" : "Subir una imagen"}
+              <input
+                type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" disabled={subiendoLogo}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) subirLogo(f); e.target.value = ""; }}
+                style={{ display: "none" }}
+              />
+            </label>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>PNG, JPG, WEBP o SVG — máximo 2 MB. Vacío = trazo genérico de WorshipFlow.</div>
+            <button type="button" onClick={() => setMostrarEnlaceManual((v) => !v)} style={{ background: "none", border: "none", color: "var(--wf-muted)", fontSize: 11, textDecoration: "underline", cursor: "pointer", padding: "6px 0 0" }}>
+              {mostrarEnlaceManual ? "Ocultar enlace manual" : "O pega un enlace en su lugar"}
+            </button>
+            {mostrarEnlaceManual && (
+              <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://…" style={{ ...inputStyle, marginTop: 6 }} />
+            )}
+          </Field>
+          <Field label="Color primario (fondos oscuros: encabezado, navegación)">
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input type="color" value={colorPrimario} onChange={(e) => setColorPrimario(e.target.value)} style={{ width: 40, height: 36, padding: 2, border: "1px solid var(--wf-border)", borderRadius: 8, background: "none", cursor: "pointer" }} />
+              <input value={colorPrimario} onChange={(e) => setColorPrimario(e.target.value)} style={{ ...inputStyle, flex: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }} />
+            </div>
+          </Field>
+          <Field label="Color de acento (botones, resaltados)">
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input type="color" value={colorAcento} onChange={(e) => setColorAcento(e.target.value)} style={{ width: 40, height: 36, padding: 2, border: "1px solid var(--wf-border)", borderRadius: 8, background: "none", cursor: "pointer" }} />
+              <input value={colorAcento} onChange={(e) => setColorAcento(e.target.value)} style={{ ...inputStyle, flex: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }} />
+            </div>
+          </Field>
+          <Field label="Zona horaria">
+            <select value={zonaHoraria} onChange={(e) => setZonaHoraria(e.target.value)} style={inputStyle}>
+              {ZONAS_HORARIAS.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
+            </select>
+          </Field>
+          {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
+          <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
+        </form>
+      )}
+    </ModalShell>
+  );
+}
+
+export function ChangePasswordModal({ onClose }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    { const err = validarPassword(password); if (err) { setError(err); return; } }
+    if (password !== confirm) { setError("Las contraseñas no coinciden."); return; }
+    setBusy(true); setError("");
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) { setError(error.message); return; }
+    setDone(true);
+  };
+
+  return (
+    <ModalShell title="Cambiar contraseña" icon={KeyRound} color="var(--wf-heading)" onClose={onClose}>
+      {done ? (
+        <div style={{ fontSize: 13, color: "#1F8A73", fontWeight: 700 }}>Contraseña actualizada correctamente.</div>
+      ) : (
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <input type="password" required placeholder="Nueva contraseña" value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} autoFocus autoComplete="new-password" />
+          <MedidorPassword password={password} />
+          <input type="password" required placeholder="Confirmar contraseña" value={confirm} onChange={(e) => setConfirm(e.target.value)} style={inputStyle} />
+          {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
+          <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar contraseña"}</button>
+        </form>
+      )}
+    </ModalShell>
+  );
+}
+
+// Subir una imagen/video de fondo + elegir entre lo ya subido antes -- reemplaza el patrón viejo de
+// "subir = FileReader.readAsDataURL" (guardaba el archivo entero como texto base64 dentro del propio
+// registro, pesadísimo y sin forma de reutilizarlo). Ahora sube a Supabase Storage (lib/multimedia.js)
+// y la galería de abajo deja elegir cualquier archivo ya subido antes por esta iglesia, sin resubirlo.
+export function MediaPicker({ iglesiaId, tipo, value, onChange, color = "#B15EA0" }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const [showGallery, setShowGallery] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const cargar = () => {
+    if (!iglesiaId) return;
+    setLoading(true);
+    listarFondos(iglesiaId, tipo).then(setItems).catch(() => {}).finally(() => setLoading(false));
+  };
+  useEffect(() => {
+    if (showGallery) cargar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showGallery, iglesiaId, tipo]);
+
+  const subir = async (file) => {
+    if (!file || !iglesiaId) return;
+    setUploading(true); setError("");
+    try {
+      const url = await subirFondo(iglesiaId, tipo, file);
+      onChange(url);
+      setShowGallery(true);
+      cargar();
+    } catch (e) {
+      setError(e.message || "No se pudo subir el archivo.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const eliminar = async (item, e) => {
+    e.stopPropagation();
+    if (!(await confirmDialog(`¿Quitar "${item.nombre}" de la biblioteca? Donde ya esté puesto como fondo no cambia, pero ya no se podrá volver a elegir.`, { danger: true, textoConfirmar: "Quitar" }))) return;
+    try {
+      await borrarFondo(item.ruta);
+      setItems((its) => its.filter((i) => i.ruta !== item.ruta));
+    } catch (err) {
+      notifyError("No se pudo quitar el archivo", err);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="hoverable" style={{ ...addBtnStyle, flex: 1, opacity: uploading ? 0.6 : 1 }}>
+          {value ? (
+            tipo === "imagen"
+              ? <span style={{ width: 16, height: 16, borderRadius: 8, backgroundImage: `url(${value})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />
+              : <Play size={13} color={color} />
+          ) : tipo === "imagen" ? <ImgIcon size={13} color="var(--wf-faint)" /> : <Play size={13} color="var(--wf-faint)" />}
+          <span>{uploading ? "Subiendo…" : value ? "Cambiar — tocar para subir otro" : `Subir ${tipo === "imagen" ? "imagen" : "video"} nuevo`}</span>
+        </button>
+        <button type="button" onClick={() => setShowGallery((s) => !s)} className="hoverable" title="Elegir de lo ya subido antes" style={{ ...addBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}>
+          <LayoutGrid size={13} color={color} /> Biblioteca
+        </button>
+      </div>
+      <input ref={fileInputRef} type="file" accept={tipo === "imagen" ? "image/*" : "video/*"} style={{ display: "none" }} onChange={(e) => { subir(e.target.files?.[0]); e.target.value = ""; }} />
+      {error && <div style={{ fontSize: 11, color: "#C23B32", marginTop: 6 }}>{error}</div>}
+      {showGallery && (
+        <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 8, maxHeight: 220, overflowY: "auto", background: "var(--wf-hover)", borderRadius: 12, padding: 8 }}>
+          {loading && <div style={{ fontSize: 11, color: "var(--wf-faint)", gridColumn: "1/-1" }}>Cargando…</div>}
+          {!loading && items.length === 0 && <div style={{ fontSize: 11, color: "var(--wf-faint)", gridColumn: "1/-1" }}>Todavía no hay {tipo === "imagen" ? "imágenes" : "videos"} guardados — sube el primero arriba.</div>}
+          {items.map((item) => (
+            <div key={item.ruta} onClick={() => onChange(item.url)} title={item.nombre} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", cursor: "pointer", background: "#000", border: value === item.url ? `2px solid ${color}` : "1px solid var(--wf-border)" }}>
+              {tipo === "imagen" ? (
+                <div style={{ width: "100%", height: "100%", backgroundImage: `url(${item.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+              ) : (
+                <video src={item.url} muted preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              )}
+              <button type="button" onClick={(e) => eliminar(item, e)} title="Quitar de la biblioteca" style={{ position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: 9, border: "none", background: "rgba(0,0,0,0.65)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}><Trash2 size={10} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
