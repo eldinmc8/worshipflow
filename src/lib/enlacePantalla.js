@@ -14,3 +14,17 @@ export function leerPantallaDeUrl(pathname, search) {
   if (params.get("screen") === "publico") return { slug: params.get("igl") };
   return null;
 }
+
+// Pantalla de escenario (stage display, 2026-11-01): https://<app>/e/<slug>, o ?screen=escenario&igl=<slug>.
+// Mismo funcionamiento que la de proyección (sin sesión, sigue lo que esté en vivo), otra vista.
+export function enlaceEscenario(slug, origen = typeof window !== "undefined" ? window.location.origin : "") {
+  return slug ? `${origen}/e/${encodeURIComponent(slug)}` : `${origen}/?screen=escenario`;
+}
+
+export function leerEscenarioDeUrl(pathname, search) {
+  const m = /^\/e\/([^/?#]+)\/?$/.exec(pathname || "");
+  if (m) return { slug: decodeURIComponent(m[1]) };
+  const params = new URLSearchParams(search || "");
+  if (params.get("screen") === "escenario") return { slug: params.get("igl") };
+  return null;
+}
