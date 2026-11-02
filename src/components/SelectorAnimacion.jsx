@@ -168,8 +168,14 @@ export function SelectorAnimacion({ liveStyle, setLiveStyle, columnas = 3, igles
             })}
           </div>
           <div style={{ fontSize: 11, color: "var(--wf-muted)", lineHeight: 1.45 }}>
-            El estilo trae su propia letra y colores. Se anima la letra de las canciones; los versículos y las diapositivas se ven como siempre sobre el mismo fondo.
+            El estilo trae su propia letra y colores, pensados para su fondo: así siempre se lee bien. Se anima la letra de las canciones; los versículos y las diapositivas se ven como siempre sobre el mismo fondo.
           </div>
+          {fondoPropio && (
+            <div style={{ fontSize: 11, color: "var(--wf-text)", lineHeight: 1.45, background: "rgba(232,130,30,0.12)", borderRadius: 10, padding: "7px 9px" }}>
+              Con tu fondo, se oscurece al menos un 40% y la letra lleva sombra para que se lea. Si tu imagen es muy clara y aun así cuesta leer,{" "}
+              <button type="button" onClick={() => setLiveStyle((s) => ({ ...s, animFondo: "estilo" }))} style={{ border: "none", background: "none", padding: 0, color: "var(--wf-brand-accent)", fontWeight: 700, cursor: "pointer", fontSize: 11, textDecoration: "underline" }}>usa el fondo animado del estilo</button>.
+            </div>
+          )}
         </div>
       )}
 

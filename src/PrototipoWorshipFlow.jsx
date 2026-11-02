@@ -303,6 +303,18 @@ const sectionColorFor = (s) => {
 };
 
 // ---------- Estilo en vivo de la proyección: fondo y tipografía, ajustables por multimedia mientras transmite ----------
+// Letra animada sobre fondo propio: mínimo de oscurecido, sombra extra y colores casi transparentes más
+// visibles (ej. las palabras que esperan en "Karaoke") — ver ProjectionPanel.
+const OSCURECER_MINIMO_ANIMADA = 0.4;
+export function reforzarSombraAnimada(sombra) {
+  const extra = "0 0.05em 0.3em rgba(0,0,0,.8)";
+  return !sombra || sombra === "none" ? extra : `${sombra}, ${extra}`;
+}
+export function colorLegibleAnimada(color) {
+  const m = /^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)$/.exec(color || "");
+  if (!m || Number(m[4]) >= 0.55) return color;
+  return `rgba(${m[1]}, ${m[2]}, ${m[3]}, 0.55)`;
+}
 const LIVE_THEMES = {
   stage: { label: "Escenario", bg: "radial-gradient(ellipse at center 40%, #1A1F2B 0%, #0C0E13 70%)" },
   azul: { label: "Azul noche", bg: "radial-gradient(ellipse at center 40%, #0D2340 0%, #01050A 70%)" },
@@ -8648,6 +8660,10 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
   // "Pantalla en otro equipo": enlace corto + QR para abrir la proyección en un TV/tablet/otra computadora.
   const [showOtroEquipo, setShowOtroEquipo] = useState(false);
   const [showEscenario, setShowEscenario] = useState(false); // Pantalla de escenario: mensaje + enlace (ver PanelEscenario)
+  // Al poner un fondo propio con letras animadas, se avisa una vez que la letra irá sobre ese fondo (oscurecido para que se lea).
+  const avisarFondoPropioAnimada = () => {
+    if (animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") showToast("La letra animada ahora va sobre tu fondo, un poco oscurecido para que se lea. Para volver al fondo del estilo: Letras animadas → Fondo animado del estilo.", "info");
+  };
   // Letra completa de la canción del centro, para corregirla toda de una vez: { songId, titulo, texto }.
   const [letraCompleta, setLetraCompleta] = useState(null);
   const abrirLetraCompleta = (songId) => {
@@ -9203,15 +9219,15 @@ function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, libra
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>FONDO DE LA PROYECCIÓN</div>
             <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
               {Object.entries(LIVE_THEMES).map(([key, t]) => (
-                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, theme: key, ...(animacionActiva(s) ? { animFondo: "propio" } : {}) }))} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: 12, border: liveStyle.theme === key && !(animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", background: "var(--wf-card)" }}>
+                <button key={key} onClick={() => { avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: key, ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: 12, border: liveStyle.theme === key && !(animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", background: "var(--wf-card)" }}>
                   <span style={{ width: 16, height: 16, borderRadius: 8, background: t.bg }} />
                   <span style={{ fontSize: 11, fontWeight: 600 }}>{t.label}</span>
                 </button>
               ))}
             </div>
             <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 8, width: "fit-content" }}>
-              <button onClick={() => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) }))} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "imagen" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "imagen" ? "#fff" : "var(--wf-muted)" }}><ImgIcon size={12} /> Imagen</button>
-              <button onClick={() => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) }))} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "video" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "video" ? "#fff" : "var(--wf-muted)" }}><Play size={12} /> Video (movimiento)</button>
+              <button onClick={() => { avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "imagen" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "imagen" ? "#fff" : "var(--wf-muted)" }}><ImgIcon size={12} /> Imagen</button>
+              <button onClick={() => { avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "video" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "video" ? "#fff" : "var(--wf-muted)" }}><Play size={12} /> Video (movimiento)</button>
             </div>
             {customBgType === "imagen" ? (
               <div style={{ marginBottom: 12 }}>
@@ -10052,7 +10068,11 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   const sombraTexto = (LIVE_SOMBRAS[liveStyle?.sombra] || LIVE_SOMBRAS.ninguna).css;
   const alineacion = LIVE_ALINEACIONES[liveStyle?.alineacion] || LIVE_ALINEACIONES.centro;
   const posicion = LIVE_POSICIONES[liveStyle?.posicion] || LIVE_POSICIONES.centro;
-  const oscurecerFondo = liveStyle?.oscurecer ?? 0.45;
+  // Letra animada sobre un fondo propio (imagen o video de Estilo, de la canción o de la diapositiva):
+  // los colores del estilo están pensados para su fondo oscuro, así que se oscurece al menos un 40% y la
+  // letra lleva sombra (2026-11-02, "que la letra animada siempre se lea").
+  const animSobreFondoPropio = !!anim && !fondoAnimado;
+  const oscurecerFondo = animSobreFondoPropio ? Math.max(liveStyle?.oscurecer ?? 0.45, OSCURECER_MINIMO_ANIMADA) : (liveStyle?.oscurecer ?? 0.45);
   const ubicacion = { alinearH: alineacion.flex, alinearV: posicion.flex };
   // Diseño de transmisión (solo canciones, ver LINE_STYLES): cambia cómo se destaca la 2a línea de la
   // diapositiva (la que cierra la frase) -- nunca la 1a, y nunca si la diapositiva es de una sola
@@ -10158,7 +10178,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
                     // (los mismos <div> de línea se reutilizan, así que la animación CSS no se repite
                     // sola con solo cambiar el texto adentro).
                     style={animarLetra
-                      ? { fontFamily: anim.fuente.family, fontWeight: anim.fuente.weight, textTransform: anim.fuente.transform || "none", letterSpacing: anim.fuente.tracking || "normal", textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.25, textShadow: anim.sombra, color: anim.color, whiteSpace: "nowrap", ...lineasAnimadas.vars }
+                      ? { fontFamily: anim.fuente.family, fontWeight: anim.fuente.weight, textTransform: anim.fuente.transform || "none", letterSpacing: anim.fuente.tracking || "normal", textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.25, textShadow: animSobreFondoPropio ? reforzarSombraAnimada(anim.sombra) : anim.sombra, color: animSobreFondoPropio ? colorLegibleAnimada(anim.color) : anim.color, whiteSpace: "nowrap", ...lineasAnimadas.vars }
                       : { fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: espaciadoLetras, fontStyle: font.italic ? "italic" : "normal", textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.35, textShadow: sombraTexto, color: textColor, whiteSpace: "nowrap", textWrap: "balance" }}
                     lineStyles={cancionLineStyles}
                     className={animarLetra ? claseAnimacion(animKey) : undefined}
