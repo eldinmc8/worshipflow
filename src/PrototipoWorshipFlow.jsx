@@ -1,78 +1,65 @@
-import { useState, useMemo, useRef, useEffect, lazy, Suspense } from "react";
-import { createPortal } from "react-dom";
-import AppLogo from "./AppLogo.jsx";
-import { useArrastreLista } from "./lib/arrastreLista.js";
-import { useArrastreGrid } from "./lib/arrastreGrid.js";
-import ImportarPresentacion from "./components/ImportarPresentacion.jsx";
-import { esPaginaPresentacion } from "./lib/importarPresentacion.js";
-import { esGrupoDiapositivas, slidesDeGrupo, diapositivasDeItem, itemConDiapositivas, moverDiapositiva, quitarDiapositiva as quitarDiapositivaDeGrupo, reordenarEnGrupo, tituloBase, nuevaDiapositiva } from "./lib/diapositivas.js";
-import DiapositivaDisenada from "./components/DiapositivaDisenada.jsx";
-import {
-  Music, Mic2, MessageSquare, Tv, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Minus,
-  Radio, ListMusic, BookOpen, Image as ImgIcon, Trash2, GripVertical,
-  MonitorOff, X, Search, Sparkles, Calendar, MapPin, Users, Check,
-  Paperclip, Play, ArrowLeft, Home, Heart, RefreshCw, Pencil,
-  Star, LogOut, Settings, Download, Eye, EyeOff,
-  ClipboardList, FolderOpen, ExternalLink, LayoutGrid, SkipBack, SkipForward, Copy, KeyRound, Bell, Palette, Shield,
-  Type, MonitorSmartphone, WifiOff, CloudDownload, Moon, Pause, MessageCircle, Send, StickyNote, FileUp, ArrowRightLeft, CopyPlus, Ungroup, PenTool, MoreHorizontal, GraduationCap, AlertTriangle, SlidersHorizontal, Pin, PinOff, ClipboardPaste, PencilLine, FileText, Link2, ArrowUpDown,
-} from "lucide-react";
-import { listCancionesCompletas, guardarCancionDesdeEditor, deleteCancion, guardarLetraCancion, updateCancion } from "./lib/canciones.js";
-import { aplicarCambioLetra, rearmarSeccion, letraEfectiva } from "./lib/letraEnVivo.js";
-import { letraATexto, textoALetra } from "./lib/textoCancion.js";
-import AutoFitText from "./components/AutoFitText.jsx";
-import { stripBibleSearchMarkup } from "./lib/textoBiblia.js";
-import { buscarCanciones, normalizar as normalizarBusqueda, leerCita } from "./lib/busqueda.js";
-import { crearIndice, buscarEnIndice, filtrarResultadosApi } from "./lib/buscarBiblia.js";
-import { pasosDeDiapositiva } from "./lib/animaciones.js";
-import { animacionActiva, definicionAnimacion, nombreAnimacion, claseAnimacion, armarLineasAnimadas, velocidadLetra, FondoAnimado, precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
-import SelectorAnimacion from "./components/SelectorAnimacion.jsx";
-import PantallaOtroEquipo from "./components/PantallaOtroEquipo.jsx";
-import CintaAdaptable from "./components/CintaAdaptable.jsx";
-import EditorTextoCancion from "./components/EditorTextoCancion.jsx";
-import ImportarCancionesPdf from "./components/ImportarCancionesPdf.jsx";
-import { misProximosServicios, cuandoEs, companeros, indicaciones, cancionesParaEnsayar, necesitaAtencion, estaSemana } from "./lib/inicio.js";
-import { bloquesDelCulto, insertarEnBloque, anclaDeBloque } from "./lib/ordenCulto.js";
-import { expandirVersiculosLargos, reorganizarLetra, FORMATOS_LETRA, palabrasPorParteSegun, partesDeVersiculo } from "./lib/dividirTexto.js";
-import {
-  listEventosCompletos, registrarLineaBaseEventos, crearEventoCompleto, sincronizarServiceOrder, sincronizarWorshipRoles, deleteEvento, updateEvento, marcarAsignacionVista,
-} from "./lib/eventos.js";
-import { PERMISOS_LIDER } from "./lib/roles.js";
-import { ordenarPor } from "./lib/orden.js";
-import { listMinisteriosCompletos, registrarLineaBaseMinisterios, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarColorMinisterio, actualizarPermisosLider, eliminarMinisterio, sincronizarPlan, sincronizarRecursos, getResumenMensual, guardarResumenMensual, subirArchivoRecurso } from "./lib/ministerios.js";
-import { updateLiveSession, clearLiveSession, getLiveSession, subscribeLiveSession, broadcastLiveSession, escucharProyeccion, responderPedidosDeEstado, enviarAPantallas, obtenerCodigoPantalla } from "./lib/liveSession.js";
-import { getMusicoLive, updateMusicoLive, clearMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
-import { subscribeTableChanges } from "./lib/realtime.js";
-import { sincronizarRecordatorios } from "./lib/recordatorios.js";
-import { enviarMensajeAsistente, aplicarPlanAsistente, obtenerReglasAsistente, guardarReglasAsistente } from "./lib/asistente.js";
-import { listMisNotificaciones, marcarLeida, marcarTodasLeidas, subscribeNotificaciones, suscribirPush, desuscribirPush, estaSuscritoPush, tieneAlgunaSuscripcionPush, estadoPermisoNotificacion, decidirAccionPush } from "./lib/notificaciones.js";
+import { lazy, useState, useEffect, useRef, useMemo, Suspense } from "react";
+import { Music, BookOpen, Image as ImgIcon, ListMusic, Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, Eye, WifiOff, EyeOff, Bell, LayoutGrid, Home, Calendar, MessageCircle, Radio, Settings, X, ChevronUp, ChevronDown, Users, ChevronLeft, Heart, KeyRound, Moon, Type, Download, Tv, Palette, Shield, Send, LogOut, ClipboardList, Paperclip, Plus, ArrowLeft, Trash2, StickyNote, FileUp, Search, Minus, FileText, Link2, Pause, Play, PencilLine, RefreshCw, ClipboardPaste, GripVertical, MapPin, GraduationCap, Star, MoreHorizontal, PenTool, ArrowUpDown, Copy, MonitorOff, Pin, MessageSquare, AlertTriangle, PinOff, SkipBack, SkipForward, SlidersHorizontal, ArrowRightLeft, CopyPlus, Ungroup } from "lucide-react";
+import { esGrupoDiapositivas, slidesDeGrupo, itemConDiapositivas, tituloBase, diapositivasDeItem, nuevaDiapositiva, moverDiapositiva, quitarDiapositiva as quitarDiapositivaDeGrupo, reordenarEnGrupo } from "./lib/diapositivas.js";
+import { bosquejoTieneCambiosSinEnviar, esBloquePredicacion, guardarBosquejo, aplicarBosquejoAlOrden, bosquejoAItems } from "./lib/bosquejos.js";
+import { usePreferencias, acordeEn, TAMANOS_LETRA, setTamanoLetra, NOTACIONES, setNotacion, lineaEn, getNotacion } from "./lib/preferencias.js";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
-import { listarFondos, subirFondo, borrarFondo } from "./lib/multimedia.js";
-import { getInstallState, subscribeInstallState, isIosSafari, promptInstall } from "./lib/pwaInstall.js";
-import { parseIsoDateLocal, todayLocal, isUpcoming, compareByDay, MONTH_NAMES_FULL, MONTH_ABBR, DOW_LABELS, monthKey, monthLabelFromKey, formatFullDate, buildMonthWeeks } from "./lib/dates.js";
-import { saveCache, loadCache } from "./lib/offlineCache.js";
 import { showToast, notifyError, esFalloDeConexion } from "./lib/toast.js";
-import { cargarNotas, guardarNota, DUENO_EQUIPO } from "./lib/notasSeccion.js";
-import { listarAdjuntos, subirAdjunto, agregarEnlace, borrarAdjunto, tipoDeArchivo } from "./lib/adjuntosCancion.js";
+import { ordenarPor } from "./lib/orden.js";
+import { registrarLineaBaseEventos, listEventosCompletos, sincronizarServiceOrder, sincronizarWorshipRoles, crearEventoCompleto, deleteEvento, updateEvento, marcarAsignacionVista } from "./lib/eventos.js";
+import { registrarLineaBaseMinisterios, listMinisteriosCompletos, sincronizarPlan, sincronizarRecursos, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarPermisosLider, actualizarColorMinisterio, eliminarMinisterio, subirArchivoRecurso, getResumenMensual, guardarResumenMensual } from "./lib/ministerios.js";
+import { listCancionesCompletas, updateCancion, guardarLetraCancion, guardarCancionDesdeEditor, deleteCancion } from "./lib/canciones.js";
+import { saveCache, loadCache } from "./lib/offlineCache.js";
+import { subscribeTableChanges } from "./lib/realtime.js";
+import { palabrasPorParteSegun, expandirVersiculosLargos, reorganizarLetra } from "./lib/dividirTexto.js";
+import { insertarEnBloque, anclaDeBloque, bloquesDelCulto } from "./lib/ordenCulto.js";
 import { confirmDialog, promptDialog } from "./lib/confirm.js";
-import { validarPassword } from "./lib/passwordSegura.js";
-import MedidorPassword from "./MedidorPassword.jsx";
-import Tour from "./components/Tour.jsx";
-import BosquejoWizard from "./components/BosquejoWizard.jsx";
-import PanelEscenario from "./components/PanelEscenario.jsx";
-import { armarEscenario, perteneceA, estaEnPredicacion, iniciarTemporizador, temporizadorActivo } from "./lib/escenario.js";
-import { esBloquePredicacion, guardarBosquejo, bosquejoAItems, aplicarBosquejoAlOrden, bosquejoTieneCambiosSinEnviar } from "./lib/bosquejos.js";
+import { updateMusicoLive, clearMusicoLive, getMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
+import { broadcastLiveSession, enviarAPantallas, clearLiveSession, obtenerCodigoPantalla, updateLiveSession, responderPedidosDeEstado, getLiveSession, subscribeLiveSession, escucharProyeccion } from "./lib/liveSession.js";
+import { aplicarCambioLetra, rearmarSeccion, letraEfectiva } from "./lib/letraEnVivo.js";
+import { textoALetra, letraATexto } from "./lib/textoCancion.js";
+import { sincronizarRecordatorios } from "./lib/recordatorios.js";
+import { listMisNotificaciones, subscribeNotificaciones, marcarLeida, marcarTodasLeidas, estadoPermisoNotificacion, tieneAlgunaSuscripcionPush, decidirAccionPush, suscribirPush, estaSuscritoPush, desuscribirPush } from "./lib/notificaciones.js";
+import { estaEnPredicacion, perteneceA, temporizadorActivo, iniciarTemporizador, armarEscenario } from "./lib/escenario.js";
+import { isUpcoming, compareByDay, formatFullDate, parseIsoDateLocal, todayLocal, buildMonthWeeks, MONTH_NAMES_FULL, DOW_LABELS, monthKey, monthLabelFromKey, MONTH_ABBR } from "./lib/dates.js";
 import { CLAVES_TUTORIAL, pasosBienvenida, pasosEventos, pasosEvento, pasosCanciones, pasosEditorCancion, pasosEnVivo, marcarTutorialVisto, reiniciarTutoriales } from "./lib/tutoriales.js";
-import {
-  guardarCapituloOffline, obtenerCapituloOffline, contarCapitulosGuardados,
-  borrarVersionOffline, todosLosVersiculosOffline, descargarBibliaCompleta,
-} from "./lib/bibleOfflineStore.js";
+import AppLogo from "./AppLogo.jsx";
+import Tour from "./components/Tour.jsx";
+import ImportarCancionesPdf from "./components/ImportarCancionesPdf.jsx";
+import BosquejoWizard from "./components/BosquejoWizard.jsx";
+import { misProximosServicios, cancionesParaEnsayar, companeros, indicaciones, necesitaAtencion, estaSemana, cuandoEs } from "./lib/inicio.js";
+import { getInstallState, subscribeInstallState, promptInstall, isIosSafari } from "./lib/pwaInstall.js";
 import { getTema, setTema } from "./lib/theme.js";
-import { usePreferencias, acordeEn, lineaEn, getNotacion, setNotacion, setTamanoLetra, TAMANOS_LETRA, NOTACIONES } from "./lib/preferencias.js";
+import PantallaOtroEquipo from "./components/PantallaOtroEquipo.jsx";
+import { obtenerReglasAsistente, guardarReglasAsistente, enviarMensajeAsistente, aplicarPlanAsistente } from "./lib/asistente.js";
+import { PERMISOS_LIDER } from "./lib/roles.js";
+import { buscarCanciones } from "./lib/busqueda.js";
+import { listarAdjuntos, tipoDeArchivo, subirAdjunto, agregarEnlace, borrarAdjunto } from "./lib/adjuntosCancion.js";
+import { cargarNotas, guardarNota, DUENO_EQUIPO } from "./lib/notasSeccion.js";
+import { useArrastreLista } from "./lib/arrastreLista.js";
+import EditorTextoCancion from "./components/EditorTextoCancion.jsx";
+import { esPaginaPresentacion } from "./lib/importarPresentacion.js";
+import DiapositivaDisenada from "./components/DiapositivaDisenada.jsx";
+import { createPortal } from "react-dom";
+import ImportarPresentacion from "./components/ImportarPresentacion.jsx";
+import { stripBibleSearchMarkup } from "./lib/textoBiblia.js";
+import { animacionActiva, precargarFuentesAnimacion, nombreAnimacion, definicionAnimacion, armarLineasAnimadas, velocidadLetra, FondoAnimado, claseAnimacion } from "./components/LetrasAnimadas.jsx";
+import { pasosDeDiapositiva } from "./lib/animaciones.js";
+import { useArrastreGrid } from "./lib/arrastreGrid.js";
+import SelectorAnimacion from "./components/SelectorAnimacion.jsx";
+import CintaAdaptable from "./components/CintaAdaptable.jsx";
+import PanelEscenario from "./components/PanelEscenario.jsx";
+import AutoFitText from "./components/AutoFitText.jsx";
+import { primaryBtn, ModalShell, iconGhost, inputStyle, Field, addBtnStyle, fetchBibleChapter, fetchBibleBooks, BIBLE_VERSIONS } from "./pantallas/compartido.jsx";
+import { BibleBrowserBody, BibleDownloadSection, BibleModal, BibleLivePanel } from "./pantallas/biblia.jsx";
+import { IdentidadIglesiaModal, PantallaProyeccionModal, ChangePasswordModal, MediaPicker } from "./pantallas/ventanas.jsx";
+
 // El editor de diapositivas (solo escritorio) se descarga recién la primera vez que se abre.
 const EditorDiapositivas = lazy(() => import("./components/EditorDiapositivas.jsx"));
 
 // ---------- Vista de celular: se activa sola según el ancho real de la pantalla, no un dispositivo fijo ----------
 const MOBILE_BREAKPOINT = 768;
+
 function useIsCompact() {
   const [isCompact, setIsCompact] = useState(() => window.innerWidth < MOBILE_BREAKPOINT);
   useEffect(() => {
@@ -85,6 +72,7 @@ function useIsCompact() {
 
 // ---------- Utilidades de acordes/letra ----------
 function stripChords(line) { return line.replace(/\[[^\]]+\]/g, ""); }
+
 // La 'letra' de cada sección ahora es un ARRAY DE DIAPOSITIVAS, cada una con sus propias líneas.
 // Al derivar desde Contenido, arranca como una sola diapositiva con todas las líneas de la sección.
 function deriveLetra(blocks) {
@@ -92,6 +80,7 @@ function deriveLetra(blocks) {
   Object.entries(blocks).forEach(([key, b]) => { out[key] = [b.lines.map(stripChords)]; });
   return out;
 }
+
 // Agrupa un array plano ['v1','c','v2','c'] en entradas con conteo consecutivo [{key:'v1',count:1},{key:'c',count:1}...]
 function groupConsecutive(flat) {
   const out = [];
@@ -102,6 +91,7 @@ function groupConsecutive(flat) {
   });
   return out;
 }
+
 function expandEntries(entries) {
   const out = [];
   entries.forEach((e) => { for (let i = 0; i < e.count; i++) out.push(e.key); });
@@ -110,6 +100,7 @@ function expandEntries(entries) {
 
 // ---------- Acordes diatónicos de una tonalidad (triadas + con séptima) ----------
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
 function diatonicChords(keyStr) {
   if (!keyStr) return [];
   const isMinor = keyStr.endsWith("m");
@@ -160,9 +151,11 @@ function acordesDeTonalidad(keyStr) {
 
 // ---------- Transporte de acordes (tonalidad por evento + ajuste personal del músico) ----------
 const FLAT_TO_SHARP = { Db: "C#", Eb: "D#", Gb: "F#", Ab: "G#", Bb: "A#" };
+
 function normalizeRoot(root) {
   return FLAT_TO_SHARP[root] || root;
 }
+
 // Diferencia en semitonos (0-11) entre la raíz de dos tonalidades; ignora si son mayor/menor.
 function semitoneShift(fromKey, toKey) {
   if (!fromKey || !toKey) return 0;
@@ -171,6 +164,7 @@ function semitoneShift(fromKey, toKey) {
   if (fromIdx === -1 || toIdx === -1) return 0;
   return ((toIdx - fromIdx) % 12 + 12) % 12;
 }
+
 function transposeChordToken(chord, semitones) {
   if (!semitones) return chord;
   const match = chord.match(/^([A-G])(#|b)?(.*)$/);
@@ -188,10 +182,12 @@ function transposeChordToken(chord, semitones) {
   }
   return `${shifted}${rest}`;
 }
+
 function transposeLine(raw, semitones) {
   if (!semitones) return raw;
   return raw.replace(/\[([^\]]+)\]/g, (_, chord) => `[${transposeChordToken(chord, semitones)}]`);
 }
+
 // Devuelve una COPIA transportada de la canción para mostrarla en la tonalidad que se eligió para
 // ese ítem del Setlist en particular (tonalidad_override), sin tocar la canción real de la
 // biblioteca — a diferencia de transposeSong (que sí muta y guarda), esto es solo para lectura.
@@ -203,6 +199,7 @@ function songWithKeyOverride(song, overrideKey) {
 }
 
 const KEY_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm"];
+
 // Tonalidades para cambiar una canción dentro del Setlist: solo las 12 notas. Si la canción original
 // es menor, las 12 salen en menor (Em pasa a Fm, nunca a F), así nunca se cambia sin querer de
 // menor a mayor ni al revés.
@@ -223,27 +220,15 @@ const CLASIFICACIONES_DEFAULT = [
   { clave: "especial", nombre: "Canto especial", bloque: "Alabanza" },
   { clave: "adoracion", nombre: "Adoración", bloque: "Alabanza" },
 ];
+
 // Clasificaciones de la iglesia con sesión abierta. Se actualiza al inicio de cada render de
 // WorshipFlowPrototype (antes de que se rendericen sus hijos), así SongEditor, SetlistPane e
 // isWorshipBlock la leen directo sin pasarla como prop por varios componentes intermedios.
+// Se cambia con fijarClasificacionesActuales (una variable de otro archivo no se puede reasignar desde
+// afuera, y esta parte vive en un archivo distinto del componente principal).
 let clasificacionesActuales = CLASIFICACIONES_DEFAULT;
-// Versiones disponibles a través de la Biblia completa y buscable (ver BibleModal). "RVR1960"/"NVI"/"NTV" son
-// las que pediste; "TLA"/"DHH" no están disponibles en la fuente de datos gratuita usada por el prototipo, así
-// que se agregaron "PDT" (también en lenguaje sencillo, como TLA) y "LBLA" (más literal, como DHH) en su lugar.
-// En producción, cuando haya backend propio, esto se reemplaza por la fuente de texto bíblico que se contrate.
-const BIBLE_VERSIONS = [
-  { code: "RV1960", label: "Reina-Valera 1960" },
-  // NVI quitada (2026-10-21): bolls.life ya no la tiene — Biblica se lo prohibió y en su lugar devuelve
-  // un mensaje de protesta en cada versículo, que salía proyectado tal cual.
-  { code: "NTV", label: "Nueva Traducción Viviente" },
-  { code: "PDT", label: "Palabra de Dios para Todos" },
-  { code: "LBLA", label: "La Biblia de las Américas" },
-];
-const BIBLE_QUICK = [
-  { ref: "Salmos 100:1-2", version: "RV1960", text: "Toda la tierra celebra con gozo la presencia del Señor y sirve delante de él con alegría." },
-  { ref: "Filipenses 4:6-7", version: "NVI", text: "No se inquieten por nada; en toda situación, presenten sus peticiones delante de Dios, y su paz cuidará sus corazones." },
-  { ref: "Isaías 41:10", version: "RV1960", text: "No temas, porque yo estoy contigo; te sostengo con mi mano derecha." },
-];
+
+function fijarClasificacionesActuales(lista) { clasificacionesActuales = lista; }
 
 // Umbral para dar por abandonada una sesión en vivo que nadie finalizó — ver el useEffect que llama a getLiveSession().
 const LIVE_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
@@ -252,6 +237,7 @@ const LIVE_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
 // Identifica esta pestaña/dispositivo para saber si el líder que aparece en musico_en_vivo soy yo o
 // alguien más — se genera una sola vez por carga de página, no hace falta que sobreviva a un refresh.
 const DEVICE_ID = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `dev-${Math.random().toString(36).slice(2)}`;
+
 // Si el líder no manda un "sigo aquí" (heartbeat, o cualquier acción — ambos tocan la columna heartbeat)
 // en más de esto, se da por perdido: el siguiente que toque "Modo Músico" puede tomar el mando sin
 // quedar nadie bloqueado a mitad de un culto. 10s (el valor original) era demasiado poco — un músico
@@ -261,6 +247,7 @@ const DEVICE_ID = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.
 // tanto todos quedan simplemente pausados en su sección actual (ver "leaderStale" en SongView) sin
 // que nadie tome el mando solo, y si el líder vuelve antes de este tiempo, nada se movió ni cambió.
 const MUSICO_LEADER_STALE_MS = 25000;
+
 function filaAMusicoState(fila) {
   if (!fila) return null;
   return {
@@ -273,6 +260,7 @@ function filaAMusicoState(fila) {
     heartbeat: fila.heartbeat || null,
   };
 }
+
 function isMusicoLeaderFresh(musicoState) {
   return !!(musicoState?.liderId && musicoState?.heartbeat && Date.now() - new Date(musicoState.heartbeat).getTime() < MUSICO_LEADER_STALE_MS);
 }
@@ -306,21 +294,25 @@ const sectionColorFor = (s) => {
 // Letra animada sobre fondo propio: mínimo de oscurecido, sombra extra y colores casi transparentes más
 // visibles (ej. las palabras que esperan en "Karaoke") — ver ProjectionPanel.
 const OSCURECER_MINIMO_ANIMADA = 0.4;
+
 export function reforzarSombraAnimada(sombra) {
   const extra = "0 0.05em 0.3em rgba(0,0,0,.8)";
   return !sombra || sombra === "none" ? extra : `${sombra}, ${extra}`;
 }
+
 export function colorLegibleAnimada(color) {
   const m = /^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)$/.exec(color || "");
   if (!m || Number(m[4]) >= 0.55) return color;
   return `rgba(${m[1]}, ${m[2]}, ${m[3]}, 0.55)`;
 }
+
 const LIVE_THEMES = {
   stage: { label: "Escenario", bg: "radial-gradient(ellipse at center 40%, #1A1F2B 0%, #0C0E13 70%)" },
   azul: { label: "Azul noche", bg: "radial-gradient(ellipse at center 40%, #0D2340 0%, #01050A 70%)" },
   calido: { label: "Cálido", bg: "radial-gradient(ellipse at center 40%, #3A2416 0%, #0D0704 70%)" },
   puro: { label: "Negro puro", bg: "#000000" },
 };
+
 // ---------- Ajustes finos de la letra en vivo (pedido de Eldin, 2026-10-08: que cada iglesia lo deje
 // a su gusto). Todos opcionales dentro de liveStyle — sin valor, la proyección se ve como siempre:
 //   interlineado (número, ej. 1.35) · espaciado (em, ej. 0.05) · sombra (clave de LIVE_SOMBRAS)
@@ -332,7 +324,9 @@ const LIVE_SOMBRAS = {
   fuerte: { label: "Fuerte", css: "0 0.08em 0.4em rgba(0,0,0,0.9), 0 0.03em 0.08em rgba(0,0,0,0.9)" },
   contorno: { label: "Contorno", css: "-0.035em -0.035em 0 #000, 0.035em -0.035em 0 #000, -0.035em 0.035em 0 #000, 0.035em 0.035em 0 #000, 0 0.06em 0.2em rgba(0,0,0,0.6)" },
 };
+
 const LIVE_POSICIONES = { arriba: { label: "Arriba", flex: "flex-start" }, centro: { label: "Centro", flex: "center" }, abajo: { label: "Abajo", flex: "flex-end" } };
+
 const LIVE_ALINEACIONES = { izquierda: { label: "Izquierda", flex: "flex-start", text: "left" }, centro: { label: "Centro", flex: "center", text: "center" }, derecha: { label: "Derecha", flex: "flex-end", text: "right" } };
 
 const LIVE_FONTS = {
@@ -361,6 +355,7 @@ const LIVE_FONTS = {
   condensadaSuave: { label: "Condensada suave", family: "'Barlow Condensed', sans-serif", weight: 600, transform: "none", tracking: "0.3px" },
   scriptJuvenil: { label: "Script juvenil", family: "'Pacifico', cursive", weight: 400, transform: "none", tracking: "normal" },
 };
+
 // Color del texto principal en pantalla (letra de canción, cita bíblica, título de slide) — todos
 // pensados para buen contraste sobre los fondos oscuros de LIVE_THEMES/imágenes/video.
 const LIVE_TEXT_COLORS = {
@@ -370,6 +365,7 @@ const LIVE_TEXT_COLORS = {
   celeste: { label: "Celeste", value: "#BFE3FF" },
   dorado: { label: "Dorado", value: "#E8C77E" },
 };
+
 // Paleta para la cita bíblica (ej. "Mateo 5:25") -- separada de LIVE_TEXT_COLORS porque antes su color
 // vivía fijo en el código (#6E9BD1, el primero de acá) y nunca fue configurable como el del versículo.
 const LIVE_REFERENCE_COLORS = {
@@ -378,6 +374,7 @@ const LIVE_REFERENCE_COLORS = {
   dorado: { label: "Dorado", value: "#E8C77E" },
   naranja: { label: "Naranja", value: "#E8821E" },
 };
+
 // Estilo de transmisión para la letra de canciones (pedido de Eldin, 2026-10-05, inspirado en un video
 // de ejemplo) -- primeros 3 de una lista más larga de diseños sugeridos. Solo aplica a slides tipo
 // "cancion" (lines[1], la segunda línea) -- las diapositivas de canción ahora son de máximo 2 líneas
@@ -395,6 +392,7 @@ const LINE_STYLES = {
   deslizante: { label: "Entrada deslizante" },
   franja: { label: "Franja inferior" },
 };
+
 // Objeto "evento" liviano para cuando se transmite sin un evento del calendario detrás (ver
 // startFreeEvent) — referencia estable a nivel de módulo para no invalidar el useMemo de `slides` en
 // cada render con un objeto nuevo. serviceOrder vacío: no hay plan, todo el contenido es improvisado.
@@ -404,6 +402,7 @@ const EVENTO_LIBRE = { id: null, title: "Transmisión libre", serviceOrder: [] }
 // directo como primary key real en Supabase, sin tener que "reconciliar" un id falso con el real
 // que devolvería el servidor después de guardar.
 const nextId = () => crypto.randomUUID();
+
 const nextSongId = () => crypto.randomUUID();
 
 // ---------- Equipo / iglesia ----------
@@ -454,6 +453,7 @@ function songToSlides(idPrefix, song, structure) {
   });
   return out;
 }
+
 // ---------- Construye slides proyectables. Usa 'letra' (diapositivas ya armadas) porque eso es lo que alimenta la proyección ----------
 function buildSlides(serviceOrder, library) {
   const slides = [];
@@ -479,7 +479,9 @@ const DEFAULT_COVERS = [
   "linear-gradient(135deg, var(--wf-brand-primary) 0%, #1F8A73 60%, #2E86AB 100%)",
   "linear-gradient(135deg, var(--wf-brand-primary) 0%, #B15EA0 60%, var(--wf-brand-accent) 100%)",
 ];
+
 const MINISTRY_COLORS = ["var(--wf-brand-accent)", "#2E86AB", "#B15EA0", "#1F8A73", "#C23B32", "#5661B3"];
+
 const nextMinistryChildId = () => crypto.randomUUID();
 
 // Nuevos ids al clonar un evento plantilla: si se copiaran los ids, chocarían en la base de datos real
@@ -491,6 +493,7 @@ function cloneServiceOrder(order) {
     encargados: (item.encargados || []).map((m) => ({ ...m, id: nextId(), status: "pendiente" })),
   }));
 }
+
 // Mismo criterio para el equipo de alabanza compartido entre los bloques de Alabanza y Adoración.
 function cloneWorshipRoles(roles) {
   return roles.map((r) => ({
@@ -498,11 +501,13 @@ function cloneWorshipRoles(roles) {
     members: r.members.map((m) => ({ ...m, id: nextId(), status: "pendiente" })),
   }));
 }
+
 // Y para los recordatorios de una plantilla: "enviado" siempre arranca en false — es un evento
 // nuevo, todavía no se le mandó ningún recordatorio.
 function cloneRecordatorios(reminders) {
   return (reminders || []).map((r) => ({ ...r, id: nextId(), enviado: false }));
 }
+
 // Un bloque "pertenece" al equipo de alabanza si su título incluye Alabanza o Adoración, o el nombre
 // de cualquier bloque al que esta iglesia manda sus canciones — así
 // una iglesia que llama distinto a ese momento del culto no pierde el equipo de alabanza del bloque.
@@ -513,11 +518,13 @@ function isWorshipBlock(item) {
   const titulo = normalizarTitulo(item.title);
   return clasificacionesActuales.some((c) => c.bloque && titulo.includes(normalizarTitulo(c.bloque)));
 }
+
 // Un bloque "pertenece" a lectura bíblica/oración por el mismo criterio (título) — el encargado de
 // ESE bloque en el evento puede agregar su propio versículo, aunque no sea administrador.
 function isBibleReadingBlock(item) {
   return item.type === "seccion" && /lectura|oraci[oó]n/i.test(item.title || "");
 }
+
 // Nombre legible de un ítem del Setlist para notificaciones y para "qué me toca" en la miniatura de un
 // evento — alguien puede tener varios cargos distintos en el mismo evento (ej. Multimedia Y una
 // canción), así que cada uno necesita decir CUÁL es, no solo "tienes un encargo".
@@ -528,6 +535,7 @@ function serviceItemLabel(item, library) {
   if (item.type === "slide") return item.title ? `Diapositiva: ${item.title}` : "Diapositiva";
   return "Ítem del Setlist";
 }
+
 // Lista de TODOS los cargos que una persona tiene en un evento (puede ser más de uno — ej. Multimedia Y
 // además una canción) para mostrar "Te toca: ..." en su miniatura, en vez de solo un ícono de personas
 // que no dice nada de qué le toca a ELLA específicamente.
@@ -542,13 +550,16 @@ function misAsignacionesEnEvento(event, uid, library) {
   });
   return labels;
 }
+
 // Quita tildes y pasa a minúsculas antes de buscar una palabra clave en un título — así "Prédica" o
 // "Ofrenda" (singular, sin la "s" final) también coinciden con "predic"/"ofrenda", en vez de exigir
 // que el título esté escrito exactamente como el patrón (acentos y plural incluidos).
 const PATRON_TILDES = new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g");
+
 function normalizarTitulo(s) {
   return (s || "").normalize("NFD").replace(PATRON_TILDES, "").toLowerCase();
 }
+
 // Un bloque "pertenece" a Multimedia por el mismo criterio (título) que isWorshipBlock usa para
 // Alabanza — ver serviceOrderVisiblePara: Alabanza y Multimedia son el único par que se ve entre sí,
 // cualquier otro bloque organizativo (Limpieza, Ofrendas, Adolescentes, Escuelita Infantil, Lectura
@@ -556,6 +567,7 @@ function normalizarTitulo(s) {
 function isMultimediaBlock(item) {
   return item.type === "seccion" && normalizarTitulo(item.title).includes("multimedia");
 }
+
 // Única fuente de verdad para la visibilidad del Setlist por grupo — la usan tanto SetlistPane (para
 // decidir qué panel mostrar) como el resumen en PDF (para no filtrar aparte y arriesgar que se
 // desincronicen). Nada de esto aplica a un administrador, que siempre ve todo:
@@ -594,11 +606,13 @@ function decidirVisibilidadSetlist(event, isAdminViewer, userId, esSupervisor, g
   if (misOtrosBloques.length > 0) return { modo: "bloque-propio", blocks: misOtrosBloques };
   return { modo: "todo" };
 }
+
 // ¿Este bloque del Setlist está vinculado a un grupo (ministerio) que esta persona lidera?
 // gruposQueLidero: Set con los ids de los ministerios donde la persona es líder.
 function lideraBloque(item, gruposQueLidero) {
   return !!(gruposQueLidero && item?.type === "seccion" && item.ministryId && gruposQueLidero.has(item.ministryId));
 }
+
 // ¿Tiene esta persona el permiso de líder `clave` (ver PERMISOS_LIDER) en este evento? Es decir: el
 // evento tiene un bloque vinculado a un grupo que ella lidera y ese grupo le da ese permiso a su líder.
 function permisoLiderEnEvento(event, ministries, userId, clave) {
@@ -609,6 +623,7 @@ function permisoLiderEnEvento(event, ministries, userId, clave) {
     return !!(m && m.leaderId === userId && m.permisosLider?.[clave]);
   });
 }
+
 // Ítems del Setlist que un usuario puede ver, aplicando decidirVisibilidadSetlist — se usa en el
 // resumen en PDF, que de otro modo mostraría el Setlist completo a cualquiera sin pasar por SetlistPane.
 function serviceOrderVisiblePara(event, isAdminViewer, userId, esSupervisor, gruposQueLidero = null) {
@@ -617,11 +632,13 @@ function serviceOrderVisiblePara(event, isAdminViewer, userId, esSupervisor, gru
   if (decision.modo === "filtrado") return decision.visibleOrder;
   return event.serviceOrder;
 }
+
 // "Del equipo de Alabanza" = aparece como integrante de algún rol del equipo de alabanza en ESTE
 // evento (event.worshipRoles, ej. Guitarra, Batería) — no tiene que ver con el rol de dispositivo.
 function esMiembroAlabanza(event, uid) {
   return (event.worshipRoles || []).some((r) => (r.members || []).some((m) => m.usuarioId === uid));
 }
+
 // Vista reducida para quien solo tiene un privilegio de grupo restringido en este evento (Limpieza,
 // Ventas, Adolescentes, Ofrendas o Multimedia): ni el Setlist completo, ni la biblioteca de canciones,
 // ni botones de agregar — solo su(s) propio(s) bloque(s), de solo lectura (encargados incluidos), tal
@@ -636,6 +653,7 @@ function EtiquetaBosquejoListo({ cambios = false }) {
     </span>
   );
 }
+
 function BotonBosquejo({ bosquejo, onAbrir, grande = false }) {
   const tiene = !!(bosquejo && bosquejo.titulo);
   if (!tiene) {
@@ -660,6 +678,7 @@ function BotonBosquejo({ bosquejo, onAbrir, grande = false }) {
     </button>
   );
 }
+
 function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event, bosquejoInfo = null }) {
   return (
     <div style={{ flex: 1, padding: 20, display: "flex", justifyContent: "center" }}>
@@ -743,7 +762,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   usePreferencias();
   // Clasificaciones de canción de ESTA iglesia (ver CLASIFICACIONES_DEFAULT).
   const clasificaciones = myIglesia.categoriasCanciones?.length ? myIglesia.categoriasCanciones : CLASIFICACIONES_DEFAULT;
-  clasificacionesActuales = clasificaciones;
+  fijarClasificacionesActuales(clasificaciones);
   // Solo el Administrador real puede guardarlas (la RLS de iglesias exige usuarios.rol = 'admin').
   const guardarClasificaciones = async (lista) => {
     const { error } = await supabase.from("iglesias").update({ categorias_canciones: lista }).eq("id", perfil?.iglesia_id);
@@ -2956,6 +2975,7 @@ function AvatarStack({ initials, max = 3 }) {
     </div>
   );
 }
+
 function eventAvatars(event) {
   const names = new Set();
   event.serviceOrder.forEach((item) => (item.encargados || []).forEach((m) => names.add(m.n)));
@@ -2999,6 +3019,7 @@ function eventsByDay(events, year, month) {
   Object.values(map).forEach((list) => list.sort((a, b) => (a.hora || "").localeCompare(b.hora || "")));
   return map;
 }
+
 function nextUpcomingEvent(events, liveEventId) {
   if (liveEventId) return events.find((e) => e.id === liveEventId);
   return events
@@ -3488,6 +3509,7 @@ function ToggleSwitch({ checked, onChange }) {
     </button>
   );
 }
+
 function NavRow({ icon: Icon, label, onClick, right, danger }) {
   // Si no hay onClick propio de la fila (ej. cuando "right" ya es interactivo, como un ToggleSwitch),
   // usamos un <div> en vez de <button> — un <button> no puede contener otro <button> (HTML inválido).
@@ -3500,6 +3522,7 @@ function NavRow({ icon: Icon, label, onClick, right, danger }) {
     </Tag>
   );
 }
+
 function SectionLabel({ children }) {
   return <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.5, margin: "18px 0 8px" }}>{children}</div>;
 }
@@ -3508,97 +3531,6 @@ function useInstallState() {
   const [state, setState] = useState(getInstallState);
   useEffect(() => subscribeInstallState(() => setState(getInstallState())), []);
   return state;
-}
-
-// Versión que se descarga para uso sin conexión — solo esta, para no golpear la API gratuita
-// bolls.life con las 5 versiones completas (serían miles de pedidos). Reina-Valera 1960 es la que
-// aparece primero en BIBLE_VERSIONS (la más usada en iglesias como esta).
-const BIBLE_OFFLINE_VERSION = "RV1960";
-
-// "Descargar Biblia" en Ajustes: guarda capítulo por capítulo en este dispositivo (ver
-// bibleOfflineStore.js) para que el buscador de Biblia en vivo y "siguiente versículo" (ver
-// fetchBibleChapter/fetchBibleBooks) sigan funcionando aunque se corte el internet en el templo.
-function BibleDownloadSection() {
-  const [totalCapitulos, setTotalCapitulos] = useState(0);
-  const [guardados, setGuardados] = useState(null); // null = todavía revisando
-  const [descargando, setDescargando] = useState(false);
-  const [progreso, setProgreso] = useState({ hechos: 0, total: 0 });
-  const cancelRef = useRef({ aborted: false });
-
-  const actualizarConteo = () => {
-    Promise.all([
-      fetchBibleBooks(BIBLE_OFFLINE_VERSION).catch(() => null),
-      contarCapitulosGuardados(BIBLE_OFFLINE_VERSION),
-    ]).then(([books, n]) => {
-      setTotalCapitulos(books ? books.reduce((acc, b) => acc + b.chapters, 0) : 0);
-      setGuardados(n);
-    });
-  };
-  useEffect(() => { actualizarConteo(); }, []);
-
-  const iniciarDescarga = async () => {
-    cancelRef.current = { aborted: false };
-    setDescargando(true);
-    setProgreso({ hechos: 0, total: 0 });
-    try {
-      const resultado = await descargarBibliaCompleta(BIBLE_OFFLINE_VERSION, {
-        fetchBooks: fetchBibleBooks,
-        fetchChapter: fetchBibleChapter,
-        onProgress: (hechos, total) => setProgreso({ hechos, total }),
-        signal: cancelRef.current,
-      });
-      if (!resultado.cancelado) showToast("Biblia Reina-Valera 1960 descargada — ya puedes usarla sin conexión.", "info");
-    } catch (e) {
-      notifyError("No se pudo terminar de descargar la Biblia", e);
-    } finally {
-      setDescargando(false);
-      actualizarConteo();
-    }
-  };
-  const cancelarDescarga = () => { cancelRef.current.aborted = true; };
-  const eliminarDescarga = async () => {
-    if (!(await confirmDialog("¿Eliminar la copia de la Biblia descargada de este dispositivo?", { danger: true, textoConfirmar: "Eliminar" }))) return;
-    await borrarVersionOffline(BIBLE_OFFLINE_VERSION);
-    actualizarConteo();
-  };
-
-  const completa = guardados !== null && totalCapitulos > 0 && guardados >= totalCapitulos;
-  const porcentaje = totalCapitulos ? Math.round(((guardados || 0) / totalCapitulos) * 100) : 0;
-
-  return (
-    <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <CloudDownload size={16} color="#2F5FA8" />
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>Biblia sin conexión (Reina-Valera 1960)</div>
-      </div>
-      <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10 }}>
-        Descárgala una vez con buena señal para poder seguir buscando y proyectando versículos aunque se corte el internet en el templo.
-      </div>
-      {guardados === null ? (
-        <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>Revisando…</div>
-      ) : descargando ? (
-        <>
-          <div style={{ height: 8, background: "var(--wf-hover)", borderRadius: 10, overflow: "hidden", marginBottom: 6 }}>
-            <div style={{ height: "100%", width: `${progreso.total ? Math.round((progreso.hechos / progreso.total) * 100) : 0}%`, background: "#2F5FA8", transition: "width .2s" }} />
-          </div>
-          <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 8 }}>{progreso.hechos} de {progreso.total || "…"} capítulos — puede tardar varios minutos.</div>
-          <button onClick={cancelarDescarga} style={{ fontSize: 12, fontWeight: 700, color: "#C23B32", background: "none", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 12px", cursor: "pointer" }}>Cancelar</button>
-        </>
-      ) : completa ? (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 12, color: "#1F8A73", fontWeight: 700 }}>✓ Descargada completa ({guardados} capítulos)</span>
-          <button onClick={eliminarDescarga} style={{ fontSize: 11, color: "#C23B32", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Eliminar</button>
-        </div>
-      ) : (
-        <>
-          {guardados > 0 && <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 8 }}>Ya tienes {guardados} de {totalCapitulos} capítulos ({porcentaje}%)</div>}
-          <button onClick={iniciarDescarga} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "var(--wf-bg)", border: "none", borderRadius: 12, padding: "9px 10px", fontSize: 12, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer" }}>
-            <CloudDownload size={14} color="#2F5FA8" /> {guardados > 0 ? "Continuar descarga" : "Descargar para uso sin conexión"}
-          </button>
-        </>
-      )}
-    </div>
-  );
 }
 
 function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, onGoToRoles, onGoToPlataforma, userId, myIglesiaId, teamName, isCompact, onVerTutorial }) {
@@ -3934,264 +3866,8 @@ function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myNa
 
 // Adónde llega "Escríbenos" en Ajustes → Ayuda.
 const CORREO_SOPORTE = "eldinmc8@gmail.com";
-const WHATSAPP_SOPORTE = "50240544813"; // +502 4054 4813, sin "+" ni espacios para wa.me
 
-// Cambiar la propia contraseña sin depender de un administrador — a diferencia de "Reiniciar
-// contraseña" en Usuarios (que un admin usa para OTRA persona), esto es autoservicio: updateUser()
-// de Supabase Auth ya cambia la contraseña de la sesión actual sin pedir la anterior.
-// Zonas de ejemplo más comunes — mismo criterio que CrearIglesia.jsx (la base acepta cualquier
-// nombre IANA válido, esto es solo para no obligar a escribir uno a mano).
-const ZONAS_HORARIAS = [
-  { value: "Etc/GMT+6", label: "Guatemala / El Salvador / Honduras (UTC-6, sin horario de verano)" },
-  { value: "America/Mexico_City", label: "Ciudad de México" },
-  { value: "America/Managua", label: "Nicaragua" },
-  { value: "America/Costa_Rica", label: "Costa Rica" },
-  { value: "America/Bogota", label: "Colombia" },
-  { value: "America/Lima", label: "Perú" },
-];
-
-// Fase 5: nombre, zona horaria, logo y colores de ESTA iglesia — antes de esto, lo único que existía
-// era la base de datos lista para guardarlos (Fase 3) y mostrarlos (ver myIglesia en
-// WorshipFlowPrototype), pero ningún administrador podía cambiarlos desde la app. Recarga la página
-// al guardar en vez de propagar el cambio en memoria -- es la forma más simple y confiable de que el
-// logo/colores nuevos se vean de una en TODA la app (nav, header, botones...), y esto no se usa
-// seguido como para que valga la pena evitar ese recargo.
-// Peso máximo que deja subir el bucket "logos-iglesias" (ver migración 20261001000100) — se
-// comprueba también acá, antes de intentar subir, para un error inmediato en vez de esperar a que
-// el servidor lo rechace.
-const LOGO_MAX_BYTES = 2 * 1024 * 1024;
-const LOGO_TIPOS_VALIDOS = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
-
-// Ajustes → Pantalla de proyección (pedido de Eldin, 2026-10-09): todo lo que depende del tamaño de la
-// pantalla de cada iglesia, en un solo lugar. Antes "letra de canciones" vivía en Identidad.
-function PantallaProyeccionModal({ iglesiaId, onClose }) {
-  const [cargando, setCargando] = useState(true);
-  const [formatoLetra, setFormatoLetra] = useState("dos_lineas");
-  const [dividirVersiculos, setDividirVersiculos] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    supabase.from("iglesias").select("formato_letra, dividir_versiculos").eq("id", iglesiaId).single()
-      .then(({ data }) => {
-        if (data) {
-          setFormatoLetra(data.formato_letra || "dos_lineas");
-          setDividirVersiculos(!!data.dividir_versiculos);
-        }
-        setCargando(false);
-      });
-  }, [iglesiaId]);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setBusy(true); setError("");
-    const { error } = await supabase.from("iglesias").update({ formato_letra: formatoLetra, dividir_versiculos: dividirVersiculos }).eq("id", iglesiaId);
-    if (error) { setError(error.message); setBusy(false); return; }
-    window.location.reload();
-  };
-
-  return (
-    <ModalShell title="Pantalla de proyección" icon={Radio} color="var(--wf-brand-accent)" onClose={onClose}>
-      {cargando ? (
-        <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Cargando…</div>
-      ) : (
-        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>Ajusta cómo se reparte el texto según el tamaño de la pantalla de tu iglesia. Se aplica al proyectar: las canciones y versículos guardados no cambian.</div>
-          <Field label="Letra de canciones en pantalla">
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {FORMATOS_LETRA.map((f) => {
-                const elegido = formatoLetra === f.value;
-                const ejemplo = f.value === "dos_lineas" ? ["Eres mi refugio eterno", "mi lugar seguro, Señor"]
-                  : f.value === "una_linea_dos_renglones" ? ["Eres mi refugio", "eterno, Señor"] : ["Eres mi refugio eterno, Señor"];
-                return (
-                  <button
-                    key={f.value} type="button" onClick={() => setFormatoLetra(f.value)}
-                    style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", padding: 8, borderRadius: 12, cursor: "pointer", background: "var(--wf-card)", border: elegido ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)" }}
-                  >
-                    <div style={{ width: 92, height: 52, flexShrink: 0, borderRadius: 8, background: "#0C0E13", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 4, boxSizing: "border-box", textAlign: "center", lineHeight: 1.25, fontSize: f.value === "dos_lineas" ? 7 : f.value === "una_linea" ? 7.5 : 10 }}>
-                      {ejemplo.map((l, i) => <div key={i} style={f.value === "una_linea_dos_renglones" && i === 1 ? { fontWeight: 800, textTransform: "uppercase" } : undefined}>{l}</div>)}
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>{f.label}</div>
-                      <div style={{ fontSize: 11, color: "var(--wf-muted)" }}>{f.ayuda}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Se aplica al proyectar — las canciones de la biblioteca no cambian.</div>
-          </Field>
-          <Field label="Versículos largos">
-            <button
-              type="button" onClick={() => setDividirVersiculos((v) => !v)} aria-pressed={dividirVersiculos}
-              style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: 10, borderRadius: 12, cursor: "pointer", background: "var(--wf-card)", border: dividirVersiculos ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)" }}
-            >
-              <span style={{ width: 40, height: 24, borderRadius: 12, flexShrink: 0, position: "relative", background: dividirVersiculos ? "var(--wf-brand-accent)" : "var(--wf-border)", transition: "background 0.15s" }}>
-                <span style={{ position: "absolute", top: 3, left: dividirVersiculos ? 19 : 3, width: 18, height: 18, borderRadius: 9, background: "#fff", transition: "left 0.15s" }} />
-              </span>
-              <span style={{ minWidth: 0 }}>
-                <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>Dividir versículos largos en 2 o 3 partes</span>
-                <span style={{ display: "block", fontSize: 11, color: "var(--wf-muted)" }}>Para pantallas chicas: cada parte lleva su "(1/2)" en la cita. Apagado, el versículo se proyecta completo.</span>
-              </span>
-            </button>
-          </Field>
-          {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
-          <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
-        </form>
-      )}
-    </ModalShell>
-  );
-}
-
-function IdentidadIglesiaModal({ iglesiaId, onClose }) {
-  const [cargando, setCargando] = useState(true);
-  const [nombre, setNombre] = useState("");
-  const [zonaHoraria, setZonaHoraria] = useState("Etc/GMT+6");
-  const [logoUrl, setLogoUrl] = useState("");
-  const [colorPrimario, setColorPrimario] = useState("#16324F");
-  const [colorAcento, setColorAcento] = useState("#E8821E");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [subiendoLogo, setSubiendoLogo] = useState(false);
-  const [mostrarEnlaceManual, setMostrarEnlaceManual] = useState(false);
-
-  useEffect(() => {
-    supabase.from("iglesias").select("nombre, zona_horaria, logo_url, color_primario, color_acento").eq("id", iglesiaId).single()
-      .then(({ data }) => {
-        if (data) {
-          setNombre(data.nombre || "");
-          setZonaHoraria(data.zona_horaria || "Etc/GMT+6");
-          setLogoUrl(data.logo_url || "");
-          setColorPrimario(data.color_primario || "#16324F");
-          setColorAcento(data.color_acento || "#E8821E");
-        }
-        setCargando(false);
-      });
-  }, [iglesiaId]);
-
-  // Un archivo por iglesia, siempre en la MISMA ruta ("<iglesia_id>/logo.<ext>") — volver a subir
-  // reemplaza el anterior (upsert). Como el navegador podría tener cacheada la imagen vieja en esa
-  // misma URL, se le agrega "?v=<hora>" al guardar para que SIEMPRE pida la versión nueva.
-  const subirLogo = async (file) => {
-    if (!LOGO_TIPOS_VALIDOS.includes(file.type)) { setError("El logo debe ser una imagen (PNG, JPG, WEBP o SVG)."); return; }
-    if (file.size > LOGO_MAX_BYTES) { setError("El logo no puede pesar más de 2 MB."); return; }
-    setSubiendoLogo(true); setError("");
-    const ext = file.name.split(".").pop().toLowerCase();
-    const ruta = `${iglesiaId}/logo.${ext}`;
-    const { error: uploadError } = await supabase.storage.from("logos-iglesias").upload(ruta, file, { upsert: true, contentType: file.type });
-    if (uploadError) { setError("No se pudo subir el logo: " + uploadError.message); setSubiendoLogo(false); return; }
-    const { data } = supabase.storage.from("logos-iglesias").getPublicUrl(ruta);
-    setLogoUrl(`${data.publicUrl}?v=${Date.now()}`);
-    setSubiendoLogo(false);
-  };
-
-  const HEX_VALIDO = /^#[0-9A-Fa-f]{6}$/;
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!nombre.trim()) { setError("El nombre no puede quedar vacío."); return; }
-    // El selector de color SIEMPRE escribe un hex válido, pero el campo de texto a su lado se puede
-    // editar a mano -- un valor inválido ahí (ej. "naranja" en vez de "#E8821E") dejaría ese color
-    // sin efecto en TODA la app (var() sin valor válido = transparente), no solo en esta pantalla.
-    if (!HEX_VALIDO.test(colorPrimario) || !HEX_VALIDO.test(colorAcento)) {
-      setError("Los colores deben ser un código hexadecimal válido, ej. #16324F.");
-      return;
-    }
-    setBusy(true); setError("");
-    const { error } = await supabase.from("iglesias").update({
-      nombre: nombre.trim(), zona_horaria: zonaHoraria,
-      logo_url: logoUrl.trim() || null, color_primario: colorPrimario, color_acento: colorAcento,
-    }).eq("id", iglesiaId);
-    if (error) { setError(error.message); setBusy(false); return; }
-    window.location.reload();
-  };
-
-  return (
-    <ModalShell title="Identidad de la iglesia" icon={Palette} color="var(--wf-brand-accent)" onClose={onClose}>
-      {cargando ? (
-        <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Cargando…</div>
-      ) : (
-        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 2 }}>
-            <AppLogo width={64} logoUrl={logoUrl.trim() || null} />
-          </div>
-          <Field label="Nombre de la iglesia"><input required value={nombre} onChange={(e) => setNombre(e.target.value)} style={inputStyle} /></Field>
-          <Field label="Logo (opcional)">
-            <label className="hoverable" style={{ ...addBtnStyle, justifyContent: "center", opacity: subiendoLogo ? 0.6 : 1, cursor: subiendoLogo ? "not-allowed" : "pointer" }}>
-              <Download size={14} style={{ transform: "rotate(180deg)" }} />
-              {subiendoLogo ? "Subiendo…" : logoUrl ? "Cambiar imagen" : "Subir una imagen"}
-              <input
-                type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" disabled={subiendoLogo}
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) subirLogo(f); e.target.value = ""; }}
-                style={{ display: "none" }}
-              />
-            </label>
-            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>PNG, JPG, WEBP o SVG — máximo 2 MB. Vacío = trazo genérico de WorshipFlow.</div>
-            <button type="button" onClick={() => setMostrarEnlaceManual((v) => !v)} style={{ background: "none", border: "none", color: "var(--wf-muted)", fontSize: 11, textDecoration: "underline", cursor: "pointer", padding: "6px 0 0" }}>
-              {mostrarEnlaceManual ? "Ocultar enlace manual" : "O pega un enlace en su lugar"}
-            </button>
-            {mostrarEnlaceManual && (
-              <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://…" style={{ ...inputStyle, marginTop: 6 }} />
-            )}
-          </Field>
-          <Field label="Color primario (fondos oscuros: encabezado, navegación)">
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input type="color" value={colorPrimario} onChange={(e) => setColorPrimario(e.target.value)} style={{ width: 40, height: 36, padding: 2, border: "1px solid var(--wf-border)", borderRadius: 8, background: "none", cursor: "pointer" }} />
-              <input value={colorPrimario} onChange={(e) => setColorPrimario(e.target.value)} style={{ ...inputStyle, flex: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }} />
-            </div>
-          </Field>
-          <Field label="Color de acento (botones, resaltados)">
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input type="color" value={colorAcento} onChange={(e) => setColorAcento(e.target.value)} style={{ width: 40, height: 36, padding: 2, border: "1px solid var(--wf-border)", borderRadius: 8, background: "none", cursor: "pointer" }} />
-              <input value={colorAcento} onChange={(e) => setColorAcento(e.target.value)} style={{ ...inputStyle, flex: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }} />
-            </div>
-          </Field>
-          <Field label="Zona horaria">
-            <select value={zonaHoraria} onChange={(e) => setZonaHoraria(e.target.value)} style={inputStyle}>
-              {ZONAS_HORARIAS.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
-            </select>
-          </Field>
-          {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
-          <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
-        </form>
-      )}
-    </ModalShell>
-  );
-}
-
-function ChangePasswordModal({ onClose }) {
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [done, setDone] = useState(false);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    { const err = validarPassword(password); if (err) { setError(err); return; } }
-    if (password !== confirm) { setError("Las contraseñas no coinciden."); return; }
-    setBusy(true); setError("");
-    const { error } = await supabase.auth.updateUser({ password });
-    setBusy(false);
-    if (error) { setError(error.message); return; }
-    setDone(true);
-  };
-
-  return (
-    <ModalShell title="Cambiar contraseña" icon={KeyRound} color="var(--wf-heading)" onClose={onClose}>
-      {done ? (
-        <div style={{ fontSize: 13, color: "#1F8A73", fontWeight: 700 }}>Contraseña actualizada correctamente.</div>
-      ) : (
-        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <input type="password" required placeholder="Nueva contraseña" value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} autoFocus autoComplete="new-password" />
-          <MedidorPassword password={password} />
-          <input type="password" required placeholder="Confirmar contraseña" value={confirm} onChange={(e) => setConfirm(e.target.value)} style={inputStyle} />
-          {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
-          <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar contraseña"}</button>
-        </form>
-      )}
-    </ModalShell>
-  );
-}
+const WHATSAPP_SOPORTE = "50240544813";
 
 // ---------------- MINISTERIOS ----------------
 // Reduce una foto (puede venir pesada directo de la cámara del celular) antes de mandarla al
@@ -4996,6 +4672,7 @@ function ClasificacionesModal({ clasificaciones, library, onClose, onGuardar }) 
 function blankSong() {
   return { id: nextSongId(), title: "", tempo: "", compas: "", key: "", artist: "", themes: "", category: clasificacionesActuales[0]?.clave || "corito", favorite: false, hasAttachment: false, defaultStructure: [], blocks: {}, letra: {} };
 }
+
 function parseChordLine(raw) {
   let plain = "";
   const positions = [];
@@ -5009,6 +4686,7 @@ function parseChordLine(raw) {
   plain += raw.slice(lastIndex);
   return { plain, positions };
 }
+
 function buildChordRow(positions) {
   let row = "";
   positions.forEach(({ index, chord }) => {
@@ -5017,6 +4695,7 @@ function buildChordRow(positions) {
   });
   return row;
 }
+
 // Antes esto armaba UNA sola l\u00EDnea monoespaciada por rengl\u00F3n (acordes arriba, letra abajo, alineados
 // por car\u00E1cter con espacios de relleno) \u2014 perfecto para alinear, pero una l\u00EDnea larga nunca se
 // achicaba: en el celular se sal\u00EDa del cuadro y quedaba cortada. Tocando en vivo (guitarra/bajo/piano)
@@ -5048,6 +4727,7 @@ function ChordsAboveLyrics({ raw, semitones = 0 }) {
     </div>
   );
 }
+
 function SlideMiniPreview({ lines }) {
   return (
     <div style={{ background: "radial-gradient(ellipse at center 40%, #1A1F2B 0%, #0C0E13 70%)", borderRadius: 12, padding: "16px 10px", minHeight: 70, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
@@ -5067,11 +4747,13 @@ function badgeColor(badge) {
   if (b.startsWith("O") || b.startsWith("F")) return "#5661B3"; // Outro/Final (ambas de cierre): índigo
   return "#2E86AB"; // Estrofas y cualquier otro badge personalizado: celeste
 }
+
 // Catálogo de tipos de sección para "Añadir secciones" (estilo OnStage) — cada tipo puede repetirse
 // (Estrofa 1, Estrofa 2...); el prefijo arma el badge numerado (V1, C2...). El color sale de
 // badgeColor() con el prefijo, así el catálogo y las tarjetas ya agregadas siempre coinciden.
 // Compases más usados, el primero es el más común. Opcional en cada canción.
 const COMPASES = ["4/4", "3/4", "6/8", "2/4", "12/8", "2/2", "5/4", "7/8"];
+
 // Tiempos por compás para el auto-avance por BPM. En 6/8 y 12/8 el pulso se cuenta en negra con
 // puntillo (2 y 4 tiempos), que es como se marca el BPM en la práctica. Sin compás: 4, como siempre.
 function tiemposPorCompas(compas) {
@@ -5932,6 +5614,7 @@ function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, on
 
 // ---- Notas por parte (ver modo "Anotar" en SongView) ----
 const ETIQUETAS_PARTE = ["x2", "Sube", "Baja", "Solo voz", "Solo piano", "Banda completa", "Corte", "Instrumental"];
+
 function EtiquetaParte({ texto, mia }) {
   const naranja = /^x\d/i.test(texto);
   return (
@@ -5941,6 +5624,7 @@ function EtiquetaParte({ texto, mia }) {
       border: mia ? "1.5px solid #2F5FA8" : "1.5px solid transparent" }}>{texto}</span>
   );
 }
+
 function TiraNota({ tipo, etiqueta, texto, onAbrir, onBorrar }) {
   const lider = tipo === "equipo";
   const parar = (e) => e.stopPropagation(); // no "saltar a esta parte" ni arrastrar de canción
@@ -6389,15 +6073,6 @@ function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draf
   );
 }
 
-function Field({ label, required, children }) {
-  return (
-    <div>
-      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{label} {required && <span style={{ color: "#C23B32" }}>*</span>}</div>
-      {children}
-    </div>
-  );
-}
-
 // ---------------- LISTA DE EVENTOS ----------------
 // Todo el calendario se calcula desde `event.date` (fecha real, "YYYY-MM-DD") — nunca desde `dateLabel`
 // (texto libre, ej. "10:00 am"), que solo es una nota para mostrar — ver src/lib/dates.js.
@@ -6669,6 +6344,7 @@ function quienDirigeAlabanza(event) {
   for (const r of event?.worshipRoles || []) for (const m of r.members || []) if (m.lead) return m;
   return null;
 }
+
 function textoEnsayo(event) {
   if (!event?.ensayoFecha && !event?.ensayoHora) return "";
   const partes = [];
@@ -6681,12 +6357,14 @@ function textoEnsayo(event) {
   if (event.ensayoHora) partes.push(formatHora12(event.ensayoHora));
   return partes.join(" · ");
 }
+
 function formatHora12(hora) {
   const m = String(hora || "").match(/^(\d{1,2}):(\d{2})/);
   if (!m) return hora || "";
   const h = Number(m[1]);
   return `${((h + 11) % 12) + 1}:${m[2]} ${h < 12 ? "a. m." : "p. m."}`;
 }
+
 function EnsayoAlabanzaCard({ event, userId, isAdminViewer, onGuardar }) {
   const enEquipo = (event.worshipRoles || []).some((r) => (r.members || []).some((m) => m.usuarioId === userId));
   const lider = quienDirigeAlabanza(event);
@@ -7052,11 +6730,13 @@ function EventDetail({
 }
 
 const NEXT_STATUS = { pendiente: "confirmado", confirmado: "rechazado", rechazado: "pendiente" };
+
 const STATUS_STYLE = {
   confirmado: { border: "none", background: "#3FA772", icon: Check },
   rechazado: { border: "none", background: "#C23B32", icon: X },
   pendiente: { border: "1px solid var(--wf-border-soft)", background: "transparent", icon: null },
 };
+
 // Encargados de un ítem del Setlist: chips con estado (pendiente/confirmado/rechazado), estrella de
 // "encargado principal" y selector para agregar de entre los usuarios ya registrados en la app (no
 // texto libre). Solo quien tiene permiso sobre este bloque (admin, o el líder del ministerio vinculado)
@@ -7818,150 +7498,6 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   );
 }
 
-// ---------- Biblia completa y buscable: se consulta en vivo (fetch) a la API pública bolls.life, así el
-// operador navega Libro → Capítulo → Versículo(s) sin tener que escribir ni copiar/pegar el texto. Se
-// cachea por versión a nivel de módulo para no repetir la descarga de la lista de libros en cada apertura. ----------
-const bibleBooksCache = {};
-// Si falla el pedido en vivo (sin internet, API caída) se cae a la última lista de libros guardada
-// localmente — es un archivo chico (unos 66 nombres), así que basta con offlineCache. El texto de
-// cada capítulo, mucho más pesado, vive aparte en IndexedDB (ver bibleOfflineStore.js).
-async function fetchBibleBooks(version) {
-  if (bibleBooksCache[version]) return bibleBooksCache[version];
-  try {
-    const res = await fetch(`https://bolls.life/get-books/${version}/`);
-    if (!res.ok) throw new Error("No se pudo cargar la lista de libros.");
-    const data = await res.json();
-    bibleBooksCache[version] = data;
-    saveCache(`biblia_libros_${version}`, data);
-    return data;
-  } catch (e) {
-    const cached = loadCache(`biblia_libros_${version}`);
-    if (cached) { bibleBooksCache[version] = cached; return cached; }
-    throw e;
-  }
-}
-async function fetchBibleChapter(version, bookId, chapter) {
-  try {
-    const res = await fetch(`https://bolls.life/get-chapter/${version}/${bookId}/${chapter}/`);
-    if (!res.ok) throw new Error("No se pudo cargar el capítulo.");
-    const data = await res.json();
-    guardarCapituloOffline(version, bookId, chapter, data); // sin esperarlo: no atrasa la lectura por guardar
-    return data;
-  } catch (e) {
-    const offline = await obtenerCapituloOffline(version, bookId, chapter);
-    if (offline) return offline;
-    throw e;
-  }
-}
-// La API devuelve <mark> alrededor de las palabras encontradas y a veces <br> dentro del texto (saltos de
-// línea de poesía) — se limpia para mostrarlo como texto plano, igual que el resto de la app.
-
-// Búsqueda por palabras (pedido de Eldin, 2026-10-21 — antes pedía la frase exacta y fallaba mucho):
-// 1. Si se escribió una cita ("stgo 4:1", "jn 3 16", "salmo 23") abre ese pasaje.
-// 2. Con la Biblia guardada en el equipo: todas las palabras en cualquier orden, sin tildes y con faltas
-//    de ortografía (índice en memoria, ver lib/buscarBiblia.js).
-// 3. Si no está guardada: la API (palabras bien escritas), filtrada a los que tienen TODAS las palabras.
-// 4. Si en esta versión no aparece (ej. "cosecharemos" no existe en RV1960, ahí dice "segaremos"),
-//    busca en NTV/LBLA/PDT y ofrece proyectar ese mismo versículo en la versión elegida.
-const indicesBiblia = {};
-// La consola baja sola la RV1960 al equipo la primera vez que se abre la Biblia (unos minutos, en segundo
-// plano): con ella guardada la búsqueda aguanta faltas de ortografía y funciona sin internet.
-const descargaAuto = { estado: "inactivo", hechos: 0, total: 0, oyentes: new Set() };
-const avisarDescargaAuto = () => descargaAuto.oyentes.forEach((f) => f());
-async function arrancarDescargaAuto() {
-  if (descargaAuto.estado !== "inactivo" || (typeof navigator !== "undefined" && navigator.onLine === false)) return;
-  descargaAuto.estado = "revisando";
-  try {
-    const libros = await fetchBibleBooks(BIBLE_OFFLINE_VERSION);
-    const total = libros.reduce((acc, b) => acc + b.chapters, 0);
-    const guardados = await contarCapitulosGuardados(BIBLE_OFFLINE_VERSION);
-    if (guardados >= total) { descargaAuto.estado = "lista"; avisarDescargaAuto(); return; }
-    descargaAuto.estado = "bajando"; descargaAuto.hechos = guardados; descargaAuto.total = total; avisarDescargaAuto();
-    const r = await descargarBibliaCompleta(BIBLE_OFFLINE_VERSION, {
-      fetchBooks: fetchBibleBooks, fetchChapter: fetchBibleChapter,
-      onProgress: (h, t) => { descargaAuto.hechos = h; descargaAuto.total = t; if (h % 25 === 0) avisarDescargaAuto(); },
-    });
-    delete indicesBiblia[BIBLE_OFFLINE_VERSION];
-    descargaAuto.estado = r.cancelado ? "inactivo" : "lista";
-  } catch {
-    descargaAuto.estado = "inactivo"; // se vuelve a intentar la próxima vez que se abra la Biblia
-  }
-  avisarDescargaAuto();
-}
-function useBibliaParaBuscar() {
-  const [, redibujar] = useState(0);
-  useEffect(() => {
-    const f = () => redibujar((x) => x + 1);
-    descargaAuto.oyentes.add(f);
-    arrancarDescargaAuto();
-    return () => { descargaAuto.oyentes.delete(f); };
-  }, []);
-  return { lista: descargaAuto.estado === "lista", bajando: descargaAuto.estado === "bajando", porcentaje: descargaAuto.total ? Math.round((descargaAuto.hechos / descargaAuto.total) * 100) : 0 };
-}
-async function indiceBibliaLocal(version) {
-  if (!indicesBiblia[version]) {
-    indicesBiblia[version] = todosLosVersiculosOffline(version).then((caps) => (caps.length >= 1100 ? crearIndice(caps) : null));
-  }
-  const indice = await indicesBiblia[version].catch(() => null);
-  if (!indice) delete indicesBiblia[version]; // incompleta: se vuelve a intentar cuando termine de bajar
-  return indice;
-}
-async function buscarEnApiBiblia(version, texto) {
-  const res = await fetch(`https://bolls.life/v2/find/${version}?search=${encodeURIComponent(texto)}&match_case=false`);
-  if (!res.ok) throw new Error("No se pudo buscar en la Biblia.");
-  const data = await res.json();
-  // Por si otra versión también queda bloqueada: nunca ofrecer un "versículo" que es un aviso legal.
-  return (data.results || []).filter((r) => !/prohibi[oó] usar la traducci[oó]n/i.test(stripBibleSearchMarkup(r.text)));
-}
-async function searchBibleVerses(version, query, books) {
-  const cita = leerCita(query, books);
-  if (cita) {
-    const { libro, capitulo, desde, hasta } = cita;
-    const verses = await fetchBibleChapter(version, libro.bookid, capitulo);
-    const elegidos = desde ? verses.filter((v) => v.verse >= desde && v.verse <= hasta) : verses;
-    return {
-      cita: `${libro.name} ${capitulo}${desde ? `:${desde}${hasta > desde ? `-${hasta}` : ""}` : ""}`,
-      resultados: elegidos.map((v) => ({ pk: `${libro.bookid}-${capitulo}-${v.verse}`, book: libro.bookid, chapter: capitulo, verse: v.verse, text: stripBibleSearchMarkup(v.text) })),
-    };
-  }
-  const indice = await indiceBibliaLocal(version);
-  if (indice) {
-    const r = buscarEnIndice(indice, query);
-    if (r.length) return { resultados: r };
-  }
-  let resultados = [];
-  let sinInternet = null;
-  try {
-    resultados = filtrarResultadosApi(await buscarEnApiBiblia(version, query), query);
-    if (!resultados.length) {
-      // La API a veces no trae nada con varias palabras: se prueba con las más largas una por una.
-      const largas = normalizarBusqueda(query).split(" ").filter((p) => p.length >= 4).sort((a, b) => b.length - a.length).slice(0, 2);
-      for (const w of largas) {
-        resultados = filtrarResultadosApi(await buscarEnApiBiblia(version, w), query);
-        if (resultados.length) break;
-      }
-    }
-  } catch (e) {
-    sinInternet = e;
-    // Sin conexión y sin la Biblia completa: busca en lo que sí se haya guardado.
-    if (!indice) {
-      const capitulos = await todosLosVersiculosOffline(version);
-      if (!capitulos.length) throw e;
-      const todos = capitulos.flatMap((cap) => cap.verses.map((v) => ({ pk: `${cap.bookId}-${cap.chapter}-${v.verse}`, book: cap.bookId, chapter: cap.chapter, verse: v.verse, text: v.text })));
-      resultados = filtrarResultadosApi(todos, query);
-    }
-  }
-  if (resultados.length) return { resultados: resultados.slice(0, 60) };
-  if (!sinInternet) {
-    for (const otra of ["NTV", "LBLA", "PDT"].filter((v) => v !== version)) {
-      try {
-        const r = filtrarResultadosApi(await buscarEnApiBiblia(otra, query), query);
-        if (r.length) return { resultados: r.slice(0, 30), otraVersion: otra };
-      } catch { /* sigue con la siguiente */ }
-    }
-  }
-  return { resultados: [] };
-}
 // Para "Siguiente/Anterior versículo" en vivo: busca el versículo justo después (direction=1) o antes
 // (direction=-1) de fromVerse, cruzando al capítulo siguiente/anterior del mismo libro si hace falta.
 // Devuelve null cuando ya no hay más (por ejemplo, se llegó al final del libro).
@@ -7983,255 +7519,6 @@ async function fetchAdjacentBibleVerse(version, bookId, chapter, fromVerse, dire
   return { chapter: targetChapter, verse: v.verse, text: stripBibleSearchMarkup(v.text), bookName: book.name };
 }
 
-// Cuerpo del buscador de Biblia, sin el modal alrededor — se reutiliza tal cual dentro de un <ModalShell>
-// (Setlist: "Agregar versículo") y también suelto dentro de un panel lateral angosto (En vivo: versículo
-// improvisado), que es justo la manera compacta en la que se quería ver esto en el dashboard en vivo.
-function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", splitVersesIndividually = false }) {
-  const [mode, setMode] = useState("browse"); // browse: biblia completa en vivo · manual: escribir a mano
-  const [version, setVersion] = useState(BIBLE_VERSIONS[0].code);
-  const [books, setBooks] = useState(null);
-  const [bookFilter, setBookFilter] = useState("");
-  const [selectedBook, setSelectedBook] = useState(null);
-  const [selectedChapter, setSelectedChapter] = useState(null);
-  const [verses, setVerses] = useState(null);
-  const [range, setRange] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState("");
-  const [custom, setCustom] = useState({ ref: "", version: BIBLE_VERSIONS[0].code, text: "" });
-
-  useEffect(() => {
-    if (mode !== "browse") return;
-    setLoading(true); setLoadError("");
-    fetchBibleBooks(version).then(setBooks).catch((e) => setLoadError(e.message)).finally(() => setLoading(false));
-  }, [mode, version]);
-
-  const backToBooks = () => { setSelectedBook(null); setSelectedChapter(null); setVerses(null); setRange(null); };
-  const backToChapters = () => { setSelectedChapter(null); setVerses(null); setRange(null); };
-  const openChapter = (book, chapter) => {
-    setSelectedBook(book); setSelectedChapter(chapter); setRange(null); setVerses(null);
-    setLoading(true); setLoadError("");
-    fetchBibleChapter(version, book.bookid, chapter).then(setVerses).catch((e) => setLoadError(e.message)).finally(() => setLoading(false));
-  };
-  const pickVerse = (v) => {
-    setRange((r) => {
-      if (!r || r.start !== r.end) return { start: v, end: v }; // sin selección, o el rango anterior ya estaba cerrado: empieza uno nuevo
-      return { start: Math.min(r.start, v), end: Math.max(r.start, v) }; // había un solo versículo elegido: lo convierte en rango
-    });
-  };
-  const confirmRange = () => {
-    if (!range || !verses) return;
-    const picked = verses.filter((v) => v.verse >= range.start && v.verse <= range.end);
-    // bookId/chapter/verseStart/verseEnd quedan guardados para poder usar "Siguiente versículo" y cambiar de
-    // versión en vivo más adelante sin tener que volver a abrir este buscador (ver MultimediaControl).
-    if (splitVersesIndividually && picked.length > 1) {
-      // Cada versículo del rango se agrega como su propia diapositiva — así quien lee puede avanzar
-      // versículo por versículo en vivo, en vez de tener un solo bloque con todos juntos.
-      picked.forEach((v) => {
-        onAdd({ ref: `${selectedBook.name} ${selectedChapter}:${v.verse}`, version, text: stripBibleSearchMarkup(v.text), bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: v.verse, verseEnd: v.verse });
-      });
-      return;
-    }
-    const text = picked.map((v) => stripBibleSearchMarkup(v.text)).join(" ");
-    const ref = range.start === range.end ? `${selectedBook.name} ${selectedChapter}:${range.start}` : `${selectedBook.name} ${selectedChapter}:${range.start}-${range.end}`;
-    onAdd({ ref, version, text, bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: range.start, verseEnd: range.end });
-  };
-  const filteredBooks = books ? books.filter((b) => normalizarBusqueda(b.name).includes(normalizarBusqueda(bookFilter))) : [];
-
-  return (
-    <>
-      <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 12, width: "fit-content" }}>
-        {[["browse", "Buscar en la Biblia"], ["manual", "Escribir manualmente"]].map(([val, label]) => (
-          <button key={val} onClick={() => setMode(val)} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: mode === val ? "var(--wf-brand-accent)" : "transparent", color: mode === val ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{label}</button>
-        ))}
-      </div>
-
-      {mode === "manual" && (
-        <>
-          <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, marginBottom: 8 }}>ACCESO RÁPIDO</div>
-          {BIBLE_QUICK.map((b) => (
-            <button key={b.ref} onClick={() => onAdd(b)} className="hoverable" style={{ ...addBtnStyle, textAlign: "left", marginBottom: 6 }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{b.ref}</span>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "#2F5FA8", background: "#EAF0FA", borderRadius: 10, padding: "1px 5px" }}>{b.version}</span>
-                </div>
-                <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{b.text}</div>
-              </div>
-            </button>
-          ))}
-          <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, margin: "14px 0 8px" }}>O ESCRIBE UNO NUEVO</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input placeholder="Referencia (ej. Juan 3:16)" value={custom.ref} onChange={(e) => setCustom({ ...custom, ref: e.target.value })} style={{ ...inputStyle, flex: 1 }} />
-            <select value={custom.version} onChange={(e) => setCustom({ ...custom, version: e.target.value })} style={{ ...inputStyle, width: 100 }}>
-              {BIBLE_VERSIONS.map((v) => <option key={v.code} value={v.code}>{v.code}</option>)}
-            </select>
-          </div>
-          <textarea placeholder="Texto a proyectar..." value={custom.text} onChange={(e) => setCustom({ ...custom, text: e.target.value })} style={{ ...inputStyle, height: 70, marginTop: 8, resize: "none" }} />
-          <button onClick={() => custom.ref && custom.text && onAdd(custom)} style={{ ...primaryBtn, marginTop: 10 }}>{submitLabel}</button>
-        </>
-      )}
-
-      {mode === "browse" && (
-        <>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-            {BIBLE_VERSIONS.map((v) => (
-              <button key={v.code} onClick={() => setVersion(v.code)} title={v.label} style={{ fontSize: 11, fontWeight: 700, padding: "5px 9px", borderRadius: 12, border: version === v.code ? "2px solid #2F5FA8" : "1px solid var(--wf-border)", background: version === v.code ? "#EAF0FA" : "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer" }}>{v.code}</button>
-            ))}
-          </div>
-
-          {(selectedBook || selectedChapter) && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#2F5FA8", fontWeight: 700, marginBottom: 10 }}>
-              <span onClick={backToBooks} style={{ cursor: "pointer" }}>Libros</span>
-              {selectedBook && <><ChevronRight size={12} /><span onClick={backToChapters} style={{ cursor: "pointer" }}>{selectedBook.name}</span></>}
-              {selectedChapter && <><ChevronRight size={12} /><span>Cap. {selectedChapter}</span></>}
-            </div>
-          )}
-
-          {loading && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 0", textAlign: "center" }}>Cargando…</div>}
-          {loadError && <div style={{ fontSize: 12, color: "#C23B32", padding: "10px 0" }}>{loadError} Revisa tu conexión a internet e intenta de nuevo.</div>}
-
-          {!loading && !loadError && !selectedBook && books && (
-            <>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
-                <Search size={13} color="var(--wf-faint)" />
-                <input value={bookFilter} onChange={(e) => setBookFilter(e.target.value)} placeholder="Buscar libro (ej. Juan, Salmos)…" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 12, width: "100%" }} />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, maxHeight: 320, overflowY: "auto" }}>
-                {filteredBooks.map((b) => (
-                  <button key={b.bookid} onClick={() => setSelectedBook(b)} className="hoverable" style={{ ...addBtnStyle, textAlign: "left" }}>{b.name}</button>
-                ))}
-              </div>
-            </>
-          )}
-
-          {!loading && !loadError && selectedBook && !selectedChapter && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6, maxHeight: 320, overflowY: "auto" }}>
-              {Array.from({ length: selectedBook.chapters }, (_, i) => i + 1).map((c) => (
-                <button key={c} onClick={() => openChapter(selectedBook, c)} style={{ padding: "8px 0", borderRadius: 12, border: "1px solid var(--wf-border)", background: "var(--wf-card)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{c}</button>
-              ))}
-            </div>
-          )}
-
-          {!loading && !loadError && selectedBook && selectedChapter && verses && (
-            <>
-              <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 8 }}>
-                Toca un versículo para empezar, y otro para armar un rango.
-                {splitVersesIndividually && " Cada versículo del rango se agrega como su propia diapositiva."}
-              </div>
-              <div style={{ maxHeight: 300, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
-                {verses.map((v) => {
-                  const inRange = range && v.verse >= range.start && v.verse <= range.end;
-                  return (
-                    <button key={v.verse} onClick={() => pickVerse(v.verse)} style={{ textAlign: "left", padding: "6px 8px", borderRadius: 12, border: inRange ? "1px solid #2F5FA8" : "1px solid transparent", background: inRange ? "#EAF0FA" : "transparent", cursor: "pointer", fontSize: 12.5, color: "var(--wf-text)", lineHeight: 1.45 }}>
-                      <b style={{ color: "#2F5FA8" }}>{v.verse}</b> {stripBibleSearchMarkup(v.text)}
-                    </button>
-                  );
-                })}
-              </div>
-              {range && (
-                <button onClick={confirmRange} style={{ ...primaryBtn, marginTop: 12 }}>
-                  {submitLabel} · {selectedBook.name} {selectedChapter}:{range.start === range.end ? range.start : `${range.start}-${range.end}`}
-                  {splitVersesIndividually && range.end > range.start ? ` (${range.end - range.start + 1} diapositivas)` : ""}
-                </button>
-              )}
-            </>
-          )}
-        </>
-      )}
-    </>
-  );
-}
-function BibleModal({ onClose, onAdd, title = "Agregar versículo", submitLabel = "Agregar al servicio", splitVersesIndividually = false }) {
-  return (
-    <ModalShell title={title} icon={BookOpen} color="#2F5FA8" onClose={onClose}>
-      <BibleBrowserBody onAdd={onAdd} submitLabel={submitLabel} splitVersesIndividually={splitVersesIndividually} />
-    </ModalShell>
-  );
-}
-// Subir una imagen/video de fondo + elegir entre lo ya subido antes -- reemplaza el patrón viejo de
-// "subir = FileReader.readAsDataURL" (guardaba el archivo entero como texto base64 dentro del propio
-// registro, pesadísimo y sin forma de reutilizarlo). Ahora sube a Supabase Storage (lib/multimedia.js)
-// y la galería de abajo deja elegir cualquier archivo ya subido antes por esta iglesia, sin resubirlo.
-function MediaPicker({ iglesiaId, tipo, value, onChange, color = "#B15EA0" }) {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
-  const [showGallery, setShowGallery] = useState(false);
-  const fileInputRef = useRef(null);
-
-  const cargar = () => {
-    if (!iglesiaId) return;
-    setLoading(true);
-    listarFondos(iglesiaId, tipo).then(setItems).catch(() => {}).finally(() => setLoading(false));
-  };
-  useEffect(() => {
-    if (showGallery) cargar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showGallery, iglesiaId, tipo]);
-
-  const subir = async (file) => {
-    if (!file || !iglesiaId) return;
-    setUploading(true); setError("");
-    try {
-      const url = await subirFondo(iglesiaId, tipo, file);
-      onChange(url);
-      setShowGallery(true);
-      cargar();
-    } catch (e) {
-      setError(e.message || "No se pudo subir el archivo.");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const eliminar = async (item, e) => {
-    e.stopPropagation();
-    if (!(await confirmDialog(`¿Quitar "${item.nombre}" de la biblioteca? Donde ya esté puesto como fondo no cambia, pero ya no se podrá volver a elegir.`, { danger: true, textoConfirmar: "Quitar" }))) return;
-    try {
-      await borrarFondo(item.ruta);
-      setItems((its) => its.filter((i) => i.ruta !== item.ruta));
-    } catch (err) {
-      notifyError("No se pudo quitar el archivo", err);
-    }
-  };
-
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 6 }}>
-        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="hoverable" style={{ ...addBtnStyle, flex: 1, opacity: uploading ? 0.6 : 1 }}>
-          {value ? (
-            tipo === "imagen"
-              ? <span style={{ width: 16, height: 16, borderRadius: 8, backgroundImage: `url(${value})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />
-              : <Play size={13} color={color} />
-          ) : tipo === "imagen" ? <ImgIcon size={13} color="var(--wf-faint)" /> : <Play size={13} color="var(--wf-faint)" />}
-          <span>{uploading ? "Subiendo…" : value ? "Cambiar — tocar para subir otro" : `Subir ${tipo === "imagen" ? "imagen" : "video"} nuevo`}</span>
-        </button>
-        <button type="button" onClick={() => setShowGallery((s) => !s)} className="hoverable" title="Elegir de lo ya subido antes" style={{ ...addBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}>
-          <LayoutGrid size={13} color={color} /> Biblioteca
-        </button>
-      </div>
-      <input ref={fileInputRef} type="file" accept={tipo === "imagen" ? "image/*" : "video/*"} style={{ display: "none" }} onChange={(e) => { subir(e.target.files?.[0]); e.target.value = ""; }} />
-      {error && <div style={{ fontSize: 11, color: "#C23B32", marginTop: 6 }}>{error}</div>}
-      {showGallery && (
-        <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 8, maxHeight: 220, overflowY: "auto", background: "var(--wf-hover)", borderRadius: 12, padding: 8 }}>
-          {loading && <div style={{ fontSize: 11, color: "var(--wf-faint)", gridColumn: "1/-1" }}>Cargando…</div>}
-          {!loading && items.length === 0 && <div style={{ fontSize: 11, color: "var(--wf-faint)", gridColumn: "1/-1" }}>Todavía no hay {tipo === "imagen" ? "imágenes" : "videos"} guardados — sube el primero arriba.</div>}
-          {items.map((item) => (
-            <div key={item.ruta} onClick={() => onChange(item.url)} title={item.nombre} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", cursor: "pointer", background: "#000", border: value === item.url ? `2px solid ${color}` : "1px solid var(--wf-border)" }}>
-              {tipo === "imagen" ? (
-                <div style={{ width: "100%", height: "100%", backgroundImage: `url(${item.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
-              ) : (
-                <video src={item.url} muted preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              )}
-              <button type="button" onClick={(e) => eliminar(item, e)} title="Quitar de la biblioteca" style={{ position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: 9, border: "none", background: "rgba(0,0,0,0.65)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}><Trash2 size={10} /></button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 // "¿En qué parte del culto va?" — fila de botones con los bloques del culto (pedido de Eldin,
 // 2026-10-11). valor: id del bloque elegido o null (textoSinElegir: "Al final del culto", "Después de
 // lo que estás viendo"...). Se usa en "+ Agregar" del Setlist y de la consola.
@@ -8250,7 +7537,9 @@ function ElegirParteDelCulto({ orden, valor, onCambiar, textoSinElegir }) {
     </div>
   );
 }
+
 const etiquetaCampo = { display: "block", fontSize: 11.5, fontWeight: 800, color: "var(--wf-text)", marginBottom: 6, letterSpacing: 0.2 };
+
 function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositiva de texto", submitLabel = "Agregar al culto", iglesiaId }) {
   const bgOptions = ["#1B2029", "#2A1F33", "#1F2A2C", "#332420"];
   const bgType = draft.bgType || "color";
@@ -8305,6 +7594,7 @@ function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositiva de t
     </ModalShell>
   );
 }
+
 // ---------------- CONTENIDO IMPROVISADO EN VIVO (no toca el setlist) ----------------
 function AdHocSongModal({ library, onClose, onPick, Icono = null, color = "#5661B3", titulo = "Proyectar una canción", ayuda = "Busca cualquier canción de la biblioteca, aunque no esté en el setlist de hoy." }) {
   const [query, setQuery] = useState("");
@@ -8326,6 +7616,7 @@ function AdHocSongModal({ library, onClose, onPick, Icono = null, color = "#5661
     </ModalShell>
   );
 }
+
 function AdHocVideoModal({ onClose, onPlay }) {
   const [url, setUrl] = useState("");
   const fileInputRef = useRef(null);
@@ -8345,275 +7636,6 @@ function AdHocVideoModal({ onClose, onPlay }) {
       </div>
       <button onClick={() => url && onPlay(url)} style={{ ...primaryBtn, marginTop: 14 }}>Proyectar ahora</button>
     </ModalShell>
-  );
-}
-function ModalShell({ title, icon: Icon, color, onClose, children, alto = false }) {
-  // Portal a document.body (no un <div> normal en el sitio donde se usa <ModalShell>) — "position:
-  // fixed" por sí solo no basta: si algún ancestro tiene un transform activo (ej. SongView, que anima
-  // transform al deslizar entre canciones del Setlist), ese ancestro se vuelve el "contenedor" del
-  // fixed y el modal queda atrapado ahí en vez de la pantalla real — mezclado con el scroll de esa
-  // vista, a veces cortado a la mitad. Un portal a <body> lo saca del todo de ese árbol, así que
-  // siempre se ve completo y centrado en la pantalla real, sin importar desde dónde se abra.
-  return createPortal(
-    <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
-      {/* alto: usa casi toda la pantalla y deja que una lista de adentro (flex: 1) llene el espacio. */}
-      <div style={alto
-        ? { background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 16, padding: 18, width: "min(440px, calc(100vw - 20px))", height: "calc(100dvh - 24px)", maxHeight: "calc(100vh - 24px)", boxSizing: "border-box", display: "flex", flexDirection: "column", overflow: "hidden" }
-        : { background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 16, padding: 20, width: 360, maxHeight: "80vh", overflowY: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Icon size={16} color={color} /><span style={{ fontWeight: 700, fontSize: 14 }}>{title}</span></div>
-          <button onClick={onClose} style={iconGhost}><X size={16} /></button>
-        </div>
-        {children}
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-// ---------------- BIBLIA EN VIVO (estilo Proyektor: 3 columnas, clic en un versículo proyecta al instante) ----------------
-// Columna 1: libros divididos en Antiguo/Nuevo Testamento (bookid 1-39 = AT, 40-66 = NT en bolls.life).
-// Columna 2: versión arriba, capítulos del libro elegido, e historial de versículos ya proyectados esta
-// sesión — así el operador vuelve rápido a un pasaje que el pastor ya citó antes, sin tener que buscarlo
-// de nuevo. Columna 3: el capítulo completo; tocar un versículo lo proyecta de inmediato, sin botón de
-// confirmación (a diferencia del buscador del Setlist, aquí no se arma un rango: es lectura en vivo).
-function BibleLivePanel({ version, setVersion, history, setHistory, onProject, liveVerse, palabrasPorParte = 40 }) {
-  const [books, setBooks] = useState(null);
-  const [loadError, setLoadError] = useState("");
-  const [bookFilter, setBookFilter] = useState("");
-  const [selectedBook, setSelectedBook] = useState(null);
-  const [selectedChapter, setSelectedChapter] = useState(1);
-  const [verses, setVerses] = useState(null);
-  const [loadingChapter, setLoadingChapter] = useState(false);
-  // Búsqueda de frase dentro del texto (no solo nombre de libro): mientras hay una búsqueda activa, la
-  // columna 3 muestra los versículos encontrados en TODA la Biblia en vez del capítulo seleccionado.
-  const [searchResults, setSearchResults] = useState(null); // null = sin búsqueda activa; [] = sin resultados
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState("");
-  const [searchInfo, setSearchInfo] = useState({}); // { cita, otraVersion }
-  const bibliaLista = useBibliaParaBuscar(); // descarga sola la RV1960 para buscar con errores
-
-  useEffect(() => {
-    setLoadError("");
-    fetchBibleBooks(version).then(setBooks).catch((e) => setLoadError(e.message));
-  }, [version]);
-
-  // Con al menos 3 caracteres busca la frase completa en el texto de los versículos — con menos, se
-  // asume que todavía está escribiendo el nombre de un libro y no vale la pena golpear la API.
-  // Debounce de 400ms: no dispara una búsqueda por cada tecla mientras escribe.
-  useEffect(() => {
-    const query = bookFilter.trim();
-    // Solo el nombre de un libro ("jua", "salmos") no es búsqueda: filtra la lista de libros.
-    const esSoloLibro = books && !/\d/.test(query) && books.some((b) => normalizarBusqueda(b.name).startsWith(normalizarBusqueda(query)));
-    if (query.length < 3 || esSoloLibro) { setSearchResults(null); setSearchError(""); return; }
-    setSearching(true); setSearchError("");
-    let vigente = true;
-    const timer = setTimeout(() => {
-      searchBibleVerses(version, query, books)
-        .then(({ resultados, ...info }) => { if (!vigente) return; setSearchResults(resultados.slice(0, 60)); setSearchInfo(info); })
-        .catch((e) => { if (!vigente) return; setSearchError(e.message); setSearchResults([]); setSearchInfo({}); })
-        .finally(() => { if (vigente) setSearching(false); });
-    }, 350);
-    return () => { vigente = false; clearTimeout(timer); };
-  }, [bookFilter, version, books, bibliaLista.lista]);
-
-  const loadChapter = (bookId, chapter, v) => {
-    setLoadingChapter(true); setLoadError("");
-    fetchBibleChapter(v || version, bookId, chapter).then(setVerses).catch((e) => setLoadError(e.message)).finally(() => setLoadingChapter(false));
-  };
-  // Elegir un libro/capítulo a mano siempre gana sobre una búsqueda de frase que haya quedado pendiente.
-  const openBook = (book) => { setSearchResults(null); setSelectedBook(book); setSelectedChapter(1); loadChapter(book.bookid, 1); };
-  const openChapter = (chapter) => { setSearchResults(null); setSelectedChapter(chapter); loadChapter(selectedBook.bookid, chapter); };
-  const changeVersion = (v) => { setVersion(v); if (selectedBook) loadChapter(selectedBook.bookid, selectedChapter, v); };
-
-  const rememberAndProject = (entry) => {
-    onProject(entry);
-    const { parte, ...paraHistorial } = entry; // el historial guarda el versículo completo
-    setHistory((h) => [paraHistorial, ...h.filter((x) => x.ref !== entry.ref || x.version !== entry.version)].slice(0, 25));
-  };
-  // parte: en un versículo largo, en cuál de sus partes arrancar (ver la lista de abajo).
-  const pickVerse = (v, parte = 0) => {
-    rememberAndProject({
-      ref: `${selectedBook.name} ${selectedChapter}:${v.verse}`, version, text: stripBibleSearchMarkup(v.text),
-      bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: v.verse, verseEnd: v.verse, parte,
-    });
-  };
-  const openHistoryEntry = (entry) => {
-    rememberAndProject(entry);
-    // Igual que abrir un libro/capítulo a mano: si había quedado una búsqueda de frase activa, se
-    // limpia — si no, la columna 3 se quedaba mostrando esos resultados viejos en vez del capítulo
-    // completo del versículo que se acaba de elegir del historial.
-    setBookFilter(""); setSearchResults(null);
-    const book = books?.find((b) => b.bookid === entry.bookId);
-    if (book) setSelectedBook(book);
-    setSelectedChapter(entry.chapter);
-    if (entry.version !== version) setVersion(entry.version);
-    loadChapter(entry.bookId, entry.chapter, entry.version);
-  };
-  // Elegir un resultado de búsqueda: proyecta ese versículo Y salta a su capítulo completo (limpiando la
-  // búsqueda), para poder seguir leyendo alrededor de ese versículo con la vista normal de capítulo.
-  const pickSearchResult = async (r) => {
-    const book = books?.find((b) => b.bookid === r.book);
-    const bookName = book?.name || `Libro ${r.book}`;
-    // Encontrado en otra versión: se proyecta el MISMO versículo en la versión elegida.
-    let texto = stripBibleSearchMarkup(r.text);
-    if (searchInfo.otraVersion) {
-      try {
-        const cap = await fetchBibleChapter(version, r.book, r.chapter);
-        const v = cap.find((x) => x.verse === r.verse);
-        if (v) texto = stripBibleSearchMarkup(v.text);
-      } catch { /* sin conexión: se queda con el texto encontrado */ }
-    }
-    rememberAndProject({
-      ref: `${bookName} ${r.chapter}:${r.verse}`, version, text: texto,
-      bookId: r.book, bookName, chapter: r.chapter, verseStart: r.verse, verseEnd: r.verse,
-    });
-    if (book) setSelectedBook(book);
-    setSelectedChapter(r.chapter);
-    loadChapter(r.book, r.chapter);
-    setBookFilter(""); setSearchResults(null);
-  };
-
-  // Mientras hay resultados de una frase o cita, la lista de libros se queda completa.
-  const matchesFilter = (name) => !bookFilter || searchResults !== null || normalizarBusqueda(name).includes(normalizarBusqueda(bookFilter));
-  const oldTestament = books ? books.filter((b) => b.bookid <= 39 && matchesFilter(b.name)) : [];
-  const newTestament = books ? books.filter((b) => b.bookid >= 40 && matchesFilter(b.name)) : [];
-  const bookListStyle = (b) => ({ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", padding: "3px 4px", borderRadius: 10, cursor: "pointer", fontSize: 12, fontWeight: selectedBook?.bookid === b.bookid ? 700 : 500, color: selectedBook?.bookid === b.bookid ? "var(--wf-brand-accent)" : "#2F5FA8" });
-
-  return (
-    <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0 }}>
-      {/* Columna 1: libros AT/NT */}
-      <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 9px", marginBottom: 8, flexShrink: 0 }}>
-          <Search size={12} color="var(--wf-faint)" />
-          <input value={bookFilter} onChange={(e) => setBookFilter(e.target.value)} placeholder="Libro, cita (jn 3:16) o palabras…" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 11.5, width: "100%" }} />
-          {bookFilter && <button onClick={() => { setBookFilter(""); setSearchResults(null); }} style={iconGhost}><X size={12} /></button>}
-        </div>
-        {bibliaLista.bajando && version === BIBLE_OFFLINE_VERSION && (
-          <div title="Se guarda la Reina-Valera 1960 en esta computadora: así la búsqueda entiende faltas de ortografía y funciona sin internet." style={{ fontSize: 10.5, color: "var(--wf-muted)", margin: "-4px 2px 8px", lineHeight: 1.35 }}>
-            Preparando búsqueda con faltas de ortografía… {bibliaLista.porcentaje}%
-          </div>
-        )}
-        {loadError && <div style={{ fontSize: 11, color: "#C23B32", marginBottom: 8 }}>{loadError}</div>}
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingBottom: 64 }}>
-          <div style={{ display: "flex", gap: 10 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ position: "sticky", top: 0, background: "var(--wf-bg)", fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", padding: "2px 0 6px" }}>ANTIGUO TESTAMENTO</div>
-              {oldTestament.map((b) => (<button key={b.bookid} onClick={() => openBook(b)} style={bookListStyle(b)}>{b.name}</button>))}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ position: "sticky", top: 0, background: "var(--wf-bg)", fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", padding: "2px 0 6px" }}>NUEVO TESTAMENTO</div>
-              {newTestament.map((b) => (<button key={b.bookid} onClick={() => openBook(b)} style={bookListStyle(b)}>{b.name}</button>))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Columna 2: versión, capítulos, historial */}
-      <div style={{ width: 210, flexShrink: 0, minHeight: 0, overflowY: "auto", paddingBottom: 64 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>VERSIÓN</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 14 }}>
-          {BIBLE_VERSIONS.map((v) => (
-            <button key={v.code} onClick={() => changeVersion(v.code)} title={v.label} style={{ fontSize: 10.5, fontWeight: 700, padding: "4px 7px", borderRadius: 10, border: version === v.code ? "2px solid #2F5FA8" : "1px solid var(--wf-border)", background: version === v.code ? "#EAF0FA" : "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer" }}>{v.code}</button>
-          ))}
-        </div>
-
-        {selectedBook ? (
-          <>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>CAPÍTULOS DE {selectedBook.name.toUpperCase()}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4, marginBottom: 14 }}>
-              {Array.from({ length: selectedBook.chapters }, (_, i) => i + 1).map((c) => (
-                <button key={c} onClick={() => openChapter(c)} style={{ padding: "6px 0", borderRadius: 10, border: "none", background: selectedChapter === c ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: selectedChapter === c ? "var(--wf-brand-primary)" : "var(--wf-text)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{c}</button>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 14 }}>Elige un libro para ver sus capítulos.</div>
-        )}
-
-        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>HISTORIAL</div>
-        {history.length === 0 ? (
-          <div style={{ fontSize: 11, color: "var(--wf-faint)" }}>Los versículos que proyectes van a aparecer aquí para volver rápido a ellos.</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {history.map((h) => {
-              const isLive = liveVerse && liveVerse.ref === h.ref && liveVerse.version === h.version;
-              return (
-                <button key={`${h.ref}-${h.version}`} onClick={() => openHistoryEntry(h)} style={{ textAlign: "left", background: isLive ? "var(--wf-active-bg)" : "#fff", border: isLive ? "1px solid var(--wf-brand-accent)" : "1px solid transparent", borderRadius: 10, padding: "5px 7px", cursor: "pointer", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)" }}>{h.ref} <span style={{ color: "#2F5FA8", fontWeight: 700 }}>· {h.version}</span></div>
-                  <div style={{ fontSize: 10.5, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.text}</div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Columna 3: resultados de búsqueda de frase (si hay una activa), si no el capítulo completo —
-          en ambos casos, clic en un versículo proyecta al instante */}
-      <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: "auto", paddingBottom: 64 }}>
-        {searchResults !== null ? (
-          <>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)", marginBottom: 8 }}>
-              {searching ? "Buscando…" : searchInfo.cita ? searchInfo.cita : `"${bookFilter.trim()}" · ${searchResults.length} versículo${searchResults.length === 1 ? "" : "s"}`}
-            </div>
-            {!searching && searchInfo.otraVersion && searchResults.length > 0 && (
-              <div style={{ fontSize: 11.5, color: "var(--wf-text-2)", background: "var(--wf-hover)", borderRadius: 10, padding: "7px 9px", marginBottom: 8, lineHeight: 1.45 }}>
-                Con esas palabras no aparece en {version}; esto es de la <b>{searchInfo.otraVersion}</b>. Al tocar uno se proyecta ese mismo versículo en {version}.
-              </div>
-            )}
-            {searchError && <div style={{ fontSize: 12, color: "#C23B32", padding: "10px 0" }}>{searchError} Revisa tu conexión a internet e intenta de nuevo.</div>}
-            {!searching && !searchError && searchResults.length === 0 && (
-              <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 0", textAlign: "center" }}>No se encontró ningún versículo con esas palabras. Prueba con menos palabras, o escribe la cita (ej. <b>stgo 4:1</b>).</div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {searchResults.map((r) => {
-                const bookName = books?.find((b) => b.bookid === r.book)?.name || `Libro ${r.book}`;
-                const isLive = liveVerse && liveVerse.bookId === r.book && liveVerse.chapter === r.chapter && liveVerse.verseStart === r.verse && liveVerse.version === version;
-                return (
-                  <button key={r.pk} onClick={() => pickSearchResult(r)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 12, border: "none", background: isLive ? "var(--wf-divider)" : "transparent", cursor: "pointer", fontSize: 13, color: "var(--wf-text)", lineHeight: 1.5 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#2F5FA8", marginBottom: 2 }}>{bookName} {r.chapter}:{r.verse}</div>
-                    {stripBibleSearchMarkup(r.text)}
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        ) : (
-          <>
-            {!selectedBook && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 0", textAlign: "center" }}>Elige un libro y capítulo para ver los versículos.</div>}
-            {selectedBook && <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)", marginBottom: 8 }}>{selectedBook.name} {selectedChapter}</div>}
-            {loadingChapter && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 0", textAlign: "center" }}>Cargando…</div>}
-            {!loadingChapter && verses && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                {verses.map((v) => {
-                  const isLive = liveVerse && liveVerse.bookId === selectedBook.bookid && liveVerse.chapter === selectedChapter && liveVerse.verseStart === v.verse && liveVerse.version === version;
-                  // Versículo largo (pedido de Eldin, 2026-10-08): cada parte aparece en la lista como
-                  // si fuera su propio versículo — "9 (1/2)", "9 (2/2)" — para tocar directo la que
-                  // toque; las flechas siguen avanzando parte por parte. Mismo corte que la proyección.
-                  const partes = partesDeVersiculo(stripBibleSearchMarkup(v.text), palabrasPorParte);
-                  if (partes.length > 1) {
-                    return partes.map((texto, k) => {
-                      const parteEnVivo = isLive && (liveVerse.parte ?? 0) === k;
-                      return (
-                        <button key={`${v.verse}-${k}`} onClick={() => pickVerse(v, k)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 12, border: "none", background: parteEnVivo ? "var(--wf-divider)" : "transparent", cursor: "pointer", fontSize: 13, color: "var(--wf-text)", lineHeight: 1.5 }}>
-                          <b style={{ color: "#2F5FA8" }}>{v.verse}</b> <span style={{ fontSize: 10.5, fontWeight: 700, color: "#2F5FA8" }}>({k + 1}/{partes.length})</span> {texto}
-                        </button>
-                      );
-                    });
-                  }
-                  return (
-                    <button key={v.verse} onClick={() => pickVerse(v)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 12, border: "none", background: isLive ? "var(--wf-divider)" : "transparent", cursor: "pointer", fontSize: 13, color: "var(--wf-text)", lineHeight: 1.5 }}>
-                      <b style={{ color: "#2F5FA8" }}>{v.verse}</b> {stripBibleSearchMarkup(v.text)}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -10272,11 +9294,8 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   );
 }
 
-// ---------------- estilos compartidos ----------------
-const iconGhost = { background: "transparent", border: "none", color: "var(--wf-muted)", cursor: "pointer", width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 10 };
 const miniBtnStyle = { display: "flex", alignItems: "center", gap: 4, background: "transparent", border: "1px solid var(--wf-border)", borderRadius: 10, padding: "4px 8px", fontSize: 10, color: "#2F5FA8", cursor: "pointer" };
+
 const ctrlBtn = { display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", color: "var(--wf-text)", borderRadius: 12, padding: "9px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer" };
+
 const ghostToggleBtn = { fontSize: 12, fontWeight: 700, padding: "8px 12px", borderRadius: 12, border: "1px solid var(--wf-border)", background: "var(--wf-hover)", color: "var(--wf-heading)", cursor: "pointer" };
-const addBtnStyle = { display: "flex", alignItems: "center", gap: 8, width: "100%", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "9px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer" };
-const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "9px 10px", fontSize: 13, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
-const primaryBtn = { width: "100%", background: "var(--wf-brand-accent)", border: "none", borderRadius: 12, padding: "10px", fontSize: 13, fontWeight: 700, color: "var(--wf-on-brand-accent)", cursor: "pointer" };
