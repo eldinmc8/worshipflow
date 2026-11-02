@@ -20,6 +20,8 @@ import { analizar } from "./mapaArchivo.mjs";
 const config = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const PRINCIPAL = config.principal;
 const COMPARTIDO = config.compartido;
+// OJO (2026-11-02): la separación de pantallas ya se hizo (tandas 1 a 5). Si se vuelve a usar, "origen" debe
+// ser el archivo ACTUAL — nunca una copia vieja, o se perderían los cambios hechos después.
 // "origen": el archivo principal tal como estaba ANTES de empezar a separar. Cada tanda se arma desde ahí con
 // todos los grupos acumulados, así el archivo compartido siempre sale completo y coherente.
 const ORIGEN = config.origen || PRINCIPAL;

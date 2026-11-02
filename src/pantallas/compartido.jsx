@@ -90,6 +90,56 @@ export const TYPE_META = {
   seccion: { label: "Bloque", color: "#5661B3", icon: ListMusic },
 };
 
+export const LIVE_THEMES = {
+  stage: { label: "Escenario", bg: "radial-gradient(ellipse at center 40%, #1A1F2B 0%, #0C0E13 70%)" },
+  azul: { label: "Azul noche", bg: "radial-gradient(ellipse at center 40%, #0D2340 0%, #01050A 70%)" },
+  calido: { label: "Cálido", bg: "radial-gradient(ellipse at center 40%, #3A2416 0%, #0D0704 70%)" },
+  puro: { label: "Negro puro", bg: "#000000" },
+};
+
+// ---------- Ajustes finos de la letra en vivo (pedido de Eldin, 2026-10-08: que cada iglesia lo deje
+// a su gusto). Todos opcionales dentro de liveStyle — sin valor, la proyección se ve como siempre:
+//   interlineado (número, ej. 1.35) · espaciado (em, ej. 0.05) · sombra (clave de LIVE_SOMBRAS)
+//   oscurecer (0–0.85, sobre imagen/video de fondo) · posicion (arriba/centro/abajo) · alineacion
+// Las sombras van en "em" para que se vean igual de proporcionadas en la mini-vista que en el TV.
+export const LIVE_SOMBRAS = {
+  ninguna: { label: "Ninguna", css: "none" },
+  suave: { label: "Suave", css: "0 0.06em 0.25em rgba(0,0,0,0.55)" },
+  fuerte: { label: "Fuerte", css: "0 0.08em 0.4em rgba(0,0,0,0.9), 0 0.03em 0.08em rgba(0,0,0,0.9)" },
+  contorno: { label: "Contorno", css: "-0.035em -0.035em 0 #000, 0.035em -0.035em 0 #000, -0.035em 0.035em 0 #000, 0.035em 0.035em 0 #000, 0 0.06em 0.2em rgba(0,0,0,0.6)" },
+};
+
+export const LIVE_POSICIONES = { arriba: { label: "Arriba", flex: "flex-start" }, centro: { label: "Centro", flex: "center" }, abajo: { label: "Abajo", flex: "flex-end" } };
+
+export const LIVE_ALINEACIONES = { izquierda: { label: "Izquierda", flex: "flex-start", text: "left" }, centro: { label: "Centro", flex: "center", text: "center" }, derecha: { label: "Derecha", flex: "flex-end", text: "right" } };
+
+export const LIVE_FONTS = {
+  elegante: { label: "Elegante", family: "'Fraunces', serif", weight: 500, transform: "none", tracking: "normal" },
+  editorial: { label: "Editorial", family: "'Playfair Display', serif", weight: 600, transform: "none", tracking: "normal", italic: true },
+  moderna: { label: "Moderna", family: "'Poppins', sans-serif", weight: 500, transform: "none", tracking: "normal" },
+  minimalista: { label: "Minimalista", family: "'Montserrat', sans-serif", weight: 300, transform: "none", tracking: "0.3px" },
+  audaz: { label: "Audaz", family: "'Poppins', sans-serif", weight: 800, transform: "uppercase", tracking: "0.5px" },
+  impacto: { label: "Impacto", family: "'Bebas Neue', sans-serif", weight: 400, transform: "uppercase", tracking: "1px" },
+  condensada: { label: "Condensada", family: "'Oswald', sans-serif", weight: 600, transform: "uppercase", tracking: "0.5px" },
+  redondeada: { label: "Redondeada", family: "'Quicksand', sans-serif", weight: 700, transform: "none", tracking: "normal" },
+  clasica: { label: "Clásica", family: "Georgia, 'Times New Roman', serif", weight: 400, transform: "none", tracking: "normal" },
+  manuscrita: { label: "Manuscrita", family: "'Caveat', cursive", weight: 600, transform: "none", tracking: "normal" },
+  script: { label: "Script", family: "'Dancing Script', cursive", weight: 700, transform: "none", tracking: "normal" },
+  monoespaciada: { label: "Monoespaciada", family: "'JetBrains Mono', monospace", weight: 600, transform: "none", tracking: "0.5px" },
+  // 8 más (pedido de Eldin, 2026-10-05: "algo parecido a las de ProPresenter") -- completan las
+  // familias que todavía faltaban: una sans fina, dos "impacto" distintos entre sí, un serif cálido,
+  // un serif clásico/grabado, un marcador grueso, una condensada más suave que Oswald, y un script
+  // más juguetón que Dancing Script.
+  fina: { label: "Fina", family: "'Raleway', sans-serif", weight: 300, transform: "none", tracking: "0.4px" },
+  negrita: { label: "Extra negrita", family: "'Archivo Black', sans-serif", weight: 400, transform: "none", tracking: "normal" },
+  cartel: { label: "Cartel", family: "'Anton', sans-serif", weight: 400, transform: "uppercase", tracking: "0.5px" },
+  serifCalida: { label: "Serif cálida", family: "'Bitter', serif", weight: 600, transform: "none", tracking: "normal" },
+  grabada: { label: "Clásica grabada", family: "'Cinzel', serif", weight: 600, transform: "none", tracking: "0.5px" },
+  marcador: { label: "Marcador", family: "'Permanent Marker', cursive", weight: 400, transform: "none", tracking: "normal" },
+  condensadaSuave: { label: "Condensada suave", family: "'Barlow Condensed', sans-serif", weight: 600, transform: "none", tracking: "0.3px" },
+  scriptJuvenil: { label: "Script juvenil", family: "'Pacifico', cursive", weight: 400, transform: "none", tracking: "normal" },
+};
+
 // Objeto "evento" liviano para cuando se transmite sin un evento del calendario detrás (ver
 // startFreeEvent) — referencia estable a nivel de módulo para no invalidar el useMemo de `slides` en
 // cada render con un objeto nuevo. serviceOrder vacío: no hay plan, todo el contenido es improvisado.

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { ProjectionPanel } from "./PrototipoWorshipFlow.jsx";
+import { ProjectionPanel } from "./pantallas/proyeccion.jsx";
 import { precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
 import { leerPantallaDeUrl } from "./lib/enlacePantalla.js";
 import { anunciarProyeccion } from "./lib/liveSession.js";
