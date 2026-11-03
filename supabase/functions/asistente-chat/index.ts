@@ -705,7 +705,21 @@ Deno.serve(async (req: Request) => {
     const igl = callerRow.iglesia_id as string;
 
     const body = await req.json();
-    const mode = body.mode === "apply" ? "apply" : body.mode === "reglas_get" ? "reglas_get" : body.mode === "reglas_set" ? "reglas_set" : "chat";
+    const mode = body.mode === "apply" ? "apply" : body.mode === "reglas_get" ? "reglas_get" : body.mode === "reglas_set" ? "reglas_set" : body.mode === "uso_get" ? "uso_get" : "chat";
+
+    // ---- Tope diario por iglesia (2026-11-03): cuántos mensajes al asistente lleva hoy esta iglesia y
+    // cuántos puede mandar (ver migración 20261106000000_tope_asistente.sql). Si la base todavía no tiene
+    // el tope (migración sin correr), el asistente funciona como antes, sin límite. ----
+    const usoDeHoy = async () => {
+      const [{ data: hoy, error: eHoy }, { data: ig }] = await Promise.all([
+        admin.rpc("wf_hoy_iglesia", { p_iglesia: igl }),
+        admin.from("iglesias").select("limite_asistente_diario").eq("id", igl).maybeSingle(),
+      ]);
+      if (eHoy || ig?.limite_asistente_diario == null) return null;
+      const { data: fila } = await admin.from("uso_asistente").select("mensajes").eq("iglesia_id", igl).eq("fecha", hoy).maybeSingle();
+      return { usados: fila?.mensajes ?? 0, limite: ig.limite_asistente_diario };
+    };
+    if (mode === "uso_get") return json({ uso: await usoDeHoy() }, 200);
 
     // ---- reglas: excepciones fijas que el admin escribe una vez y el asistente siempre respeta,
     // sin depender de ninguna conversación ni de que se le repitan cada vez ----
@@ -750,17 +764,43 @@ Deno.serve(async (req: Request) => {
         contextoPlantillas(admin, igl),
       ]);
 
-      const respuesta = await llamarClaude(
-        messages, usuarios ?? [], canciones ?? [], config?.reglas || "", contexto, plantillas,
-        imagenBody ? { mediaType: imagenBody.mediaType, data: imagenBody.data } : null,
-      );
+      // Reserva un mensaje del tope de hoy ANTES de llamar a Claude (atómico en la base).
+      const reserva = await admin.rpc("reservar_mensaje_asistente", { p_iglesia: igl });
+      const conTope = !reserva.error;
+      if (reserva.error) console.error("tope del asistente no disponible:", reserva.error.message);
+      const uso = conTope ? { usados: reserva.data?.usados ?? 0, limite: reserva.data?.limite ?? 0 } : null;
+      if (conTope && !reserva.data?.permitido) {
+        return json({
+          error: `Llegaron al límite de hoy del asistente (${uso!.limite} mensajes por día). Se renueva a medianoche.`,
+          limiteDiario: true, uso,
+        }, 429);
+      }
+      let respuesta;
+      try {
+        respuesta = await llamarClaude(
+          messages, usuarios ?? [], canciones ?? [], config?.reglas || "", contexto, plantillas,
+          imagenBody ? { mediaType: imagenBody.mediaType, data: imagenBody.data } : null,
+        );
+      } catch (e) {
+        // Si Claude falló, ese mensaje no cuenta.
+        if (conTope) await admin.rpc("devolver_mensaje_asistente", { p_iglesia: igl });
+        throw e;
+      }
+      if (conTope && respuesta.usage) {
+        const u = respuesta.usage;
+        await admin.rpc("sumar_tokens_asistente", {
+          p_iglesia: igl,
+          p_entrada: (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0),
+          p_salida: u.output_tokens ?? 0,
+        });
+      }
       const bloques = respuesta.content ?? [];
       const toolUse = bloques.find((b: { type: string }) => b.type === "tool_use" && b.name === "proponer_cambios");
       if (toolUse) {
-        return json({ tipo: "plan", plan: toolUse.input, resumen: toolUse.input?.resumen || "Plan propuesto." }, 200);
+        return json({ tipo: "plan", plan: toolUse.input, resumen: toolUse.input?.resumen || "Plan propuesto.", uso }, 200);
       }
       const texto = bloques.filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("\n").trim();
-      return json({ tipo: "texto", texto: texto || "No entendí, ¿puedes reformular?" }, 200);
+      return json({ tipo: "texto", texto: texto || "No entendí, ¿puedes reformular?", uso }, 200);
     }
 
     // ---- mode "apply": ejecuta el plan ya confirmado por el administrador, determinista, sin IA.

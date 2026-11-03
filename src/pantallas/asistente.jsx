@@ -1,6 +1,6 @@
 // Asistente con IA (chat). Separado de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
-import { useState, useRef } from "react";
-import { obtenerReglasAsistente, guardarReglasAsistente, enviarMensajeAsistente, aplicarPlanAsistente } from "../lib/asistente.js";
+import { useState, useRef, useEffect } from "react";
+import { obtenerReglasAsistente, guardarReglasAsistente, enviarMensajeAsistente, aplicarPlanAsistente, obtenerUsoAsistente } from "../lib/asistente.js";
 import { ClipboardList, X, Paperclip, Send } from "lucide-react";
 import { iconGhost, ModalShell, inputStyle, primaryBtn } from "./compartido.jsx";
 
@@ -66,6 +66,10 @@ export function AsistenteChatScreen() {
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState("");
+  // Tope diario de mensajes de la iglesia (2026-11-03): { usados, limite } o null si no hay tope.
+  const [uso, setUso] = useState(null);
+  useEffect(() => { let vivo = true; obtenerUsoAsistente().then((u) => { if (vivo) setUso(u); }); return () => { vivo = false; }; }, []);
+  const agotado = !!uso && uso.usados >= uso.limite;
 
   // Reglas/excepciones fijas: a diferencia de la conversación (que se borra al salir de esta
   // pantalla), esto vive en Supabase y el asistente lo lee SIEMPRE, en cada mensaje — así no hay
@@ -104,7 +108,7 @@ export function AsistenteChatScreen() {
 
   const send = async () => {
     const texto = input.trim();
-    if ((!texto && !pendingImage) || loading || pendingPlan) return;
+    if ((!texto && !pendingImage) || loading || pendingPlan || agotado) return;
     const imagenParaEnviar = pendingImage;
     const nuevoHistorial = [...messages, { role: "user", content: texto || "(imagen adjunta)", imagePreviewUrl: imagenParaEnviar?.previewUrl }];
     setMessages(nuevoHistorial);
@@ -114,6 +118,7 @@ export function AsistenteChatScreen() {
     setLoading(true);
     try {
       const res = await enviarMensajeAsistente(nuevoHistorial, imagenParaEnviar ? { mediaType: imagenParaEnviar.mediaType, data: imagenParaEnviar.data } : null);
+      if (res.uso) setUso(res.uso);
       // El plan crudo (tool_use) nunca se vuelve a mandar a Claude tal cual — solo su resumen en
       // texto, así el historial que ve el modelo siempre es texto plano simple.
       if (res.tipo === "plan") {
@@ -123,7 +128,13 @@ export function AsistenteChatScreen() {
         setMessages((ms) => [...ms, { role: "assistant", content: res.texto }]);
       }
     } catch (e) {
-      setError(e.message || "No se pudo hablar con el asistente.");
+      if (e.datos?.limiteDiario) {
+        // Llegaron al tope de hoy: se dice como un mensaje del asistente, no como un error.
+        if (e.datos.uso) setUso(e.datos.uso);
+        setMessages((ms) => [...ms, { role: "assistant", content: e.message }]);
+      } else {
+        setError(e.message || "No se pudo hablar con el asistente.");
+      }
     } finally {
       setLoading(false);
     }
@@ -243,15 +254,22 @@ export function AsistenteChatScreen() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
-          disabled={loading || !!pendingPlan}
-          placeholder={pendingPlan ? "Confirma o cancela el plan de arriba primero…" : "Escribe qué quieres armar, o adjunta una foto…"}
+          disabled={loading || !!pendingPlan || agotado}
+          placeholder={agotado ? "Se acabaron los mensajes de hoy — vuelve mañana" : pendingPlan ? "Confirma o cancela el plan de arriba primero…" : "Escribe qué quieres armar, o adjunta una foto…"}
           rows={1}
           style={{ ...inputStyle, resize: "none", flex: 1 }}
         />
-        <button onClick={send} disabled={loading || !!pendingPlan || (!input.trim() && !pendingImage)} style={{ ...iconGhost, width: 40, height: 40, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", opacity: (loading || !!pendingPlan || (!input.trim() && !pendingImage)) ? 0.4 : 1 }}>
+        <button onClick={send} disabled={loading || !!pendingPlan || agotado || (!input.trim() && !pendingImage)} style={{ ...iconGhost, width: 40, height: 40, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", opacity: (loading || !!pendingPlan || (!input.trim() && !pendingImage)) ? 0.4 : 1 }}>
           <Send size={17} />
         </button>
       </div>
+      {uso && (
+        <div style={{ fontSize: 11.5, color: agotado ? "#C23B32" : uso.limite - uso.usados <= 5 ? "var(--wf-brand-accent)" : "var(--wf-faint)", textAlign: "right", paddingTop: 6 }}>
+          {agotado
+            ? `Llegaron al límite de hoy (${uso.limite} mensajes). Se renueva a medianoche.`
+            : `Te ${uso.limite - uso.usados === 1 ? "queda 1 mensaje" : `quedan ${uso.limite - uso.usados} mensajes`} hoy (de ${uso.limite}).`}
+        </div>
+      )}
     </div>
   );
 }
