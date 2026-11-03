@@ -27,6 +27,12 @@ export async function callUsersFunction(name, body) {
     throw new Error("No se pudo conectar con el servidor — revisa tu conexión a internet e intenta de nuevo.");
   }
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error || "Error al llamar al servidor.");
+  if (!res.ok) {
+    // El resto de la respuesta viaja en el error (ej. el asistente al llegar al tope diario manda el uso).
+    const error = new Error(json.error || "Error al llamar al servidor.");
+    error.datos = json;
+    error.status = res.status;
+    throw error;
+  }
   return json;
 }

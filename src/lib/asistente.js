@@ -14,6 +14,12 @@ export function aplicarPlanAsistente(plan) {
   return callUsersFunction("asistente-chat", { mode: "apply", plan });
 }
 
+// Cuántos mensajes al asistente lleva hoy la iglesia y cuántos puede mandar: { usados, limite } o null
+// (si la base todavía no tiene el tope). Ver migración 20261106000000_tope_asistente.sql.
+export function obtenerUsoAsistente() {
+  return callUsersFunction("asistente-chat", { mode: "uso_get" }).then((r) => r.uso || null).catch(() => null);
+}
+
 // Reglas/excepciones fijas que el asistente siempre respeta, sin depender de ninguna conversación
 // (ver botón "Reglas" en la pantalla del Asistente).
 export function obtenerReglasAsistente() {
