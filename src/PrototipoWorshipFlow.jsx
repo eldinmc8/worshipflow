@@ -1932,8 +1932,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         @keyframes brilloEnVivo { 0%,100% { box-shadow: 0 8px 22px rgba(232,130,30,.35), 0 0 0 0 rgba(232,130,30,.35); } 50% { box-shadow: 0 10px 34px rgba(232,130,30,.6), 0 0 0 6px rgba(232,130,30,.12); } }
         .tarjeta-en-vivo { animation: brilloEnVivo 2.4s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) { .tarjeta-en-vivo { animation: none; box-shadow: 0 10px 30px rgba(232,130,30,.5); } }
-        .hoverable:hover { background:var(--wf-hover) !important; }
-        .thumb:hover { transform: translateY(-2px); }
+        @media (hover: hover) and (pointer: fine) { .thumb:hover { transform: translateY(-2px); } }
         .thumb { transition: transform .15s; }
         .orden-fila .orden-quitar { opacity: 0; transition: opacity .12s; }
         .orden-fila:hover .orden-quitar, .orden-fila:focus-within .orden-quitar { opacity: 1; }

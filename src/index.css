@@ -177,8 +177,19 @@ img, svg {
 .hoverable {
   transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.16s ease, background 0.16s ease, opacity 0.16s ease;
 }
-.hoverable:hover {
-  transform: translateY(-1px);
+/* El realce "al pasar el mouse" solo en dispositivos con mouse (2026-11-03, video de Eldin): en el
+   celular, después de un toque el navegador deja el botón "como si tuviera el mouse encima", y antes
+   esa regla lo pintaba gris con !important — el botón recién elegido (tonalidad, pestaña, filtro…)
+   se veía SIN marcar hasta tocar en otro lado. Ahora el realce es un velo encima (background-image),
+   que nunca tapa el color propio del botón: uno naranja sigue naranja, solo un poco más oscuro. */
+@media (hover: hover) and (pointer: fine) {
+  .hoverable:hover {
+    transform: translateY(-1px);
+    background-image: linear-gradient(rgba(22, 50, 79, 0.07), rgba(22, 50, 79, 0.07)) !important;
+  }
+  :root[data-theme="dark"] .hoverable:hover {
+    background-image: linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08)) !important;
+  }
 }
 .hoverable:active {
   transform: translateY(0) scale(0.98);
