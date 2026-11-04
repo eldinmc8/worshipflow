@@ -132,6 +132,11 @@ Deno.serve(async (req: Request) => {
     const { error: rolesError } = await admin.rpc("sembrar_roles_default", { p_iglesia_id: iglesia.id });
     if (rolesError) console.error(`sembrar_roles_default falló para iglesia ${iglesia.id}:`, rolesError);
 
+    // 5) Las 5 canciones de fábrica (ver migración 20261107000000_canciones_de_fabrica.sql) -- igual que
+    // los roles: si falla, la iglesia queda funcionando con el cancionero vacío y queda en los logs.
+    const { error: cancionesError } = await admin.rpc("sembrar_canciones_default", { p_iglesia_id: iglesia.id });
+    if (cancionesError) console.error(`sembrar_canciones_default falló para iglesia ${iglesia.id}:`, cancionesError);
+
     return json({ success: true, iglesia_id: iglesia.id }, 200);
   } catch (e) {
     return json({ error: "Error inesperado: " + (e instanceof Error ? e.message : String(e)) }, 500);
