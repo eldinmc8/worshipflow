@@ -15,6 +15,11 @@ describe("esBloquePredicacion", () => {
     expect(esBloquePredicacion({ type: "seccion", title: "Lectura y oración" })).toBe(false);
     expect(esBloquePredicacion({ type: "slide", title: "Predicación" })).toBe(false);
   });
+  it("la marca a mano manda sobre el nombre", () => {
+    expect(esBloquePredicacion({ type: "seccion", title: "La Palabra", esPredicacion: true })).toBe(true);
+    expect(esBloquePredicacion({ type: "seccion", title: "Mensaje de bienvenida", esPredicacion: false })).toBe(false);
+    expect(esBloquePredicacion({ type: "slide", title: "La Palabra", esPredicacion: true })).toBe(false);
+  });
 });
 
 describe("bosquejoAItems", () => {

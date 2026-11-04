@@ -1323,10 +1323,23 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                     {canEditNow && (
                       <>
                         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>VINCULAR A UN MINISTERIO</div>
-                        <select value={item.ministryId || ""} onChange={(e) => onLinkMinistry(item.id, e.target.value)} style={{ ...inputStyle, marginBottom: linkedMinistry ? 10 : 0 }}>
+                        <select value={item.ministryId || ""} onChange={(e) => onLinkMinistry(item.id, e.target.value)} style={inputStyle}>
                           <option value="">Sin vincular (usar descripción escrita arriba)</option>
                           {ministries.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                         </select>
+                        {/* Marca a mano el bloque de la predicación (2026-11-04): así el bosquejo, el escenario y
+                            su temporizador funcionan aunque el bloque no se llame "Predicación". */}
+                        <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 10, marginBottom: linkedMinistry ? 10 : 0, cursor: "pointer" }}>
+                          <input
+                            type="checkbox" checked={esBloquePredicacion(item)}
+                            onChange={(e) => onUpdateSeccionText(item.id, "esPredicacion", e.target.checked)}
+                            style={{ width: 18, height: 18, accentColor: "#E8821E", marginTop: 1, flexShrink: 0 }}
+                          />
+                          <span>
+                            <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>Este bloque es la predicación</span>
+                            <span style={{ display: "block", fontSize: 11, color: "var(--wf-muted)" }}>Quien esté asignado aquí podrá armar su bosquejo. También activa la pantalla de escenario y su temporizador.</span>
+                          </span>
+                        </label>
                       </>
                     )}
                     {linkedMinistry && (

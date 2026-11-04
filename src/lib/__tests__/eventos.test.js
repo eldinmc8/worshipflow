@@ -150,3 +150,24 @@ describe("crear evento desde plantilla (crearEventoCompleto)", () => {
     expect(recordatorio).toMatchObject({ evento_id: "evento-nuevo", cantidad: 2, unidad: "dias", enviado: false });
   });
 });
+
+describe("marca manual del bloque de la predicación", () => {
+  it("se guarda en estructura y vuelve al cargar", async () => {
+    const eventoId = "evento-pred";
+    fake.db.eventos = [{ id: eventoId, titulo: "Domingo" }];
+    fake.db.items_servicio = [
+      { id: "b-pal", evento_id: eventoId, tipo: "bloque", titulo: "La Palabra", orden: 0, estructura: [], fondo_tipo: "color", es_punto_bosquejo: false },
+      { id: "b-otro", evento_id: eventoId, tipo: "bloque", titulo: "Anuncios", orden: 1, estructura: [], fondo_tipo: "color", es_punto_bosquejo: false },
+    ];
+    fake.db.miembros_rol = [];
+    const cargar = () => eventos.eventoCompletoAFormatoEditor({ evento: fake.db.eventos[0], items: fake.db.items_servicio, encargados: fake.db.miembros_rol, roles: [], roleMembers: [], recordatorios: [], vistas: [] });
+    const ev = cargar();
+    expect(ev.serviceOrder[0].esPredicacion).toBeUndefined();
+    eventos.registrarLineaBaseEventos([ev]);
+    await eventos.sincronizarServiceOrder(eventoId, [{ ...ev.serviceOrder[0], esPredicacion: true }, ev.serviceOrder[1]]);
+    expect(fake.db.items_servicio.find((i) => i.id === "b-pal").estructura).toEqual({ predicacion: true });
+    // Sin marca, el bloque sigue igual que antes.
+    expect(fake.db.items_servicio.find((i) => i.id === "b-otro").estructura).toEqual([]);
+    expect(cargar().serviceOrder[0].esPredicacion).toBe(true);
+  });
+});
