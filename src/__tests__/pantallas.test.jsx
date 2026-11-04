@@ -139,6 +139,27 @@ describe("¿abre la pantalla?", () => {
     sinPantallaDeError();
   });
 
+  it("el bloque de Predicación trae marcado \"Este bloque es la predicación\" y se puede desmarcar", async () => {
+    abrirApp();
+    await screen.findByText(/Miembros del equipo/, {}, { timeout: 4000 });
+    await irA("Eventos");
+    fireEvent.click((await screen.findAllByText(/Culto dominical/))[0]);
+    await screen.findAllByText(/Predicación/);
+    const fila = document.querySelector('[data-item-id="i3"]');
+    fireEvent.click(within(fila).getByTitle("Encargados"));
+    const casilla = within(fila).getByRole("checkbox", { name: /Este bloque es la predicación/ });
+    expect(casilla.checked).toBe(true);
+    expect(within(fila).getByText(/Agregar bosquejo|Ver bosquejo|Bosquejo/)).toBeTruthy();
+    fireEvent.click(casilla);
+    expect(within(fila).getByRole("checkbox", { name: /Este bloque es la predicación/ }).checked).toBe(false);
+    expect(within(fila).queryByText(/Agregar bosquejo|Ver bosquejo|Bosquejo/)).toBeNull();
+    // Otro bloque cualquiera empieza sin marcar.
+    const alabanza = document.querySelector('[data-item-id="i1"]');
+    fireEvent.click(within(alabanza).getByTitle("Encargados"));
+    expect(within(alabanza).getByRole("checkbox", { name: /Este bloque es la predicación/ }).checked).toBe(false);
+    sinPantallaDeError();
+  });
+
   it("inicia la transmisión y abre la consola en vivo y el panel Escenario", async () => {
     abrirApp();
     await screen.findByText(/Miembros del equipo/, {}, { timeout: 4000 });

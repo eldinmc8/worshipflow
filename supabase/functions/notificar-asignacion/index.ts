@@ -49,6 +49,13 @@ async function enviarPush(
 }
 
 const REGEX_PREDICACION = /pr[eé]dic|serm[oó]n|mensaje/i;
+// Mismo criterio que esBloquePredicacion (src/lib/predicacion.js): manda la marca manual
+// (estructura.predicacion) y, si no hay, el nombre del bloque.
+function esBloquePredicacion(b: { titulo: string | null; estructura?: unknown }) {
+  const e = b.estructura as { predicacion?: unknown } | null | undefined;
+  if (e && !Array.isArray(e) && typeof e.predicacion === "boolean") return e.predicacion;
+  return REGEX_PREDICACION.test(b.titulo || "");
+}
 
 async function avisarBosquejoEnviado(
   admin: ReturnType<typeof createClient>,
@@ -58,8 +65,8 @@ async function avisarBosquejoEnviado(
   puedeAsignar: boolean,
 ) {
   if (!bloqueId) return json({ error: "Falta bloque_id." }, 400);
-  const { data: bloque } = await admin.from("items_servicio").select("id, evento_id, tipo, titulo, iglesia_id").eq("id", bloqueId).maybeSingle();
-  if (!bloque || bloque.iglesia_id !== iglesiaId || bloque.tipo !== "bloque" || !REGEX_PREDICACION.test(bloque.titulo || "")) {
+  const { data: bloque } = await admin.from("items_servicio").select("id, evento_id, tipo, titulo, estructura, iglesia_id").eq("id", bloqueId).maybeSingle();
+  if (!bloque || bloque.iglesia_id !== iglesiaId || bloque.tipo !== "bloque" || !esBloquePredicacion(bloque)) {
     return json({ error: "Ese bloque no es de Predicación." }, 400);
   }
   const { count: asignado } = await admin.from("miembros_rol").select("id", { count: "exact", head: true })

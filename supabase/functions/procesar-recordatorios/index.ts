@@ -275,8 +275,13 @@ Deno.serve(async (req: Request) => {
         const inicio = new Date(`${ev.fecha}T${ev.hora || "00:00:00"}${offsetParaZona(zonaEv, `${ev.fecha}T${ev.hora || "00:00:00"}`)}`).getTime();
         if (inicio < ahora || inicio > ahora + VENTANA_MS) continue;
 
-        const { data: bloques } = await admin.from("items_servicio").select("id, titulo").eq("evento_id", ev.id).eq("tipo", "bloque");
-        const predicacion = (bloques ?? []).filter((b: { titulo: string | null }) => /pr[eé]dic|serm[oó]n|mensaje/i.test(b.titulo || ""));
+        const { data: bloques } = await admin.from("items_servicio").select("id, titulo, estructura").eq("evento_id", ev.id).eq("tipo", "bloque");
+        // Mismo criterio que esBloquePredicacion (src/lib/predicacion.js): la marca manual
+        // (estructura.predicacion) manda; si no hay, el nombre del bloque.
+        const predicacion = (bloques ?? []).filter((b: { titulo: string | null; estructura: { predicacion?: unknown } | null }) =>
+          b.estructura && !Array.isArray(b.estructura) && typeof b.estructura.predicacion === "boolean"
+            ? b.estructura.predicacion
+            : /pr[eé]dic|serm[oó]n|mensaje/i.test(b.titulo || ""));
         if (predicacion.length === 0) continue;
         const ids = predicacion.map((b: { id: string }) => b.id);
         const { data: enviados } = await admin.from("bosquejos").select("item_servicio_id").in("item_servicio_id", ids).not("enviado_at", "is", null);

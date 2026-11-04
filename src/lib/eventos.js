@@ -102,7 +102,11 @@ export async function reordenarItems(items, fromIdx, toIdx) {
 
 function filaAItemServicio(row, encargadosPorItem) {
   const base = { id: row.id, encargados: (encargadosPorItem[row.id] || []).map(filaAEncargado) };
-  if (row.tipo === "bloque") return { ...base, type: "seccion", title: row.titulo, description: row.descripcion || "", ministryId: row.ministerio_id || null };
+  if (row.tipo === "bloque") {
+    // "Este bloque es la predicación" marcado a mano: viaja en estructura (que los bloques no usaban).
+    const marca = row.estructura && !Array.isArray(row.estructura) && typeof row.estructura.predicacion === "boolean" ? { esPredicacion: row.estructura.predicacion } : {};
+    return { ...base, type: "seccion", title: row.titulo, description: row.descripcion || "", ministryId: row.ministerio_id || null, ...marca };
+  }
   if (row.tipo === "cancion") return { ...base, type: "cancion", songId: row.cancion_id, structure: row.estructura && row.estructura.length ? row.estructura : undefined, keyOverride: row.tonalidad_override || null };
   // Diapositivas que salen del bosquejo de un predicador: marcadas con el id de su bloque (ver bosquejos.js).
   if (row.estructura && !Array.isArray(row.estructura) && row.estructura.bosquejoDe) {
@@ -129,7 +133,7 @@ function itemServicioAFila(item, eventoId, orden) {
     fondo_tipo: item.bgType || "color",
     es_punto_bosquejo: !!item.isSermonPoint,
   };
-  if (item.type === "seccion") return { ...base, tipo: "bloque", titulo: item.title, descripcion: item.description || "", ministerio_id: item.ministryId || null };
+  if (item.type === "seccion") return { ...base, ...(typeof item.esPredicacion === "boolean" ? { estructura: { predicacion: item.esPredicacion } } : {}), tipo: "bloque", titulo: item.title, descripcion: item.description || "", ministerio_id: item.ministryId || null };
   if (item.type === "cancion") return { ...base, tipo: "cancion", cancion_id: item.songId, tonalidad_override: item.keyOverride || null };
   // La marca del bosquejo (bosquejoDe) viaja en estructura, que versículos y diapositivas de texto no usan.
   if (item.bosquejoDe) base.estructura = { bosquejoDe: item.bosquejoDe, ...(item.bosquejoPunto ? { punto: item.bosquejoPunto } : {}) };
