@@ -11,7 +11,7 @@ export default function ConfirmDialogHost() {
   const [valor, setValor] = useState("");
   const inputRef = useRef(null);
 
-  useEffect(() => subscribeConfirm((d) => { setDialog(d); setValor(""); }), []);
+  useEffect(() => subscribeConfirm((d) => { setDialog(d); setValor(d.valorInicial ?? ""); }), []);
   // Foco automático en el campo de texto apenas aparece un diálogo tipo "prompt" — igual que hacía
   // window.prompt() nativo, sin que la persona tenga que tocar el campo primero.
   useEffect(() => {

@@ -89,6 +89,25 @@ Deno.serve(async (req: Request) => {
     const { data: yaExiste } = await admin.from("usuarios").select("email").eq("email", adminEmail).maybeSingle();
     if (yaExiste) return json({ error: "Ya existe una cuenta con ese correo." }, 400);
 
+    // Código de UN SOLO USO (pedido de Eldin, 2026-11-05): se gasta aquí, ANTES de crear nada, cambiándolo
+    // por uno nuevo en la misma operación (solo si sigue siendo el mismo — así dos personas con el mismo
+    // código al mismo tiempo no pueden crear dos iglesias). Eldin copia el nuevo desde la consola para la
+    // siguiente invitación. Si algo de abajo falla, se devuelve el código original para que puedan reintentar.
+    let codigoGastado: string | null = null;
+    const codigoNuevo = Array.from(crypto.getRandomValues(new Uint8Array(6))).map((b) => b.toString(16).padStart(2, "0")).join("");
+    if (codigoVigente) {
+      const { data: cambiado } = await admin.from("plataforma_config").update({ codigo_invitacion: codigoNuevo })
+        .eq("id", "default").eq("codigo_invitacion", codigoIngresado).select("id");
+      if (!cambiado?.length) return json({ error: "Ese código de invitación ya se usó. Pide uno nuevo a quien te invitó." }, 403);
+      codigoGastado = codigoIngresado;
+    }
+    const fallar = async (mensaje: string, status: number) => {
+      if (codigoGastado) {
+        await admin.from("plataforma_config").update({ codigo_invitacion: codigoGastado }).eq("id", "default").eq("codigo_invitacion", codigoNuevo);
+      }
+      return json({ error: mensaje }, status);
+    };
+
     // 1) Crear la iglesia -- reintenta con -2/-3/... si el slug generado ya existe (ej. dos iglesias
     // que se llaman "Fe y Esperanza" en ciudades distintas). 20 intentos es de sobra: si de verdad
     // chocaran tantas veces seguidas, algo más raro está pasando y es mejor fallar que reintentar para siempre.
@@ -99,10 +118,10 @@ Deno.serve(async (req: Request) => {
       const { data, error } = await admin
         .from("iglesias").insert({ nombre: iglesiaNombre, slug, zona_horaria: zonaHoraria }).select("id").single();
       if (!error) { iglesia = data; break; }
-      if (error.code !== "23505") return json({ error: "No se pudo crear la iglesia: " + error.message }, 400);
+      if (error.code !== "23505") return await fallar("No se pudo crear la iglesia: " + error.message, 400);
       // 23505 = slug duplicado -- se reintenta con el siguiente sufijo, cualquier otro error corta de una.
     }
-    if (!iglesia) return json({ error: "No se pudo generar un identificador único para la iglesia, intenta con otro nombre." }, 400);
+    if (!iglesia) return await fallar("No se pudo generar un identificador único para la iglesia, intenta con otro nombre.", 400);
 
     // 2) Crear el acceso del administrador -- con contraseña directa (igual que el bootstrap de
     // crear-usuario): no hay a quién mandarle un correo de invitación, es quien se está dando de alta.
@@ -111,7 +130,7 @@ Deno.serve(async (req: Request) => {
     });
     if (createError || !created?.user) {
       await admin.from("iglesias").delete().eq("id", iglesia.id);
-      return json({ error: "No se pudo crear el acceso: " + (createError?.message ?? "error") }, 400);
+      return await fallar("No se pudo crear el acceso: " + (createError?.message ?? "error"), 400);
     }
 
     // 3) Guardar la fila en usuarios, ya como admin de su propia iglesia nueva.
@@ -122,7 +141,7 @@ Deno.serve(async (req: Request) => {
     if (insertError) {
       await admin.auth.admin.deleteUser(created.user.id);
       await admin.from("iglesias").delete().eq("id", iglesia.id);
-      return json({ error: "No se pudo guardar el usuario: " + insertError.message }, 400);
+      return await fallar("No se pudo guardar el usuario: " + insertError.message, 400);
     }
 
     // 4) Sembrar los 5 roles de fábrica para esta iglesia -- a diferencia de los 3 pasos de arriba,

@@ -38,7 +38,13 @@ export async function guardarSecciones(cancionId, secciones) {
   const { error: delErr } = await supabase.from("secciones_cancion").delete().eq("cancion_id", cancionId);
   if (delErr) throw delErr;
   if (secciones.length === 0) return;
-  const { error } = await supabase.from("secciones_cancion").insert(secciones.map((s) => ({ ...s, cancion_id: cancionId })));
+  // "orden" (2026-11-05): el orden de las partes que se elige en Contenido. Si la base todavía no tiene la
+  // columna (falta el SQL), se guarda como antes, sin ella.
+  const filas = secciones.map((s, i) => ({ ...s, cancion_id: cancionId, orden: i }));
+  let { error } = await supabase.from("secciones_cancion").insert(filas);
+  if (error && /orden/.test(error.message || "") && (error.code === "PGRST204" || error.code === "42703")) {
+    ({ error } = await supabase.from("secciones_cancion").insert(filas.map(({ orden: _o, ...resto }) => resto)));
+  }
   if (error) throw error;
 }
 
@@ -87,7 +93,11 @@ export function cancionCompletaAFormatoEditor({ cancion, secciones, estructura, 
   // Las partes en el MISMO orden en que se canta (pedido de Eldin, 2026-10-17: en el editor salían
   // desordenadas, ej. el Outro primero, y costaba encontrarlas). Primero las que están en la Estructura,
   // en su orden y sin repetir; después las que no se usan en el orden.
-  const ordenPartes = [...new Set([...defaultStructure.filter((k) => blocks[k]), ...Object.keys(blocks)])];
+  // Si las partes tienen orden guardado (se ordenaron a mano en Contenido, 2026-11-05), manda ese orden.
+  const conOrden = secciones.length > 0 && secciones.every((s) => s.orden != null);
+  const ordenPartes = conOrden
+    ? [...secciones].sort((a, b) => a.orden - b.orden).map((s) => s.clave).filter((k, i, arr) => arr.indexOf(k) === i)
+    : [...new Set([...defaultStructure.filter((k) => blocks[k]), ...Object.keys(blocks)])];
   const blocksOrdenados = Object.fromEntries(ordenPartes.map((k) => [k, blocks[k]]));
   Object.keys(blocks).forEach((k) => delete blocks[k]);
   Object.assign(blocks, blocksOrdenados);

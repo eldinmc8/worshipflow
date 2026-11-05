@@ -25,7 +25,10 @@ const ZONAS = [
 // Eldin comparte a mano con quien esté invitando a probar la app, no un botón público de "Registrarse"
 // (decisión explícita, 2026-09-30 — mismo motivo por el que Login.jsx ya no ofrece auto-registro).
 export default function CrearIglesia() {
-  const [codigoInvitacion, setCodigoInvitacion] = useState("");
+  // El enlace que copia Eldin desde la consola ya trae el código (?crear-iglesia&codigo=...).
+  const [codigoInvitacion, setCodigoInvitacion] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("codigo") || ""; } catch { return ""; }
+  });
   const [iglesiaNombre, setIglesiaNombre] = useState("");
   const [zonaHoraria, setZonaHoraria] = useState("Etc/GMT+6");
   const [adminNombre, setAdminNombre] = useState("");

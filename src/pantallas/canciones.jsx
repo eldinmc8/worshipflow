@@ -1,7 +1,7 @@
 // Canciones: biblioteca, vista de la canción (acordes, Modo Músico), editor y sus ventanas. Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { useState, useMemo, useRef, useEffect } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
-import { FileUp, Plus, Search, Heart, Pencil, Paperclip, Trash2, ListMusic, Music, Minus, FileText, Image as ImgIcon, Link2, ArrowLeft, ChevronDown, Radio, Pause, Users, Play, PencilLine, ChevronLeft, ChevronRight, RefreshCw, X, Check, ClipboardPaste, GripVertical } from "lucide-react";
+import { FileUp, Plus, Search, Heart, Pencil, Paperclip, Trash2, ListMusic, Music, Minus, FileText, Image as ImgIcon, Link2, ArrowLeft, ChevronDown, Radio, Pause, Users, Play, PencilLine, ChevronLeft, ChevronRight, RefreshCw, X, Check, ClipboardPaste, GripVertical, ChevronUp } from "lucide-react";
 import { acordeEn, usePreferencias, lineaEn } from "../lib/preferencias.js";
 import { confirmDialog } from "../lib/confirm.js";
 import { listarAdjuntos, tipoDeArchivo, subirAdjunto, agregarEnlace, borrarAdjunto } from "../lib/adjuntosCancion.js";
@@ -1389,6 +1389,17 @@ export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChang
       return { ...d, blocks, letra };
     });
   };
+  // Mover partes en Contenido (pedido de Eldin, 2026-11-05): ej. empezó por el verso y luego quiere la
+  // intro hasta arriba. Cambia solo el orden en el editor (y en cómo se guardan), no la Estructura.
+  const moverBloque = (desde, destino) => setDraft((d) => {
+    const keys = Object.keys(d.blocks);
+    if (destino < 0 || destino >= keys.length || desde === destino) return d;
+    const [k] = keys.splice(desde, 1);
+    keys.splice(destino, 0, k);
+    const letra = Object.fromEntries([...keys.filter((x) => d.letra?.[x]).map((x) => [x, d.letra[x]]), ...Object.entries(d.letra || {}).filter(([x]) => !keys.includes(x))]);
+    return { ...d, blocks: Object.fromEntries(keys.map((x) => [x, d.blocks[x]])), letra };
+  });
+  const arrastreContenido = useArrastreLista({ habilitado: true, onReorder: moverBloque });
   const removeBlock = (key) => setDraft((d) => {
     const blocks = { ...d.blocks }; delete blocks[key];
     const letra = { ...d.letra }; delete letra[key];
@@ -1556,18 +1567,27 @@ export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChang
             </div>
           )}
 
-          {blockKeys.map((key) => (
-            <div key={key} style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 14, marginBottom: 10 }}>
+          {blockKeys.length > 1 && <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginBottom: 8 }}>Para cambiar el orden de las partes, usa las flechas o arrastra la parte desde su barra de arriba.</div>}
+          {blockKeys.map((key, idx) => (
+            <div key={key} data-parte={key} {...arrastreContenido.filaProps(idx)} style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 14, marginBottom: 10, ...arrastreContenido.estiloFila(idx) }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <input value={draft.blocks[key].badge} onChange={(e) => setBlockField(key, "badge", e.target.value)} style={{ ...inputStyle, width: 46, textAlign: "center", padding: "6px 4px" }} />
-                <input value={draft.blocks[key].label} onChange={(e) => setBlockField(key, "label", e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                {blockKeys.length > 1 && <GripVertical size={14} color="var(--wf-border-soft)" style={{ flexShrink: 0, cursor: "grab" }} />}
+                <input data-no-arrastre value={draft.blocks[key].badge} onChange={(e) => setBlockField(key, "badge", e.target.value)} style={{ ...inputStyle, width: 46, textAlign: "center", padding: "6px 4px" }} />
+                <input data-no-arrastre value={draft.blocks[key].label} onChange={(e) => setBlockField(key, "label", e.target.value)} style={{ ...inputStyle, flex: 1 }} />
                 <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                  <input type="number" min={1} value={draft.blocks[key].bars || 8} onChange={(e) => setBlockField(key, "bars", Math.max(1, parseInt(e.target.value) || 1))} style={{ ...inputStyle, width: 48, textAlign: "center", padding: "6px 4px" }} />
+                  <input data-no-arrastre type="number" min={1} value={draft.blocks[key].bars || 8} onChange={(e) => setBlockField(key, "bars", Math.max(1, parseInt(e.target.value) || 1))} style={{ ...inputStyle, width: 48, textAlign: "center", padding: "6px 4px" }} />
                   <span style={{ fontSize: 10, color: "var(--wf-faint)", whiteSpace: "nowrap" }}>compases</span>
                 </div>
-                <button onClick={() => removeBlock(key)} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>
+                {blockKeys.length > 1 && (
+                  <>
+                    <button onClick={() => moverBloque(idx, idx - 1)} disabled={idx === 0} aria-label={`Subir ${draft.blocks[key].label}`} title="Subir" style={{ ...iconGhost, opacity: idx === 0 ? 0.3 : 1 }}><ChevronUp size={15} /></button>
+                    <button onClick={() => moverBloque(idx, idx + 1)} disabled={idx === blockKeys.length - 1} aria-label={`Bajar ${draft.blocks[key].label}`} title="Bajar" style={{ ...iconGhost, opacity: idx === blockKeys.length - 1 ? 0.3 : 1 }}><ChevronDown size={15} /></button>
+                  </>
+                )}
+                <button onClick={() => removeBlock(key)} aria-label={`Quitar ${draft.blocks[key].label}`} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>
               </div>
               <textarea
+                data-no-arrastre
                 ref={(el) => { textareaRefs.current[key] = el; }}
                 onFocus={() => setActiveBlockKey(key)}
                 value={draft.blocks[key].lines.join("\n")}

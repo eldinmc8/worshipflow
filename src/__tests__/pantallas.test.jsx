@@ -129,6 +129,22 @@ describe("¿abre la pantalla?", () => {
     sinPantallaDeError();
   });
 
+  it("en el editor de la canción se pueden mover las partes en Contenido", async () => {
+    abrirApp();
+    await screen.findByText(/Miembros del equipo/, {}, { timeout: 4000 });
+    await irA("Canciones");
+    fireEvent.click((await screen.findAllByText(/Grande es tu fidelidad/))[0]);
+    fireEvent.click(await screen.findByRole("button", { name: /^Editar$/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Contenido" }));
+    const orden = () => [...document.querySelectorAll("[data-parte]")].map((el) => el.getAttribute("data-parte"));
+    expect(orden()).toEqual(["V1", "C"]);
+    fireEvent.click(screen.getByRole("button", { name: "Subir Coro" }));
+    expect(orden()).toEqual(["C", "V1"]);
+    fireEvent.click(screen.getByRole("button", { name: "Bajar Coro" }));
+    expect(orden()).toEqual(["V1", "C"]);
+    sinPantallaDeError();
+  });
+
   it("abre el evento con su Setlist y el bosquejo", async () => {
     abrirApp();
     await screen.findByText(/Miembros del equipo/, {}, { timeout: 4000 });
