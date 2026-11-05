@@ -1,7 +1,7 @@
 // Consola En vivo de Multimedia: orden del culto, diapositivas, Biblia en vivo, estilo, escenario. Separada de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { useState, useRef, useEffect, useMemo } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
-import { Music, Search, Image as ImgIcon, Paperclip, ChevronLeft, ChevronRight, MonitorOff, Radio, BookOpen, Type, PenTool, FileUp, Plus, Pencil, MoreHorizontal, Trash2, GraduationCap, Pin, MessageSquare, AlertTriangle, PinOff, ListMusic, Palette, Play, SkipBack, SkipForward, X, SlidersHorizontal, Sparkles, ChevronUp, Tv, EyeOff, Eye, ArrowRightLeft, CopyPlus, Ungroup } from "lucide-react";
+import { Music, Search, Image as ImgIcon, Paperclip, ChevronLeft, ChevronRight, MonitorOff, Radio, BookOpen, Type, PenTool, FileUp, Plus, Pencil, MoreHorizontal, Trash2, GraduationCap, Pin, MessageSquare, AlertTriangle, PinOff, ListMusic, Palette, Play, SkipBack, SkipForward, X, SlidersHorizontal, Sparkles, ChevronUp, Tv, EyeOff, Eye, ArrowRightLeft, CopyPlus, Ungroup, Timer, RotateCcw } from "lucide-react";
 import { acordeEn } from "../lib/preferencias.js";
 import { loadCache, saveCache } from "../lib/offlineCache.js";
 import { escucharProyeccion } from "../lib/liveSession.js";
@@ -23,6 +23,8 @@ import CintaAdaptable from "../components/CintaAdaptable.jsx";
 import PantallaOtroEquipo from "../components/PantallaOtroEquipo.jsx";
 import PanelEscenario from "../components/PanelEscenario.jsx";
 import ImportarPresentacion from "../components/ImportarPresentacion.jsx";
+import CuentaRegresivaModal from "../components/CuentaRegresivaModal.jsx";
+import { cuentaPorMinutos } from "../lib/cuentaRegresiva.js";
 import { TYPE_META, ModalShell, addBtnStyle, inputStyle, primaryBtn, BIBLE_VERSIONS, LIVE_FONTS, LIVE_THEMES, iconGhost, LIVE_SOMBRAS, LIVE_POSICIONES, LIVE_ALINEACIONES, ElegirParteDelCulto, Field } from "./compartido.jsx";
 import { BibleLivePanel } from "./biblia.jsx";
 import { MediaPicker, SlideModal } from "./ventanas.jsx";
@@ -129,7 +131,7 @@ function AdHocVideoModal({ onClose, onPlay }) {
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {}, onEditarLetraCompleta, mensajeEscenario = "", onMensajeEscenario = null, iglesiaSlug = null, temporizador = null, onTemporizador = null, autoTemporizador = null, onAutoTemporizador = null }) {
+export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onStartAdHocCuenta = null, onReiniciarCuenta = null, eventoInfo = null, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {}, onEditarLetraCompleta, mensajeEscenario = "", onMensajeEscenario = null, iglesiaSlug = null, temporizador = null, onTemporizador = null, autoTemporizador = null, onAutoTemporizador = null }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -204,6 +206,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   useEffect(() => { saveCache(claveHistorial, bibleHistory); }, [bibleHistory, claveHistorial]);
   const [showAdHocSong, setShowAdHocSong] = useState(false);
   const [showAdHocVideo, setShowAdHocVideo] = useState(false);
+  const [showCuenta, setShowCuenta] = useState(false);
   const [showImportar, setShowImportar] = useState(false);
   const [showAddSlide, setShowAddSlide] = useState(false);
   const [showAgregarConsola, setShowAgregarConsola] = useState(false); // "+ Agregar" (igual que en el Setlist)
@@ -492,7 +495,12 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     !isCompact && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(anclaParaAgregar()?.id || null) },
     { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
     { clave: "video", Icon: ImgIcon, color: "#C23B32", titulo: "Video", detalle: "Se proyecta una vez (no queda en el orden)", accion: () => setShowAdHocVideo(true) },
+    onStartAdHocCuenta && { clave: "cuenta", Icon: Timer, color: "#5661B3", titulo: "Cuenta regresiva", detalle: "Un reloj antes del culto o de un receso (20 estilos)", accion: () => setShowCuenta(true) },
   ].filter(Boolean);
+  // Debajo de la vista previa cuando lo que está al aire es una cuenta regresiva.
+  const botonReiniciarCuenta = current?.cuenta && onReiniciarCuenta && cuentaPorMinutos(current.cuenta, eventoInfo) ? (
+    <button onClick={onReiniciarCuenta} title="Vuelve a empezar la cuenta (por minutos)" style={{ ...ctrlBtn, justifyContent: "center", width: "100%", marginTop: 6 }}><RotateCcw size={13} /> Reiniciar cuenta regresiva</button>
+  ) : null;
   const botonAgregarConsola = ({ ancho = false, tour } = {}) => (
     <button
       onClick={() => { setDestinoConsola(null); setShowAgregarConsola(true); }} data-tour={tour} className="hoverable"
@@ -884,6 +892,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)" }}>
               <ProjectionPanel slide={current} blanked={blanked} split={false} liveStyle={liveStyle} thumbnail />
             </div>
+            {botonReiniciarCuenta}
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -919,6 +928,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
               <button onClick={() => setShowAdHocSong(true)} style={{ ...ctrlBtn, justifyContent: "center" }}><Music size={13} /> Canción</button>
               <button onClick={() => setShowAdHocVideo(true)} style={{ ...ctrlBtn, justifyContent: "center" }}><ImgIcon size={13} /> Video</button>
+              {onStartAdHocCuenta && <button onClick={() => setShowCuenta(true)} style={{ ...ctrlBtn, justifyContent: "center", gridColumn: "1 / -1" }}><Timer size={13} /> Cuenta regresiva</button>}
               {/* A diferencia de Canción/Video (que se proyectan una vez y no quedan en ningún lado),
                   "Diapositiva" usa el mismo "Agregar diapositiva" de la pestaña Transmisión — queda fija
                   aquí mismo (ver DIAPOSITIVAS abajo) para poder volver a mandarla a proyección. */}
@@ -1087,6 +1097,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               {onDisenarNueva && botonCinta({ icon: PenTool, label: "Diseñar", title: "Diseñar una diapositiva desde cero (con plantillas)", onClick: () => onDisenarNueva(anclaParaAgregar()?.id || null) })}
               {botonCinta({ icon: Type, label: "Diapositiva", onClick: () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); } })}
               {botonCinta({ icon: ImgIcon, label: "Video", onClick: () => setShowAdHocVideo(true) })}
+              {onStartAdHocCuenta && botonCinta({ icon: Timer, label: "Reloj", title: "Cuenta regresiva", onClick: () => setShowCuenta(true) })}
             </>, true),
         ] : [
           grupoItem("Navegación", <>
@@ -1343,6 +1354,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)", border: "2px solid #C23B32", flexShrink: 0 }}>
             <ProjectionPanel slide={alAire} blanked={blanked} split={false} liveStyle={liveStyle} thumbnail />
           </div>
+          {botonReiniciarCuenta}
           {fijada && (
             <>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#7B3FA0", letterSpacing: 0.4, marginTop: 4 }}>DONDE ESTÁS · SE PROYECTA AL SOLTAR</div>
@@ -1463,6 +1475,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           </div>
         </ModalShell>
       )}
+      {showCuenta && <CuentaRegresivaModal enConsola evento={eventoInfo} onClose={() => setShowCuenta(false)} onGuardar={(c) => { onStartAdHocCuenta(c); setShowCuenta(false); }} />}
       {showAdHocVideo && <AdHocVideoModal onClose={() => setShowAdHocVideo(false)} onPlay={(url) => { onStartAdHocVideo(url); setShowAdHocVideo(false); }} />}
       {showAddSlide && (
         <SlideModal

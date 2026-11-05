@@ -171,3 +171,18 @@ describe("marca manual del bloque de la predicación", () => {
     expect(cargar().serviceOrder[0].esPredicacion).toBe(true);
   });
 });
+
+describe("cuenta regresiva en el Setlist", () => {
+  it("su configuración se guarda en estructura y vuelve al cargar", async () => {
+    const eventoId = "evento-cuenta";
+    fake.db.eventos = [{ id: eventoId, titulo: "Domingo" }];
+    fake.db.items_servicio = [];
+    fake.db.miembros_rol = [];
+    const config = { modo: "minutos", minutos: 7, estilo: "neon", mostrarTexto: false, texto: "", alTerminar: "avanzar", mensajeFinal: "", fondo: "propio" };
+    await eventos.sincronizarServiceOrder(eventoId, [{ id: "c1", type: "slide", title: "Cuenta regresiva", subtitle: "", bg: "#0B0F17", bgType: "color", cuentaRegresiva: config, encargados: [] }]);
+    const fila = fake.db.items_servicio.find((i) => i.id === "c1");
+    expect(fila).toMatchObject({ tipo: "slide", estructura: { cuentaRegresiva: config } });
+    const ev = eventos.eventoCompletoAFormatoEditor({ evento: fake.db.eventos[0], items: fake.db.items_servicio, encargados: [], roles: [], roleMembers: [], recordatorios: [], vistas: [] });
+    expect(ev.serviceOrder[0].cuentaRegresiva).toEqual(config);
+  });
+});

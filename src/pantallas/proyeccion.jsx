@@ -5,6 +5,7 @@ import DiapositivaDisenada from "../components/DiapositivaDisenada.jsx";
 import { esPaginaPresentacion } from "../lib/importarPresentacion.js";
 import { Mic2, Radio, Music } from "lucide-react";
 import AutoFitText from "../components/AutoFitText.jsx";
+import RelojCuentaRegresiva from "../components/RelojCuentaRegresiva.jsx";
 import { LIVE_FONTS, LIVE_THEMES, LIVE_SOMBRAS, LIVE_ALINEACIONES, LIVE_POSICIONES, TYPE_META } from "./compartido.jsx";
 
 // ---------- Estilo en vivo de la proyección: fondo y tipografía, ajustables por multimedia mientras transmite ----------
@@ -141,6 +142,15 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // Página de una presentación importada (PDF, Canva...): se proyecta TAL CUAL, completa (sin recortar),
   // sobre negro, sin oscurecer ni letra encima — ya trae su propio diseño. "Pantalla en negro" sí la
   // esconde: aquí la imagen ES el contenido, no un fondo.
+  // Cuenta regresiva (2026-11-05) con el fondo de su propio estilo. Con el fondo de Estilo se dibuja más
+  // abajo, sobre el fondo de siempre (tema, imagen o video).
+  if (slide?.cuenta && slide.cuenta.fondo !== "estilo") {
+    return (
+      <div style={{ ...estiloRaiz, background: "#000", padding: 0 }}>
+        {blanked ? <div style={{ color: "#2A3140" }}><Mic2 size={thumbnail ? 20 : 40} /></div> : <RelojCuentaRegresiva cuenta={slide.cuenta} quieto={!!thumbnail} />}
+      </div>
+    );
+  }
   // Diapositiva con diseño propio (editor de diapositivas / presentación agrupada): se dibuja tal cual.
   if (slide?.diseno) {
     return (
@@ -180,6 +190,8 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
       {imageSrc && <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${oscurecerFondo})`, zIndex: 0 }} />}
       {blanked || !slide ? (
         <div style={{ color: "#2A3140", position: "relative", zIndex: 1 }}><Mic2 size={thumbnail ? 20 : 40} /></div>
+      ) : slide.cuenta ? (
+        <RelojCuentaRegresiva cuenta={slide.cuenta} quieto={!!thumbnail} sinFondo />
       ) : (
         <>
           {!videoSrc && !fondoAnimado && <div className="spotlight-glow" style={{ position: "absolute", width: thumbnail ? 140 : 420, height: thumbnail ? 140 : 420, borderRadius: "50%", background: `radial-gradient(circle, ${TYPE_META[slide.type].color}22 0%, transparent 70%)` }} />}

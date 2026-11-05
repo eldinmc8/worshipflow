@@ -12,6 +12,7 @@ import { subscribeTableChanges } from "./lib/realtime.js";
 import { palabrasPorParteSegun, expandirVersiculosLargos, reorganizarLetra } from "./lib/dividirTexto.js";
 import { insertarEnBloque } from "./lib/ordenCulto.js";
 import { esBloquePredicacion, guardarBosquejo, aplicarBosquejoAlOrden, bosquejoAItems } from "./lib/bosquejos.js";
+import { esCuentaRegresiva, slideCuentaRegresiva, conHoraFinal, arrancarSiHaceFalta, slideCuentaAlMomento, normalizarCuenta, itemCuentaRegresiva } from "./lib/cuentaRegresiva.js";
 import { confirmDialog } from "./lib/confirm.js";
 import { updateMusicoLive, clearMusicoLive, getMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
 import { broadcastLiveSession, enviarAPantallas, clearLiveSession, obtenerCodigoPantalla, updateLiveSession, responderPedidosDeEstado, getLiveSession, subscribeLiveSession } from "./lib/liveSession.js";
@@ -162,6 +163,9 @@ function buildSlides(serviceOrder, library) {
       slides.push(...songToSlides(item.id, song, item.structure));
     } else if (item.type === "biblia") {
       slides.push({ slideId: item.id, type: "biblia", reference: item.reference, version: item.version, text: item.text, bookId: item.bookId, bookName: item.bookName, chapter: item.chapter, verseStart: item.verseStart, verseEnd: item.verseEnd });
+    } else if (esCuentaRegresiva(item)) {
+      // Cuenta regresiva (2026-11-05): la hora final se le pone al proyectarla (ver conHoraFinal).
+      slides.push(slideCuentaRegresiva(item));
     } else if (item.type === "slide" && esGrupoDiapositivas(item)) {
       // Presentación agrupada o diapositiva diseñada en el editor: cada diapositiva con su diseño.
       slides.push(...slidesDeGrupo(item));
@@ -469,9 +473,19 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   useEffect(() => { saveCache("consola_ocultos", ocultosConsola); }, [ocultosConsola]);
   const claveOcultos = liveEvent?.id || null;
   const idsOcultosConsola = useMemo(() => new Set((claveOcultos && ocultosConsola[claveOcultos]) || []), [ocultosConsola, claveOcultos]);
-  const slides = useMemo(
+  // Cuentas regresivas por minutos: cuándo termina cada una (por id de diapositiva). Arrancan al ponerse al
+  // aire y, si la consola se recarga, siguen donde iban.
+  const [horasFinalesCuenta, setHorasFinalesCuenta] = useState(() => loadCache("cuentas_regresivas") || {});
+  useEffect(() => { saveCache("cuentas_regresivas", horasFinalesCuenta); }, [horasFinalesCuenta]);
+  const slidesBase = useMemo(
     () => (liveEvent ? expandirVersiculosLargos(reorganizarLetra(buildSlides(liveEvent.serviceOrder.filter((it) => !idsOcultosConsola.has(it.id)), library), formatoLetra), palabrasPorParte) : []),
     [liveEvent, library, palabrasPorParte, formatoLetra, idsOcultosConsola]
+  );
+  // Las cuentas regresivas con su hora final (así también las miniaturas de la consola van contando).
+  const slides = useMemo(
+    () => (slidesBase.some((x) => x.cuenta) ? slidesBase.map((x) => (x.cuenta ? conHoraFinal(x, { evento: liveEvent, horasFinales: horasFinalesCuenta, logoUrl: myIglesia?.logoUrl || null }) : x)) : slidesBase),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slidesBase, horasFinalesCuenta, liveEvent?.date, liveEvent?.hora, myIglesia?.logoUrl]
   );
   const adHocSlides = useMemo(
     () => (adHoc ? expandirVersiculosLargos(reorganizarLetra(adHoc.slides, formatoLetra), palabrasPorParte) : []),
@@ -488,7 +502,11 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const idDiapositivaActual = currentBase?.slideId ?? null;
   const pasoDiseno = pasoGuardado.id === idDiapositivaActual ? pasoGuardado.paso : 0;
   const setPasoDiseno = (n) => setPasoGuardado({ id: idDiapositivaActual, paso: typeof n === "function" ? n(pasoDiseno) : n });
-  const current = useMemo(() => (currentBase?.diseno ? { ...currentBase, paso: pasoDiseno } : currentBase), [currentBase, pasoDiseno]);
+  const current = useMemo(() => {
+    const base = currentBase?.diseno ? { ...currentBase, paso: pasoDiseno } : currentBase;
+    return base?.cuenta ? conHoraFinal(base, { evento: liveEvent, horasFinales: horasFinalesCuenta, logoUrl: myIglesia?.logoUrl || null }) : base;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBase, pasoDiseno, horasFinalesCuenta, liveEvent?.date, liveEvent?.hora, myIglesia?.logoUrl]);
   const next = adHoc ? adHocSlides[adHocIdx + 1] : slides[activeIdx + 1];
 
   // ---- Lectura bíblica en vivo: "Siguiente/Anterior versículo" y cambio de versión sin reabrir el buscador.
@@ -868,6 +886,15 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const exitAdHoc = () => { setAdHoc(null); setAdHocIdx(0); };
   const startAdHocBible = (b) => { setAdHoc({ label: `Versículo: ${b.ref}`, slides: [{ slideId: "adhoc-biblia", type: "biblia", reference: b.ref, version: b.version, text: b.text, bookId: b.bookId, bookName: b.bookName, chapter: b.chapter, verseStart: b.verseStart, verseEnd: b.verseEnd }] }); setAdHocIdx(b.parte || 0); setBlanked(false); }; // b.parte: arrancar en esa parte de un versículo largo
   const startAdHocSong = (song) => { setAdHoc({ label: `Canción: ${song.title}`, slides: songToSlides("adhoc-cancion", song, song.defaultStructure) }); setAdHocIdx(0); setBlanked(false); };
+  // Cuenta regresiva al momento desde la consola (sin agregarla al Setlist).
+  const startAdHocCuenta = (config) => { setAdHoc({ label: "Cuenta regresiva", slides: [slideCuentaAlMomento(config, liveEvent)] }); setAdHocIdx(0); setBlanked(false); };
+  // "Reiniciar" la cuenta que está al aire (vuelve a empezar sus minutos).
+  const reiniciarCuenta = () => {
+    const s = current;
+    if (!s?.cuenta) return;
+    if (adHoc) { setAdHoc((a) => (a ? { ...a, slides: a.slides.map((x) => (x.slideId === s.slideId ? slideCuentaAlMomento({ ...x.cuenta, hasta: undefined, total: undefined }, liveEvent) : x)) } : a)); return; }
+    setHorasFinalesCuenta((h) => ({ ...h, [s.slideId]: Date.now() + normalizarCuenta(s.cuenta).minutos * 60 * 1000 }));
+  };
   const startAdHocVideo = (url) => { setAdHoc({ label: "Video", slides: [{ slideId: "adhoc-video", type: "slide", title: "", subtitle: "", bg: "#000", bgType: "video", videoUrl: url }] }); setAdHocIdx(0); setBlanked(false); };
   // Como PowerPoint: la proyección solo se abre si hay una segunda pantalla (proyector/monitor)
   // realmente conectada y detectada — si no hay una, no se abre nada (nunca sobre la misma pantalla
@@ -1421,6 +1448,29 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     return armarEscenario({ slides, indice, alAire, serviceOrder: liveEvent?.serviceOrder || [], library, mensaje: mensajeEscenario, inicio: inicioVivo, bosquejos: liveEvent?.bosquejos || {}, temporizador });
   }, [llevoLaTransmision, fijada, current, adHoc, slides, activeIdx, liveEvent, library, mensajeEscenario, inicioVivo, temporizador]);
   const escenarioClave = escenario ? JSON.stringify(escenario) : "";
+
+  // ---- Cuenta regresiva al aire (2026-11-05): la de minutos arranca al ponerse al aire; con "pasar sola a
+  // lo que sigue", al llegar a cero la consola avanza. Solo en el dispositivo que lleva la transmisión. ----
+  useEffect(() => {
+    const alAire = fijada || currentBase;
+    // Las lanzadas al momento (adHoc) ya traen su hora final; las del Setlist arrancan aquí (o vuelven a
+    // empezar si ya habían terminado).
+    if (!llevoLaTransmision || !alAire?.cuenta || adHoc) return;
+    setHorasFinalesCuenta((h) => arrancarSiHaceFalta(h, { ...alAire, cuenta: { ...alAire.cuenta, hasta: undefined } }, liveEvent));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [llevoLaTransmision, fijada?.slideId, currentBase?.slideId]);
+  useEffect(() => {
+    const alAire = fijada ? null : current;
+    const hasta = alAire?.cuenta?.hasta;
+    if (!llevoLaTransmision || !hasta || alAire.cuenta.alTerminar !== "avanzar") return;
+    const id = alAire.slideId;
+    const t = setTimeout(() => {
+      if (adHoc) { if (adHocIdx >= adHocSlides.length - 1) exitAdHoc(); else goto(adHocIdx + 1); return; }
+      if (slides[activeIdx]?.slideId === id && activeIdx < slides.length - 1) goto(activeIdx + 1);
+    }, Math.max(0, hasta - Date.now()) + 300);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [llevoLaTransmision, current?.slideId, current?.cuenta?.hasta, fijada, activeIdx, adHocIdx]);
 
   useEffect(() => {
     if (practica || (!liveEventId && !liveLibre) || userId !== liveOwnerId) return;
@@ -2206,6 +2256,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onStart={() => startEvent(selectedEvent.id)} onPracticar={() => empezarPractica(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
           onAddSong={addSong} onAddSeccion={addSeccion}
           onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)} onAddItems={(items) => updateOrder((o) => colocar(o, items))}
+          onAddCuenta={(config) => updateOrder((o) => { const it = itemCuentaRegresiva(nextId(), config); return destinoSetlist ? colocar(o, [it]) : [it, ...o]; })}
           destinoAgregar={destinoSetlist} onDestinoAgregar={setDestinoSetlist}
           onEditarItem={(itemId, patch) => updateOrder((o) => o.map((i) => (i.id === itemId ? { ...i, ...patch } : i)))}
           onRemove={removeItem} onRestaurar={restaurarItem} onDuplicate={duplicateItem} onReorder={reorderItem}
@@ -2319,7 +2370,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             onEnd={enPractica ? salirPractica : endEvent} canEnd={enPractica || isAdminViewer || userId === liveOwnerId}
             enPractica={enPractica} onAyuda={() => setTourActivo(CLAVES_TUTORIAL.envivo)}
             fijada={fijada} onFijar={() => setFijada(current ? { ...current } : null)} onSoltar={() => setFijada(null)} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
-            adHoc={adHocVista} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo}
+            adHoc={adHocVista} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo} onStartAdHocCuenta={startAdHocCuenta} onReiniciarCuenta={reiniciarCuenta} eventoInfo={liveEvent}
             onOpenPublicScreen={enPractica ? () => avisoPractica("abre el proyector") : startPresentation}
             mensajeEscenario={mensajeEscenario} onMensajeEscenario={setMensajeEscenario} iglesiaSlug={myIglesia?.slug || null}
             temporizador={temporizador} onTemporizador={setTemporizador} autoTemporizador={autoTemporizador} onAutoTemporizador={setAutoTemporizador}

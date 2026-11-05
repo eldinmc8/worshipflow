@@ -1,5 +1,5 @@
 // Eventos: calendario y lista, detalle del evento y su Setlist (bloques, encargados, equipo de alabanza, bosquejo). Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
-import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Calendar, Music, ArrowLeft, Trash2, Bell, X, Settings, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy } from "lucide-react";
+import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Calendar, Music, ArrowLeft, Trash2, Bell, X, Settings, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy, Timer } from "lucide-react";
 import { bosquejoTieneCambiosSinEnviar, esBloquePredicacion } from "../lib/bosquejos.js";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { todayLocal, monthKey, monthLabelFromKey, parseIsoDateLocal, isUpcoming, compareByDay, MONTH_ABBR, formatFullDate } from "../lib/dates.js";
@@ -13,6 +13,9 @@ import { esPaginaPresentacion } from "../lib/importarPresentacion.js";
 import DiapositivaDisenada from "../components/DiapositivaDisenada.jsx";
 import { createPortal } from "react-dom";
 import ImportarPresentacion from "../components/ImportarPresentacion.jsx";
+import CuentaRegresivaModal from "../components/CuentaRegresivaModal.jsx";
+import RelojCuentaRegresiva, { estiloCuenta } from "../components/RelojCuentaRegresiva.jsx";
+import { esCuentaRegresiva, normalizarCuenta } from "../lib/cuentaRegresiva.js";
 import { NOTES, normalizarTitulo, lideraBloque, isWorshipBlock, primaryBtn, ghostToggleBtn, iconGhost, ModalShell, Field, inputStyle, DEFAULT_COVERS, misAsignacionesEnEvento, quienDirigeAlabanza, miniBtnStyle, addBtnStyle, textoEnsayo, clasificacionesActuales, TYPE_META, ElegirParteDelCulto } from "./compartido.jsx";
 import { BibleModal } from "./biblia.jsx";
 import { SlideModal } from "./ventanas.jsx";
@@ -528,7 +531,7 @@ export function EventDetail({
   myIglesiaId, onAbrirEditor, onDisenarNueva,
   event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onPracticar, onGoLive, onDelete,
   isDraftFromTemplate, onPublish,
-  onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, destinoAgregar, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder,
+  onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
@@ -801,7 +804,7 @@ export function EventDetail({
         myIglesiaId={myIglesiaId}
         event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer || puedeEditarSetlist} userId={userId} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onAddSeccion={onAddSeccion}
-        onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick} onAddItems={onAddItems}
+        onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick} onAddItems={onAddItems} onAddCuenta={onAddCuenta}
         destinoAgregar={destinoAgregar} onDestinoAgregar={onDestinoAgregar} onEditarItem={onEditarItem}
         onRemove={onRemove} onRestaurar={onRestaurar} onDuplicate={onDuplicate} onReorder={onReorder}
         onLinkMinistry={onLinkMinistry} onUpdateSeccionText={onUpdateSeccionText}
@@ -962,7 +965,7 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, destinoAgregar = null, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar = null, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   const [showImportar, setShowImportar] = useState(false); // Importar presentación (ver ImportarPresentacion)
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
@@ -1024,10 +1027,12 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   const [showSeccionForm, setShowSeccionForm] = useState(false);
   // Editar una diapositiva de texto con el mismo formulario con que se creó (sin el editor de diseño).
   const [editTexto, setEditTexto] = useState(null); // { id, draft }
+  // Cuenta regresiva (2026-11-05): null | { item } (editar) | {} (nueva).
+  const [cuentaModal, setCuentaModal] = useState(null);
   const abrirEditarTexto = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", escalaSubtitulo: it.escalaSubtitulo, bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "" } });
   // La parte del culto elegida en "+ Agregar" solo vale mientras se está agregando: al cerrarse todo
   // (o cancelar), vuelve a "al final" para que lo siguiente no caiga en un bloque viejo.
-  const agregando = showAgregar || pickerCancion || showImportar || showBibleForm || showSlideForm || showSermonForm;
+  const agregando = showAgregar || pickerCancion || showImportar || showBibleForm || showSlideForm || showSermonForm || !!cuentaModal;
   useEffect(() => { if (!agregando && destinoAgregar) onDestinoAgregar?.(null); }, [agregando, destinoAgregar, onDestinoAgregar]);
   const [seccionDraft, setSeccionDraft] = useState({ title: "", description: "" });
   const confirmAddSeccion = () => {
@@ -1114,6 +1119,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
     isAdminViewer && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(destinoAgregar ? anclaDeBloque(event.serviceOrder, destinoAgregar)?.id : undefined) },
     isAdminViewer && { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
     canAddSermonPoints && { clave: "bosquejo", Icon: Mic2, color: "var(--wf-heading)", titulo: "Punto del bosquejo", detalle: "Lo que el predicador va a ir mostrando", accion: () => setShowSermonForm(true) },
+    isAdminViewer && onAddCuenta && { clave: "cuenta", Icon: Timer, color: "#5661B3", titulo: "Cuenta regresiva", detalle: "Un reloj antes de empezar (va al inicio si no eliges otra parte)", accion: () => setCuentaModal({}) },
     isAdminViewer && { clave: "bloque", Icon: ListMusic, color: "#5661B3", titulo: "Bloque del culto", detalle: "Una parte del culto: Bienvenida, Ofrenda…", accion: () => setShowSeccionForm(true) },
   ].filter(Boolean);
   const itemDelMenu = menuItem ? event.serviceOrder.find((x) => x.id === menuItem.id) : null;
@@ -1459,14 +1465,24 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                   </>
                 ) : (
                   <>
-                    {diapsItem?.length ? (
+                    {esCuentaRegresiva(item) ? (
+                      <div style={{ position: "relative", width: 64, aspectRatio: "16/9", borderRadius: 6, overflow: "hidden", flexShrink: 0, background: "#000", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}><RelojCuentaRegresiva cuenta={{ ...item.cuentaRegresiva, fondo: "propio" }} muestra={(normalizarCuenta(item.cuentaRegresiva).minutos || 5) * 60} quieto /></div>
+                    ) : diapsItem?.length ? (
                       <div style={{ position: "relative", width: 64, aspectRatio: "16/9", borderRadius: 6, overflow: "hidden", flexShrink: 0, boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}><DiapositivaDisenada diapositiva={diapsItem[0]} /></div>
                     ) : (
                       <div style={{ width: 26, height: 26, borderRadius: 10, background: `${meta.color}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={13} color={meta.color} /></div>
                     )}
-                    <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{item.type === "biblia" ? item.reference : item.name || item.title}</span>
+                    {esCuentaRegresiva(item) ? (
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: "block", fontSize: 13, fontWeight: 600 }}>Cuenta regresiva</span>
+                        <span style={{ display: "block", fontSize: 11, color: "var(--wf-muted)" }}>{normalizarCuenta(item.cuentaRegresiva).modo === "hora" && event.hora ? `Hasta las ${String(event.hora).slice(0, 5)}` : `${normalizarCuenta(item.cuentaRegresiva).minutos} min`} · {estiloCuenta(normalizarCuenta(item.cuentaRegresiva).estilo).nombre}</span>
+                      </span>
+                    ) : <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{item.type === "biblia" ? item.reference : item.name || item.title}</span>}
                     {diapsItem?.length > 1 && <span style={{ fontSize: 11, color: "var(--wf-muted)", background: "var(--wf-hover)", borderRadius: 14, padding: "2px 8px", flexShrink: 0 }}>{diapsItem.length} diapositivas</span>}
-                    {item.type === "slide" && isAdminViewer && !esGrupoDiapositivas(item) && onEditarItem && (
+                    {esCuentaRegresiva(item) && isAdminViewer && onEditarItem && (
+                      <button onClick={() => setCuentaModal({ item })} title="Editar la cuenta regresiva" style={{ ...iconGhost, color: "#2F5FA8" }}><Pencil size={14} /></button>
+                    )}
+                    {item.type === "slide" && !esCuentaRegresiva(item) && isAdminViewer && !esGrupoDiapositivas(item) && onEditarItem && (
                       <button onClick={() => abrirEditarTexto(item)} title="Editar el texto" style={{ ...iconGhost, color: "#2F5FA8" }}><Pencil size={14} /></button>
                     )}
                     {item.type === "slide" && isAdminViewer && esGrupoDiapositivas(item) && onAbrirEditor && (
@@ -1484,6 +1500,17 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
           );
         })}
       </div>
+      {cuentaModal && (
+        <CuentaRegresivaModal
+          inicial={cuentaModal.item?.cuentaRegresiva || null} evento={event} editando={!!cuentaModal.item}
+          onClose={() => setCuentaModal(null)}
+          onGuardar={(c) => {
+            if (cuentaModal.item) onEditarItem(cuentaModal.item.id, { cuentaRegresiva: c });
+            else { onAddCuenta(c); setShowAgregar(false); }
+            setCuentaModal(null);
+          }}
+        />
+      )}
       {showBibleForm && <BibleModal onClose={() => setShowBibleForm(false)} onAdd={addBible} splitVersesIndividually />}
       {showSlideForm && <SlideModal iglesiaId={myIglesiaId} draft={slideDraft} setDraft={setSlideDraft} onClose={() => setShowSlideForm(false)} onAdd={addSlide} />}
       {editTexto && (
@@ -1511,8 +1538,9 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
         );
         return createPortal(
           <div onPointerDown={(e) => e.stopPropagation()} role="menu" style={{ position: "fixed", left: Math.max(8, menuItem.x), top: menuItem.y, zIndex: 3000, width: 210, background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: 4, boxShadow: "0 12px 30px rgba(0,0,0,0.3)" }}>
-            {it.type === "slide" && !esGrupoDiapositivas(it) && onEditarItem && opcion(Pencil, "Editar texto", () => abrirEditarTexto(it))}
-            {it.type === "slide" && onAbrirEditor && opcion(PenTool, esGrupoDiapositivas(it) ? "Editar diseño" : "Diseñar (imágenes, plantillas)", () => onAbrirEditor(it.id))}
+            {esCuentaRegresiva(it) && onEditarItem && opcion(Timer, "Editar cuenta regresiva", () => setCuentaModal({ item: it }))}
+            {it.type === "slide" && !esCuentaRegresiva(it) && !esGrupoDiapositivas(it) && onEditarItem && opcion(Pencil, "Editar texto", () => abrirEditarTexto(it))}
+            {it.type === "slide" && !esCuentaRegresiva(it) && onAbrirEditor && opcion(PenTool, esGrupoDiapositivas(it) ? "Editar diseño" : "Diseñar (imágenes, plantillas)", () => onAbrirEditor(it.id))}
             {it.type === "cancion" && opcion(Music, "Abrir la canción", () => onOpenSong(it.songId, it.id))}
             {it.type === "seccion" && opcion(Users, expandedSections[it.id] ? "Ocultar encargados" : "Ver encargados", () => setExpandedSections((e) => ({ ...e, [it.id]: !e[it.id] })))}
             {opcion(Copy, "Duplicar", () => onDuplicate(it.id))}
