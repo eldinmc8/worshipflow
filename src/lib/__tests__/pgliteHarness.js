@@ -41,7 +41,7 @@ export async function levantarBaseDePrueba() {
     create role authenticated;
     create role service_role;
     create schema auth;
-    create table auth.users (id uuid primary key, email text);
+    create table auth.users (id uuid primary key, email text, last_sign_in_at timestamptz);
     create function auth.uid() returns uuid language sql stable as $$
       select nullif(current_setting('test.uid', true), '')::uuid
     $$;
