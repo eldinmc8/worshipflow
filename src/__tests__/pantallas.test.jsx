@@ -185,4 +185,31 @@ describe("¿abre la pantalla?", () => {
     expect(within(panel).getByText(/Temporizador del mensaje/i)).toBeTruthy();
     sinPantallaDeError();
   });
+
+  it("agrega una cuenta regresiva al Setlist y se proyecta al iniciar", async () => {
+    abrirApp();
+    await screen.findByText(/Miembros del equipo/, {}, { timeout: 4000 });
+    await irA("Eventos");
+    fireEvent.click((await screen.findAllByText(/Culto dominical/))[0]);
+    await screen.findAllByText(/Predicación/);
+    fireEvent.click(document.querySelector('[data-tour="evento-editar-setlist"]'));
+    fireEvent.click(await screen.findByText("Cuenta regresiva"));
+    const ventana = await screen.findByRole("dialog", { name: "Cuenta regresiva" });
+    fireEvent.click(within(ventana).getByRole("button", { name: "Por minutos" }));
+    fireEvent.click(within(ventana).getByRole("button", { name: "3 min" }));
+    fireEvent.click(within(ventana).getByTitle("Pizarra"));
+    fireEvent.click(within(ventana).getByRole("button", { name: "Agregar al Setlist" }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getAllByText(/3 min · Pizarra/).length).toBeGreaterThan(0);
+    sinPantallaDeError();
+    // Va primero en el culto: al iniciar la transmisión es lo que sale al aire.
+    // (Si la prueba anterior dejó la transmisión andando, basta con ir a En vivo.)
+    const iniciar = screen.getAllByRole("button").find((b) => /iniciar (evento|transmisi)/i.test(b.textContent))
+      || screen.getAllByRole("button").find((b) => b.textContent.trim() === "En vivo");
+    fireEvent.click(iniciar);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(document.querySelector('[aria-label^="Cuenta regresiva: 03:00"], [aria-label^="Cuenta regresiva: 02:5"]')).toBeTruthy();
+    expect(screen.getAllByRole("button").some((b) => /Reiniciar cuenta regresiva/.test(b.textContent))).toBe(true);
+    sinPantallaDeError();
+  });
 });

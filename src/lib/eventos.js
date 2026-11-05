@@ -116,7 +116,7 @@ function filaAItemServicio(row, encargadosPorItem) {
   if (row.tipo === "biblia") return { ...base, type: "biblia", reference: row.referencia, version: row.version_biblia, text: row.texto_biblia, bookId: row.libro_id || undefined, bookName: row.libro_nombre || undefined, chapter: row.capitulo || undefined, verseStart: row.versiculo_inicio || undefined, verseEnd: row.versiculo_fin || undefined };
   // Diapositivas con diseño (presentación agrupada o editada en el editor): viven en estructura.diapositivas.
   const diapositivas = Array.isArray(row.estructura?.diapositivas) && row.estructura.diapositivas.length ? row.estructura.diapositivas : undefined;
-  return { ...base, type: "slide", title: row.titulo || "", name: row.descripcion || "", escalaSubtitulo: row.estructura?.escalaSubtitulo || undefined, subtitle: row.subtitulo || "", bg: row.fondo_color || "#1B2029", bgType: row.fondo_tipo || "color", videoUrl: row.fondo_video_url || "", imageUrl: row.fondo_imagen_url || "", isSermonPoint: row.es_punto_bosquejo || undefined, ...(diapositivas ? { diapositivas } : {}) };
+  return { ...base, type: "slide", title: row.titulo || "", name: row.descripcion || "", escalaSubtitulo: row.estructura?.escalaSubtitulo || undefined, subtitle: row.subtitulo || "", bg: row.fondo_color || "#1B2029", bgType: row.fondo_tipo || "color", videoUrl: row.fondo_video_url || "", imageUrl: row.fondo_imagen_url || "", isSermonPoint: row.es_punto_bosquejo || undefined, ...(diapositivas ? { diapositivas } : {}), ...(row.estructura?.cuentaRegresiva ? { cuentaRegresiva: row.estructura.cuentaRegresiva } : {}) };
 }
 
 function itemServicioAFila(item, eventoId, orden) {
@@ -141,6 +141,8 @@ function itemServicioAFila(item, eventoId, orden) {
   // escalaSubtitulo (tamaño del texto pequeño de una diapositiva de texto) viaja en estructura, que las
   // diapositivas de texto no usaban.
   const marca = item.bosquejoDe ? { bosquejoDe: item.bosquejoDe, ...(item.bosquejoPunto ? { punto: item.bosquejoPunto } : {}) } : {};
+  // Cuenta regresiva (2026-11-05): su configuración también viaja en estructura.
+  if (item.cuentaRegresiva) return { ...base, estructura: { cuentaRegresiva: item.cuentaRegresiva }, tipo: "slide", titulo: item.title || "Cuenta regresiva", descripcion: item.name || "", subtitulo: "", fondo_color: item.bg || "#0B0F17", fondo_video_url: null, fondo_imagen_url: null };
   return { ...base, ...(item.diapositivas?.length ? { estructura: { diapositivas: item.diapositivas, ...marca } } : item.escalaSubtitulo ? { estructura: { escalaSubtitulo: item.escalaSubtitulo, ...marca } } : {}), tipo: "slide", titulo: item.title || "", descripcion: item.name || "", subtitulo: item.subtitle || "", fondo_color: item.bg || "#1B2029", fondo_video_url: item.videoUrl || null, fondo_imagen_url: item.imageUrl || null };
 }
 

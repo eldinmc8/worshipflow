@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Minus, Plus, Maximize, Music, BookOpen, Type, MessageSquare } from "lucide-react";
+import { X, Minus, Plus, Maximize, Music, BookOpen, Type, MessageSquare, Timer } from "lucide-react";
 import AutoFitText from "./components/AutoFitText.jsx";
 import { leerEscenarioDeUrl } from "./lib/enlacePantalla.js";
 import { tiempoTranscurrido, restanteTemporizador, textoTemporizador, nivelTemporizador } from "./lib/escenario.js";
@@ -7,6 +7,7 @@ import { useSesionPublica } from "./lib/usarSesionPublica.js";
 import EnlaceVencido from "./components/EnlaceVencido.jsx";
 import { soportaPantallaCompleta, pedirPantallaCompleta, salirDePantallaCompleta } from "./lib/pantallaCompleta.js";
 import AvisoIphone from "./components/AvisoIphone.jsx";
+import { segundosRestantes, textoCuenta } from "./lib/cuentaRegresiva.js";
 
 // Pantalla de escenario (stage display, pedido de Eldin, 2026-11-01). Monitor en el piso del escenario
 // para quienes cantan, tocan o predican: la letra al aire en grande, lo que sigue, la parte de la
@@ -86,6 +87,13 @@ export default function PantallaEscenario() {
   let lineasAhora = [], etiquetaAhora = "", IconoAhora = Type;
   if (slide?.type === "cancion") { lineasAhora = (slide.lines || []).filter((l) => l && l.trim()); etiquetaAhora = slide.blockLabel || ""; IconoAhora = Music; }
   else if (slide?.type === "biblia") { lineasAhora = [slide.text || ""]; etiquetaAhora = `${slide.reference || ""}${slide.version ? ` · ${slide.version}` : ""}`; IconoAhora = BookOpen; }
+  else if (slide?.cuenta) {
+    // Cuenta regresiva (2026-11-05): el equipo ve cuánto falta, en grande.
+    const seg = segundosRestantes(slide.cuenta.hasta, ahora);
+    lineasAhora = [seg === 0 && slide.cuenta.alTerminar === "mensaje" ? slide.cuenta.mensajeFinal || "¡Bienvenidos!" : textoCuenta(seg ?? (slide.cuenta.minutos || 5) * 60)];
+    etiquetaAhora = slide.cuenta.mostrarTexto && slide.cuenta.texto ? `Cuenta regresiva · ${slide.cuenta.texto}` : "Cuenta regresiva";
+    IconoAhora = Timer;
+  }
   else if (slide) { lineasAhora = [slide.title, slide.subtitle].filter((t) => t && String(t).trim()); if (!lineasAhora.length) lineasAhora = [slide.nombre || "Diapositiva"]; etiquetaAhora = slide.diseno ? "Diapositiva con diseño" : ""; }
   const esVersiculo = slide?.type === "biblia";
 
