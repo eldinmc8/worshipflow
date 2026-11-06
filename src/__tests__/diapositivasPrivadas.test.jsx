@@ -50,3 +50,11 @@ describe("diapositivas privadas del Setlist", () => {
     expect(PLANTILLAS_ROL.find((p) => p.nombre === "Pastor / Supervisor").permisos.ver_diapositivas).toBe(true);
   });
 });
+
+describe("eliminar el bosquejo", () => {
+  it("quita del Setlist solo las diapositivas de ese bosquejo", async () => {
+    const { quitarBosquejoDelOrden } = await import("../lib/bosquejos.js");
+    const orden = quitarBosquejoDelOrden(evento.serviceOrder, "b3").map((it) => it.id);
+    expect(orden).toEqual(["b1", "c1", "b2", "b3", "v1", "sl1"]);
+  });
+});

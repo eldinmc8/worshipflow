@@ -75,6 +75,17 @@ export async function guardarBosquejo(eventoId, bloqueId, bosquejo, { enviado = 
   return filaABosquejo(data);
 }
 
+// Borra el bosquejo de un bloque (pedido de Eldin, 2026-11-06). Las diapositivas que ya se habían
+// enviado al Setlist las quita quien llama (ver quitarBosquejoDelOrden).
+export async function eliminarBosquejo(bloqueId) {
+  const { error } = await supabase.from("bosquejos").delete().eq("item_servicio_id", bloqueId);
+  if (error) throw error;
+}
+
+export function quitarBosquejoDelOrden(orden, bloqueId) {
+  return (orden || []).filter((it) => it.bosquejoDe !== bloqueId);
+}
+
 // Un versículo elegido en el selector de Biblia → ítem "biblia" del Setlist.
 // bosquejoPunto (1, 2, 3…): de qué punto del bosquejo es; la pantalla de escenario lo usa para mostrarle
 // al predicador su nota privada y "Punto 2 de 4".

@@ -44,7 +44,7 @@ function TarjetaVersiculo({ v, onQuitar, compacta = false }) {
 
 // soloLectura (2026-11-06): lo abre alguien que no es el predicador (Supervisor, Multimedia, un rol con
 // "ver_diapositivas") solo para leer el bosquejo ya enviado — llega siempre junto con bloqueado.
-export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bloqueado = false, soloLectura = false, onGuardar, onEnviar, onClose, BibliaSelector }) {
+export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bloqueado = false, soloLectura = false, onEliminar = null, onGuardar, onEnviar, onClose, BibliaSelector }) {
   const [b, setB] = useState(() => ({ ...bosquejoVacio(), ...(inicial || {}) }));
   // Ya enviado antes → abre directo en "Revisar"; si no, en el primer paso.
   const [paso, setPaso] = useState(() => (inicial?.enviadoAt ? 4 : 0));
@@ -332,6 +332,8 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
               <div style={{ fontSize: 14.5, fontWeight: 700, color: "var(--wf-text)" }}>Bosquejo del sermón</div>
               <div style={{ fontSize: 11.5, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{[tituloBloque, tituloEvento].filter(Boolean).join(" · ")}</div>
             </div>
+            {/* Solo llega para el predicador asignado o un administrador (ver puedeEliminarBosquejo). */}
+            {onEliminar && <button type="button" onClick={onEliminar} style={{ ...botonIcono, color: "#C23B32" }} aria-label="Eliminar bosquejo" title="Eliminar bosquejo"><Trash2 size={17} /></button>}
             <button type="button" onClick={cerrar} style={botonIcono} aria-label="Cerrar"><X size={18} /></button>
           </div>
           {/* Pasos: tocar uno ya visitado lleva ahí */}

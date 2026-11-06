@@ -11,7 +11,7 @@ import { saveCache, loadCache } from "./lib/offlineCache.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { palabrasPorParteSegun, expandirVersiculosLargos, reorganizarLetra } from "./lib/dividirTexto.js";
 import { insertarEnBloque } from "./lib/ordenCulto.js";
-import { esBloquePredicacion, guardarBosquejo, aplicarBosquejoAlOrden, bosquejoAItems } from "./lib/bosquejos.js";
+import { esBloquePredicacion, guardarBosquejo, aplicarBosquejoAlOrden, bosquejoAItems, eliminarBosquejo, quitarBosquejoDelOrden } from "./lib/bosquejos.js";
 import { animacionEfectiva, estiloDeParte } from "./lib/animacionCancion.js";
 import { esCuentaRegresiva, slideCuentaRegresiva, conHoraFinal, arrancarSiHaceFalta, slideCuentaAlMomento, normalizarCuenta, itemCuentaRegresiva } from "./lib/cuentaRegresiva.js";
 import { confirmDialog } from "./lib/confirm.js";
@@ -1406,6 +1406,29 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       throw err;
     }
   };
+  // Eliminar el bosquejo (pedido de Eldin, 2026-11-06): solo el predicador asignado a ese bloque o un
+  // administrador. Con el culto en vivo, el predicador ya no puede (igual que para editarlo).
+  const puedeEliminarBosquejo = (block) => !!block && esBloquePredicacion(block) && !!selectedEvent?.bosquejos?.[block.id]
+    && (isAdminViewer || ((block.encargados || []).some((m) => m.usuarioId === myUserId) && liveEventId !== selectedEventId));
+  const borrarBosquejo = async () => {
+    const eventoId = selectedEventId, bloqueId = bosquejoAbierto;
+    const enviado = !!selectedEvent?.bosquejos?.[bloqueId]?.enviadoAt;
+    const aviso = enviado ? "¿Eliminar el bosquejo? También se quitan sus diapositivas del Setlist. Esto no se puede deshacer." : "¿Eliminar el bosquejo? Esto no se puede deshacer.";
+    if (!(await confirmDialog(aviso, { danger: true, textoConfirmar: "Eliminar" }))) return;
+    try {
+      await eliminarBosquejo(bloqueId);
+      setEventsSynced((evs) => evs.map((e) => {
+        if (e.id !== eventoId) return e;
+        const { [bloqueId]: _borrado, ...resto } = e.bosquejos || {}; // eslint-disable-line no-unused-vars
+        return { ...e, bosquejos: resto };
+      }));
+      if (enviado) updateOrder((o) => quitarBosquejoDelOrden(o, bloqueId));
+      setBosquejoAbierto(null);
+      showToast("Bosquejo eliminado.", "info");
+    } catch (err) {
+      notifyError("No se pudo eliminar el bosquejo", err);
+    }
+  };
   const bosquejoInfo = { puede: puedeBosquejo, puedeVer: puedeVerBosquejo, abrir: setBosquejoAbierto, bosquejos: selectedEvent?.bosquejos || {} };
 
   // ---- Estilo en vivo de la proyección: declarado más arriba (antes de `slides`), porque el tamaño de
@@ -2301,6 +2324,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           inicial={selectedEvent.bosquejos?.[bloqueBosquejo.id]}
           tituloBloque={bloqueBosquejo.title} tituloEvento={selectedEvent.title}
           bloqueado={bosquejoBloqueado} soloLectura={bosquejoSoloLectura}
+          onEliminar={puedeEliminarBosquejo(bloqueBosquejo) ? borrarBosquejo : null}
           onGuardar={guardarBorradorBosquejo} onEnviar={enviarBosquejo}
           onClose={() => setBosquejoAbierto(null)}
           BibliaSelector={BibleBrowserBody}
