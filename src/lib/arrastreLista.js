@@ -21,6 +21,8 @@ const BORDE_AUTOSCROLL_PX = 70;
 const VELOCIDAD_MAX_AUTOSCROLL = 14;
 const SIEMPRE_EXCLUIDO = "button, select, a, [data-no-arrastre]";
 const CAMPOS_TEXTO = "input, textarea";
+// Dentro de estos el celular debe poder mostrar su menú de Copiar/Pegar/Seleccionar todo.
+export const esCampoEditable = (el) => !!el?.closest?.('input, textarea, [contenteditable="true"], [contenteditable=""], [data-no-arrastre]');
 
 // Índice FINAL donde quedaría la fila arrastrada: cuántas de las otras filas tienen su centro por
 // encima del centro actual de la arrastrada. Usa las posiciones fotografiadas al empezar (no las de
@@ -220,8 +222,10 @@ export function useArrastreLista({ habilitado, puedeArrastrar, onReorder }) {
       window.addEventListener("touchmove", g.bloquearScroll, { passive: false });
       if (g.tipo !== "mouse") g.timer = setTimeout(activar, ESPERA_TOQUE_MS);
     },
-    // Evita el menú de "copiar/compartir" del celular al mantener presionado.
-    onContextMenu: (e) => { if (opcionesRef.current.habilitado) e.preventDefault(); },
+    // Evita el menú de "copiar/compartir" del celular al mantener presionado la fila — pero NUNCA dentro
+    // de un campo de texto: ahí ese menú es el de Copiar/Pegar/Seleccionar todo (en Android sale con este
+    // mismo evento) y sin él no se puede trabajar la letra (pedido urgente de Eldin, 2026-11-06).
+    onContextMenu: (e) => { if (opcionesRef.current.habilitado && !esCampoEditable(e.target)) e.preventDefault(); },
   });
 
   // Estilo de cada fila: la arrastrada sigue al dedo, levantada; las demás se apartan.
