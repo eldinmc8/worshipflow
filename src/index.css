@@ -5,7 +5,7 @@
    a ese <style>, así que 7 de las 12 fuentes de entonces (todas menos Fraunces/Poppins/JetBrains Mono)
    nunca cargaban ahí: cualquiera que las eligiera, la congregación veía una fuente de respaldo
    genérica en vez de la elegida (bug real, encontrado el 2026-10-05 al agregar más fuentes). */
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&family=Playfair+Display:ital,wght@1,600&family=Montserrat:wght@300;700&family=Bebas+Neue&family=Oswald:wght@500;600&family=Quicksand:wght@500;700&family=Dancing+Script:wght@600;700&family=Raleway:wght@300&family=Archivo+Black&family=Anton&family=Bitter:wght@600&family=Cinzel:wght@600&family=Permanent+Marker&family=Barlow+Condensed:wght@600&family=Pacifico&family=Great+Vibes&family=Allura&family=Alex+Brush&family=Sacramento&family=Parisienne&family=Satisfy&family=Bangers&family=Bungee&family=Fredoka:wght@600;700&family=Courier+Prime:wght@700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&family=Playfair+Display:ital,wght@1,600&family=Montserrat:wght@300;700&family=Bebas+Neue&family=Oswald:wght@500;600&family=Quicksand:wght@500;700&family=Dancing+Script:wght@600;700&family=Raleway:wght@300&family=Archivo+Black&family=Anton&family=Bitter:wght@600&family=Cinzel:wght@600&family=Permanent+Marker&family=Barlow+Condensed:wght@600&family=Pacifico&family=Great+Vibes&family=Allura&family=Alex+Brush&family=Sacramento&family=Parisienne&family=Satisfy&family=Bangers&family=Bungee&family=Fredoka:wght@600;700&family=Courier+Prime:wght@700&family=Abril+Fatface&family=Special+Elite&family=Monoton&family=Rubik+Mono+One&family=Righteous&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -363,3 +363,106 @@ img, svg {
 @keyframes wfx-p-brillar { from { filter: brightness(1) } to { filter: brightness(1.3) } }
 @keyframes wfx-p-ondular { 0% { transform: translateY(0) } 100% { transform: translateY(calc(var(--m, 1em) * -.12)) } }
 @keyframes wfx-p-balancear { from { transform: rotate(-3deg) } to { transform: rotate(3deg) } }
+
+/* ================= Letra animada: piezas nuevas (2026-11-06) =================
+   Entradas y permanencias de las recetas (wfx-*), cómo se ve cada palabra (.wft-*), acomodo (.wfl-*),
+   efectos del contenedor (.wfs-*), latido al compás (.wfb-latido) y efectos de pantalla (.wfe-*).
+   Igual que antes: solo se animan transform/opacity/filter/clip-path, nunca el tamaño de la letra. */
+@keyframes wfx-cortina { from { opacity: 0; clip-path: inset(-30% 100% -30% -30%) } 1% { opacity: 1 } to { opacity: 1; clip-path: inset(-30% -30% -30% -30%) } }
+@keyframes wfx-emerger { from { opacity: 0; transform: translateY(calc(var(--m, 1em) * .7)); clip-path: inset(-30% -30% 100% -30%) } to { opacity: 1; transform: none; clip-path: inset(-30% -30% -30% -30%) } }
+@keyframes wfx-caida { 0% { opacity: 0; transform: translateY(calc(var(--m, 1em) * -2.6)) rotate(calc(var(--r, .5) * 70deg)) } 60% { opacity: 1; transform: translateY(calc(var(--m, 1em) * .08)) rotate(calc(var(--r, .5) * -4deg)) } 100% { opacity: 1; transform: none } }
+@keyframes wfx-zoomatras { from { opacity: 0; transform: scale(4); filter: blur(calc(var(--m, 1em) * .2)) } to { opacity: 1; transform: none; filter: none } }
+@keyframes wfx-estampar { 0% { opacity: 0; transform: scale(2.4) rotate(calc(var(--r, .5) * 25deg)) } 70% { opacity: 1; transform: scale(.95) } 100% { opacity: 1; transform: none } }
+@keyframes wfx-voltear { from { opacity: 0; transform: perspective(4em) rotateX(-95deg) } to { opacity: 1; transform: none } }
+@keyframes wfx-girar3d { from { opacity: 0; transform: perspective(4em) rotateY(95deg) } to { opacity: 1; transform: none } }
+@keyframes wfx-elastico { 0% { opacity: 0; transform: scaleX(0) } 50% { opacity: 1; transform: scale(1.35, .8) } 75% { transform: scale(.92, 1.1) } 100% { opacity: 1; transform: none } }
+@keyframes wfx-barrido { from { opacity: 0; transform: translateX(calc(var(--m, 1em) * -.6)); filter: brightness(3) blur(calc(var(--m, 1em) * .08)) } to { opacity: 1; transform: none; filter: none } }
+@keyframes wfx-sacudida { 0% { opacity: 0; transform: scale(1.5) } 20% { opacity: 1; transform: translate(calc(var(--m, 1em) * .08), calc(var(--m, 1em) * -.05)) } 35% { transform: translate(calc(var(--m, 1em) * -.07), calc(var(--m, 1em) * .04)) } 50% { transform: translate(calc(var(--m, 1em) * .05), 0) } 65% { transform: translate(calc(var(--m, 1em) * -.03), calc(var(--m, 1em) * .02)) } 100% { opacity: 1; transform: none } }
+@keyframes wfx-pixelar { 0% { opacity: 0; filter: blur(calc(var(--m, 1em) * .35)) } 30% { opacity: 1 } 100% { opacity: 1; filter: none } }
+@keyframes wfx-latigazo { 0% { opacity: 0; transform: translateX(calc(var(--m, 1em) * -2.5)) skewX(-45deg) } 60% { opacity: 1; transform: translateX(calc(var(--m, 1em) * .15)) skewX(12deg) } 100% { opacity: 1; transform: none } }
+@keyframes wfx-explosion { 0% { opacity: 0; transform: translate(calc(var(--dx, .5) * var(--m, 1em) * 7), calc(var(--dy, .5) * var(--m, 1em) * 5)) rotate(calc(var(--r, .5) * 200deg)) scale(2.2) } 70% { opacity: 1 } 100% { opacity: 1; transform: none } }
+@keyframes wfx-papel { 0% { opacity: 0; transform: translateY(calc(var(--m, 1em) * -.5)) scale(1.35) rotate(calc(var(--r, .5) * 24deg)) } 65% { opacity: 1; transform: scale(.97) } 100% { opacity: 1; transform: none } }
+@keyframes wfx-p-temblar { 0%, 100% { transform: translate(0, 0) } 25% { transform: translate(calc(var(--m, 1em) * .015), calc(var(--m, 1em) * -.01)) } 50% { transform: translate(calc(var(--m, 1em) * -.012), calc(var(--m, 1em) * .012)) } 75% { transform: translate(calc(var(--m, 1em) * .01), 0) } }
+@keyframes wfx-p-respirar { from { transform: scale(1); opacity: 1 } to { transform: scale(1.025); opacity: .86 } }
+@keyframes wfx-p-chispear { 0%, 90%, 100% { opacity: 1 } 92% { opacity: .35 } 94% { opacity: 1 } 97% { opacity: .55 } }
+
+/* ---- Cómo se ve cada palabra (.wft-<tratamiento> en la palabra; .wft-in es el papel/caja de adentro) ---- */
+.wfr .wft-in { display: inline-block; white-space: pre; }
+/* Recortes de periódico: cada pedazo con su papel, su letra y su inclinación. Los papeles oscuros se
+   funden con el fondo (screen): el negro desaparece y se ve el video/fondo alrededor de la letra. */
+.wft-periodico .wft-in { padding: .03em .16em .01em; margin: .05em .045em; line-height: 1.04; rotate: calc(var(--rr, 0) * 5deg); box-shadow: .03em .05em .1em rgba(0,0,0,.45); text-shadow: none; text-transform: none; letter-spacing: 0;
+  clip-path: polygon(0 4%, 9% 0, 22% 5%, 37% 1%, 52% 4%, 68% 0, 83% 5%, 100% 2%, 98% 30%, 100% 62%, 97% 100%, 82% 96%, 66% 100%, 49% 95%, 33% 100%, 17% 96%, 2% 100%, 0 68%, 3% 35%); }
+.wft-periodico .wft-v0 { background: #F2EBDD; color: #151515; font-family: 'Abril Fatface', serif; background-image: repeating-linear-gradient(0deg, rgba(0,0,0,.05) 0 1px, transparent 1px 4px); }
+.wft-periodico .wft-v1 { background: #0E0E0E; color: #FFFFFF; font-family: 'Bebas Neue', sans-serif; box-shadow: none; }
+.wft-periodico .wft-v2 { background: #FFE14D; color: #141414; font-family: 'Archivo Black', sans-serif; }
+.wft-periodico .wft-v3 { background: #E9E4D8; color: #B3261E; font-family: 'Playfair Display', serif; font-style: italic; background-image: radial-gradient(rgba(0,0,0,.09) 18%, transparent 20%); background-size: .14em .14em; }
+.wft-periodico .wft-v4 { background: #FFFFFF; color: #000000; font-family: 'Special Elite', 'Courier Prime', monospace; }
+.wft-periodico .wft-v5 { background: #FF4F8B; color: #FFFFFF; font-family: 'Anton', sans-serif; }
+.wft-periodico .wft-v6 { background: #1B1B1B; color: #FFE14D; font-family: 'Rubik Mono One', 'Archivo Black', sans-serif; box-shadow: none; font-size: .82em; }
+.wft-periodico .wfa-clave .wft-in, .wft-periodico.wfa-clave .wft-in { background: #E8432E; color: #fff; }
+/* Cinta adhesiva de colores, medio transparente (se ve el fondo a través). */
+.wft-cinta .wft-in { padding: .02em .3em; margin: .05em .04em; rotate: calc(var(--rr, 0) * 3deg); background: var(--cinta, rgba(255,225,77,.78)); color: #151515; text-shadow: none;
+  clip-path: polygon(0 0, 100% 0, 97% 12%, 100% 25%, 97% 38%, 100% 50%, 97% 62%, 100% 75%, 97% 88%, 100% 100%, 0 100%, 3% 88%, 0 75%, 3% 62%, 0 50%, 3% 38%, 0 25%, 3% 12%); }
+/* Sello de goma: tinta que se funde con el fondo. */
+.wft-sello .wft-in { border: .07em solid currentColor; border-radius: .12em; padding: 0 .16em; margin: .06em; rotate: calc(var(--rr, 0) * 8deg); text-transform: uppercase; text-shadow: none; opacity: .95;
+  -webkit-mask-image: radial-gradient(circle at 30% 40%, #000 60%, rgba(0,0,0,.55) 61%, #000 75%); mask-image: radial-gradient(circle at 30% 40%, #000 60%, rgba(0,0,0,.55) 61%, #000 75%); }
+.wft-caja .wft-in { background: var(--wft-color, #E8821E); color: #FFFFFF; padding: 0 .16em; margin: .03em .03em; text-shadow: none; }
+.wft-resaltador .wft-in { --wft-tinta: color-mix(in srgb, var(--wft-color, #FFE14D) 78%, transparent); background: linear-gradient(transparent 52%, var(--wft-tinta) 52%, var(--wft-tinta) 92%, transparent 92%); padding: 0 .06em; }
+.wfr .wft-contorno { color: transparent !important; -webkit-text-stroke: .035em var(--wft-trazo, #FFFFFF); text-shadow: none; }
+.wfr .wft-contorno.wfa-clave { color: var(--wft-trazo, #FFFFFF) !important; }
+.wft-cromo .wft-in { background: linear-gradient(180deg, #FFFFFF 0%, #DDE5F0 42%, #5D6B82 50%, #EEF2F8 56%, #8A97AB 100%); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 .05em .08em rgba(0,0,0,.6)); }
+.wft-degradado .wft-in { background: linear-gradient(90deg, #FFD23F, #FF5FA2 35%, #8F7CFF 68%, #3EE7FF); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 .04em .06em rgba(0,0,0,.45)); }
+/* Letra calada: caja blanca con la letra "recortada" — dentro de la letra se ve el fondo (screen). */
+.wft-calado .wft-in { background: #FFFFFF; color: #000000; padding: 0 .14em; margin: .03em .035em; text-shadow: none; }
+.wfr .wft-invertido { color: #FFFFFF !important; text-shadow: none; }
+.wft-sombralarga .wft-in { text-shadow: .02em .02em 0 var(--wft-sombra, #8A3B12), .04em .04em 0 var(--wft-sombra, #8A3B12), .06em .06em 0 var(--wft-sombra, #8A3B12), .08em .08em 0 var(--wft-sombra, #8A3B12), .1em .1em 0 var(--wft-sombra, #8A3B12), .12em .12em .08em rgba(0,0,0,.5); }
+
+/* ---- Acomodo: márgenes y rotate suelto (no chocan con las animaciones de transform; escalonado y cascada
+   con márgenes para no crear una capa aparte, que rompería la mezcla con el fondo) ---- */
+.wfl-escalonado > div:nth-child(odd) { margin-right: .9em; }
+.wfl-escalonado > div:nth-child(even) { margin-left: .9em; }
+.wfl-cascada > div:nth-child(2) { margin-left: 1em; }
+.wfl-cascada > div:nth-child(3) { margin-left: 2em; }
+.wfl-cascada > div:nth-child(4) { margin-left: 3em; }
+.wfl-diagonal { rotate: -5deg; }
+.wfr.wfl-gigante .wfa-clave { font-size: 1.4em; }
+
+/* ---- Efectos del contenedor de la letra ---- */
+.wfs-temblor { animation: wfa-temblor calc(1.4s * var(--wfv, 1)) linear calc(.25s * var(--wfv, 1)) both; }
+.wfs-acercar { animation: wfs-acercar 6s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes wfs-acercar { from { scale: 1.18; filter: blur(.03em) } 12% { filter: none } to { scale: 1 } }
+.wfs-espejo { -webkit-box-reflect: below .02em linear-gradient(transparent 50%, rgba(255,255,255,.28)); }
+/* Latido al compás: la duración la pone la proyección con el tempo de la canción (--beat). */
+.wfb-latido { animation: wfb-latido var(--beat, .5s) cubic-bezier(.2,.7,.3,1) infinite; }
+@keyframes wfb-latido { 0% { scale: 1.035 } 35%, 100% { scale: 1 } }
+
+/* ---- Efectos de pantalla (encima de todo, sin tapar los toques) ---- */
+.wfe { position: absolute; inset: 0; pointer-events: none; z-index: 3; overflow: hidden; }
+.wfe-panel { position: absolute; background: #07090D; }
+.wfe-puertas .wfe-a { left: 0; top: 0; bottom: 0; width: 50.5%; box-shadow: inset -.4vmin 0 0 var(--wfe-color); animation: wfe-izq .8s cubic-bezier(.7,0,.2,1) .12s both; }
+.wfe-puertas .wfe-b { right: 0; top: 0; bottom: 0; width: 50.5%; box-shadow: inset .4vmin 0 0 var(--wfe-color); animation: wfe-der .8s cubic-bezier(.7,0,.2,1) .12s both; }
+.wfe-cortina .wfe-a { left: 0; right: 0; top: 0; height: 50.5%; box-shadow: inset 0 -.4vmin 0 var(--wfe-color); animation: wfe-arr .8s cubic-bezier(.7,0,.2,1) .12s both; }
+.wfe-cortina .wfe-b { left: 0; right: 0; bottom: 0; height: 50.5%; box-shadow: inset 0 .4vmin 0 var(--wfe-color); animation: wfe-aba .8s cubic-bezier(.7,0,.2,1) .12s both; }
+.wfe-diagonal .wfe-a { left: -50%; top: -50%; width: 200%; height: 100%; rotate: -14deg; transform-origin: 50% 100%; box-shadow: inset 0 -.5vmin 0 var(--wfe-color); animation: wfe-arr 0.9s cubic-bezier(.7,0,.2,1) .1s both; }
+.wfe-diagonal .wfe-b { left: -50%; bottom: -50%; width: 200%; height: 100%; rotate: -14deg; transform-origin: 50% 0; box-shadow: inset 0 .5vmin 0 var(--wfe-color); animation: wfe-aba 0.9s cubic-bezier(.7,0,.2,1) .1s both; }
+@keyframes wfe-izq { to { transform: translateX(-101%) } }
+@keyframes wfe-der { to { transform: translateX(101%) } }
+@keyframes wfe-arr { to { transform: translateY(-120%) } }
+@keyframes wfe-aba { to { transform: translateY(120%) } }
+.wfe-persianas { display: flex; }
+.wfe-persianas .wfe-tira { flex: 1; background: #07090D; transform-origin: 50% 50%; animation: wfe-tira .55s cubic-bezier(.7,0,.2,1) both; animation-delay: calc(.08s + var(--k) * .05s); border-right: 1px solid color-mix(in srgb, var(--wfe-color) 45%, transparent); }
+@keyframes wfe-tira { to { transform: scaleX(0) } }
+.wfe-corte .wfe-linea { position: absolute; left: -10%; right: -10%; top: 50%; height: .7vmin; background: #FFFFFF; box-shadow: 0 0 2vmin 0.6vmin var(--wfe-color); rotate: -12deg; transform-origin: 0 50%; animation: wfe-tajo .7s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes wfe-tajo { 0% { transform: scaleX(0); opacity: 1 } 45% { transform: scaleX(1); opacity: 1 } 100% { transform: scaleX(1); opacity: 0 } }
+.wfe-barras .wfe-a { left: 0; right: 0; top: 0; height: 11%; background: #000; animation: wfe-barra-a 1s cubic-bezier(.2,.8,.2,1) both; }
+.wfe-barras .wfe-b { left: 0; right: 0; bottom: 0; height: 11%; background: #000; animation: wfe-barra-b 1s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes wfe-barra-a { from { transform: translateY(-100%) } }
+@keyframes wfe-barra-b { from { transform: translateY(100%) } }
+.wfe-led { background-image: radial-gradient(circle, transparent 58%, rgba(0,0,0,.42) 66%); background-size: max(3px, .42vmin) max(3px, .42vmin); }
+.wfe-destellos { background: #FFFFFF; opacity: 0; animation: wfe-destello var(--beat, .5s) steps(1, end) .1s 4; }
+@keyframes wfe-destello { 0% { opacity: .28 } 18% { opacity: 0 } 100% { opacity: 0 } }
+.wfe-barrido .wfe-luz { position: absolute; top: -20%; bottom: -20%; width: 28%; left: -40%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent); rotate: 14deg; mix-blend-mode: overlay; animation: wfe-pasar 1.6s cubic-bezier(.4,0,.2,1) .35s both; }
+@keyframes wfe-pasar { to { left: 120% } }
+.wfe-rgb .wfe-franja { position: absolute; left: 0; right: 0; height: 6%; mix-blend-mode: screen; opacity: 0; animation: wfe-falla .5s steps(2, end) both; animation-delay: calc(var(--k) * .07s); }
+@keyframes wfe-falla { 0% { opacity: .65; transform: translateX(-6%) } 50% { opacity: .5; transform: translateX(5%) } 100% { opacity: 0; transform: none } }
+@media (prefers-reduced-motion: reduce) { .wfe-destellos { animation: none; } }

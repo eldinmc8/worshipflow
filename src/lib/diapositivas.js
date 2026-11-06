@@ -52,6 +52,13 @@ export const FUENTES = [
   { clave: "bungee", nombre: "Bungee (retro)", family: "'Bungee', 'Archivo Black', sans-serif" },
   { clave: "fredoka", nombre: "Fredoka (redondeada)", family: "'Fredoka', 'Quicksand', sans-serif" },
   { clave: "courier", nombre: "Courier (máquina)", family: "'Courier Prime', 'JetBrains Mono', monospace" },
+  // Las de los estilos nuevos de letra animada (2026-11-06): titular de periódico, máquina vieja, neón de
+  // tubo, pantalla LED y redondeada juvenil.
+  { clave: "abril", nombre: "Abril Fatface (titular)", family: "'Abril Fatface', 'Playfair Display', serif" },
+  { clave: "elite", nombre: "Special Elite (máquina vieja)", family: "'Special Elite', 'Courier Prime', monospace" },
+  { clave: "monoton", nombre: "Monoton (neón)", family: "'Monoton', 'Montserrat', sans-serif" },
+  { clave: "rubikmono", nombre: "Rubik Mono (LED)", family: "'Rubik Mono One', 'Archivo Black', sans-serif" },
+  { clave: "righteous", nombre: "Righteous (juvenil)", family: "'Righteous', 'Poppins', sans-serif" },
 ];
 export const familiaDe = (clave) => (FUENTES.find((f) => f.clave === clave) || FUENTES[0]).family;
 

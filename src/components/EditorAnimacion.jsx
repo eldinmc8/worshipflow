@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, RotateCcw, Sparkles } from "lucide-react";
-import { ENTRADAS, PERMANENCIAS, SOMBRAS_RECETA, RECETA_VACIA, recetaCompleta } from "../lib/animaciones.js";
+import { ENTRADAS, PERMANENCIAS, SOMBRAS_RECETA, RECETA_VACIA, recetaCompleta, TRATAMIENTOS, PANTALLAS, ACOMODOS } from "../lib/animaciones.js";
 import { FUENTES, familiaDe } from "../lib/diapositivas.js";
-import { ANIMACIONES, FONDOS_DISPONIBLES, definicionDeReceta, armarLineasAnimadas, claseAnimacion, FondoAnimado, precargarFuentesAnimacion } from "./LetrasAnimadas.jsx";
+import { ANIMACIONES, FONDOS_DISPONIBLES, definicionDeReceta, armarLineasAnimadas, claseAnimacion, FondoAnimado, precargarFuentesAnimacion, EfectoPantalla } from "./LetrasAnimadas.jsx";
 import { guardarAnimacion } from "../lib/animacionesIglesia.js";
 import { showToast } from "../lib/toast.js";
 
@@ -30,7 +30,7 @@ const PARTIR_DE = {
   maquina: { fuente: "courier", color: "#E8FFE8", entrada: "escribir", unidad: "letra", separacion: 0.14, sombra: "brillo", colorEfecto: "#50FF8C", fondo: { tipo: "terminal" } },
 };
 export function recetaDesdeEstilo(clave) {
-  const p = PARTIR_DE[clave] || {};
+  const p = ANIMACIONES[clave]?.receta || PARTIR_DE[clave] || {};
   return recetaCompleta({ ...RECETA_VACIA, ...p, fondo: { ...RECETA_VACIA.fondo, ...(p.fondo || {}) } });
 }
 
@@ -73,16 +73,17 @@ function Color({ valor, onCambiar, titulo }) {
 export function VistaPreviaReceta({ receta, nombre, frase, vuelta }) {
   const def = useMemo(() => definicionDeReceta(receta, nombre), [receta, nombre]);
   const lineas = (frase || "").split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 3);
-  const { lineas: nodos, vars } = armarLineasAnimadas(def, lineas.length ? lineas : ["Santo es el Señor"], `prev-${vuelta}`);
+  const { lineas: nodos, vars, clase } = armarLineasAnimadas(def, lineas.length ? lineas : ["Santo es el Señor"], `prev-${vuelta}`);
   return (
     <div style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 14, overflow: "hidden", background: "#000", containerType: "inline-size", boxShadow: "0 10px 30px rgba(0,0,0,.25)" }}>
       {def.fondo ? <FondoAnimado tipo={def.fondo} pulso={vuelta} ajustes={def.ajustesFondo} /> : <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center 40%, #1A1F2B 0%, #0C0E13 70%)" }} />}
       {def.flash && <div key={`f${vuelta}`} className="wfa-flash" />}
       <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 6cqw" }}>
-        <div key={vuelta} className={claseAnimacion("mia:prev")} style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", fontFamily: def.fuente.family, fontWeight: def.fuente.weight, textTransform: def.fuente.transform, letterSpacing: def.fuente.tracking, color: def.color, textShadow: def.sombra, fontSize: "6.2cqw", lineHeight: 1.25, whiteSpace: "nowrap", ...vars }}>
+        <div key={vuelta} className={`${claseAnimacion("mia:prev")} ${clase || ""}`} style={{ position: "relative", zIndex: def.mezcla ? "auto" : 1, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", fontFamily: def.fuente.family, fontWeight: def.fuente.weight, textTransform: def.fuente.transform, letterSpacing: def.fuente.tracking, color: def.color, textShadow: def.sombra, fontSize: "6.2cqw", lineHeight: 1.25, whiteSpace: "nowrap", ...vars }}>
           {nodos.map((l, i) => <div key={i}>{l}</div>)}
         </div>
       </div>
+      {def.receta?.pantalla && <EfectoPantalla key={`e${vuelta}`} tipo={def.receta.pantalla} color={def.receta.colorEfecto} />}
       {!def.fondo && <div style={{ position: "absolute", left: 10, bottom: 8, fontSize: 10.5, color: "rgba(255,255,255,.55)" }}>Se usará el fondo que elijas en Estilo (colores, imagen o video)</div>}
     </div>
   );
@@ -187,6 +188,27 @@ export default function EditorAnimacion({ inicial, iglesiaId, iglesiaNombre, usu
             {seccion("Mientras está en pantalla", (
               <Chips valor={receta.permanencia} onCambiar={(v) => cambiar({ permanencia: v })} opciones={PERMANENCIAS.map((p) => [p.clave, p.nombre])} />
             ))}
+
+            {seccion("Cómo se ve cada palabra", <>
+              <Chips valor={receta.tratamiento} onCambiar={(v) => cambiar({ tratamiento: v })} opciones={TRATAMIENTOS.map((t) => [t.clave, t.nombre])} />
+              {["caja", "resaltador"].includes(receta.tratamiento) && (
+                <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 8 }}>Color <Color titulo="Color de la caja" valor={receta.colorEfecto} onCambiar={(v) => cambiar({ colorEfecto: v })} /></span>
+              )}
+            </>)}
+
+            {seccion("Efecto de pantalla", <>
+              <Chips valor={receta.pantalla} onCambiar={(v) => cambiar({ pantalla: v })} opciones={PANTALLAS.map((t) => [t.clave, t.nombre])} />
+              {receta.pantalla !== "ninguno" && (
+                <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 8 }}>Color del efecto <Color titulo="Color del efecto" valor={receta.colorEfecto} onCambiar={(v) => cambiar({ colorEfecto: v })} /></span>
+              )}
+            </>)}
+
+            {seccion("Acomodo y ritmo", <>
+              <div style={{ marginBottom: 8 }}>
+                <Chips valor={receta.acomodo} onCambiar={(v) => cambiar({ acomodo: v })} opciones={ACOMODOS.map((t) => [t.clave, t.nombre])} />
+              </div>
+              <Interruptor texto="Latir al compás (con el tempo de la canción)" valor={receta.compas} onCambiar={(v) => cambiar({ compas: v })} />
+            </>)}
 
             {seccion("Palabras clave", <>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

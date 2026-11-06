@@ -6,7 +6,8 @@ describe("letras animadas", () => {
     for (const [k, a] of Object.entries(ANIMACIONES)) {
       expect(GRUPOS_ANIMACION, k).toContain(a.grupo);
       expect(a.fuente?.family, k).toBeTruthy();
-      expect(a.fondo, k).toBeTruthy();
+      // Los minimalistas usan el fondo de siempre (sin fondo animado propio).
+      if (a.receta?.fondo?.tipo !== "propio") expect(a.fondo, k).toBeTruthy();
       expect(a.muestra, k).toBeTruthy();
     }
   });
