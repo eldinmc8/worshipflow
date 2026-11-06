@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, Copy, Globe2 } from "lucide-react";
-import { ANIMACIONES, GRUPOS_ANIMACION, animacionActiva, definicionDeReceta, MiniaturaAnimada, precargarFuentesAnimacion, VELOCIDADES_LETRA, velocidadLetra } from "./LetrasAnimadas.jsx";
+import { ANIMACIONES, GRUPOS_ANIMACION, animacionActiva, definicionDeReceta, MiniaturaAnimada, precargarFuentesAnimacion, VELOCIDADES_LETRA, velocidadLetra, FONDOS_DISPONIBLES, muestraFondo, fondoEnMovimiento, PREFIJO_MOVIMIENTO } from "./LetrasAnimadas.jsx";
 import EditorAnimacion from "./EditorAnimacion.jsx";
 import { listarAnimaciones, guardarAnimacion, borrarAnimacion } from "../lib/animacionesIglesia.js";
 import { confirmDialog } from "../lib/confirm.js";
@@ -17,7 +17,7 @@ export function SelectorAnimacion({ liveStyle, setLiveStyle, columnas = 3, igles
   const [editando, setEditando] = useState(null); // { id?, nombre, receta, compartida }
   const [verGaleria, setVerGaleria] = useState(false);
   // Con tantos estilos (2026-11-06), se ve una categoría a la vez: la del estilo puesto, o Concierto.
-  const [grupo, setGrupo] = useState(() => (actual && ANIMACIONES[actual]?.grupo) || "Concierto");
+  const [grupo, setGrupo] = useState(() => (actual && ANIMACIONES[actual]?.grupo) || "Atmósfera");
 
   useEffect(() => { precargarFuentesAnimacion(); }, []);
   const recargar = useCallback(async () => {
@@ -233,3 +233,25 @@ export function ControlVelocidadLetra({ liveStyle, setLiveStyle, compacto = fals
 }
 
 export default SelectorAnimacion;
+
+// Fondos en movimiento (2026-11-06): los mismos fondos animados de la letra animada, como fondo de la
+// proyección para todo (letra normal, versículos y diapositivas). valor = liveStyle.theme.
+const ORDEN_MOVIMIENTO = ["aura", "arcos", "cortina", "horizonte", "portal", "franjas", "vitral", "radial", "hazdivino", "marea", "palabra", "nubes", "nubestarde", "nubesnoche", "oceano", "oceanonoche", "vidrio", "ecos", "cruz", "estrella", "auroranavidad"];
+export function SelectorFondoMovimiento({ valor, onElegir, columnas = 4 }) {
+  const actual = fondoEnMovimiento(valor);
+  const lista = [...ORDEN_MOVIMIENTO.map((k) => FONDOS_DISPONIBLES.find(([x]) => x === k)).filter(Boolean), ...FONDOS_DISPONIBLES.filter(([k]) => !ORDEN_MOVIMIENTO.includes(k))];
+  return (
+    <div role="radiogroup" aria-label="Fondos en movimiento" style={{ display: "grid", gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))`, gap: 6 }}>
+      {lista.map(([k, nombre]) => {
+        const on = actual === k;
+        return (
+          <button type="button" role="radio" aria-checked={on} key={k} title={nombre} onClick={() => onElegir(`${PREFIJO_MOVIMIENTO}${k}`)}
+            style={{ display: "flex", flexDirection: "column", gap: 3, padding: 3, borderRadius: 10, cursor: "pointer", background: "var(--wf-card)", border: on ? "2px solid #B15EA0" : "1px solid var(--wf-border)", minWidth: 0 }}>
+            <span style={{ display: "block", width: "100%", aspectRatio: "16 / 9", borderRadius: 7, background: muestraFondo(k) }} />
+            <span style={{ fontSize: 10, fontWeight: 600, color: "var(--wf-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nombre}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
