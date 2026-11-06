@@ -23,6 +23,21 @@ export const ENTRADAS = [
   { clave: "desenfoque", nombre: "Salir de la niebla", dur: 1.3 },
   { clave: "parpadear", nombre: "Encenderse (neón)", dur: 0.9, pasos: true },
   { clave: "escribir", nombre: "Escribirse", dur: 0.01, pasos: true },
+  // Más entradas (2026-11-06, "más de 100 estilos, con efectos juveniles y de concierto").
+  { clave: "cortina", nombre: "Cortina", dur: 0.7 },
+  { clave: "emerger", nombre: "Emerger de una línea", dur: 0.75 },
+  { clave: "caida", nombre: "Caída libre", dur: 0.95 },
+  { clave: "zoomatras", nombre: "Llegar desde la cámara", dur: 0.9 },
+  { clave: "estampar", nombre: "Estampar", dur: 0.5, golpe: true },
+  { clave: "voltear", nombre: "Voltear", dur: 0.75, rebote: true },
+  { clave: "girar3d", nombre: "Girar en 3D", dur: 0.8, rebote: true },
+  { clave: "elastico", nombre: "Elástico", dur: 0.8 },
+  { clave: "barrido", nombre: "Barrido de luz", dur: 0.8 },
+  { clave: "sacudida", nombre: "Sacudida", dur: 0.7 },
+  { clave: "pixelar", nombre: "Enfocar a saltos", dur: 0.8, escalones: true },
+  { clave: "latigazo", nombre: "Latigazo", dur: 0.6, rebote: true },
+  { clave: "explosion", nombre: "Armarse (explosión)", dur: 1, rebote: true },
+  { clave: "papel", nombre: "Pegar papel", dur: 0.6, rebote: true },
 ];
 export const PERMANENCIAS = [
   { clave: "quieta", nombre: "Quieta" },
@@ -31,13 +46,62 @@ export const PERMANENCIAS = [
   { clave: "brillar", nombre: "Brillar", dur: 2.6 },
   { clave: "ondular", nombre: "Ondular", dur: 1.6 },
   { clave: "balancear", nombre: "Balancearse", dur: 2.2 },
+  { clave: "temblar", nombre: "Temblar", dur: 0.35 },
+  { clave: "respirar", nombre: "Respirar", dur: 3.4 },
+  { clave: "chispear", nombre: "Chispear (neón)", dur: 3 },
 ];
+
+// Cómo se ve cada palabra (2026-11-06). "mezcla": se funde con el fondo (necesita que el texto no quede en
+// su propia capa — ver ProjectionPanel).
+export const TRATAMIENTOS = [
+  { clave: "ninguno", nombre: "Normal" },
+  { clave: "periodico", nombre: "Recortes de periódico", mezcla: true },
+  { clave: "cinta", nombre: "Cinta adhesiva", mezcla: true },
+  { clave: "sello", nombre: "Sello", mezcla: true },
+  { clave: "caja", nombre: "Caja de color" },
+  { clave: "resaltador", nombre: "Resaltador" },
+  { clave: "contorno", nombre: "Solo contorno" },
+  { clave: "cromo", nombre: "Cromo" },
+  { clave: "degradado", nombre: "Degradado de colores" },
+  { clave: "calado", nombre: "Letra calada (se ve el fondo)", mezcla: true },
+  { clave: "invertido", nombre: "Invertido", mezcla: true },
+  { clave: "sombralarga", nombre: "3D (sombra larga)" },
+];
+// Efectos de toda la pantalla al entrar cada diapositiva.
+export const PANTALLAS = [
+  { clave: "ninguno", nombre: "Ninguno" },
+  { clave: "puertas", nombre: "Pantalla partida (puertas)" },
+  { clave: "cortina", nombre: "Pantalla partida (arriba y abajo)" },
+  { clave: "diagonal", nombre: "Corte en diagonal" },
+  { clave: "persianas", nombre: "Persianas" },
+  { clave: "corte", nombre: "Tajo de luz" },
+  { clave: "barras", nombre: "Barras de cine" },
+  { clave: "led", nombre: "Pantalla LED" },
+  { clave: "destellos", nombre: "Destellos al compás" },
+  { clave: "barrido", nombre: "Luz que pasa" },
+  { clave: "rgb", nombre: "Interferencia de color" },
+  { clave: "temblor", nombre: "Temblor" },
+  { clave: "acercar", nombre: "Cámara que se acerca" },
+  { clave: "espejo", nombre: "Reflejo" },
+];
+export const ACOMODOS = [
+  { clave: "centro", nombre: "Normal" },
+  { clave: "escalonado", nombre: "Escalonado" },
+  { clave: "cascada", nombre: "En cascada" },
+  { clave: "diagonal", nombre: "En diagonal" },
+  { clave: "gigante", nombre: "Palabras clave gigantes" },
+];
+export const tratamientoDe = (k) => TRATAMIENTOS.find((t) => t.clave === k) || TRATAMIENTOS[0];
 const entradaDe = (k) => ENTRADAS.find((e) => e.clave === k);
 const permanenciaDe = (k) => PERMANENCIAS.find((p) => p.clave === k);
 
 function curva(e) {
   if (!e) return "ease";
+  // "Escribirse": un fundido cortísimo y lineal. Con steps() de 0.01 s, Chrome a veces dejaba la primera
+  // letra invisible para siempre (se vio en "Diario", 2026-11-06).
+  if (e.clave === "escribir") return "linear";
   if (e.pasos) return "steps(1, end)";
+  if (e.escalones) return "steps(4, end)";
   if (e.golpe) return "cubic-bezier(.7,0,.3,1)";
   if (e.rebote) return "cubic-bezier(.3,1.5,.5,1)";
   return "cubic-bezier(.2,.7,.2,1)";
@@ -50,7 +114,7 @@ export function cssAnimacion({ entrada, permanencia, velocidad = 1, retraso = 0 
   const e = entradaDe(entrada);
   let fin = retraso;
   if (e) {
-    const dur = e.pasos && e.clave === "escribir" ? 0.01 : e.dur / Math.max(0.25, velocidad);
+    const dur = e.clave === "escribir" ? 0.04 : e.dur / Math.max(0.25, velocidad);
     partes.push(`wfx-${e.clave} ${dur.toFixed(3)}s ${curva(e)} ${retraso.toFixed(3)}s both`);
     fin = retraso + dur;
   }
@@ -88,6 +152,8 @@ export const RECETA_VACIA = {
   permanencia: "quieta",
   fondo: { tipo: "aurora", tono: 0, brillo: 1, velocidad: 1, densidad: 1 },
   destello: false,
+  // 2026-11-06: cómo se ve cada palabra, efecto de pantalla, acomodo y latido al compás (tempo de la canción).
+  tratamiento: "ninguno", pantalla: "ninguno", acomodo: "centro", compas: false,
 };
 
 // Normaliza lo que venga guardado (versiones viejas, campos faltantes) a una receta completa.
@@ -99,6 +165,10 @@ export function recetaCompleta(r) {
   if (!["linea", "palabra", "letra"].includes(base.unidad)) base.unidad = "palabra";
   base.velocidad = Math.min(2, Math.max(0.4, Number(base.velocidad) || 1));
   base.separacion = Math.min(0.6, Math.max(0, Number(base.separacion) || 0));
+  if (!TRATAMIENTOS.some((t) => t.clave === base.tratamiento)) base.tratamiento = "ninguno";
+  if (!PANTALLAS.some((t) => t.clave === base.pantalla)) base.pantalla = "ninguno";
+  if (!ACOMODOS.some((t) => t.clave === base.acomodo)) base.acomodo = "centro";
+  base.compas = !!base.compas;
   return base;
 }
 

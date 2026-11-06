@@ -147,6 +147,8 @@ function songToSlides(idPrefix, song, structure) {
         sectionLabel: block.label,
         lines,
         songId: song.id, blockKey, slideIndexInBlock: originalIndex, hasRealSlides,
+        // Tempo de la canción: marca el pulso de los efectos "al compás" de la letra animada (2026-11-06).
+        tempo: Number(song.tempo) > 0 ? Number(song.tempo) : null,
       });
     });
   });

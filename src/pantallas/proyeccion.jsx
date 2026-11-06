@@ -1,6 +1,6 @@
 // Lo que se ve en la pantalla de proyección (la usan la consola, las mini-vistas y la pantalla pública). Separada de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { useState } from "react";
-import { definicionAnimacion, armarLineasAnimadas, velocidadLetra, FondoAnimado, claseAnimacion } from "../components/LetrasAnimadas.jsx";
+import { definicionAnimacion, armarLineasAnimadas, velocidadLetra, FondoAnimado, claseAnimacion, EfectoPantalla } from "../components/LetrasAnimadas.jsx";
 import DiapositivaDisenada from "../components/DiapositivaDisenada.jsx";
 import { esPaginaPresentacion } from "../lib/importarPresentacion.js";
 import { Mic2, Radio, Music } from "lucide-react";
@@ -112,6 +112,8 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // Con letra animada el estilo ya decide cómo se ve cada línea: el "diseño de las letras" no aplica.
   const animarLetra = !!anim && slide?.type === "cancion" && Array.isArray(slide?.lines);
   const lineasAnimadas = animarLetra ? armarLineasAnimadas(anim, slide.lines, slide.slideId, velocidadLetra(liveStyle)) : null;
+  // Pulso al compás (2026-11-06): un tiempo de la canción (60 / tempo), para el latido y los destellos.
+  const beatSeg = slide?.tempo > 0 ? Math.min(2, Math.max(0.25, 60 / slide.tempo)) : 0.5;
   const cancionLineStyles =
     slide?.type === "cancion" && lineStyleMode !== "tradicional" && !animarLetra
       ? slide.lines.map((_, i) => {
@@ -181,6 +183,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           quiere: ocultar SOLO la letra/texto que se está transmitiendo, no el fondo. */}
       {fondoAnimado && !videoSrc && !imageSrc && <FondoAnimado tipo={fondoAnimado} pulso={slide?.slideId ?? slide?.reference ?? slide?.title} chico={!!thumbnail} quieto={!!thumbnail} ajustes={anim?.ajustesFondo} />}
       {animarLetra && anim.flash && !blanked && <div key={`flash-${slide.slideId}`} className="wfa-flash" />}
+      {animarLetra && anim.receta?.pantalla && !blanked && <EfectoPantalla key={`efecto-${slide.slideId}`} tipo={anim.receta.pantalla} color={anim.receta.colorEfecto} beat={beatSeg} />}
       {videoSrc && (
         <>
           <video src={videoSrc} autoPlay muted loop playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }} />
@@ -219,10 +222,10 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
                     // (los mismos <div> de línea se reutilizan, así que la animación CSS no se repite
                     // sola con solo cambiar el texto adentro).
                     style={animarLetra
-                      ? { fontFamily: anim.fuente.family, fontWeight: anim.fuente.weight, textTransform: anim.fuente.transform || "none", letterSpacing: anim.fuente.tracking || "normal", textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.25, textShadow: animSobreFondoPropio ? reforzarSombraAnimada(anim.sombra) : anim.sombra, color: animSobreFondoPropio ? colorLegibleAnimada(anim.color) : anim.color, whiteSpace: "nowrap", ...lineasAnimadas.vars }
+                      ? { fontFamily: anim.fuente.family, fontWeight: anim.fuente.weight, textTransform: anim.fuente.transform || "none", letterSpacing: anim.fuente.tracking || "normal", textAlign: alineacion.text, ...(anim.mezcla ? { position: "relative", zIndex: "auto" } : { zIndex: 1 }), lineHeight: liveStyle?.interlineado ?? 1.25, textShadow: animSobreFondoPropio && anim.sombra !== "none" ? reforzarSombraAnimada(anim.sombra) : anim.sombra, color: animSobreFondoPropio ? colorLegibleAnimada(anim.color) : anim.color, whiteSpace: "nowrap", "--beat": `${beatSeg}s`, ...lineasAnimadas.vars }
                       : { fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: espaciadoLetras, fontStyle: font.italic ? "italic" : "normal", textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.35, textShadow: sombraTexto, color: textColor, whiteSpace: "nowrap", textWrap: "balance" }}
                     lineStyles={cancionLineStyles}
-                    className={animarLetra ? claseAnimacion(animKey) : undefined}
+                    className={animarLetra ? `${claseAnimacion(animKey)} ${lineasAnimadas.clase || ""}` : undefined}
                     contenidoLineas={lineasAnimadas?.lineas}
                   />
                 );

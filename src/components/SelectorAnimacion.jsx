@@ -16,6 +16,8 @@ export function SelectorAnimacion({ liveStyle, setLiveStyle, columnas = 3, igles
   const [lista, setLista] = useState(undefined); // undefined = cargando · null = falta activar la tabla
   const [editando, setEditando] = useState(null); // { id?, nombre, receta, compartida }
   const [verGaleria, setVerGaleria] = useState(false);
+  // Con tantos estilos (2026-11-06), se ve una categoría a la vez: la del estilo puesto, o Concierto.
+  const [grupo, setGrupo] = useState(() => (actual && ANIMACIONES[actual]?.grupo) || "Concierto");
 
   useEffect(() => { precargarFuentesAnimacion(); }, []);
   const recargar = useCallback(async () => {
@@ -142,8 +144,20 @@ export function SelectorAnimacion({ liveStyle, setLiveStyle, columnas = 3, igles
         </div>
       )}
 
-      {/* De fábrica */}
-      {GRUPOS_ANIMACION.map((g) => (
+      {/* De fábrica, por categoría */}
+      <div role="tablist" aria-label="Categorías de letra animada" style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+        {GRUPOS_ANIMACION.map((g) => {
+          const n = Object.values(ANIMACIONES).filter((a) => a.grupo === g).length;
+          const on = grupo === g;
+          return (
+            <button type="button" role="tab" aria-selected={on} key={g} onClick={() => setGrupo(g)}
+              style={{ fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 999, border: "none", cursor: "pointer", background: on ? "#B15EA0" : "var(--wf-hover)", color: on ? "#fff" : "var(--wf-text)" }}>
+              {g} <span style={{ opacity: 0.7 }}>{n}</span>
+            </button>
+          );
+        })}
+      </div>
+      {[grupo].map((g) => (
         <div key={g}>
           {tituloGrupo(g)}
           {grid(Object.entries(ANIMACIONES).filter(([, a]) => a.grupo === g).map(([k, a]) => (
