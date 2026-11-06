@@ -5,6 +5,7 @@ import DiapositivaDisenada from "../components/DiapositivaDisenada.jsx";
 import { esPaginaPresentacion } from "../lib/importarPresentacion.js";
 import { Mic2, Radio, Music } from "lucide-react";
 import AutoFitText from "../components/AutoFitText.jsx";
+import { efectoPantallaDe } from "../lib/animacionCancion.js";
 import RelojCuentaRegresiva from "../components/RelojCuentaRegresiva.jsx";
 import { LIVE_FONTS, LIVE_THEMES, LIVE_SOMBRAS, LIVE_ALINEACIONES, LIVE_POSICIONES, TYPE_META } from "./compartido.jsx";
 
@@ -55,7 +56,11 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // decide cuál de los dos usar, no solo cuál de los dos campos tiene algo guardado.
   // Letras animadas (ver components/LetrasAnimadas.jsx): el fondo animado del estilo reemplaza al fondo
   // general, salvo que se haya elegido "Mi fondo", o que la diapositiva o la canción traigan uno propio.
-  const animDef = definicionAnimacion(liveStyle);
+  // Animación por canción (2026-11-06): la diapositiva trae el estilo de su parte (pestaña "Animación"
+  // del editor). Manda sobre el de Multimedia, salvo que Multimedia lo apague (animPorCancion: false).
+  const usarAnimCancion = slide?.type === "cancion" && !!slide.anim && liveStyle?.animPorCancion !== false;
+  const estiloAnim = usarAnimCancion ? { ...liveStyle, animacion: slide.anim === "ninguna" ? null : slide.anim } : liveStyle;
+  const animDef = definicionAnimacion(estiloAnim);
   const animKey = animDef?.clave || null;
   const anim = animDef?.def || null;
   const slideTraeFondo = slide?.type === "slide" && ((slide.bgType === "video" && slide.videoUrl) || (slide.bgType === "imagen" && slide.imageUrl));
@@ -114,7 +119,11 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   const lineStyleMode = liveStyle?.lineStyle || "tradicional";
   // Con letra animada el estilo ya decide cómo se ve cada línea: el "diseño de las letras" no aplica.
   const animarLetra = !!anim && slide?.type === "cancion" && Array.isArray(slide?.lines);
-  const lineasAnimadas = animarLetra ? armarLineasAnimadas(anim, slide.lines, slide.slideId, velocidadLetra(liveStyle)) : null;
+  const momentosCancion = usarAnimCancion || slide?.momentos?.length ? slide?.momentos : null;
+  const lineasAnimadas = animarLetra ? armarLineasAnimadas(anim, slide.lines, slide.slideId, velocidadLetra(liveStyle), { momentos: momentosCancion }) : null;
+  // Momento especial de pantalla (destello, pantalla partida...) cuando su palabra sale en esta diapositiva.
+  const efectoMomento = animarLetra && liveStyle?.animPorCancion !== false ? efectoPantallaDe(momentosCancion, slide.lines) : null;
+  const latirCancion = animarLetra && usarAnimCancion && slide.animCompas;
   // Pulso al compás (2026-11-06): un tiempo de la canción (60 / tempo), para el latido y los destellos.
   const beatSeg = slide?.tempo > 0 ? Math.min(2, Math.max(0.25, 60 / slide.tempo)) : 0.5;
   const cancionLineStyles =
@@ -186,8 +195,10 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           quiere: ocultar SOLO la letra/texto que se está transmitiendo, no el fondo. */}
       {fondoMov && <FondoAnimado tipo={fondoMov} pulso={slide?.slideId ?? slide?.reference ?? slide?.title} chico={!!thumbnail} quieto={!!thumbnail} />}
       {fondoAnimado && !videoSrc && !imageSrc && <FondoAnimado tipo={fondoAnimado} pulso={slide?.slideId ?? slide?.reference ?? slide?.title} chico={!!thumbnail} quieto={!!thumbnail} ajustes={anim?.ajustesFondo} />}
-      {animarLetra && anim.flash && !blanked && <div key={`flash-${slide.slideId}`} className="wfa-flash" />}
-      {animarLetra && anim.receta?.pantalla && !blanked && <EfectoPantalla key={`efecto-${slide.slideId}`} tipo={anim.receta.pantalla} color={anim.receta.colorEfecto} beat={beatSeg} />}
+      {animarLetra && (anim.flash || efectoMomento === "destello") && !blanked && <div key={`flash-${slide.slideId}`} className="wfa-flash" />}
+      {animarLetra && !blanked && (efectoMomento?.startsWith("pantalla:") || anim.receta?.pantalla) && (
+        <EfectoPantalla key={`efecto-${slide.slideId}`} tipo={efectoMomento?.startsWith("pantalla:") ? efectoMomento.slice(9) : anim.receta.pantalla} color={anim.receta?.colorEfecto || "#E8821E"} beat={beatSeg} />
+      )}
       {videoSrc && (
         <>
           <video src={videoSrc} autoPlay muted loop playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }} />
@@ -229,7 +240,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
                       ? { fontFamily: anim.fuente.family, fontWeight: anim.fuente.weight, textTransform: anim.fuente.transform || "none", letterSpacing: anim.fuente.tracking || "normal", textAlign: alineacion.text, ...(anim.mezcla ? { position: "relative", zIndex: "auto" } : { zIndex: 1 }), lineHeight: liveStyle?.interlineado ?? 1.25, textShadow: animSobreFondoPropio && anim.sombra !== "none" ? reforzarSombraAnimada(anim.sombra) : anim.sombra, color: animSobreFondoPropio ? colorLegibleAnimada(anim.color) : anim.color, whiteSpace: "nowrap", "--beat": `${beatSeg}s`, ...lineasAnimadas.vars }
                       : { fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: espaciadoLetras, fontStyle: font.italic ? "italic" : "normal", textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.35, textShadow: sombraTexto, color: textColor, whiteSpace: "nowrap", textWrap: "balance" }}
                     lineStyles={cancionLineStyles}
-                    className={animarLetra ? `${claseAnimacion(animKey)} ${lineasAnimadas.clase || ""}` : undefined}
+                    className={animarLetra ? `${claseAnimacion(animKey)} ${lineasAnimadas.clase || ""}${latirCancion && !/wfb-latido/.test(lineasAnimadas.clase || "") ? " wfb-latido" : ""}` : undefined}
                     contenidoLineas={lineasAnimadas?.lineas}
                   />
                 );

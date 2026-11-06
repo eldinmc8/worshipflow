@@ -12,6 +12,7 @@ import { subscribeTableChanges } from "./lib/realtime.js";
 import { palabrasPorParteSegun, expandirVersiculosLargos, reorganizarLetra } from "./lib/dividirTexto.js";
 import { insertarEnBloque } from "./lib/ordenCulto.js";
 import { esBloquePredicacion, guardarBosquejo, aplicarBosquejoAlOrden, bosquejoAItems } from "./lib/bosquejos.js";
+import { animacionEfectiva, estiloDeParte } from "./lib/animacionCancion.js";
 import { esCuentaRegresiva, slideCuentaRegresiva, conHoraFinal, arrancarSiHaceFalta, slideCuentaAlMomento, normalizarCuenta, itemCuentaRegresiva } from "./lib/cuentaRegresiva.js";
 import { confirmDialog } from "./lib/confirm.js";
 import { updateMusicoLive, clearMusicoLive, getMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
@@ -109,7 +110,9 @@ const nextId = () => crypto.randomUUID();
 // prop `teamName`, leído de iglesias.nombre (ver myIglesia en WorshipFlowPrototype).
 
 // ---------- Convierte una canción + estructura en diapositivas proyectables (planeada o improvisada) ----------
-function songToSlides(idPrefix, song, structure) {
+function songToSlides(idPrefix, song, structure, item = null) {
+  // Animación por canción (pestaña "Animación", 2026-11-06): cada diapositiva lleva el estilo de su parte.
+  const anim = animacionEfectiva(song, item);
   const out = [];
   // song.defaultStructure (la pestaña Estructura de la canción, la fuente de verdad actual) manda
   // SIEMPRE que tenga contenido. "structure" es una foto fija del Estructura que se tomó el día que
@@ -149,6 +152,7 @@ function songToSlides(idPrefix, song, structure) {
         songId: song.id, blockKey, slideIndexInBlock: originalIndex, hasRealSlides,
         // Tempo de la canción: marca el pulso de los efectos "al compás" de la letra animada (2026-11-06).
         tempo: Number(song.tempo) > 0 ? Number(song.tempo) : null,
+        ...(anim ? { anim: estiloDeParte(anim, blockKey), momentos: anim.momentos, animCompas: anim.compas } : {}),
       });
     });
   });
@@ -162,7 +166,7 @@ function buildSlides(serviceOrder, library) {
     if (item.type === "cancion") {
       const song = library.find((s) => s.id === item.songId);
       if (!song) return;
-      slides.push(...songToSlides(item.id, song, item.structure));
+      slides.push(...songToSlides(item.id, song, item.structure, item));
     } else if (item.type === "biblia") {
       slides.push({ slideId: item.id, type: "biblia", reference: item.reference, version: item.version, text: item.text, bookId: item.bookId, bookName: item.bookName, chapter: item.chapter, verseStart: item.verseStart, verseEnd: item.verseEnd });
     } else if (esCuentaRegresiva(item)) {

@@ -81,6 +81,11 @@ export function SelectorAnimacion({ liveStyle, setLiveStyle, columnas = 3, igles
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* Animación por canción (2026-11-06): las canciones que la traen armada en su editor la usan sola. */}
+      <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, cursor: "pointer", background: "var(--wf-hover)", borderRadius: 10, padding: "8px 10px" }}>
+        <input type="checkbox" checked={liveStyle?.animPorCancion !== false} onChange={(e) => setLiveStyle((s) => ({ ...s, animPorCancion: e.target.checked }))} style={{ accentColor: "#B15EA0", marginTop: 2 }} />
+        <span><b>Usar la animación de cada canción</b><br /><span style={{ color: "var(--wf-muted)", fontSize: 11 }}>Si la canción la tiene preparada en su editor (pestaña Animación), cambia sola en cada parte. Las demás usan lo que elijas aquí.</span></span>
+      </label>
       {actual && <ControlVelocidadLetra liveStyle={liveStyle} setLiveStyle={setLiveStyle} />}
       <button type="button" onClick={() => setLiveStyle((s) => ({ ...s, animacion: null }))} style={{ ...tarjeta(!actual), flexDirection: "row", alignItems: "center", gap: 8, padding: "7px 10px" }}>
         <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--wf-text)" }}>Sin animación</span>

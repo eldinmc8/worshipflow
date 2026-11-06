@@ -107,7 +107,7 @@ function filaAItemServicio(row, encargadosPorItem) {
     const marca = row.estructura && !Array.isArray(row.estructura) && typeof row.estructura.predicacion === "boolean" ? { esPredicacion: row.estructura.predicacion } : {};
     return { ...base, type: "seccion", title: row.titulo, description: row.descripcion || "", ministryId: row.ministerio_id || null, ...marca };
   }
-  if (row.tipo === "cancion") return { ...base, type: "cancion", songId: row.cancion_id, structure: row.estructura && row.estructura.length ? row.estructura : undefined, keyOverride: row.tonalidad_override || null };
+  if (row.tipo === "cancion") return { ...base, type: "cancion", songId: row.cancion_id, structure: row.estructura && row.estructura.length ? row.estructura : undefined, keyOverride: row.tonalidad_override || null, ...(row.animacion !== undefined ? { animacion: row.animacion } : {}) };
   // Diapositivas que salen del bosquejo de un predicador: marcadas con el id de su bloque (ver bosquejos.js).
   if (row.estructura && !Array.isArray(row.estructura) && row.estructura.bosquejoDe) {
     base.bosquejoDe = row.estructura.bosquejoDe;
@@ -134,7 +134,9 @@ function itemServicioAFila(item, eventoId, orden) {
     es_punto_bosquejo: !!item.isSermonPoint,
   };
   if (item.type === "seccion") return { ...base, ...(typeof item.esPredicacion === "boolean" ? { estructura: { predicacion: item.esPredicacion } } : {}), tipo: "bloque", titulo: item.title, descripcion: item.description || "", ministerio_id: item.ministryId || null };
-  if (item.type === "cancion") return { ...base, tipo: "cancion", cancion_id: item.songId, tonalidad_override: item.keyOverride || null };
+  // animacion: la de esta canción solo en este evento (2026-11-06). Se manda solo si el ítem la conoce
+  // (la base sin su columna la deja undefined), para no romper el guardado antes de correr el SQL.
+  if (item.type === "cancion") return { ...base, tipo: "cancion", cancion_id: item.songId, tonalidad_override: item.keyOverride || null, ...(item.animacion !== undefined ? { animacion: item.animacion } : {}) };
   // La marca del bosquejo (bosquejoDe) viaja en estructura, que versículos y diapositivas de texto no usan.
   if (item.bosquejoDe) base.estructura = { bosquejoDe: item.bosquejoDe, ...(item.bosquejoPunto ? { punto: item.bosquejoPunto } : {}) };
   if (item.type === "biblia") return { ...base, tipo: "biblia", referencia: item.reference, version_biblia: item.version, texto_biblia: item.text, libro_id: item.bookId ?? null, libro_nombre: item.bookName ?? null, capitulo: item.chapter ?? null, versiculo_inicio: item.verseStart ?? null, versiculo_fin: item.verseEnd ?? null };
@@ -332,7 +334,11 @@ async function sincronizarServiceOrderInterno(eventoId, serviceOrder, soloIds = 
   const encargadosRows = soloIds ? todosLosEncargados.filter((r) => soloIds.has(r.item_servicio_id)) : todosLosEncargados;
 
   if (filas.length) {
-    const { error } = await supabase.from("items_servicio").upsert(filas);
+    let { error } = await supabase.from("items_servicio").upsert(filas);
+    // La base todavía no tiene la columna de animación por evento (falta su SQL): se guarda sin ella.
+    if (error && (error.code === "PGRST204" || error.code === "42703") && /animacion/.test(error.message || "")) {
+      ({ error } = await supabase.from("items_servicio").upsert(filas.map(({ animacion: _a, ...resto }) => resto)));
+    }
     if (error) throw error;
   }
   if (encargadosRows.length) {
