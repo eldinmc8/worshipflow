@@ -60,15 +60,17 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json();
 
-    // Consola general (Fase: super admin): sin el código correcto, ni llegar a validar el resto —
-    // antes cualquiera con el enlace ?crear-iglesia podía dar de alta una iglesia, y ese enlace podía
-    // reenviarse a un tercero sin que Eldin se enterara. El código lo ve y cambia Eldin desde la
-    // consola general (plataforma_config, solo accesible para super admin).
-    const codigoIngresado = String(body.codigo_invitacion || "").trim();
-    const { data: config } = await admin.from("plataforma_config").select("codigo_invitacion").eq("id", "default").maybeSingle();
-    const codigoVigente = config?.codigo_invitacion;
-    if (codigoVigente && codigoIngresado !== codigoVigente) {
-      return json({ error: "Código de invitación incorrecto." }, 403);
+    // Sin un código de invitación válido, ni llegar a validar el resto — el enlace ?crear-iglesia
+    // podría reenviarse a un tercero. Los códigos los crea Eldin desde la consola general (tabla
+    // codigos_invitacion, solo accesible para super admin): puede haber VARIOS pendientes a la vez,
+    // cada uno de un solo uso (pedido de Eldin, 2026-11-06).
+    const codigoIngresado = String(body.codigo_invitacion || "").trim().toLowerCase();
+    if (!codigoIngresado) return json({ error: "Falta el código de invitación." }, 403);
+    const { data: invitacion } = await admin.from("codigos_invitacion").select("codigo, usado_at, vence_at").eq("codigo", codigoIngresado).maybeSingle();
+    if (!invitacion) return json({ error: "Código de invitación incorrecto." }, 403);
+    if (invitacion.usado_at) return json({ error: "Ese código de invitación ya se usó. Pide uno nuevo a quien te invitó." }, 403);
+    if (invitacion.vence_at && new Date(invitacion.vence_at).getTime() < Date.now()) {
+      return json({ error: "Ese código de invitación ya venció. Pide uno nuevo a quien te invitó." }, 403);
     }
 
     const iglesiaNombre = String(body.iglesia_nombre || "").trim();
@@ -89,22 +91,14 @@ Deno.serve(async (req: Request) => {
     const { data: yaExiste } = await admin.from("usuarios").select("email").eq("email", adminEmail).maybeSingle();
     if (yaExiste) return json({ error: "Ya existe una cuenta con ese correo." }, 400);
 
-    // Código de UN SOLO USO (pedido de Eldin, 2026-11-05): se gasta aquí, ANTES de crear nada, cambiándolo
-    // por uno nuevo en la misma operación (solo si sigue siendo el mismo — así dos personas con el mismo
-    // código al mismo tiempo no pueden crear dos iglesias). Eldin copia el nuevo desde la consola para la
-    // siguiente invitación. Si algo de abajo falla, se devuelve el código original para que puedan reintentar.
-    let codigoGastado: string | null = null;
-    const codigoNuevo = Array.from(crypto.getRandomValues(new Uint8Array(6))).map((b) => b.toString(16).padStart(2, "0")).join("");
-    if (codigoVigente) {
-      const { data: cambiado } = await admin.from("plataforma_config").update({ codigo_invitacion: codigoNuevo })
-        .eq("id", "default").eq("codigo_invitacion", codigoIngresado).select("id");
-      if (!cambiado?.length) return json({ error: "Ese código de invitación ya se usó. Pide uno nuevo a quien te invitó." }, 403);
-      codigoGastado = codigoIngresado;
-    }
+    // Se gasta el código AQUÍ, antes de crear nada, solo si sigue sin usar — así dos personas con el
+    // mismo código al mismo tiempo no pueden crear dos iglesias. Los demás códigos pendientes no se
+    // tocan. Si algo de abajo falla, se libera para que puedan reintentar con el mismo.
+    const { data: gastado } = await admin.from("codigos_invitacion").update({ usado_at: new Date().toISOString() })
+      .eq("codigo", codigoIngresado).is("usado_at", null).gt("vence_at", new Date().toISOString()).select("codigo");
+    if (!gastado?.length) return json({ error: "Ese código de invitación ya se usó. Pide uno nuevo a quien te invitó." }, 403);
     const fallar = async (mensaje: string, status: number) => {
-      if (codigoGastado) {
-        await admin.from("plataforma_config").update({ codigo_invitacion: codigoGastado }).eq("id", "default").eq("codigo_invitacion", codigoNuevo);
-      }
+      await admin.from("codigos_invitacion").update({ usado_at: null, iglesia_id: null }).eq("codigo", codigoIngresado);
       return json({ error: mensaje }, status);
     };
 
@@ -155,6 +149,9 @@ Deno.serve(async (req: Request) => {
     // los roles: si falla, la iglesia queda funcionando con el cancionero vacío y queda en los logs.
     const { error: cancionesError } = await admin.rpc("sembrar_canciones_default", { p_iglesia_id: iglesia.id });
     if (cancionesError) console.error(`sembrar_canciones_default falló para iglesia ${iglesia.id}:`, cancionesError);
+
+    // 6) Anotar qué iglesia usó el código (solo informativo para la consola).
+    await admin.from("codigos_invitacion").update({ iglesia_id: iglesia.id }).eq("codigo", codigoIngresado);
 
     return json({ success: true, iglesia_id: iglesia.id }, 200);
   } catch (e) {

@@ -14,7 +14,7 @@ const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px s
 const tituloSeccion = { fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 };
 const COLOR_ALERTA = { alta: "#C23B32", media: "#E8821E", baja: "#8996A6" };
 
-// Código de invitación nuevo — mismo formato que el que genera la base (12 caracteres hexadecimales).
+// Código de invitación nuevo (12 caracteres hexadecimales) — se guarda como fila en codigos_invitacion.
 function generarCodigo() {
   const bytes = new Uint8Array(6);
   crypto.getRandomValues(bytes);
@@ -54,7 +54,6 @@ export default function PlataformaAdmin({ onExit }) {
   const [resumen, setResumen] = useState([]);
   const [sinActividad, setSinActividad] = useState(false); // falta correr la migración de la consola
   const [usuariosBasicos, setUsuariosBasicos] = useState([]);
-  const [codigo, setCodigo] = useState("");
   const [abierta, setAbierta] = useState(null); // id de la iglesia cuyo perfil se está viendo
   const [filtro, setFiltro] = useState("atencion");
   const [busqueda, setBusqueda] = useState("");
@@ -65,9 +64,7 @@ export default function PlataformaAdmin({ onExit }) {
       supabase.rpc("resumen_plataforma"),
       supabase.from("iglesias").select("id, nombre, slug, activa, created_at, logo_url").order("created_at"),
       supabase.from("usuarios").select("id, nombre, email, rol, iglesia_id"),
-      supabase.from("plataforma_config").select("codigo_invitacion").eq("id", "default").maybeSingle(),
-    ]).then(([res, igl, usr, conf]) => {
-      setCodigo(conf.data?.codigo_invitacion || "");
+    ]).then(([res, igl, usr]) => {
       setUsuariosBasicos(ordenarPor(usr.data, (u) => u.nombre));
       if (!res.error && Array.isArray(res.data)) {
         setResumen(res.data);
@@ -100,14 +97,14 @@ export default function PlataformaAdmin({ onExit }) {
       </div>
 
       {cargando ? <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Cargando…</div> : (
-        <ListaIglesias resumen={resumen} sinActividad={sinActividad} codigo={codigo} setCodigo={setCodigo}
+        <ListaIglesias resumen={resumen} sinActividad={sinActividad}
           filtro={filtro} setFiltro={setFiltro} busqueda={busqueda} setBusqueda={setBusqueda} onAbrir={setAbierta} />
       )}
     </div>
   );
 }
 
-function ListaIglesias({ resumen, sinActividad, codigo, setCodigo, filtro, setFiltro, busqueda, setBusqueda, onAbrir }) {
+function ListaIglesias({ resumen, sinActividad, filtro, setFiltro, busqueda, setBusqueda, onAbrir }) {
   const ahora = Date.now();
   const conSalud = useMemo(() => resumen.map((r) => ({ r, estado: estadoSalud(r, ahora), alertas: sinActividad ? [] : alertasIglesia(r, ahora) })), [resumen, sinActividad, ahora]);
   const cuenta = (fn) => conSalud.filter(fn).length;
@@ -149,7 +146,7 @@ function ListaIglesias({ resumen, sinActividad, codigo, setCodigo, filtro, setFi
         ))}
       </div>
 
-      <CodigoInvitacion codigo={codigo} setCodigo={setCodigo} />
+      <CodigosInvitacion iglesias={resumen} />
 
       {/* Filtros y búsqueda */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "16px 0 12px" }}>
@@ -209,29 +206,75 @@ function ListaIglesias({ resumen, sinActividad, codigo, setCodigo, filtro, setFi
   );
 }
 
-function CodigoInvitacion({ codigo, setCodigo }) {
-  const enlace = `${window.location.origin}/?crear-iglesia&codigo=${encodeURIComponent(codigo)}`;
-  const copiar = (texto, msg) => navigator.clipboard?.writeText(texto).then(() => showToast(msg, "info")).catch(() => {});
-  const regenerar = async () => {
-    if (!(await confirmDialog("¿Generar un código nuevo? El actual deja de funcionar de inmediato.", { textoConfirmar: "Generar nuevo" }))) return;
-    const nuevo = generarCodigo();
-    const { error } = await supabase.from("plataforma_config").update({ codigo_invitacion: nuevo }).eq("id", "default");
-    if (error) { showToast("No se pudo cambiar el código: " + error.message, "error"); return; }
-    setCodigo(nuevo);
-    showToast("Código nuevo listo.", "info");
+// Invitaciones para iglesias nuevas: puede haber VARIOS códigos pendientes al mismo tiempo (uno por
+// iglesia invitada). Cada uno sirve para una sola iglesia; generar otro ya no anula los anteriores.
+function CodigosInvitacion({ iglesias }) {
+  const [codigos, setCodigos] = useState(null); // null = cargando
+  const [verUsados, setVerUsados] = useState(false);
+  const cargar = () => {
+    supabase.from("codigos_invitacion").select("codigo, nota, creado_at, vence_at, usado_at, iglesia_id").order("creado_at", { ascending: false })
+      .then(({ data, error }) => setCodigos(error ? [] : data || []));
   };
+  useEffect(cargar, []);
+
+  const enlaceDe = (codigo) => `${window.location.origin}/?crear-iglesia&codigo=${encodeURIComponent(codigo)}`;
+  const copiar = (texto, msg) => navigator.clipboard?.writeText(texto).then(() => showToast(msg, "info")).catch(() => {});
+  const nombreIglesia = (id) => iglesias.find((i) => i.id === id)?.nombre;
+
+  const crear = async () => {
+    const nota = await promptDialog("¿Para quién es esta invitación? (opcional, ej. «Iglesia Betel — pastor Juan»)", { textoConfirmar: "Crear código" });
+    if (nota === null) return;
+    const nuevo = generarCodigo();
+    const { error } = await supabase.from("codigos_invitacion").insert({ codigo: nuevo, nota: nota.trim() || null });
+    if (error) { showToast("No se pudo crear el código: " + error.message, "error"); return; }
+    copiar(enlaceDe(nuevo), "Código nuevo listo — enlace copiado.");
+    cargar();
+  };
+  const anular = async (c) => {
+    if (!(await confirmDialog(`¿Anular el código ${c.codigo}${c.nota ? ` (${c.nota})` : ""}? Dejará de funcionar.`, { textoConfirmar: "Anular" }))) return;
+    const { error } = await supabase.from("codigos_invitacion").delete().eq("codigo", c.codigo).is("usado_at", null);
+    if (error) { showToast("No se pudo anular: " + error.message, "error"); return; }
+    cargar();
+  };
+
+  const ahora = Date.now();
+  const vencido = (c) => c.vence_at && new Date(c.vence_at).getTime() < ahora;
+  const diasParaVencer = (c) => Math.max(0, Math.ceil((new Date(c.vence_at).getTime() - ahora) / 86400000));
+  const pendientes = (codigos || []).filter((c) => !c.usado_at && !vencido(c));
+  const usados = (codigos || []).filter((c) => c.usado_at || vencido(c));
+
   return (
     <div style={cardStyle}>
-      <div style={tituloSeccion}>Invitar una iglesia nueva</div>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <input readOnly value={codigo} aria-label="Código de invitación" style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace", flex: "1 1 160px", width: "auto" }} />
-        <button onClick={() => copiar(enlace, "Enlace de invitación copiado.")} style={ghostBtn}><Link2 size={14} /> Copiar enlace</button>
-        <button onClick={() => copiar(codigo, "Código copiado.")} style={ghostBtn} aria-label="Copiar código"><Copy size={14} /></button>
-        <button onClick={regenerar} style={ghostBtn}><RefreshCw size={14} /> Nuevo</button>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <div style={{ ...tituloSeccion, marginBottom: 0 }}>Invitar iglesias nuevas</div>
+        <button onClick={crear} style={{ ...ghostBtn, marginLeft: "auto", background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", border: "none" }}><KeyRound size={14} /> Nuevo código</button>
       </div>
+      {codigos === null ? <div style={{ fontSize: 12.5, color: "var(--wf-faint)" }}>Cargando…</div> : pendientes.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: "var(--wf-muted)" }}>No hay códigos pendientes. Crea uno para cada iglesia que quieras invitar.</div>
+      ) : pendientes.map((c) => (
+        <div key={c.codigo} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderTop: "1px solid var(--wf-border)" }}>
+          <div style={{ flex: "1 1 180px", minWidth: 0 }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13.5, fontWeight: 600 }} aria-label="Código de invitación">{c.codigo}</div>
+            <div style={{ fontSize: 11.5, color: "var(--wf-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.nota || "Sin nota"} · creado el {fechaCorta(c.creado_at)}{c.vence_at && <> · <span style={{ color: diasParaVencer(c) <= 3 ? "#C23B32" : undefined }}>vence en {diasParaVencer(c)} {diasParaVencer(c) === 1 ? "día" : "días"}</span></>}</div>
+          </div>
+          <button onClick={() => copiar(enlaceDe(c.codigo), "Enlace de invitación copiado.")} style={ghostBtn}><Link2 size={14} /> Copiar enlace</button>
+          <button onClick={() => copiar(c.codigo, "Código copiado.")} style={ghostBtn} aria-label={`Copiar código ${c.codigo}`}><Copy size={14} /></button>
+          <button onClick={() => anular(c)} style={dangerBtn} aria-label={`Anular código ${c.codigo}`}><Power size={14} /></button>
+        </div>
+      ))}
       <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginTop: 6 }}>
-        Sirve para <b>una sola iglesia</b>: al usarse se cambia solo por uno nuevo, que aparece aquí. El enlace ya lleva el código puesto.
+        Cada código sirve para <b>una sola iglesia</b>. Puedes tener varios pendientes a la vez: crear uno nuevo no anula los anteriores. Vence a los 30 días si no se usa. El enlace ya lleva el código puesto.
       </div>
+      {usados.length > 0 && (
+        <>
+          <button onClick={() => setVerUsados((v) => !v)} style={{ ...ghostBtn, marginTop: 10 }}>{verUsados ? "Ocultar" : "Ver"} códigos usados o vencidos ({usados.length})</button>
+          {verUsados && usados.map((c) => (
+            <div key={c.codigo} style={{ fontSize: 12, color: "var(--wf-muted)", padding: "6px 0", borderTop: "1px solid var(--wf-border)" }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{c.codigo}</span>{c.nota ? ` · ${c.nota}` : ""} · {c.usado_at ? <>usado el {fechaCorta(c.usado_at)}{nombreIglesia(c.iglesia_id) ? ` por ${nombreIglesia(c.iglesia_id)}` : ""}</> : <>venció el {fechaCorta(c.vence_at)} sin usarse</>}
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }
