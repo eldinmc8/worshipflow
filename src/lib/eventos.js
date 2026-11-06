@@ -112,11 +112,23 @@ function filaAItemServicio(row, encargadosPorItem) {
   if (row.estructura && !Array.isArray(row.estructura) && row.estructura.bosquejoDe) {
     base.bosquejoDe = row.estructura.bosquejoDe;
     if (row.estructura.punto) base.bosquejoPunto = row.estructura.punto;
+    if (row.estructura.sub) base.bosquejoSub = row.estructura.sub; // subpunto A, B… (2026-11-06)
+    if (row.estructura.conclusion) base.bosquejoConclusion = row.estructura.conclusion;
   }
   if (row.tipo === "biblia") return { ...base, type: "biblia", reference: row.referencia, version: row.version_biblia, text: row.texto_biblia, bookId: row.libro_id || undefined, bookName: row.libro_nombre || undefined, chapter: row.capitulo || undefined, verseStart: row.versiculo_inicio || undefined, verseEnd: row.versiculo_fin || undefined };
   // Diapositivas con diseño (presentación agrupada o editada en el editor): viven en estructura.diapositivas.
   const diapositivas = Array.isArray(row.estructura?.diapositivas) && row.estructura.diapositivas.length ? row.estructura.diapositivas : undefined;
   return { ...base, type: "slide", title: row.titulo || "", name: row.descripcion || "", escalaSubtitulo: row.estructura?.escalaSubtitulo || undefined, subtitle: row.subtitulo || "", bg: row.fondo_color || "#1B2029", bgType: row.fondo_tipo || "color", videoUrl: row.fondo_video_url || "", imageUrl: row.fondo_imagen_url || "", isSermonPoint: row.es_punto_bosquejo || undefined, ...(diapositivas ? { diapositivas } : {}), ...(row.estructura?.cuentaRegresiva ? { cuentaRegresiva: row.estructura.cuentaRegresiva } : {}) };
+}
+
+// Marca de una diapositiva del bosquejo en estructura: de qué bloque, punto, subpunto o conclusión es.
+function marcaBosquejo(item) {
+  return {
+    bosquejoDe: item.bosquejoDe,
+    ...(item.bosquejoPunto ? { punto: item.bosquejoPunto } : {}),
+    ...(item.bosquejoSub ? { sub: item.bosquejoSub } : {}),
+    ...(item.bosquejoConclusion ? { conclusion: item.bosquejoConclusion } : {}),
+  };
 }
 
 function itemServicioAFila(item, eventoId, orden) {
@@ -138,11 +150,11 @@ function itemServicioAFila(item, eventoId, orden) {
   // (la base sin su columna la deja undefined), para no romper el guardado antes de correr el SQL.
   if (item.type === "cancion") return { ...base, tipo: "cancion", cancion_id: item.songId, tonalidad_override: item.keyOverride || null, ...(item.animacion !== undefined ? { animacion: item.animacion } : {}) };
   // La marca del bosquejo (bosquejoDe) viaja en estructura, que versículos y diapositivas de texto no usan.
-  if (item.bosquejoDe) base.estructura = { bosquejoDe: item.bosquejoDe, ...(item.bosquejoPunto ? { punto: item.bosquejoPunto } : {}) };
+  if (item.bosquejoDe) base.estructura = marcaBosquejo(item);
   if (item.type === "biblia") return { ...base, tipo: "biblia", referencia: item.reference, version_biblia: item.version, texto_biblia: item.text, libro_id: item.bookId ?? null, libro_nombre: item.bookName ?? null, capitulo: item.chapter ?? null, versiculo_inicio: item.verseStart ?? null, versiculo_fin: item.verseEnd ?? null };
   // escalaSubtitulo (tamaño del texto pequeño de una diapositiva de texto) viaja en estructura, que las
   // diapositivas de texto no usaban.
-  const marca = item.bosquejoDe ? { bosquejoDe: item.bosquejoDe, ...(item.bosquejoPunto ? { punto: item.bosquejoPunto } : {}) } : {};
+  const marca = item.bosquejoDe ? marcaBosquejo(item) : {};
   // Cuenta regresiva (2026-11-05): su configuración también viaja en estructura.
   if (item.cuentaRegresiva) return { ...base, estructura: { cuentaRegresiva: item.cuentaRegresiva }, tipo: "slide", titulo: item.title || "Cuenta regresiva", descripcion: item.name || "", subtitulo: "", fondo_color: item.bg || "#0B0F17", fondo_video_url: null, fondo_imagen_url: null };
   return { ...base, ...(item.diapositivas?.length ? { estructura: { diapositivas: item.diapositivas, ...marca } } : item.escalaSubtitulo ? { estructura: { escalaSubtitulo: item.escalaSubtitulo, ...marca } } : {}), tipo: "slide", titulo: item.title || "", descripcion: item.name || "", subtitulo: item.subtitle || "", fondo_color: item.bg || "#1B2029", fondo_video_url: item.videoUrl || null, fondo_imagen_url: item.imageUrl || null };

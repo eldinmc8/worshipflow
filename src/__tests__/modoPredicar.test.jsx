@@ -61,3 +61,37 @@ describe("modo predicar", () => {
     expect(screen.getByText("Punto 2 de 2")).toBeTruthy();
   });
 });
+
+describe("subpuntos y conclusiones", () => {
+  const conSubs = {
+    titulo: "El Hijo de Dios", citaBase: null, ideaCentral: "", mostrarIdea: false,
+    puntos: [{ id: "p1", titulo: "La deidad revelada en Cristo", nota: "", versiculos: [], subpuntos: [
+      { id: "a", titulo: "La plenitud de su naturaleza divina", ideas: "• No es una criatura exaltada\nComparte la esencia divina", versiculos: [{ ref: "Colosenses 2:9", version: "RVR1960", text: "Porque en él habita…" }] },
+      { id: "b", titulo: "La distinción de su persona", ideas: "", versiculos: [] },
+    ] }],
+    conclusiones: ["Cristo es plenamente Dios y plenamente hombre.", "  ", "Su agonía fue verdadera."],
+  };
+  let m = 0;
+  const its = bosquejoAItems(conSubs, "pred", () => `s${++m}`);
+  const orden = [{ id: "pred", type: "seccion", title: "Predicación" }, ...its];
+
+  it("cada subpunto y cada conclusión se proyecta como su propia diapositiva", () => {
+    expect(its.map((it) => it.subtitle || it.reference || "")).toEqual(["", "Punto 1", "Punto 1 · A", "Colosenses 2:9", "Punto 1 · B", "Conclusión 1", "Conclusión 2"]);
+    expect(its.find((it) => it.title === "La distinción de su persona")).toMatchObject({ bosquejoPunto: 1, bosquejoSub: 2 });
+  });
+
+  it("en el modo predicar cada subpunto es un paso y las ideas salen como viñetas", () => {
+    const pasos = pasosPredicar(conSubs);
+    expect(pasos).toEqual([{ tipo: "inicio" }, { tipo: "punto", i: 0 }, { tipo: "sub", i: 0, k: 0 }, { tipo: "sub", i: 0, k: 1 }, { tipo: "conclusion" }]);
+    expect(pasoAlAire(pasos, orden, "pred", { slideId: its[3].id }, conSubs)).toBe(2); // versículo de A
+    expect(pasoAlAire(pasos, orden, "pred", { slideId: its[6].id }, conSubs)).toBe(4); // conclusión
+    render(<ModoPredicar bosquejo={conSubs} serviceOrder={orden} bloqueId="pred" onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Paso siguiente" }));
+    fireEvent.click(screen.getByRole("button", { name: "Paso siguiente" }));
+    expect(screen.getByText("Punto 1 · A")).toBeTruthy();
+    expect(screen.getByText("No es una criatura exaltada")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Paso siguiente" }));
+    fireEvent.click(screen.getByRole("button", { name: "Paso siguiente" }));
+    expect(screen.getByText("Su agonía fue verdadera.")).toBeTruthy();
+  });
+});

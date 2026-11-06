@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, ChevronLeft, ChevronRight, Minus, Plus, Radio, BookOpen, Timer, Navigation } from "lucide-react";
-import { pasosPredicar, pasoAlAire } from "../lib/bosquejos.js";
+import { pasosPredicar, pasoAlAire, letraSubpunto, ideasDe } from "../lib/bosquejos.js";
 import { restanteTemporizador, textoTemporizador, nivelTemporizador } from "../lib/escenario.js";
 
 // Modo predicar (pedido de Eldin, 2026-11-06): para cuando la iglesia no tiene pantalla de escenario.
@@ -32,6 +32,8 @@ function tituloPaso(paso, b) {
   if (!paso) return "";
   if (paso.tipo === "inicio") return "Inicio";
   if (paso.tipo === "idea") return "Idea central";
+  if (paso.tipo === "conclusion") return "Conclusión";
+  if (paso.tipo === "sub") return `${letraSubpunto(paso.k)}. ${(b.puntos[paso.i]?.subpuntos?.[paso.k]?.titulo || "").trim() || "Subpunto"}`;
   return (b.puntos[paso.i]?.titulo || "").trim() || `Punto ${paso.i + 1}`;
 }
 
@@ -111,6 +113,40 @@ export default function ModoPredicar({ bosquejo, serviceOrder = [], bloqueId, en
           </div>
         )}
         {(p.versiculos || []).map((v, k) => <Versiculo key={`${v.ref}-${k}`} v={v} t={t} />)}
+        {(p.subpuntos || []).some((s) => (s.titulo || "").trim()) && (
+          <div style={{ marginTop: 14 }}>
+            {(p.subpuntos || []).map((s, k) => (s.titulo || "").trim() && (
+              <div key={s.id || k} style={{ fontSize: 17 * t, lineHeight: 1.45, color: "#C9D1DC", marginTop: 4 }}><b style={{ color: NARANJA }}>{letraSubpunto(k)}.</b> {s.titulo}</div>
+            ))}
+          </div>
+        )}
+      </>
+    );
+  } else if (paso?.tipo === "sub") {
+    const p = b.puntos[paso.i] || {};
+    const s = p.subpuntos?.[paso.k] || {};
+    const num = puntosVisibles.findIndex((x) => x.i === paso.i) + 1;
+    cuerpo = (
+      <>
+        <div style={{ fontSize: 13 * t, fontWeight: 700, letterSpacing: 1.2, color: NARANJA, textTransform: "uppercase" }}>Punto {num} · {letraSubpunto(paso.k)}</div>
+        <div style={{ fontSize: 14 * t, color: GRIS, marginTop: 4 }}>{(p.titulo || "").trim()}</div>
+        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 28 * t, fontWeight: 600, lineHeight: 1.2, marginTop: 6 }}>{(s.titulo || "").trim() || `Subpunto ${letraSubpunto(paso.k)}`}</div>
+        {ideasDe(s.ideas).length > 0 && (
+          <ul style={{ margin: "12px 0 0", paddingLeft: 22 }}>
+            {ideasDe(s.ideas).map((idea, k) => <li key={k} style={{ fontSize: 19 * t, lineHeight: 1.45, marginTop: 8 }}>{idea}</li>)}
+          </ul>
+        )}
+        {(s.versiculos || []).map((v, k) => <Versiculo key={`${v.ref}-${k}`} v={v} t={t} />)}
+      </>
+    );
+  } else if (paso?.tipo === "conclusion") {
+    const lista = (b.conclusiones || []).map((c) => String(c || "").trim()).filter(Boolean);
+    cuerpo = (
+      <>
+        <div style={{ fontSize: 13 * t, fontWeight: 700, letterSpacing: 1.2, color: NARANJA, textTransform: "uppercase" }}>{lista.length > 1 ? "Conclusiones" : "Conclusión"}</div>
+        <ol style={{ margin: "10px 0 0", paddingLeft: 24 }}>
+          {lista.map((c, k) => <li key={k} style={{ fontSize: 20 * t, lineHeight: 1.45, marginTop: 10 }}>{c}</li>)}
+        </ol>
       </>
     );
   }
