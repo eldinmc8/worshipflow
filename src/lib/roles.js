@@ -19,8 +19,13 @@ export const GRUPOS_PERMISOS = ["Eventos", "Canciones", "Ministerios", "En vivo"
 
 export const PERMISOS_APP = [
   { clave: "ver_todos_eventos", grupo: "Eventos", etiqueta: "Ver todos los eventos", detalle: "Aunque no esté asignado. Solo mirar." },
-  { clave: "editar_setlist", grupo: "Eventos", etiqueta: "Editar el Setlist", detalle: "Canciones, versículos, slides, bloques, orden, tonalidad para ese evento y encargados.", incluye: ["ver_todos_eventos"] },
-  { clave: "gestionar_eventos", grupo: "Eventos", etiqueta: "Organizar eventos", detalle: "Crear eventos y plantillas, cambiar fecha y hora, recordatorios, publicar y eliminar.", incluye: ["ver_todos_eventos", "editar_setlist"] },
+  // Diapositivas (pedido de Eldin, 2026-11-06): un músico no necesita ver las slides ni el bosquejo del
+  // predicador. Sin este permiso solo las ven el Administrador, el Supervisor, quien edita el Setlist y,
+  // en cada evento, quien está asignado al bloque de Multimedia o al de Predicación (ver
+  // puedeVerDiapositivasEvento en pantallas/eventos.jsx).
+  { clave: "ver_diapositivas", grupo: "Eventos", etiqueta: "Ver las diapositivas y el bosquejo", detalle: "Slides, presentaciones y el bosquejo del predicador ya armado, en todos sus eventos. Solo mirar." },
+  { clave: "editar_setlist", grupo: "Eventos", etiqueta: "Editar el Setlist", detalle: "Canciones, versículos, slides, bloques, orden, tonalidad para ese evento y encargados.", incluye: ["ver_todos_eventos", "ver_diapositivas"] },
+  { clave: "gestionar_eventos", grupo: "Eventos", etiqueta: "Organizar eventos", detalle: "Crear eventos y plantillas, cambiar fecha y hora, recordatorios, publicar y eliminar.", incluye: ["ver_todos_eventos", "ver_diapositivas", "editar_setlist"] },
   { clave: "ver_canciones", grupo: "Canciones", etiqueta: "Ver el cancionero", detalle: "La pestaña Canciones con letras y acordes." },
   { clave: "gestionar_canciones", grupo: "Canciones", etiqueta: "Gestionar canciones", detalle: "Crear, editar, cambiar la tonalidad original y borrar canciones.", incluye: ["ver_canciones"] },
   { clave: "gestionar_ministerios", grupo: "Ministerios", etiqueta: "Gestionar ministerios", detalle: "Todos los grupos: crearlos, su planificación, recursos y líder. Para un solo grupo, asígnalo como líder dentro del grupo." },
@@ -53,7 +58,7 @@ export const PLANTILLAS_ROL = [
   // lidere UN solo grupo no hace falta ningún rol — se le asigna como líder dentro de ese grupo.
   { nombre: "Coordinador de ministerios", permisos: { gestionar_ministerios: true } },
   { nombre: "Equipo de proyección", permisos: { iniciar_finalizar_vivo: true, controlar_estilo_vivo: true } },
-  { nombre: "Pastor / Supervisor", permisos: { ver_todos_eventos: true, ver_canciones: true } },
+  { nombre: "Pastor / Supervisor", permisos: { ver_todos_eventos: true, ver_canciones: true, ver_diapositivas: true } },
 ];
 
 // Resumen corto de lo que puede hacer un rol, para la lista de roles (ej. "Eventos · Canciones").

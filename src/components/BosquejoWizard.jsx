@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Mic2, BookOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Plus, Trash2, Check, Send, Eye, EyeOff, Lock } from "lucide-react";
-import { bosquejoVacio, nuevoPunto, bosquejoListoParaEnviar, bosquejoAItems } from "../lib/bosquejos.js";
+import { X, Mic2, BookOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Plus, Trash2, Check, Send, Eye, EyeOff, Lock, Presentation } from "lucide-react";
+import ModoPredicar from "./ModoPredicar.jsx";
+import { bosquejoVacio, nuevoPunto, nuevoSubpunto, letraSubpunto, bosquejoListoParaEnviar, bosquejoAItems } from "../lib/bosquejos.js";
 
 // Asistente paso a paso para que el predicador arme su bosquejo (pedido de Eldin, 2026-11-01):
 // 1. Título del sermón · 2. Cita base (con la Biblia integrada) · 3. Introducción / idea central ·
@@ -42,7 +43,9 @@ function TarjetaVersiculo({ v, onQuitar, compacta = false }) {
   );
 }
 
-export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bloqueado = false, onGuardar, onEnviar, onClose, BibliaSelector }) {
+// soloLectura (2026-11-06): lo abre alguien que no es el predicador (Supervisor, Multimedia, un rol con
+// "ver_diapositivas") solo para leer el bosquejo ya enviado — llega siempre junto con bloqueado.
+export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bloqueado = false, soloLectura = false, onEliminar = null, vivo = null, onGuardar, onEnviar, onClose, BibliaSelector }) {
   const [b, setB] = useState(() => ({ ...bosquejoVacio(), ...(inicial || {}) }));
   // Ya enviado antes → abre directo en "Revisar"; si no, en el primer paso.
   const [paso, setPaso] = useState(() => (inicial?.enviadoAt ? 4 : 0));
@@ -50,11 +53,19 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
   const [enviando, setEnviando] = useState(false);
   const [eligiendo, setEligiendo] = useState(null); // null · "cita" · id del punto al que se agrega un versículo
   const [cambiarCita, setCambiarCita] = useState(false);
+  // Modo predicar (2026-11-06): seguir el bosquejo en el celular si no hay pantalla de escenario.
+  // vivo = { serviceOrder, bloqueId, enVivo, slideAlAire } — para que siga solo a Multimedia.
+  const [predicando, setPredicando] = useState(false);
   const ultimoGuardado = useRef(JSON.stringify(b));
   const contenido = useRef(null);
 
   const cambiar = (patch) => { setB((x) => ({ ...x, ...patch })); setEstado("sin-guardar"); };
   const cambiarPunto = (id, patch) => cambiar({ puntos: b.puntos.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
+  // Subpuntos (2026-11-06): A, B, C… dentro de cada punto.
+  const subsDe = (p) => p.subpuntos || [];
+  const cambiarSub = (pid, sid, patch) => cambiar({ puntos: b.puntos.map((p) => (p.id === pid ? { ...p, subpuntos: subsDe(p).map((s) => (s.id === sid ? { ...s, ...patch } : s)) } : p)) });
+  const conclusiones = b.conclusiones || [];
+  const cambiarConclusion = (k, texto) => cambiar({ conclusiones: conclusiones.map((c, x) => (x === k ? texto : c)) });
   const moverPunto = (i, d) => {
     const j = i + d;
     if (j < 0 || j >= b.puntos.length) return;
@@ -121,12 +132,17 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
     cuerpo = (
       <>
         <button type="button" onClick={() => setEligiendo(null)} style={{ ...botonSecundario, padding: "8px 12px", marginBottom: 12, fontSize: 13 }}><ChevronLeft size={15} /> Volver</button>
-        <Pregunta ayuda="Elige libro, capítulo y versículos. El texto queda listo para Multimedia.">{esCita ? "Cita base" : "Versículo para este punto"}</Pregunta>
+        <Pregunta ayuda="Elige libro, capítulo y versículos. El texto queda listo para Multimedia.">{esCita ? "Cita base" : String(eligiendo).startsWith("sub:") ? "Versículo para este subpunto" : "Versículo para este punto"}</Pregunta>
         <BibliaSelector
           submitLabel={esCita ? "Usar esta cita" : "Agregar al punto"}
           onAdd={(v) => {
             const versiculo = { ref: v.ref, version: v.version, text: v.text, bookId: v.bookId, bookName: v.bookName, chapter: v.chapter, verseStart: v.verseStart, verseEnd: v.verseEnd };
             if (esCita) { cambiar({ citaBase: versiculo }); setCambiarCita(false); }
+            else if (String(eligiendo).startsWith("sub:")) {
+              const [, pid, sid] = String(eligiendo).split(":");
+              const sub = subsDe(b.puntos.find((p) => p.id === pid) || {}).find((s) => s.id === sid);
+              cambiarSub(pid, sid, { versiculos: [...(sub?.versiculos || []), versiculo] });
+            }
             else cambiarPunto(eligiendo, { versiculos: [...(b.puntos.find((p) => p.id === eligiendo)?.versiculos || []), versiculo] });
             setEligiendo(null);
           }}
@@ -190,7 +206,7 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
   } else if (paso === 3) {
     cuerpo = (
       <>
-        <Pregunta ayuda="Escribe cada punto como lo vas a desglosar. A cada uno le puedes agregar versículos de referencia.">Los puntos del sermón</Pregunta>
+        <Pregunta ayuda="Escribe cada punto. Si tiene partes (A, B…), toca «+ Subpunto». Al final puedes agregar tus conclusiones.">Los puntos del sermón</Pregunta>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {b.puntos.map((p, i) => (
             <div key={p.id} style={{ background: "var(--wf-card)", boxShadow: sombra, borderRadius: 16, padding: 14 }}>
@@ -224,6 +240,40 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
                   <Plus size={15} /> Versículo
                 </button>
               )}
+              {/* Subpuntos: cada uno con título, ideas (una por línea) y versículos */}
+              {subsDe(p).map((s, k) => (
+                <div key={s.id} style={{ marginTop: 10, marginLeft: 6, paddingLeft: 12, borderLeft: `3px solid ${NARANJA}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: NARANJA }}>{letraSubpunto(k)}.</span>
+                    <span style={{ flex: 1, fontSize: 11.5, fontWeight: 700, color: "var(--wf-muted)" }}>SUBPUNTO</span>
+                    {!bloqueado && <button type="button" onClick={() => cambiarPunto(p.id, { subpuntos: subsDe(p).filter((x) => x.id !== s.id) })} style={{ ...botonIcono, color: "#C23B32" }} aria-label={`Quitar subpunto ${letraSubpunto(k)}`} title="Quitar subpunto"><Trash2 size={14} /></button>}
+                  </div>
+                  <input
+                    value={s.titulo} onChange={(e) => cambiarSub(p.id, s.id, { titulo: e.target.value })} readOnly={bloqueado}
+                    aria-label={`Título del subpunto ${letraSubpunto(k)}`} placeholder="Ej. La plenitud de su naturaleza divina" style={{ ...input, fontSize: 14, fontWeight: 600 }} maxLength={160}
+                  />
+                  <textarea
+                    value={s.ideas} onChange={(e) => cambiarSub(p.id, s.id, { ideas: e.target.value })} readOnly={bloqueado}
+                    aria-label={`Ideas del subpunto ${letraSubpunto(k)}`} placeholder={"Tus ideas, una por línea (solo las ves tú)\nEj. No es una criatura exaltada"}
+                    rows={3} style={{ ...input, fontSize: 13.5, marginTop: 6, resize: "vertical", lineHeight: 1.45 }}
+                  />
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+                    {(s.versiculos || []).map((v, x) => (
+                      <TarjetaVersiculo key={`${v.ref}-${x}`} v={v} compacta onQuitar={bloqueado ? null : () => cambiarSub(p.id, s.id, { versiculos: s.versiculos.filter((_, y) => y !== x) })} />
+                    ))}
+                  </div>
+                  {!bloqueado && (
+                    <button type="button" onClick={() => setEligiendo(`sub:${p.id}:${s.id}`)} style={{ ...botonSecundario, width: "100%", marginTop: 6, padding: "8px 12px", fontSize: 12.5, color: "#2F5FA8" }}>
+                      <Plus size={14} /> Versículo para {letraSubpunto(k)}
+                    </button>
+                  )}
+                </div>
+              ))}
+              {!bloqueado && (
+                <button type="button" onClick={() => cambiarPunto(p.id, { subpuntos: [...subsDe(p), nuevoSubpunto()] })} style={{ ...botonSecundario, width: "100%", marginTop: 10, padding: "9px 12px", fontSize: 13, background: "transparent", border: "1.5px dashed var(--wf-border)" }}>
+                  <Plus size={15} /> Subpunto {letraSubpunto(subsDe(p).length)}
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -232,11 +282,37 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
             <Plus size={16} /> {b.puntos.length ? "Agregar otro punto" : "Agregar el primer punto"}
           </button>
         )}
+        {/* Conclusiones (2026-11-06): cada una se proyecta como su propia diapositiva, al final. */}
+        <div style={{ ...etiqueta, marginTop: 22 }}>CONCLUSIONES</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {conclusiones.map((c, k) => (
+            <div key={k} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+              <span style={{ width: 24, height: 24, borderRadius: 12, background: "#16324F", color: "#fff", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 10 }}>{k + 1}</span>
+              <textarea
+                value={c} onChange={(e) => cambiarConclusion(k, e.target.value)} readOnly={bloqueado}
+                aria-label={`Conclusión ${k + 1}`} placeholder="Ej. Cristo es plenamente Dios y plenamente hombre." rows={2}
+                style={{ ...input, fontSize: 14, resize: "vertical", lineHeight: 1.45 }}
+              />
+              {!bloqueado && <button type="button" onClick={() => cambiar({ conclusiones: conclusiones.filter((_, x) => x !== k) })} style={{ ...botonIcono, color: "#C23B32", marginTop: 6 }} aria-label={`Quitar conclusión ${k + 1}`} title="Quitar conclusión"><Trash2 size={15} /></button>}
+            </div>
+          ))}
+        </div>
+        {!bloqueado && (
+          <button type="button" onClick={() => cambiar({ conclusiones: [...conclusiones, ""] })} style={{ ...botonSecundario, width: "100%", marginTop: 10, border: "1.5px dashed var(--wf-border)", background: "transparent" }}>
+            <Plus size={16} /> {conclusiones.length ? "Agregar otra conclusión" : "Agregar una conclusión"}
+          </button>
+        )}
       </>
     );
   } else {
     cuerpo = (
       <>
+        {b.titulo.trim() && (
+          <button type="button" onClick={() => setPredicando(true)} style={{ ...botonPrincipal, width: "100%", marginBottom: 16, background: "#16324F", color: "#fff" }}>
+            <Presentation size={16} /> Modo predicar
+            <span style={{ fontWeight: 500, fontSize: 12, opacity: 0.8 }}>· síguelo en tu celular</span>
+          </button>
+        )}
         <Pregunta ayuda={b.enviadoAt ? "Ya lo enviaste. Si cambias algo, vuelve a enviarlo para que Multimedia tenga lo último." : "Revisa que todo esté bien. Toca cualquier parte para corregirla."}>Tu bosquejo</Pregunta>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button type="button" onClick={() => irA(0)} style={{ textAlign: "left", background: "var(--wf-card)", boxShadow: sombra, border: "none", borderRadius: 14, padding: "12px 14px", cursor: "pointer", fontFamily: "inherit" }}>
@@ -260,9 +336,23 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
                   <li key={p.id} style={{ fontSize: 13.5, color: "var(--wf-text)", fontWeight: 600 }}>
                     {p.titulo}
                     {p.versiculos.length > 0 && <span style={{ fontWeight: 500, color: "#2F5FA8" }}> · {p.versiculos.map((v) => v.ref).join(", ")}</span>}
+                    {subsDe(p).filter((s) => (s.titulo || "").trim()).map((s, k) => (
+                      <div key={s.id} style={{ fontSize: 12.5, fontWeight: 500, color: "var(--wf-text-2)", marginTop: 2 }}>
+                        <b style={{ color: NARANJA }}>{letraSubpunto(k)}.</b> {s.titulo}
+                        {(s.versiculos || []).length > 0 && <span style={{ color: "#2F5FA8" }}> · {s.versiculos.map((v) => v.ref).join(", ")}</span>}
+                      </div>
+                    ))}
                   </li>
                 ))}
               </ol>
+            )}
+            {conclusiones.some((c) => c.trim()) && (
+              <>
+                <div style={{ ...etiqueta, marginTop: 10, marginBottom: 4 }}>CONCLUSIONES</div>
+                <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 3 }}>
+                  {conclusiones.filter((c) => c.trim()).map((c, k) => <li key={k} style={{ fontSize: 13, color: "var(--wf-text-2)" }}>{c}</li>)}
+                </ol>
+              </>
             )}
           </button>
         </div>
@@ -308,7 +398,7 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
         <button type="button" onClick={() => irA(3)} style={botonSecundario} aria-label="Atrás"><ChevronLeft size={16} /> Atrás</button>
         {bloqueado ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--wf-muted)", background: "var(--wf-hover)", borderRadius: 12, padding: "10px 12px" }}>
-            <Lock size={15} style={{ flexShrink: 0 }} /> El culto ya está en vivo. Si hay que corregir algo, pídeselo a Multimedia.
+            <Lock size={15} style={{ flexShrink: 0 }} /> {soloLectura ? "Solo para leer. Lo arma y lo envía el predicador." : "El culto ya está en vivo. Si hay que corregir algo, pídeselo a Multimedia."}
           </div>
         ) : (
           <button type="button" onClick={enviar} disabled={enviando || !bosquejoListoParaEnviar(b)} style={{ ...botonPrincipal, flex: 1, opacity: enviando ? 0.6 : 1 }}>
@@ -330,6 +420,9 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
               <div style={{ fontSize: 14.5, fontWeight: 700, color: "var(--wf-text)" }}>Bosquejo del sermón</div>
               <div style={{ fontSize: 11.5, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{[tituloBloque, tituloEvento].filter(Boolean).join(" · ")}</div>
             </div>
+            {/* Solo llega para el predicador asignado o un administrador (ver puedeEliminarBosquejo). */}
+            {b.titulo.trim() && <button type="button" onClick={() => setPredicando(true)} style={botonIcono} aria-label="Modo predicar" title="Modo predicar: síguelo en tu celular"><Presentation size={17} /></button>}
+            {onEliminar && <button type="button" onClick={onEliminar} style={{ ...botonIcono, color: "#C23B32" }} aria-label="Eliminar bosquejo" title="Eliminar bosquejo"><Trash2 size={17} /></button>}
             <button type="button" onClick={cerrar} style={botonIcono} aria-label="Cerrar"><X size={18} /></button>
           </div>
           {/* Pasos: tocar uno ya visitado lleva ahí */}
@@ -348,12 +441,16 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
         </div>
         {bloqueado && !eligiendo && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "12px 16px 0", fontSize: 12.5, color: "var(--wf-text-2)", background: "rgba(194,59,50,0.08)", borderRadius: 12, padding: "9px 12px" }}>
-            <Lock size={14} color="#C23B32" style={{ flexShrink: 0 }} /> El culto está en vivo: el bosquejo queda solo para leer.
+            <Lock size={14} color="#C23B32" style={{ flexShrink: 0 }} /> {soloLectura ? "Estás viendo el bosquejo del predicador, solo para leer." : "El culto está en vivo: el bosquejo queda solo para leer."}
           </div>
         )}
         <div ref={contenido} style={{ flex: 1, overflowY: "auto", padding: "18px 16px" }}>{cuerpo}</div>
         {barra && <div style={{ padding: "12px 16px calc(12px + env(safe-area-inset-bottom))", background: "var(--wf-card)", boxShadow: "0 -2px 10px rgba(22,50,79,0.06)" }}>{barra}</div>}
       </div>
+      {predicando && (
+        <ModoPredicar bosquejo={b} serviceOrder={vivo?.serviceOrder || []} bloqueId={vivo?.bloqueId} enVivo={!!vivo?.enVivo}
+          slideAlAire={vivo?.slideAlAire || null} onClose={() => setPredicando(false)} />
+      )}
     </div>,
     document.body
   );

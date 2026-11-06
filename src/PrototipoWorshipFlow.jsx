@@ -11,7 +11,7 @@ import { saveCache, loadCache } from "./lib/offlineCache.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { palabrasPorParteSegun, expandirVersiculosLargos, reorganizarLetra } from "./lib/dividirTexto.js";
 import { insertarEnBloque } from "./lib/ordenCulto.js";
-import { esBloquePredicacion, guardarBosquejo, aplicarBosquejoAlOrden, bosquejoAItems } from "./lib/bosquejos.js";
+import { esBloquePredicacion, guardarBosquejo, aplicarBosquejoAlOrden, bosquejoAItems, eliminarBosquejo, quitarBosquejoDelOrden } from "./lib/bosquejos.js";
 import { animacionEfectiva, estiloDeParte } from "./lib/animacionCancion.js";
 import { esCuentaRegresiva, slideCuentaRegresiva, conHoraFinal, arrancarSiHaceFalta, slideCuentaAlMomento, normalizarCuenta, itemCuentaRegresiva } from "./lib/cuentaRegresiva.js";
 import { confirmDialog } from "./lib/confirm.js";
@@ -36,7 +36,7 @@ import { SettingsView } from "./pantallas/ajustes.jsx";
 import { MinistriesList, MinistryDetail } from "./pantallas/ministerios.jsx";
 import { AsistenteChatScreen } from "./pantallas/asistente.jsx";
 import { CancionesList, SongView, SongEditor } from "./pantallas/canciones.jsx";
-import { EventList, EventDetail } from "./pantallas/eventos.jsx";
+import { EventList, EventDetail, puedeVerDiapositivasEvento } from "./pantallas/eventos.jsx";
 import { BibleBrowserBody } from "./pantallas/biblia.jsx";
 import { MultimediaControl } from "./pantallas/envivo.jsx";
 import { ProjectionPanel } from "./pantallas/proyeccion.jsx";
@@ -421,6 +421,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
 
   const selectedEvent = events.find((e) => e.id === selectedEventId);
   const [liveEventId, setLiveEventId] = useState(null);
+  // Lo que Multimedia tiene al aire ahora (slide_actual de la sesión en vivo) — lo usa el Modo predicar
+  // del bosquejo para seguir solo al predicador por su bosquejo cuando no hay pantalla de escenario.
+  const [slideAlAireRemoto, setSlideAlAireRemoto] = useState(null);
   // Código secreto de las pantallas sin sesión (enlace que vence, 2026-11-02): va en el enlace/QR y en el
   // nombre del canal por el que la consola les manda lo que está al aire. La base lo cambia sola al
   // finalizar la transmisión, así que se vuelve a pedir al empezar y al terminar.
@@ -1364,9 +1367,18 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // ---- Bosquejo del predicador (2026-11-01): quien está asignado a un bloque de Predicación (o quien
   // edita el Setlist) lo arma paso a paso; al enviarlo se vuelve diapositivas del Setlist (ver bosquejos.js).
   const puedeBosquejo = (block) => esBloquePredicacion(block) && (puedeEditarSetlistEvento || (block.encargados || []).some((m) => m.usuarioId === myUserId));
+  // ---- Diapositivas del Setlist (pedido de Eldin, 2026-11-06): las slides y el bosquejo no son para
+  // todos. Las ven Administrador, Supervisor, quien edita el Setlist, un rol con "ver_diapositivas" y,
+  // en cada evento, quien está asignado al bloque de Multimedia o al de Predicación. Un músico no.
+  const esSupervisorReal = usuariosReales.find((u) => u.id === myUserId)?.rol === "supervisor";
+  const verDiapositivasSiempre = isAdminViewer || puedeEditarSetlistEvento || esSupervisorReal || tienePermiso("ver_diapositivas");
+  const verDiapositivasEvento = puedeVerDiapositivasEvento(selectedEvent, myUserId, verDiapositivasSiempre);
+  // Quien puede ver las diapositivas también puede abrir el bosquejo ya enviado, solo para leerlo.
+  const puedeVerBosquejo = (block) => esBloquePredicacion(block) && verDiapositivasEvento && !!selectedEvent?.bosquejos?.[block.id]?.enviadoAt;
   const bloqueBosquejo = bosquejoAbierto ? (selectedEvent?.serviceOrder || []).find((it) => it.id === bosquejoAbierto) : null;
+  const bosquejoSoloLectura = !!bloqueBosquejo && !puedeBosquejo(bloqueBosquejo);
   // En vivo, el predicador ya no lo cambia (Multimedia sí puede corregir desde la consola).
-  const bosquejoBloqueado = !!bloqueBosquejo && liveEventId === selectedEventId && !puedeEditarSetlistEvento;
+  const bosquejoBloqueado = bosquejoSoloLectura || (!!bloqueBosquejo && liveEventId === selectedEventId && !puedeEditarSetlistEvento);
   const ponerBosquejoLocal = (eventoId, bloqueId, guardado) => setEventsSynced((evs) => evs.map((e) => (
     e.id === eventoId ? { ...e, bosquejos: { ...(e.bosquejos || {}), [bloqueId]: guardado } } : e
   )));
@@ -1397,7 +1409,30 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       throw err;
     }
   };
-  const bosquejoInfo = { puede: puedeBosquejo, abrir: setBosquejoAbierto, bosquejos: selectedEvent?.bosquejos || {} };
+  // Eliminar el bosquejo (pedido de Eldin, 2026-11-06): solo el predicador asignado a ese bloque o un
+  // administrador. Con el culto en vivo, el predicador ya no puede (igual que para editarlo).
+  const puedeEliminarBosquejo = (block) => !!block && esBloquePredicacion(block) && !!selectedEvent?.bosquejos?.[block.id]
+    && (isAdminViewer || ((block.encargados || []).some((m) => m.usuarioId === myUserId) && liveEventId !== selectedEventId));
+  const borrarBosquejo = async () => {
+    const eventoId = selectedEventId, bloqueId = bosquejoAbierto;
+    const enviado = !!selectedEvent?.bosquejos?.[bloqueId]?.enviadoAt;
+    const aviso = enviado ? "¿Eliminar el bosquejo? También se quitan sus diapositivas del Setlist. Esto no se puede deshacer." : "¿Eliminar el bosquejo? Esto no se puede deshacer.";
+    if (!(await confirmDialog(aviso, { danger: true, textoConfirmar: "Eliminar" }))) return;
+    try {
+      await eliminarBosquejo(bloqueId);
+      setEventsSynced((evs) => evs.map((e) => {
+        if (e.id !== eventoId) return e;
+        const { [bloqueId]: _borrado, ...resto } = e.bosquejos || {}; // eslint-disable-line no-unused-vars
+        return { ...e, bosquejos: resto };
+      }));
+      if (enviado) updateOrder((o) => quitarBosquejoDelOrden(o, bloqueId));
+      setBosquejoAbierto(null);
+      showToast("Bosquejo eliminado.", "info");
+    } catch (err) {
+      notifyError("No se pudo eliminar el bosquejo", err);
+    }
+  };
+  const bosquejoInfo = { puede: puedeBosquejo, puedeVer: puedeVerBosquejo, abrir: setBosquejoAbierto, bosquejos: selectedEvent?.bosquejos || {} };
 
   // ---- Estilo en vivo de la proyección: declarado más arriba (antes de `slides`), porque el tamaño de
   // letra decide en cuántas partes se dividen los versículos largos ----
@@ -1544,6 +1579,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           return;
         }
         setLiveEventId(fila?.evento_id || null); setLiveOwnerId(fila?.liderado_por || null); setLiveLibre(!!fila?.libre);
+        setSlideAlAireRemoto(fila?.slide_actual || null);
         adoptarEstiloGuardado(fila?.estilo_en_vivo);
       })
       .catch(() => {});
@@ -1551,6 +1587,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       setLiveEventId(fila.evento_id || null);
       setLiveOwnerId(fila.liderado_por || null);
       setLiveLibre(!!fila.libre);
+      setSlideAlAireRemoto(fila.slide_actual || null);
       // Solo si lo cambió OTRO dispositivo: quien transmite ya tiene su estilo, y adoptar su propio eco
       // volvería a disparar el envío de la sesión.
       if (fila.liderado_por !== userIdRef.current) adoptarEstiloGuardado(fila.estilo_en_vivo);
@@ -2283,15 +2320,17 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
           showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
           showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
-          bosquejoInfo={bosquejoInfo}
+          bosquejoInfo={bosquejoInfo} verDiapositivas={verDiapositivasEvento}
         />
       )}
-      {tab === "eventos" && selectedEvent && bloqueBosquejo && (
+      {tab === "eventos" && selectedEvent && bloqueBosquejo && (puedeBosquejo(bloqueBosquejo) || puedeVerBosquejo(bloqueBosquejo)) && (
         <BosquejoWizard
           key={bloqueBosquejo.id}
           inicial={selectedEvent.bosquejos?.[bloqueBosquejo.id]}
           tituloBloque={bloqueBosquejo.title} tituloEvento={selectedEvent.title}
-          bloqueado={bosquejoBloqueado}
+          bloqueado={bosquejoBloqueado} soloLectura={bosquejoSoloLectura}
+          onEliminar={puedeEliminarBosquejo(bloqueBosquejo) ? borrarBosquejo : null}
+          vivo={{ serviceOrder: selectedEvent.serviceOrder || [], bloqueId: bloqueBosquejo.id, enVivo: liveEventId === selectedEvent.id, slideAlAire: slideAlAireRemoto }}
           onGuardar={guardarBorradorBosquejo} onEnviar={enviarBosquejo}
           onClose={() => setBosquejoAbierto(null)}
           BibliaSelector={BibleBrowserBody}

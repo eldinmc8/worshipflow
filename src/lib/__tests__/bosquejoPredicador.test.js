@@ -118,6 +118,14 @@ describe("tabla bosquejos", () => {
     const r2 = await sql(`select titulo from public.bosquejos where item_servicio_id = $1`, [B.pred]);
     expect(r2.rows[0].titulo).toBe("La gracia que restaura");
   });
+  it("el botón Eliminar: alguien que no predica no lo borra; el predicador sí", async () => {
+    await como("carlos");
+    await sql(`delete from public.bosquejos where item_servicio_id = $1`, [B.pred]);
+    expect((await sql(`select count(*)::int as n from public.bosquejos where item_servicio_id = $1`, [B.pred])).rows[0].n).toBe(1);
+    await como("pedro");
+    await sql(`delete from public.bosquejos where item_servicio_id = $1`, [B.pred]);
+    expect((await sql(`select count(*)::int as n from public.bosquejos where item_servicio_id = $1`, [B.pred])).rows[0].n).toBe(0);
+  });
   it("se borra solo si se borra el bloque", async () => {
     await como("admin");
     await sql(`delete from public.items_servicio where id = $1`, [B.predE2]);
