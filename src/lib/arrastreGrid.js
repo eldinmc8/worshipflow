@@ -1,3 +1,4 @@
+import { esCampoEditable } from "./arrastreLista.js";
 import { useEffect, useRef, useState } from "react";
 
 // Arrastrar para reordenar en una CUADRÍCULA (miniaturas de la consola En vivo) — el mismo gesto que
@@ -181,7 +182,8 @@ export function useArrastreGrid({ habilitado, grupoDe, onReorder }) {
       window.addEventListener("touchmove", g.bloquearScroll, { passive: false });
       if (g.tipo !== "mouse") g.timer = setTimeout(activar, ESPERA_TOQUE_MS);
     },
-    onContextMenu: (e) => { if (opcionesRef.current.habilitado && opcionesRef.current.grupoDe(idx) != null) e.preventDefault(); },
+    // Igual que en arrastreLista: dentro de un campo de texto se deja el menú de Copiar/Pegar del celular.
+    onContextMenu: (e) => { if (opcionesRef.current.habilitado && opcionesRef.current.grupoDe(idx) != null && !esCampoEditable(e.target)) e.preventDefault(); },
     onDragStart: (e) => e.preventDefault(), // nunca el arrastre nativo del navegador (imagen fantasma)
   });
 

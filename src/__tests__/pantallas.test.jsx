@@ -142,6 +142,13 @@ describe("¿abre la pantalla?", () => {
     expect(orden()).toEqual(["C", "V1"]);
     fireEvent.click(screen.getByRole("button", { name: "Bajar Coro" }));
     expect(orden()).toEqual(["V1", "C"]);
+    // En el celular, mantener presionado dentro de la letra debe abrir el menú de Copiar/Pegar/Seleccionar
+    // todo (en Android sale con el evento contextmenu): la parte arrastrable no lo puede bloquear.
+    const letra = document.querySelector('[data-parte="V1"] textarea');
+    expect(fireEvent.contextMenu(letra)).toBe(true);
+    expect(fireEvent.contextMenu(document.querySelector('[data-parte="V1"] input'))).toBe(true);
+    // Fuera de los campos (la barra de la parte) sí se bloquea, para poder arrastrar.
+    expect(fireEvent.contextMenu(document.querySelector('[data-parte="V1"]'))).toBe(false);
     sinPantallaDeError();
   });
 
