@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cssAnimacion, cssSombraReceta, recetaCompleta, listaPalabrasClave, tratamientoDe } from "../lib/animaciones.js";
 import { ESTILOS_RECETA, GRUPOS_NUEVOS } from "../lib/estilosAnimados.js";
+import { efectosDePalabra } from "../lib/animacionCancion.js";
 import { familiaDe } from "../lib/diapositivas.js";
 
 // Letras animadas para la proyección (pedido de Eldin, 2026-10-18): "que las letras pasen como en los
@@ -199,7 +200,9 @@ const CLAVES = /^(santo|santa|señor|dios|jesús|jesus|cristo|rey|gloria|aleluya
 // Arma cada línea en palabras (y letras, si el estilo lo pide) con las variables que usa la CSS.
 // Devuelve { lineas: ReactNode[], vars: estilo para el contenedor }.
 // vel: velocidad elegida en la consola (ver velocidadLetra); acelera entradas y turnos, no los bucles.
-export function armarLineasAnimadas(clave, lineas, idDiapositiva, vel = 1) {
+// opciones.momentos: momentos especiales de la canción (ver lib/animacionCancion.js): la palabra elegida
+// sale gigante o brillando.
+export function armarLineasAnimadas(clave, lineas, idDiapositiva, vel = 1, opciones = {}) {
   const a = typeof clave === "string" ? ANIMACIONES[clave] : clave;
   const tiempo = BASE_TIEMPO / (Number(vel) > 0 ? Number(vel) : 1); // multiplica duraciones y retrasos
   const r0 = a.receta || null;
@@ -240,7 +243,8 @@ export function armarLineasAnimadas(clave, lineas, idDiapositiva, vel = 1) {
         if (esClave) vars.color = a.colorClave;
         if (r.unidad === "palabra") vars.animation = cssAnimacion({ entrada: r.entrada, permanencia: r.permanencia, velocidad: r.velocidad, retraso: 0.15 * tiempo + iPal * r.separacion });
       }
-      const clases = "wfa-p" + (esClave ? " wfa-clave" : "") + (conTrat || trat === "contorno" || trat === "invertido" ? ` wft-${trat}` : "");
+      const momentosPalabra = efectosDePalabra(opciones.momentos, limpia);
+      const clases = "wfa-p" + (esClave ? " wfa-clave" : "") + momentosPalabra.map((m) => ` wfm-${m}`).join("") + (conTrat || trat === "contorno" || trat === "invertido" ? ` wft-${trat}` : "");
       if (a.modo === "letra") {
         const letras = [...p].map((ch, ci) => { const vl = Math.floor(rnd() * 7); return <span key={ci} className="wfa-c" style={{ ...(porLetraTrat ? { mixBlendMode: mezclaDe(vl, esClave) } : {}), "--c": iLet + ci, "--ci": ci, "--fl": rnd().toFixed(3),
           ...(r ? { "--dx": (rnd() * 2 - 1).toFixed(3), "--dy": (rnd() * 2 - 1).toFixed(3), "--r": (rnd() * 2 - 1).toFixed(3), animation: cssAnimacion({ entrada: r.entrada, permanencia: r.permanencia, velocidad: r.velocidad, retraso: 0.15 * tiempo + (iLet + ci) * r.separacion * 0.35 }) } : {}) }}>{porLetraTrat ? envolver(ch, ci, vl) : ch}</span>; });

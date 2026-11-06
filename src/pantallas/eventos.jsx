@@ -14,6 +14,8 @@ import DiapositivaDisenada from "../components/DiapositivaDisenada.jsx";
 import { createPortal } from "react-dom";
 import ImportarPresentacion from "../components/ImportarPresentacion.jsx";
 import CuentaRegresivaModal from "../components/CuentaRegresivaModal.jsx";
+import { SelectEstilo } from "../components/EditorAnimacionCancion.jsx";
+import { ANIMACIONES } from "../components/LetrasAnimadas.jsx";
 import RelojCuentaRegresiva, { estiloCuenta } from "../components/RelojCuentaRegresiva.jsx";
 import { esCuentaRegresiva, normalizarCuenta } from "../lib/cuentaRegresiva.js";
 import { NOTES, normalizarTitulo, lideraBloque, isWorshipBlock, primaryBtn, ghostToggleBtn, iconGhost, ModalShell, Field, inputStyle, DEFAULT_COVERS, misAsignacionesEnEvento, quienDirigeAlabanza, miniBtnStyle, addBtnStyle, textoEnsayo, clasificacionesActuales, TYPE_META, ElegirParteDelCulto } from "./compartido.jsx";
@@ -1029,6 +1031,8 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   const [editTexto, setEditTexto] = useState(null); // { id, draft }
   // Cuenta regresiva (2026-11-05): null | { item } (editar) | {} (nueva).
   const [cuentaModal, setCuentaModal] = useState(null);
+  // Otro estilo de letra animada para una canción solo en este evento (2026-11-06): { id, valor } | null.
+  const [animEvento, setAnimEvento] = useState(null);
   const abrirEditarTexto = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", escalaSubtitulo: it.escalaSubtitulo, bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "" } });
   // La parte del culto elegida en "+ Agregar" solo vale mientras se está agregando: al cerrarse todo
   // (o cancelar), vuelve a "al final" para que lo siguiente no caiga en un bloque viejo.
@@ -1500,6 +1504,20 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
           );
         })}
       </div>
+      {animEvento && (() => {
+        const it = event.serviceOrder.find((x) => x.id === animEvento.id);
+        const song = it ? library.find((x) => x.id === it.songId) : null;
+        const deCancion = song?.animacion?.general ? ANIMACIONES[song.animacion.general]?.nombre || null : null;
+        return (
+          <ModalShell title="Animación en este evento" icon={Sparkles} color="#B15EA0" onClose={() => setAnimEvento(null)}>
+            <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10, lineHeight: 1.5 }}>
+              Solo para "{song?.title || "esta canción"}" en este evento. {deCancion ? `La canción tiene "${deCancion}".` : "La canción no tiene un estilo propio."} Lo demás de la canción (momentos especiales, latido) se mantiene.
+            </div>
+            <SelectEstilo aria-label="Estilo en este evento" valor={animEvento.valor} vacio="Como la canción" onCambiar={(v) => setAnimEvento((a) => ({ ...a, valor: v }))} />
+            <button onClick={() => { onEditarItem(animEvento.id, { animacion: animEvento.valor ? { general: animEvento.valor } : null }); setAnimEvento(null); }} style={{ ...primaryBtn, marginTop: 12 }}>Guardar</button>
+          </ModalShell>
+        );
+      })()}
       {cuentaModal && (
         <CuentaRegresivaModal
           inicial={cuentaModal.item?.cuentaRegresiva || null} evento={event} editando={!!cuentaModal.item}
@@ -1542,6 +1560,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
             {it.type === "slide" && !esCuentaRegresiva(it) && !esGrupoDiapositivas(it) && onEditarItem && opcion(Pencil, "Editar texto", () => abrirEditarTexto(it))}
             {it.type === "slide" && !esCuentaRegresiva(it) && onAbrirEditor && opcion(PenTool, esGrupoDiapositivas(it) ? "Editar diseño" : "Diseñar (imágenes, plantillas)", () => onAbrirEditor(it.id))}
             {it.type === "cancion" && opcion(Music, "Abrir la canción", () => onOpenSong(it.songId, it.id))}
+            {it.type === "cancion" && onEditarItem && opcion(Sparkles, "Animación en este evento", () => setAnimEvento({ id: it.id, valor: it.animacion?.general || null }))}
             {it.type === "seccion" && opcion(Users, expandedSections[it.id] ? "Ocultar encargados" : "Ver encargados", () => setExpandedSections((e) => ({ ...e, [it.id]: !e[it.id] })))}
             {opcion(Copy, "Duplicar", () => onDuplicate(it.id))}
             {indice > 0 && opcion(ChevronUp, "Subir", () => moverItem(it, -1))}

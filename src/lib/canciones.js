@@ -1,4 +1,5 @@
 import { letraADiapositivas } from "./letraEnVivo.js";
+import { normalizarAnimCancion } from "./animacionCancion.js";
 import { supabase } from "./supabaseClient.js";
 import { traerTodas } from "./traerTodas.js";
 import { cancionesConAdjuntos } from "./adjuntosCancion.js";
@@ -16,14 +17,22 @@ export async function listCanciones() {
   return data;
 }
 
+// La base todavía no tiene una columna nueva (falta correr su SQL): se reintenta sin ella.
+export function faltaColumna(error, columna) {
+  return !!error && (error.code === "PGRST204" || error.code === "42703") && new RegExp(columna).test(error.message || "");
+}
+const sinAnimacion = ({ animacion: _a, ...resto }) => resto;
+
 export async function createCancion(datos, creadoPor) {
-  const { data, error } = await supabase.from("canciones").insert({ ...datos, creado_por: creadoPor }).select().single();
+  let { data, error } = await supabase.from("canciones").insert({ ...datos, creado_por: creadoPor }).select().single();
+  if (faltaColumna(error, "animacion")) ({ data, error } = await supabase.from("canciones").insert({ ...sinAnimacion(datos), creado_por: creadoPor }).select().single());
   if (error) throw error;
   return data;
 }
 
 export async function updateCancion(id, datos) {
-  const { error } = await supabase.from("canciones").update({ ...datos, updated_at: new Date().toISOString() }).eq("id", id);
+  let { error } = await supabase.from("canciones").update({ ...datos, updated_at: new Date().toISOString() }).eq("id", id);
+  if (faltaColumna(error, "animacion")) ({ error } = await supabase.from("canciones").update({ ...sinAnimacion(datos), updated_at: new Date().toISOString() }).eq("id", id));
   if (error) throw error;
 }
 
@@ -120,6 +129,8 @@ export function cancionCompletaAFormatoEditor({ cancion, secciones, estructura, 
     id: cancion.id, title: cancion.titulo, key: cancion.tonalidad, tempo: cancion.tempo || "", compas: cancion.compas || "",
     artist: cancion.artista || "", themes: cancion.temas || "", category: cancion.categoria,
     favorite: cancion.favorito, hasAttachment: false,
+    // Sin la columna en la base (falta su SQL) queda undefined: así no se manda al guardar.
+    ...(cancion.animacion !== undefined ? { animacion: cancion.animacion } : {}),
     defaultStructure, blocks, letra: Object.fromEntries([...Object.keys(blocks).filter((k) => k in letra), ...Object.keys(letra).filter((k) => !(k in blocks))].map((k) => [k, letra[k]])),
   };
 }
@@ -188,6 +199,9 @@ export async function guardarCancionDesdeEditor(draft, existeEnDb, userId) {
     titulo: draft.title, artista: draft.artist || null, tonalidad: draft.key,
     tempo: draft.tempo ? Number(draft.tempo) : null, compas: draft.compas || null, temas: draft.themes || null,
     categoria: draft.category, favorito: !!draft.favorite,
+    // Animación por canción (pestaña "Animación", 2026-11-06): solo si se tocó (así no se manda una
+    // columna que la base todavía no tenga).
+    ...(draft.animacion !== undefined ? { animacion: normalizarAnimCancion(draft.animacion) } : {}),
   };
   let id = draft.id;
   if (existeEnDb) {

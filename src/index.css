@@ -466,3 +466,7 @@ img, svg {
 .wfe-rgb .wfe-franja { position: absolute; left: 0; right: 0; height: 6%; mix-blend-mode: screen; opacity: 0; animation: wfe-falla .5s steps(2, end) both; animation-delay: calc(var(--k) * .07s); }
 @keyframes wfe-falla { 0% { opacity: .65; transform: translateX(-6%) } 50% { opacity: .5; transform: translateX(5%) } 100% { opacity: 0; transform: none } }
 @media (prefers-reduced-motion: reduce) { .wfe-destellos { animation: none; } }
+
+/* ---- Momentos especiales de la canción (pestaña "Animación" del editor, 2026-11-06) ---- */
+.wfa .wfm-gigante { font-size: 1.45em; color: #FFD23F !important; }
+.wfa .wfm-brillo { text-shadow: 0 0 .25em #FFFFFF, 0 0 .7em #FFD9A0, 0 0 1.4em #FF9A3A !important; }

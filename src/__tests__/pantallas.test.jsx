@@ -152,6 +152,25 @@ describe("¿abre la pantalla?", () => {
     sinPantallaDeError();
   });
 
+  it("en el editor de la canción se prepara su animación (estilo, por parte y momentos)", async () => {
+    abrirApp();
+    await screen.findByText(/Miembros del equipo/, {}, { timeout: 4000 });
+    await irA("Canciones");
+    fireEvent.click((await screen.findAllByText(/Grande es tu fidelidad/))[0]);
+    fireEvent.click(await screen.findByRole("button", { name: /^Editar$/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Animación" }));
+    fireEvent.change(screen.getByLabelText("Estilo de la canción"), { target: { value: "aura" } });
+    fireEvent.change(screen.getByLabelText("Estilo de Coro"), { target: { value: "estadio" } });
+    fireEvent.click(screen.getByRole("button", { name: /Agregar momento/ }));
+    fireEvent.change(screen.getByLabelText("Palabra o frase"), { target: { value: "fidelidad" } });
+    expect(screen.getByLabelText("Estilo de la canción").value).toBe("aura");
+    expect(screen.getByLabelText("Estilo de Coro").value).toBe("estadio");
+    expect(screen.getByLabelText("Palabra o frase").value).toBe("fidelidad");
+    // La vista previa usa la proyección real (canción con letra animada).
+    expect(document.querySelector(".wfa")).toBeTruthy();
+    sinPantallaDeError();
+  });
+
   it("abre el evento con su Setlist y el bosquejo", async () => {
     abrirApp();
     await screen.findByText(/Miembros del equipo/, {}, { timeout: 4000 });

@@ -186,3 +186,19 @@ describe("cuenta regresiva en el Setlist", () => {
     expect(ev.serviceOrder[0].cuentaRegresiva).toEqual(config);
   });
 });
+
+describe("animación de una canción solo en este evento", () => {
+  it("viaja en items_servicio.animacion y vuelve al cargar; sin la columna se guarda sin ella", async () => {
+    const eventoId = "evento-anim";
+    fake.db.eventos = [{ id: eventoId, titulo: "Domingo" }];
+    fake.db.items_servicio = [];
+    fake.db.miembros_rol = [];
+    await eventos.sincronizarServiceOrder(eventoId, [{ id: "c1", type: "cancion", songId: "s1", animacion: { general: "neon" }, encargados: [] }]);
+    expect(fake.db.items_servicio.find((i) => i.id === "c1").animacion).toEqual({ general: "neon" });
+    const ev = eventos.eventoCompletoAFormatoEditor({ evento: fake.db.eventos[0], items: fake.db.items_servicio, encargados: [], roles: [], roleMembers: [], recordatorios: [], vistas: [] });
+    expect(ev.serviceOrder[0].animacion).toEqual({ general: "neon" });
+    // Una canción que nunca supo de la animación no manda la columna.
+    const fila = eventos.eventoCompletoAFormatoEditor({ evento: fake.db.eventos[0], items: [{ id: "c2", evento_id: eventoId, tipo: "cancion", cancion_id: "s1", orden: 0 }], encargados: [], roles: [], roleMembers: [], recordatorios: [], vistas: [] }).serviceOrder[0];
+    expect("animacion" in fila).toBe(false);
+  });
+});

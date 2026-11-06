@@ -10,6 +10,7 @@ import { supabase } from "../lib/supabaseClient.js";
 import { cargarNotas, guardarNota, DUENO_EQUIPO } from "../lib/notasSeccion.js";
 import { clearMusicoLive } from "../lib/musicoLive.js";
 import { useArrastreLista } from "../lib/arrastreLista.js";
+import EditorAnimacionCancion from "../components/EditorAnimacionCancion.jsx";
 import EditorTextoCancion from "../components/EditorTextoCancion.jsx";
 import { NOTES, iconGhost, ModalShell, inputStyle, addBtnStyle, primaryBtn, clasificacionesActuales, transposeLine, semitoneShift, transposeChordToken, Field } from "./compartido.jsx";
 
@@ -1492,7 +1493,7 @@ export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChang
         </div>
 
         <div style={{ display: "flex", gap: 16, borderBottom: "1px solid var(--wf-divider)", marginTop: 14, overflowX: "auto", scrollbarWidth: "none" }}>
-          {[["escribir", "Escribir"], ["detalles", "Detalles"], ["contenido", "Contenido"], ["estructura", "Estructura"]].map(([val, label]) => (
+          {[["escribir", "Escribir"], ["detalles", "Detalles"], ["contenido", "Contenido"], ["estructura", "Estructura"], ["animacion", "Animación"]].map(([val, label]) => (
             <button key={val} data-tour={`cancion-${val === "escribir" ? "texto" : val}`} onClick={() => setSubTab(val)} style={{ background: "none", border: "none", padding: "0 0 10px", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4, color: subTab === val ? "var(--wf-text)" : "var(--wf-faint)", borderBottom: subTab === val ? "2px solid #2F5FA8" : "2px solid transparent", cursor: "pointer" }}>{val === "escribir" && <PencilLine size={13} />}{label}</button>
           ))}
         </div>
@@ -1605,6 +1606,8 @@ export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChang
           )}
         </div>
       )}
+
+      {subTab === "animacion" && <EditorAnimacionCancion draft={draft} setDraft={setDraft} />}
 
       {subTab === "estructura" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
