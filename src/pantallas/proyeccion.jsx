@@ -1,6 +1,6 @@
 // Lo que se ve en la pantalla de proyección (la usan la consola, las mini-vistas y la pantalla pública). Separada de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { useState } from "react";
-import { definicionAnimacion, armarLineasAnimadas, velocidadLetra, FondoAnimado, claseAnimacion, EfectoPantalla } from "../components/LetrasAnimadas.jsx";
+import { definicionAnimacion, armarLineasAnimadas, velocidadLetra, FondoAnimado, claseAnimacion, EfectoPantalla, fondoEnMovimiento } from "../components/LetrasAnimadas.jsx";
 import DiapositivaDisenada from "../components/DiapositivaDisenada.jsx";
 import { esPaginaPresentacion } from "../lib/importarPresentacion.js";
 import { Mic2, Radio, Music } from "lucide-react";
@@ -76,7 +76,10 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   // dos usan este mismo componente. El `|| LIVE_THEMES.stage` cubre ese y cualquier otro valor de tema
   // que no sea una clave real.
   const theme = videoSrc || imageSrc ? null : (LIVE_THEMES[fondo?.theme || "stage"] || LIVE_THEMES.stage);
-  const bg = fondoAnimado && !videoSrc && !imageSrc ? "#000" : videoSrc ? "#000" : imageSrc ? `center / cover no-repeat url(${imageSrc})` : theme.bg;
+  // Fondo en movimiento elegido en Estilo (theme "mov:<fondo>", 2026-11-06): el mismo lienzo animado que
+  // usan las letras animadas, para todo (letra normal, versículos y diapositivas).
+  const fondoMov = !fondoAnimado && !videoSrc && !imageSrc ? fondoEnMovimiento(fondo?.theme) : null;
+  const bg = (fondoAnimado || fondoMov) && !videoSrc && !imageSrc ? "#000" : videoSrc ? "#000" : imageSrc ? `center / cover no-repeat url(${imageSrc})` : theme.bg;
   // El tamaño de letra "deseado" viene del slider (liveStyle.fontScale) multiplicando una proporción del
   // alto del contenedor (ver AutoFitText) en vez de un px fijo — así se ve igual de grande en la
   // mini-preview y en la pantalla real, y ese mismo % sigue aplicando de una diapositiva a la siguiente
@@ -181,6 +184,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           "pantalla en negro" con un video de fondo se veía como negro sólido de verdad (el <video> ni
           se montaba) en vez de seguir el video andando sin la letra encima, que es lo que de verdad se
           quiere: ocultar SOLO la letra/texto que se está transmitiendo, no el fondo. */}
+      {fondoMov && <FondoAnimado tipo={fondoMov} pulso={slide?.slideId ?? slide?.reference ?? slide?.title} chico={!!thumbnail} quieto={!!thumbnail} />}
       {fondoAnimado && !videoSrc && !imageSrc && <FondoAnimado tipo={fondoAnimado} pulso={slide?.slideId ?? slide?.reference ?? slide?.title} chico={!!thumbnail} quieto={!!thumbnail} ajustes={anim?.ajustesFondo} />}
       {animarLetra && anim.flash && !blanked && <div key={`flash-${slide.slideId}`} className="wfa-flash" />}
       {animarLetra && anim.receta?.pantalla && !blanked && <EfectoPantalla key={`efecto-${slide.slideId}`} tipo={anim.receta.pantalla} color={anim.receta.colorEfecto} beat={beatSeg} />}
@@ -197,7 +201,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
         <RelojCuentaRegresiva cuenta={slide.cuenta} quieto={!!thumbnail} sinFondo />
       ) : (
         <>
-          {!videoSrc && !fondoAnimado && <div className="spotlight-glow" style={{ position: "absolute", width: thumbnail ? 140 : 420, height: thumbnail ? 140 : 420, borderRadius: "50%", background: `radial-gradient(circle, ${TYPE_META[slide.type].color}22 0%, transparent 70%)` }} />}
+          {!videoSrc && !fondoAnimado && !fondoMov && <div className="spotlight-glow" style={{ position: "absolute", width: thumbnail ? 140 : 420, height: thumbnail ? 140 : 420, borderRadius: "50%", background: `radial-gradient(circle, ${TYPE_META[slide.type].color}22 0%, transparent 70%)` }} />}
           {slide.type === "cancion" && (
             <>
               {thumbnail && <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "var(--wf-brand-accent)", marginBottom: 6, zIndex: 1 }}>{slide.blockLabel.toUpperCase()}</div>}

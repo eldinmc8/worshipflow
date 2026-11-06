@@ -98,6 +98,27 @@ const MUESTRA_FONDO = {
   tunel: "repeating-radial-gradient(circle at 50% 50%, #120A2A 0 4%, #3A1E7A 5%, #120A2A 7%)",
   lluvia: "linear-gradient(180deg, #0A1428 0%, #13284A 100%)",
   geometrico: "linear-gradient(135deg, #10131F, #1E1236)",
+  arcos: "radial-gradient(circle at 50% 110%, transparent 30%, #FF7AB0 31%, transparent 35%, #FFA45A 38%, transparent 42%), linear-gradient(180deg, #0B0618, #6A1F7A)",
+  portal: "radial-gradient(ellipse 18% 40% at 50% 60%, #FFE27A, #FF9A3A 70%, transparent 72%), linear-gradient(180deg, #E2401F, #D93FA8)",
+  franjas: "repeating-linear-gradient(90deg, #E8432E 0 8%, #1FA39A 8% 13%, #7A3FC0 13% 20%, #F28C28 20% 26%, #E64B9B 26% 31%)",
+  vitral: "repeating-conic-gradient(from 0deg at 50% 60%, #E8432E 0 15deg, #2F5FA8 15deg 30deg, #F6A623 30deg 45deg, #7A3FC0 45deg 60deg)",
+  cortina: "repeating-linear-gradient(90deg, #2A1A7A 0 3%, #6A2AC0 3% 4%, #1A0A40 4% 7%), linear-gradient(180deg, #0A0420, #E03CE0)",
+  horizonte: "radial-gradient(ellipse at 50% 60%, #FFF6E6, transparent 50%), linear-gradient(180deg, #47605F, #E9A8B8)",
+  radial: "repeating-conic-gradient(from 0deg at 50% 50%, #EAE6FF 0 10deg, #3C28A0 10deg 20deg)",
+  hazdivino: "linear-gradient(35deg, transparent 40%, rgba(255,240,205,.5) 50%, transparent 60%), linear-gradient(180deg, #050506, #2A0F30)",
+  marea: "linear-gradient(180deg, #0E0A24 20%, #5A3AC0 45%, #0E0A24 55%, #A04AD0 80%)",
+  palabra: "radial-gradient(ellipse at 50% 50%, #F0C8F0 0%, transparent 45%), linear-gradient(180deg, #0C0618, #3A0F4A)",
+  nubes: "radial-gradient(ellipse at 30% 70%, #FFFFFF 0%, transparent 35%), linear-gradient(180deg, #5FA8E8, #BFE2FF)",
+  nubestarde: "radial-gradient(ellipse at 60% 70%, #FFD2A0 0%, transparent 35%), linear-gradient(180deg, #4A3A7A, #F08A6A)",
+  nubesnoche: "radial-gradient(ellipse at 40% 70%, #4A5A8A 0%, transparent 35%), linear-gradient(180deg, #050A1E, #1A2A55)",
+  aura: "radial-gradient(circle at 25% 30%, #FF46AA 0%, transparent 45%), radial-gradient(circle at 75% 35%, #7850FF 0%, transparent 45%), radial-gradient(circle at 45% 80%, #FF963C 0%, transparent 45%), #12082A",
+  oceano: "linear-gradient(180deg, #3A2A6A 0%, #E8708A 45%, #FFC48A 58%, #7A3A7A 59%, #1A0E30 100%)",
+  oceanonoche: "linear-gradient(180deg, #040818 0%, #1C2C5C 58%, #14204A 59%, #03060F 100%)",
+  vidrio: "repeating-linear-gradient(90deg, transparent 0 6%, rgba(230,210,255,.35) 6% 11%, transparent 11% 14%), linear-gradient(180deg, #0A0A1A, #2A1050)",
+  ecos: "repeating-radial-gradient(circle at 50% 50%, #1B1450 0 5%, #8288FF 5.5%, #1B1450 7%)",
+  cruz: "radial-gradient(circle at 50% 48%, #FFE6C8 0%, transparent 30%), linear-gradient(180deg, #07050C, #2A1030)",
+  estrella: "radial-gradient(circle at 50% 30%, #FFF2D0 0%, transparent 18%), linear-gradient(180deg, #030716, #14235A)",
+  auroranavidad: "linear-gradient(170deg, #06120C 30%, #28C86E55 45%, #DC283C55 60%, #06120C 80%)",
 };
 export const FONDOS_DISPONIBLES = [
   ["aurora", "Aurora"], ["bokeh", "Destellos dorados"], ["estrellas", "Cielo estrellado"], ["foco", "Foco de luz"],
@@ -106,7 +127,19 @@ export const FONDOS_DISPONIBLES = [
   ["retro", "Atardecer 80"], ["burbujas", "Burbujas"], ["terminal", "Pantalla verde"],
   ["haces", "Luces de concierto"], ["led", "Pantalla LED"], ["humo", "Humo de escenario"], ["chispas", "Chispas"],
   ["papel", "Collage de papel"], ["tunel", "Túnel de luz"], ["lluvia", "Lluvia de luz"], ["geometrico", "Geométrico"],
+  // Adoración moderna (etapa 2)
+  ["arcos", "Arcos de luz"], ["portal", "Portal"], ["franjas", "Franjas de color"], ["vitral", "Vitral"], ["cortina", "Cortina de luz"],
+  ["horizonte", "Amanecer"], ["radial", "Rayos que giran"], ["hazdivino", "Rayo de luz"], ["marea", "Marea"], ["palabra", "Palabra gigante"],
+  ["nubes", "Cielo de día"], ["nubestarde", "Cielo al atardecer"], ["nubesnoche", "Cielo de noche"], ["aura", "Aura"], ["oceano", "Océano"],
+  ["oceanonoche", "Océano de noche"], ["vidrio", "Vidrio"], ["ecos", "Ecos"], ["cruz", "La cruz"], ["estrella", "Estrella de Belén"], ["auroranavidad", "Aurora navideña"],
 ];
+
+// Muestra (miniatura quieta) de un fondo animado, para los selectores.
+export const muestraFondo = (k) => MUESTRA_FONDO[k] || "#111";
+// Fondos en movimiento como fondo de la proyección, sin letra animada (2026-11-06): liveStyle.theme =
+// "mov:<fondo>". Los de adoración moderna primero.
+export const PREFIJO_MOVIMIENTO = "mov:";
+export const fondoEnMovimiento = (theme) => (typeof theme === "string" && theme.startsWith(PREFIJO_MOVIMIENTO) ? theme.slice(PREFIJO_MOVIMIENTO.length) : null);
 
 // Convierte una receta en la misma forma que tienen los estilos de fábrica (lo que usa la proyección).
 export function definicionDeReceta(receta, nombre = "Mi animación") {
@@ -294,6 +327,7 @@ export function FondoAnimado({ tipo, pulso, chico = false, quieto = false, ajust
     e.ondas.push({ t: 0 });
     if (e.ondas.length > 4) e.ondas.shift();
     e.estallido = 1;
+    e.pulsos = (e.pulsos || 0) + 1;
   }, [pulso]);
 
   useEffect(() => {
@@ -380,6 +414,67 @@ function radial(ctx, x, y, r, color, a) {
   const g = ctx.createRadialGradient(x, y, 0, x, y, r);
   g.addColorStop(0, `rgba(${color},${a})`); g.addColorStop(1, `rgba(${color},0)`);
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
+}
+
+// Ayudantes de los fondos de adoración moderna: grano de película, velo rosa-morado abajo, cielos y mar.
+function grano(ctx, W, H, e, fuerza = .09) {
+  if (!e.granoCv) {
+    const c = document.createElement("canvas"); c.width = c.height = 160;
+    const g = c.getContext("2d"), d = g.createImageData(160, 160);
+    for (let k = 0; k < d.data.length; k += 4) { const v = Math.random() * 255; d.data[k] = d.data[k + 1] = d.data[k + 2] = v; d.data[k + 3] = 255; }
+    g.putImageData(d, 0, 0); e.granoCv = c;
+  }
+  ctx.save(); ctx.globalAlpha = fuerza; ctx.globalCompositeOperation = "overlay";
+  const pat = ctx.createPattern(e.granoCv, "repeat");
+  if (pat) { ctx.fillStyle = pat; ctx.fillRect(0, 0, W, H); }
+  ctx.restore();
+}
+function lavado(ctx, W, H, color = "210,70,230", fuerza = .6) {
+  const g = ctx.createLinearGradient(0, H * .45, 0, H);
+  g.addColorStop(0, `rgba(${color},0)`); g.addColorStop(1, `rgba(${color},${fuerza})`);
+  ctx.fillStyle = g; ctx.fillRect(0, H * .45, W, H * .55);
+}
+function fondoOscuro(ctx, W, H, arriba, abajo) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, arriba); g.addColorStop(1, abajo);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+function pastilla(ctx, x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function cielo(ctx, W, H, t, e, [arriba, medio, nube], fuerzaNube, estrellas = false) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, arriba); g.addColorStop(1, medio);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  if (estrellas) for (let k = 0; k < 80; k++) { ctx.fillStyle = `rgba(230,238,255,${.25 + .5 * Math.abs(Math.sin(t / 1500 + k))})`; ctx.fillRect(((k * 97.3) % 100) / 100 * W, ((k * 57.7) % 60) / 100 * H, 1.5, 1.5); }
+  const rgb = parseInt(nube.slice(1), 16), c = `${(rgb >> 16) & 255},${(rgb >> 8) & 255},${rgb & 255}`;
+  const ps = particulas(e, 16, () => ({ x: Math.random(), y: R(.35, 1), r: R(.12, .28), v: R(.4, 1), f: Math.random() * 6.28 }));
+  for (const p of ps) {
+    const x = ((p.x + t * .000008 * p.v * (e.vel || 1)) % 1.3 - .15) * W, y = p.y * H;
+    for (let k = 0; k < 4; k++) radial(ctx, x + (k - 1.5) * p.r * W * .45, y + Math.sin(k * 2 + p.f) * p.r * H * .2, p.r * W * (.55 + .2 * Math.sin(k + p.f)), c, .3 * fuerzaNube);
+  }
+  grano(ctx, W, H, e, .05);
+}
+function mar(ctx, W, H, t, e, noche) {
+  const hz = H * .58;
+  const g = ctx.createLinearGradient(0, 0, 0, hz);
+  if (noche) { g.addColorStop(0, "#040818"); g.addColorStop(1, "#1C2C5C"); } else { g.addColorStop(0, "#3A2A6A"); g.addColorStop(.6, "#E8708A"); g.addColorStop(1, "#FFC48A"); }
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, hz);
+  const sx = W / 2, sr = H * .11;
+  radial(ctx, sx, hz, W * .3, noche ? "200,215,255" : "255,220,170", noche ? .25 : .5);
+  ctx.fillStyle = noche ? "rgba(235,240,255,.95)" : "rgba(255,240,200,.95)";
+  ctx.beginPath(); ctx.arc(sx, hz - (noche ? H * .22 : 0), sr * (noche ? .5 : 1), Math.PI, 0); if (noche) ctx.arc(sx, hz - H * .22, sr * .5, 0, Math.PI); ctx.fill();
+  const ag = ctx.createLinearGradient(0, hz, 0, H);
+  if (noche) { ag.addColorStop(0, "#14204A"); ag.addColorStop(1, "#03060F"); } else { ag.addColorStop(0, "#7A3A7A"); ag.addColorStop(1, "#1A0E30"); }
+  ctx.fillStyle = ag; ctx.fillRect(0, hz, W, H - hz);
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  for (let k = 0; k < 40; k++) {
+    const p = k / 40, y = hz + Math.pow(p, 1.8) * (H - hz), ancho = W * (.05 + p * .5) * (.6 + .4 * Math.sin(t / 900 + k * 1.7));
+    ctx.fillStyle = noche ? `rgba(200,215,255,${.25 * (1 - p)})` : `rgba(255,220,170,${.35 * (1 - p)})`;
+    ctx.fillRect(sx - ancho / 2 + Math.sin(t / 1300 + k) * W * .01, y, ancho, Math.max(1, H / 300));
+  }
+  ctx.restore();
+  grano(ctx, W, H, e, .06);
 }
 
 const FONDOS = {
@@ -731,6 +826,267 @@ const FONDOS = {
       for (let k = 0; k <= 3; k++) { const an = a + k * 2.0944; const x = p.x * W + Math.cos(an) * R0, y = p.y * H + Math.sin(an) * R0; if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
       ctx.stroke();
     }
+  },
+
+  // ---- Fondos de adoración moderna (2026-11-06, etapa 2): degradados vivos con grano, arcos de luz,
+  // franjas, vitral, cortinas de luz, rayos, nubes, océano y temporadas. Diseños propios de WorshipFlow. ----
+  arcos(ctx, W, H, t, e) {
+    fondoOscuro(ctx, W, H, "#0B0618", "#2A0A3A");
+    const cx = W / 2, cy = H * 1.02, n = 9, paso = H * .085, off = ((t * .00004 * (e.vel || 1)) % 1) * paso;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (let k = 0; k < n; k++) {
+      const r = H * .18 + k * paso + off, a = 1 - k / n;
+      const g = ctx.createLinearGradient(0, cy - r, 0, cy);
+      g.addColorStop(0, `rgba(255,170,90,${.75 * a})`); g.addColorStop(.6, `rgba(255,90,170,${.65 * a})`); g.addColorStop(1, `rgba(170,90,255,${.5 * a})`);
+      ctx.strokeStyle = g; ctx.lineWidth = paso * .42 * (1 + e.pulso * .25);
+      ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 0); ctx.stroke();
+    }
+    ctx.restore();
+    lavado(ctx, W, H); grano(ctx, W, H, e);
+  },
+  portal(ctx, W, H, t, e) {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#E2401F"); g.addColorStop(.55, "#F06A3A"); g.addColorStop(1, "#D93FA8");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const aw = W * .36, ax = (W - aw) / 2, top = H * .12, r = aw / 2;
+    const sol = ctx.createRadialGradient(W / 2, top + r, 0, W / 2, top + r, aw * (.9 + .05 * Math.sin(t / 1800) + e.pulso * .08));
+    sol.addColorStop(0, "#FFF2A8"); sol.addColorStop(.45, "#FFC64A"); sol.addColorStop(1, "#FF7A3A");
+    ctx.fillStyle = sol;
+    ctx.beginPath(); ctx.moveTo(ax, H); ctx.lineTo(ax, top + r); ctx.arc(W / 2, top + r, r, Math.PI, 0); ctx.lineTo(ax + aw, H); ctx.closePath(); ctx.fill();
+    lavado(ctx, W, H, "217,63,168", .7); grano(ctx, W, H, e, .16);
+  },
+  franjas(ctx, W, H, t, e) {
+    const cols = ["#E8432E", "#1FA39A", "#7A3FC0", "#F28C28", "#E64B9B", "#2B3A8C", "#F6C344", "#C23B6A"];
+    const n = 26;
+    let x = -((t * .02 * (e.vel || 1)) % (W / n * 2));
+    for (let k = 0; x < W; k++) {
+      const ancho = (W / n) * (0.55 + 0.45 * (Math.sin(k * 1.7 + t / 2400) + 1));
+      ctx.fillStyle = cols[k % cols.length]; ctx.fillRect(x, 0, ancho + 1, H);
+      x += ancho;
+    }
+    ctx.fillStyle = "rgba(10,6,24,.25)"; ctx.fillRect(0, 0, W, H);
+    lavado(ctx, W, H, "190,70,255", .75); grano(ctx, W, H, e, .1);
+  },
+  vitral(ctx, W, H, t, e) {
+    ctx.fillStyle = "#0A0814"; ctx.fillRect(0, 0, W, H);
+    const cx = W / 2, cy = H * .55, rot = t / 26000 * (e.vel || 1);
+    const cols = ["#E8432E", "#2F5FA8", "#F6A623", "#7A3FC0", "#1FA39A", "#E64B9B"];
+    const anillos = 6, R = Math.hypot(W, H) * .6;
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot);
+    for (let a = 0; a < anillos; a++) {
+      const r0 = (a / anillos) * R, r1 = ((a + 1) / anillos) * R, n = 6 + a * 6;
+      for (let k = 0; k < n; k++) {
+        const a0 = (k / n) * 6.2832, a1 = ((k + 1) / n) * 6.2832;
+        const luz = .55 + .45 * Math.sin(t / 900 + a * 1.3 + k * 2.1);
+        ctx.fillStyle = cols[(k + a) % cols.length]; ctx.globalAlpha = .28 + .32 * luz;
+        ctx.beginPath(); ctx.arc(0, 0, r1, a0, a1); ctx.arc(0, 0, r0, a1, a0, true); ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 1; ctx.strokeStyle = "#0A0814"; ctx.lineWidth = Math.max(2, W / 260); ctx.stroke();
+      }
+    }
+    ctx.restore();
+    radial(ctx, cx, cy, W * .25, "255,230,180", .25 + e.pulso * .2);
+    lavado(ctx, W, H, "190,70,255", .55); grano(ctx, W, H, e);
+  },
+  cortina(ctx, W, H, t, e) {
+    ctx.fillStyle = "#0A0420"; ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const n = Math.round(34 * (e.dens || 1));
+    for (let k = 0; k < n; k++) {
+      const f = k * 12.9898, x = ((Math.sin(f) * .5 + .5) + Math.sin(t / (3000 + k * 97) + f) * .015) * W;
+      const ancho = W * (.006 + .02 * (Math.sin(f * 3) * .5 + .5));
+      const alto = H * (.5 + .5 * (Math.sin(t / (1800 + k * 53) + f) * .5 + .5));
+      const c = k % 3 === 0 ? "120,110,255" : k % 3 === 1 ? "200,80,255" : "80,140,255";
+      const g = ctx.createLinearGradient(0, H - alto, 0, H);
+      g.addColorStop(0, `rgba(${c},0)`); g.addColorStop(1, `rgba(${c},${.35 + e.pulso * .2})`);
+      ctx.fillStyle = g; ctx.fillRect(x - ancho / 2, H - alto, ancho, alto);
+    }
+    ctx.restore();
+    lavado(ctx, W, H, "230,60,230", .8); grano(ctx, W, H, e);
+  },
+  horizonte(ctx, W, H, t, e) {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#34474A"); g.addColorStop(.5, "#9C8C7A"); g.addColorStop(1, "#B5788C");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const cx = W / 2, cy = H * .86, n = 48, rot = t / 30000; // el sol, abajo de la letra
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (let k = 0; k < n; k++) {
+      const a = Math.PI + (k / n) * Math.PI + Math.sin(rot + k) * .01, len = W * (.7 + .3 * Math.sin(k * 3.3 + t / 2000));
+      const gr = ctx.createLinearGradient(cx, cy, cx + Math.cos(a) * len, cy + Math.sin(a) * len);
+      gr.addColorStop(0, "rgba(255,245,225,.2)"); gr.addColorStop(1, "rgba(255,245,225,0)");
+      ctx.strokeStyle = gr; ctx.lineWidth = W * (.004 + .006 * ((k * 7) % 3));
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len); ctx.stroke();
+    }
+    ctx.restore();
+    radial(ctx, cx, cy, W * .3, "255,250,235", .32 + e.pulso * .15);
+    grano(ctx, W, H, e, .07);
+  },
+  radial(ctx, W, H, t, e) {
+    ctx.fillStyle = "#14102E"; ctx.fillRect(0, 0, W, H);
+    const cx = W / 2, cy = H / 2, n = 18, rot = t / 9000 * (e.vel || 1), R = Math.hypot(W, H);
+    for (let k = 0; k < n; k++) {
+      const a0 = rot + (k / n) * 6.2832, a1 = rot + ((k + .5) / n) * 6.2832;
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * .6);
+      g.addColorStop(0, "rgba(255,255,255,0)"); g.addColorStop(.25, k % 2 ? "rgba(140,110,255,.85)" : "rgba(235,230,255,.85)"); g.addColorStop(1, "rgba(60,40,160,.9)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, a0, a1); ctx.closePath(); ctx.fill();
+    }
+    radial(ctx, cx, cy, W * .18, "20,16,46", .9);
+    lavado(ctx, W, H, "160,80,255", .45); grano(ctx, W, H, e);
+  },
+  hazdivino(ctx, W, H, t, e) {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#050506"); g.addColorStop(1, "#2A0F30");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const ox = -W * .05, oy = -H * .1;
+    for (let k = 0; k < 5; k++) {
+      const a = .62 + k * .045 + Math.sin(t / 4000 + k) * .01, len = W * 1.4, an = .025 + k * .006;
+      const gr = ctx.createLinearGradient(ox, oy, ox + Math.cos(a) * len, oy + Math.sin(a) * len);
+      gr.addColorStop(0, `rgba(255,240,205,${.38 - k * .05 + e.pulso * .1})`); gr.addColorStop(1, "rgba(255,240,205,0)");
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(ox, oy);
+      ctx.lineTo(ox + Math.cos(a - an) * len, oy + Math.sin(a - an) * len); ctx.lineTo(ox + Math.cos(a + an) * len, oy + Math.sin(a + an) * len); ctx.fill();
+    }
+    const ps = particulas(e, 60, () => ({ d: Math.random(), s: R(-.06, .06), v: R(.2, 1), f: Math.random() * 6.28 }));
+    for (const p of ps) {
+      p.d = (p.d + .0004 * p.v * (e.vel || 1)) % 1;
+      const a = .72 + p.s, x = ox + Math.cos(a) * p.d * W * 1.2, y = oy + Math.sin(a) * p.d * W * 1.2 + Math.sin(t / 1500 + p.f) * H * .01;
+      radial(ctx, x, y, W * .004, "255,240,210", .7 * (1 - p.d));
+    }
+    ctx.restore();
+    lavado(ctx, W, H, "200,70,200", .5); grano(ctx, W, H, e);
+  },
+  marea(ctx, W, H, t, e) {
+    ctx.fillStyle = "#0E0A24"; ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const capas = [["255,60,140", -W * .004], ["60,200,255", W * .004], ["150,120,255", 0]];
+    for (let b = 0; b < 4; b++) {
+      for (const [c, dx] of capas) {
+        ctx.fillStyle = `rgba(${c},.18)`; ctx.beginPath();
+        const base = H * (.25 + b * .17), amp = H * (.05 + b * .015), sp = t * .0004 * (e.vel || 1) * (1 + b * .3);
+        ctx.moveTo(0, base + H * .12);
+        for (let x = 0; x <= W; x += W / 70) {
+          const y = base + Math.sin(x / W * 9 + sp + b) * amp * Math.sin(x / W * 3 - sp * .7) + Math.sin(x / W * 31 + sp * 3) * amp * .15;
+          ctx.lineTo(x + dx, y);
+        }
+        ctx.lineTo(W, base + H * .12); ctx.closePath(); ctx.fill();
+      }
+    }
+    ctx.restore();
+    lavado(ctx, W, H, "160,90,255", .6); grano(ctx, W, H, e, .12);
+  },
+  palabra(ctx, W, H, t, e) {
+    fondoOscuro(ctx, W, H, "#0C0618", "#3A0F4A");
+    const palabras = ["SANTO", "ABBA", "JESÚS", "GLORIA", "DIGNO", "ALELUYA", "REY", "AMÉN"];
+    if (e.iPalabra == null) e.iPalabra = 0;
+    if (e.pulsoVisto !== e.pulsos) { e.pulsoVisto = e.pulsos; e.iPalabra = (e.iPalabra + 1) % palabras.length; }
+    const p = palabras[e.iPalabra];
+    const tam = H * .62 * (1 + Math.sin(t / 3000) * .02);
+    ctx.save();
+    ctx.font = `${Math.round(tam)}px 'Anton', 'Bebas Neue', sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const w = ctx.measureText(p).width, esc = Math.min(1, (W * .92) / Math.max(1, w));
+    ctx.translate(W / 2, H * .52); ctx.scale(esc, 1);
+    const g = ctx.createLinearGradient(0, -tam / 2, 0, tam / 2);
+    g.addColorStop(0, "rgba(255,255,255,.95)"); g.addColorStop(.6, "rgba(255,200,240,.55)"); g.addColorStop(1, "rgba(220,90,255,0)");
+    ctx.shadowColor = "rgba(255,170,240,.7)"; ctx.shadowBlur = H * .06;
+    ctx.fillStyle = g; ctx.fillText(p, 0, 0);
+    ctx.restore();
+    ctx.fillStyle = "rgba(8,4,20,.35)"; ctx.fillRect(0, 0, W, H);
+    lavado(ctx, W, H, "220,80,255", .6); grano(ctx, W, H, e);
+  },
+  nubes(ctx, W, H, t, e) { cielo(ctx, W, H, t, e, ["#2F6FB0", "#7FB6E0", "#FFFFFF"], .75); },
+  nubestarde(ctx, W, H, t, e) { cielo(ctx, W, H, t, e, ["#4A3A7A", "#F08A6A", "#FFD2A0"], .75); },
+  nubesnoche(ctx, W, H, t, e) { cielo(ctx, W, H, t, e, ["#050A1E", "#1A2A55", "#4A5A8A"], .35, true); },
+  aura(ctx, W, H, t, e) {
+    ctx.fillStyle = "#12082A"; ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    [["255,70,170", .25, .3], ["120,80,255", .75, .35], ["255,150,60", .4, .8], ["60,150,255", .8, .8]].forEach(([c, x, y], k) => {
+      const px = (x + Math.sin(t / (6000 + k * 1100) + k) * .15) * W, py = (y + Math.cos(t / (7000 + k * 900) + k * 2) * .12) * H;
+      radial(ctx, px, py, W * (.5 + e.pulso * .05), c, .5);
+    });
+    ctx.restore();
+    grano(ctx, W, H, e, .1);
+  },
+  oceano(ctx, W, H, t, e) { mar(ctx, W, H, t, e, false); },
+  oceanonoche(ctx, W, H, t, e) { mar(ctx, W, H, t, e, true); },
+  vidrio(ctx, W, H, t, e) {
+    fondoOscuro(ctx, W, H, "#0A0A1A", "#2A1050");
+    const ps = particulas(e, 9, (i) => ({ x: (i + .5) / 9, y: Math.random(), h: R(.35, .7), v: R(.3, 1), f: Math.random() * 6.28 }));
+    const ancho = W / 14;
+    for (const p of ps) {
+      const x = p.x * W, y = (.5 + Math.sin(t / (2600 / p.v) + p.f) * .18) * H, h = p.h * H;
+      const g = ctx.createLinearGradient(x - ancho / 2, 0, x + ancho / 2, 0);
+      g.addColorStop(0, "rgba(255,255,255,.08)"); g.addColorStop(.3, "rgba(230,210,255,.55)"); g.addColorStop(.55, "rgba(255,170,230,.25)"); g.addColorStop(1, "rgba(150,120,255,.12)");
+      ctx.fillStyle = g; pastilla(ctx, x - ancho / 2, y - h / 2, ancho, h, ancho / 2); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = Math.max(1, W / 700); ctx.stroke();
+    }
+    lavado(ctx, W, H, "200,90,255", .5); grano(ctx, W, H, e);
+  },
+  ecos(ctx, W, H, t, e) {
+    fondoOscuro(ctx, W, H, "#070B1E", "#1B1450");
+    const cx = W / 2, cy = H / 2, n = 10, ciclo = (t * .00012 * (e.vel || 1)) % 1;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (let k = 0; k < n; k++) {
+      const p = (k / n + ciclo) % 1, r = p * W * .7;
+      ctx.strokeStyle = `rgba(130,140,255,${(1 - p) * .7})`; ctx.lineWidth = W * .012 * (1 - p) + 1;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.2832); ctx.stroke();
+    }
+    ctx.restore();
+    radial(ctx, cx, cy, W * .2, "150,160,255", .25 + e.pulso * .3);
+    lavado(ctx, W, H, "170,90,255", .45); grano(ctx, W, H, e);
+  },
+  cruz(ctx, W, H, t, e) {
+    fondoOscuro(ctx, W, H, "#07050C", "#2A1030");
+    const cx = W / 2, cy = H * .48;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (let k = 0; k < 36; k++) {
+      const a = (k / 36) * 6.2832 + t / 20000, len = W * (.35 + .25 * Math.sin(k * 2.7 + t / 1800));
+      const gr = ctx.createLinearGradient(cx, cy, cx + Math.cos(a) * len, cy + Math.sin(a) * len);
+      gr.addColorStop(0, "rgba(255,220,180,.22)"); gr.addColorStop(1, "rgba(255,220,180,0)");
+      ctx.strokeStyle = gr; ctx.lineWidth = W * .006; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len); ctx.stroke();
+    }
+    ctx.restore();
+    radial(ctx, cx, cy, W * .3, "255,210,170", .35 + .1 * Math.sin(t / 1200) + e.pulso * .2);
+    const g = H * .045, alto = H * .5, brazo = H * .3;
+    ctx.fillStyle = "rgba(255,248,235,.55)"; ctx.shadowColor = "rgba(255,210,170,.7)"; ctx.shadowBlur = H * .05;
+    ctx.fillRect(cx - g / 2, cy - alto * .38, g, alto); ctx.fillRect(cx - brazo / 2, cy - alto * .2, brazo, g);
+    ctx.shadowBlur = 0;
+    lavado(ctx, W, H, "200,70,170", .45); grano(ctx, W, H, e);
+  },
+  estrella(ctx, W, H, t, e) {
+    const g0 = ctx.createLinearGradient(0, 0, 0, H);
+    g0.addColorStop(0, "#030716"); g0.addColorStop(1, "#14235A");
+    ctx.fillStyle = g0; ctx.fillRect(0, 0, W, H);
+    const ps = particulas(e, 120, () => ({ x: Math.random(), y: Math.random() * .9, f: Math.random() * 6.28, s: Math.random() }));
+    for (const p of ps) { ctx.fillStyle = `rgba(230,238,255,${.3 + .7 * Math.abs(Math.sin(t / 1300 + p.f))})`; const s = (p.s > .92 ? 2 : 1) * Math.max(1, W / 1300); ctx.fillRect(p.x * W, p.y * H, s, s); }
+    const cx = W * .5, cy = H * .3, b = 1 + .08 * Math.sin(t / 700) + e.pulso * .2;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    radial(ctx, cx, cy, W * .22 * b, "255,235,190", .45);
+    [[0, H * .55], [Math.PI / 2, W * .18], [Math.PI, W * .18], [-Math.PI / 2, H * .25], [Math.PI / 4, W * .06], [3 * Math.PI / 4, W * .06], [-Math.PI / 4, W * .06], [-3 * Math.PI / 4, W * .06]].forEach(([a, len]) => {
+      const x2 = cx + Math.sin(a) * len * b, y2 = cy + Math.cos(a) * len * b;
+      const gr = ctx.createLinearGradient(cx, cy, x2, y2);
+      gr.addColorStop(0, "rgba(255,250,235,.95)"); gr.addColorStop(1, "rgba(255,250,235,0)");
+      ctx.strokeStyle = gr; ctx.lineWidth = Math.max(2, W / 260); ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(x2, y2); ctx.stroke();
+    });
+    ctx.restore();
+    grano(ctx, W, H, e, .06);
+  },
+  auroranavidad(ctx, W, H, t, e) {
+    ctx.fillStyle = "#06120C"; ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (let k = 0; k < 4; k++) {
+      const c = k % 2 ? "220,40,60" : "40,200,110";
+      ctx.beginPath();
+      const base = H * (.3 + k * .12), amp = H * .08;
+      ctx.moveTo(0, H);
+      for (let x = 0; x <= W; x += W / 50) ctx.lineTo(x, base + Math.sin(x / W * 5 + t / (2500 + k * 400) + k) * amp);
+      ctx.lineTo(W, H); ctx.closePath();
+      const g = ctx.createLinearGradient(0, base - amp, 0, H);
+      g.addColorStop(0, `rgba(${c},.35)`); g.addColorStop(1, `rgba(${c},0)`);
+      ctx.fillStyle = g; ctx.fill();
+    }
+    const ps = particulas(e, 50, () => ({ x: Math.random(), y: Math.random(), f: Math.random() * 6.28 }));
+    for (const p of ps) radial(ctx, p.x * W, p.y * H, W * .004, "255,235,180", .6 * Math.abs(Math.sin(t / 900 + p.f)));
+    ctx.restore();
+    grano(ctx, W, H, e, .07);
   },
 
 };

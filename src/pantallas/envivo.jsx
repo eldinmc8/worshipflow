@@ -6,7 +6,7 @@ import { acordeEn } from "../lib/preferencias.js";
 import { loadCache, saveCache } from "../lib/offlineCache.js";
 import { escucharProyeccion } from "../lib/liveSession.js";
 import { confirmDialog, promptDialog } from "../lib/confirm.js";
-import { animacionActiva, precargarFuentesAnimacion, nombreAnimacion } from "../components/LetrasAnimadas.jsx";
+import { animacionActiva, precargarFuentesAnimacion, nombreAnimacion, fondoEnMovimiento } from "../components/LetrasAnimadas.jsx";
 import { showToast } from "../lib/toast.js";
 import { letraATexto } from "../lib/textoCancion.js";
 import { letraEfectiva } from "../lib/letraEnVivo.js";
@@ -18,7 +18,7 @@ import { useArrastreGrid } from "../lib/arrastreGrid.js";
 import { esPaginaPresentacion } from "../lib/importarPresentacion.js";
 import DiapositivaDisenada from "../components/DiapositivaDisenada.jsx";
 import { temporizadorActivo } from "../lib/escenario.js";
-import SelectorAnimacion from "../components/SelectorAnimacion.jsx";
+import SelectorAnimacion, { SelectorFondoMovimiento } from "../components/SelectorAnimacion.jsx";
 import CintaAdaptable from "../components/CintaAdaptable.jsx";
 import PantallaOtroEquipo from "../components/PantallaOtroEquipo.jsx";
 import PanelEscenario from "../components/PanelEscenario.jsx";
@@ -743,6 +743,10 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                 </button>
               ))}
             </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", margin: "4px 0 6px" }}>FONDOS EN MOVIMIENTO</div>
+            <div style={{ marginBottom: 12 }}>
+              <SelectorFondoMovimiento valor={fondoEditado.theme} columnas={3} onElegir={(t) => { avisarFondoPropioAnimada(); aplicarFondo({ theme: t }); }} />
+            </div>
             <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 8, width: "fit-content" }}>
               <button onClick={() => { avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "imagen" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "imagen" ? "#fff" : "var(--wf-muted)" }}><ImgIcon size={12} /> Imagen</button>
               <button onClick={() => { avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "video" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "video" ? "#fff" : "var(--wf-muted)" }}><Play size={12} /> Video (movimiento)</button>
@@ -1016,6 +1020,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               ))}
               {botonCinta({ icon: ImgIcon, label: "Imagen", onClick: () => { aplicarFondo({ theme: "custom", customBgType: "imagen" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen", ancho: 62 })}
               {botonCinta({ icon: Play, label: "Video", onClick: () => { aplicarFondo({ theme: "custom", customBgType: "video" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "video", ancho: 62 })}
+              {botonCinta({ icon: Sparkles, label: "En movimiento", title: "Fondos animados (arcos de luz, aura, vitral, nubes…)", onClick: () => { setAnimMenu(false); setEstiloMas(true); }, activo: !!fondoEnMovimiento(fondoEditado.theme), ancho: 78 })}
             </>, false, "fondo"),
           grupoItem("Fondo por canción", (
               <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
@@ -1163,6 +1168,10 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           <div onClick={() => setEstiloMas(false)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />
           <div style={{ position: "absolute", top: 6, right: 16, zIndex: 1, width: "min(640px, calc(100vw - 32px))", maxHeight: "min(420px, 60vh)", overflowY: "auto", display: "flex", gap: 20, flexWrap: "wrap", padding: "12px 14px 14px", background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 12px 36px rgba(22,50,79,0.25)", boxSizing: "border-box" }}>
           <button onClick={() => setEstiloMas(false)} title="Cerrar" aria-label="Cerrar" style={{ ...iconGhost, position: "absolute", top: 8, right: 8 }}><X size={15} /></button>
+          <div style={{ flex: "1 1 100%", minWidth: 0, paddingBottom: 12, borderBottom: "1px solid var(--wf-divider)" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6, paddingRight: 28 }}>FONDOS EN MOVIMIENTO</div>
+            <SelectorFondoMovimiento valor={fondoEditado.theme} columnas={6} onElegir={(t) => { avisarFondoPropioAnimada(); aplicarFondo({ theme: t }); }} />
+          </div>
           {/* Ajustes finos de la letra (ver LIVE_SOMBRAS y compañía): para canciones, versículos y
               diapositivas, en vivo y guardados para la próxima transmisión como el resto del estilo. */}
           <div style={{ flex: "1 1 100%", minWidth: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "10px 18px", paddingBottom: 12, borderBottom: "1px solid var(--wf-divider)" }}>

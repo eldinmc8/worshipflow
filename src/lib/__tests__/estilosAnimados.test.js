@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ANIMACIONES, GRUPOS_ANIMACION, armarLineasAnimadas, claseAnimacion, EfectoPantalla } from "../../components/LetrasAnimadas.jsx";
+import { ANIMACIONES, GRUPOS_ANIMACION, armarLineasAnimadas, claseAnimacion, EfectoPantalla, FONDOS_DISPONIBLES } from "../../components/LetrasAnimadas.jsx";
 import { ESTILOS_RECETA } from "../estilosAnimados.js";
 import { ENTRADAS, PERMANENCIAS, TRATAMIENTOS, PANTALLAS, ACOMODOS, recetaCompleta } from "../animaciones.js";
 import { FUENTES } from "../diapositivas.js";
@@ -14,11 +14,11 @@ const buscar = (n, fn, out = []) => {
 };
 
 describe("estilos nuevos de letra animada (etapa 1)", () => {
-  it("hay 43 estilos nuevos, 58 en total, sin claves repetidas", () => {
-    expect(ESTILOS_RECETA).toHaveLength(43);
-    expect(new Set(ESTILOS_RECETA.map((e) => e.clave)).size).toBe(43);
-    expect(Object.keys(ANIMACIONES)).toHaveLength(58);
-    for (const g of ["Concierto", "Collage", "Pantalla partida", "Minimalista"]) expect(GRUPOS_ANIMACION).toContain(g);
+  it("hay 91 estilos nuevos, 106 en total, sin claves repetidas", () => {
+    expect(ESTILOS_RECETA).toHaveLength(91);
+    expect(new Set(ESTILOS_RECETA.map((e) => e.clave)).size).toBe(91);
+    expect(Object.keys(ANIMACIONES)).toHaveLength(106);
+    for (const g of ["Atmósfera", "Concierto", "Collage", "Pantalla partida", "Temporadas", "Minimalista"]) expect(GRUPOS_ANIMACION).toContain(g);
   });
 
   it("cada estilo usa piezas que existen (sin caer a valores por defecto por un error de dedo)", () => {
@@ -31,6 +31,7 @@ describe("estilos nuevos de letra animada (etapa 1)", () => {
       expect(TRATAMIENTOS.some((x) => x.clave === r.tratamiento), `${e.clave}: tratamiento`).toBe(true);
       expect(PANTALLAS.some((x) => x.clave === r.pantalla), `${e.clave}: pantalla`).toBe(true);
       expect(ACOMODOS.some((x) => x.clave === r.acomodo), `${e.clave}: acomodo`).toBe(true);
+      if (r.fondo.tipo !== "propio") expect(FONDOS_DISPONIBLES.some(([k]) => k === r.fondo.tipo), `${e.clave}: fondo ${r.fondo.tipo}`).toBe(true);
       expect(recetaCompleta(r)).toMatchObject({ entrada: r.entrada, tratamiento: r.tratamiento, pantalla: r.pantalla });
     }
   });

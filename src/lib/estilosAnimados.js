@@ -4,12 +4,15 @@
 // también sirven de punto de partida en "Crear animación". Diseños propios de WorshipFlow, inspirados en el
 // estilo de los conciertos de alabanza (sin copiar imágenes ni diseños de ninguna banda).
 //
-// Etapa 1: 43 estilos nuevos (con los 15 de antes, 58).
+// Etapa 1: 43 estilos nuevos (con los 15 de antes, 58). Etapa 2 (mismo día): 48 más, con fondos de
+// "adoración moderna" (degradados vivos con grano, arcos de luz, vitral, nubes, océano, temporadas): 106.
 import { RECETA_VACIA } from "./animaciones.js";
 
-export const GRUPOS_NUEVOS = ["Concierto", "Collage", "Pantalla partida", "Minimalista"];
+export const GRUPOS_NUEVOS = ["Atmósfera", "Concierto", "Collage", "Pantalla partida", "Temporadas", "Minimalista"];
 
 const F = (tipo, extra = {}) => ({ ...RECETA_VACIA.fondo, tipo, ...extra });
+// Letra ancha y espaciada en mayúsculas, como los títulos de los fondos de adoración moderna.
+const ANCHA = { fuente: "montserrat", negrita: true, mayusculas: true, espaciado: 0.14, sombra: "suave" };
 const e = (clave, nombre, grupo, desc, receta) => ({ clave, nombre, grupo, desc, receta: { ...RECETA_VACIA, ...receta } });
 
 export const ESTILOS_RECETA = [
@@ -69,4 +72,67 @@ export const ESTILOS_RECETA = [
   // ---------------- Minimalista ----------------
   e("limpio", "Limpio", "Minimalista", "Sube suave, sobre tu propio fondo", { fuente: "poppins", negrita: false, entrada: "subir", unidad: "linea", separacion: 0.15, sombra: "suave", fondo: F("propio") }),
   e("fino", "Fino", "Minimalista", "Letra delgada que se enfoca", { fuente: "raleway", negrita: false, mayusculas: true, espaciado: 0.2, entrada: "desenfoque", unidad: "palabra", separacion: 0.12, sombra: "suave", fondo: F("propio") }),
+
+  // ================= Etapa 2 =================
+  // ---------------- Atmósfera: degradados vivos con grano, luz y formas suaves (adoración moderna) ----------------
+  e("arcosluz", "Arcos de luz", "Atmósfera", "Arcos que laten detrás de la letra", { ...ANCHA, entrada: "emerger", unidad: "palabra", separacion: 0.1, compas: true, fondo: F("arcos") }),
+  e("portal", "Portal", "Atmósfera", "Un arco de sol cálido", { fuente: "montserrat", negrita: true, mayusculas: true, espaciado: 0.12, entrada: "subir", unidad: "linea", separacion: 0.2, sombra: "suave", fondo: F("portal") }),
+  e("franjas", "Franjas", "Atmósfera", "Franjas de color que se mueven al ritmo", { fuente: "archivo", negrita: false, mayusculas: true, espaciado: 0.04, entrada: "cortina", unidad: "palabra", separacion: 0.08, compas: true, sombra: "solida", fondo: F("franjas") }),
+  e("vitral", "Vitral", "Atmósfera", "Luz que pasa por un vitral que gira", { fuente: "cinzel", negrita: false, mayusculas: true, espaciado: 0.08, entrada: "barrido", unidad: "linea", separacion: 0.25, sombra: "brillo", colorEfecto: "#FFD9A0", fondo: F("vitral") }),
+  e("cortinaluz", "Cortina de luz", "Atmósfera", "Destellos verticales morados", { ...ANCHA, entrada: "desenfoque", unidad: "palabra", separacion: 0.12, permanencia: "respirar", fondo: F("cortina") }),
+  e("amanecer", "Amanecer", "Atmósfera", "Rayos suaves desde el horizonte", { fuente: "fraunces", negrita: false, color: "#3A2A3A", entrada: "subir", unidad: "linea", separacion: 0.25, sombra: "ninguna", fondo: F("horizonte") }),
+  e("rayosgiran", "Rayos", "Atmósfera", "Rayos que giran desde el centro", { fuente: "anton", negrita: false, mayusculas: true, entrada: "zoomatras", unidad: "palabra", separacion: 0.1, sombra: "solida", fondo: F("radial") }),
+  e("rayodeluz", "Rayo de luz", "Atmósfera", "Un haz de luz con polvo brillante", { fuente: "fraunces", entrada: "barrido", unidad: "palabra", separacion: 0.14, sombra: "brillo", colorEfecto: "#FFE9C0", fondo: F("hazdivino") }),
+  e("marea", "Marea", "Atmósfera", "Ondas de color con brillo de interferencia", { ...ANCHA, entrada: "emerger", unidad: "palabra", separacion: 0.1, pantalla: "rgb", fondo: F("marea") }),
+  e("palabragigante", "Palabra gigante", "Atmósfera", "Una palabra enorme que brilla detrás (cambia en cada diapositiva)", { ...ANCHA, negrita: true, entrada: "aparecer", unidad: "linea", separacion: 0.2, sombra: "solida", fondo: F("palabra") }),
+  e("cielodia", "Cielo de día", "Atmósfera", "Nubes suaves en un cielo azul", { fuente: "poppins", negrita: true, color: "#FFFFFF", entrada: "subir", unidad: "linea", separacion: 0.2, sombra: "suave", fondo: F("nubes") }),
+  e("cielotarde", "Cielo al atardecer", "Atmósfera", "Nubes con luz de atardecer", { fuente: "fraunces", entrada: "desenfoque", unidad: "linea", separacion: 0.25, sombra: "suave", fondo: F("nubestarde") }),
+  e("cielonoche", "Cielo de noche", "Atmósfera", "Nubes de noche con estrellas", { ...ANCHA, entrada: "desenfoque", unidad: "palabra", separacion: 0.14, sombra: "brillo", colorEfecto: "#9CB8FF", fondo: F("nubesnoche") }),
+  e("aura", "Aura", "Atmósfera", "Degradado vivo que se mueve despacio", { ...ANCHA, entrada: "subir", unidad: "palabra", separacion: 0.1, permanencia: "respirar", fondo: F("aura") }),
+  e("oceano", "Océano", "Atmósfera", "Atardecer sobre el mar", { fuente: "fraunces", entrada: "emerger", unidad: "linea", separacion: 0.25, sombra: "suave", fondo: F("oceano") }),
+  e("oceanonoche", "Océano de noche", "Atmósfera", "La luna sobre el mar", { ...ANCHA, entrada: "desenfoque", unidad: "palabra", separacion: 0.14, sombra: "brillo", colorEfecto: "#C8D6FF", fondo: F("oceanonoche") }),
+  e("vidrio", "Vidrio", "Atmósfera", "Pastillas de vidrio flotando", { fuente: "righteous", negrita: false, mayusculas: true, espaciado: 0.06, entrada: "voltear", unidad: "palabra", separacion: 0.1, tratamiento: "cromo", fondo: F("vidrio") }),
+  e("ecos", "Ecos", "Atmósfera", "Ondas que salen del centro, al compás", { ...ANCHA, entrada: "elastico", unidad: "palabra", separacion: 0.1, compas: true, fondo: F("ecos") }),
+
+  // ---------------- Temporadas ----------------
+  e("lacruz", "La cruz", "Temporadas", "Semana Santa: la cruz con luz", { fuente: "cinzel", negrita: false, mayusculas: true, espaciado: 0.1, entrada: "desenfoque", unidad: "linea", separacion: 0.3, sombra: "suave", fondo: F("cruz") }),
+  e("tumbavacia", "Tumba vacía", "Temporadas", "Resurrección: amanece", { fuente: "fraunces", negrita: true, color: "#3A2A3A", entrada: "emerger", unidad: "palabra", separacion: 0.14, sombra: "ninguna", fondo: F("horizonte", { brillo: 1.1 }) }),
+  e("belen", "Estrella de Belén", "Temporadas", "Navidad: la estrella que guía", { fuente: "cinzel", negrita: false, mayusculas: true, espaciado: 0.1, entrada: "barrido", unidad: "linea", separacion: 0.3, sombra: "brillo", colorEfecto: "#FFE6A8", fondo: F("estrella") }),
+  e("auroranavidad", "Aurora navideña", "Temporadas", "Navidad en rojo y verde", { fuente: "poppins", negrita: true, entrada: "subir", unidad: "palabra", separacion: 0.1, claves: true, colorClave: "#FFD86B", sombra: "suave", fondo: F("auroranavidad") }),
+  e("nochedepaz", "Noche de paz", "Temporadas", "Navidad tranquila bajo las estrellas", { fuente: "playfair", negrita: false, entrada: "desenfoque", unidad: "linea", separacion: 0.3, sombra: "brillo", colorEfecto: "#FFE6A8", fondo: F("estrellas", { tono: 20 }) }),
+  e("gloriaadios", "Gloria a Dios", "Temporadas", "Navidad de celebración con confeti", { fuente: "poppins", entrada: "estampar", unidad: "palabra", separacion: 0.1, claves: true, colorClave: "#FFD86B", sombra: "solida", fondo: F("confeti", { tono: 200 }) }),
+
+  // ---------------- Concierto (más) ----------------
+  e("laser", "Láser", "Concierto", "Luces rápidas con interferencia", { fuente: "bebas", negrita: false, mayusculas: true, entrada: "latigazo", unidad: "palabra", separacion: 0.07, pantalla: "rgb", compas: true, sombra: "suave", fondo: F("haces", { tono: 120, velocidad: 1.6 }) }),
+  e("estrobo", "Estrobo", "Concierto", "Pantalla LED con destellos al compás", { fuente: "anton", negrita: false, mayusculas: true, entrada: "golpe", unidad: "palabra", separacion: 0.06, pantalla: "destellos", compas: true, sombra: "solida", fondo: F("led") }),
+  e("escenariorojo", "Escenario rojo", "Concierto", "Luces rojas y golpes de letra", { fuente: "archivo", negrita: false, mayusculas: true, entrada: "golpe", unidad: "palabra", separacion: 0.08, claves: true, colorClave: "#FFD23F", sombra: "suave", fondo: F("haces", { tono: 150 }) }),
+  e("coroled", "Coro LED", "Concierto", "Cortina de letra sobre pantalla LED", { fuente: "rubikmono", negrita: false, mayusculas: true, entrada: "cortina", unidad: "linea", separacion: 0.2, sombra: "brillo", colorEfecto: "#FF4FD8", fondo: F("led", { tono: 90 }) }),
+  e("humoazul", "Humo azul", "Concierto", "Sale del humo azul del escenario", { fuente: "montserrat", negrita: true, mayusculas: true, espaciado: 0.08, entrada: "emerger", unidad: "palabra", separacion: 0.1, sombra: "brillo", colorEfecto: "#7FB0FF", fondo: F("humo", { tono: -30, brillo: 1.2 }) }),
+  e("granfinal", "Gran final", "Concierto", "Chispas y palabras que se arman", { fuente: "bebas", negrita: false, mayusculas: true, entrada: "explosion", unidad: "palabra", separacion: 0.05, pantalla: "temblor", destello: true, sombra: "brillo", colorEfecto: "#FF9A3A", fondo: F("chispas", { densidad: 1.6 }) }),
+
+  // ---------------- Collage (más) ----------------
+  e("pegatinas", "Pegatinas", "Collage", "Calcomanías de colores pegadas", { fuente: "fredoka", tratamiento: "caja", colorEfecto: "#E64B9B", entrada: "papel", unidad: "palabra", separacion: 0.12, acomodo: "escalonado", sombra: "ninguna", fondo: F("papel", { tono: 280 }) }),
+  e("cartel", "Cartel", "Collage", "Sellos sobre franjas de color", { fuente: "archivo", negrita: false, color: "#FFFFFF", tratamiento: "sello", entrada: "estampar", unidad: "palabra", separacion: 0.14, sombra: "ninguna", fondo: F("franjas") }),
+  e("recortesvivos", "Recortes vivos", "Collage", "Periódico sobre un degradado vivo", { fuente: "archivo", negrita: false, tratamiento: "periodico", entrada: "papel", unidad: "palabra", separacion: 0.12, sombra: "ninguna", fondo: F("aura") }),
+  e("cintaarcos", "Cinta y arcos", "Collage", "Cinta de colores sobre arcos de luz", { fuente: "marker", negrita: false, tratamiento: "cinta", entrada: "papel", unidad: "palabra", separacion: 0.12, sombra: "ninguna", fondo: F("arcos") }),
+
+  // ---------------- Pantalla partida (más) ----------------
+  e("puertasvitral", "Puertas al vitral", "Pantalla partida", "Se abre y aparece el vitral", { fuente: "cinzel", negrita: false, mayusculas: true, espaciado: 0.08, entrada: "aparecer", unidad: "linea", separacion: 0.2, pantalla: "puertas", colorEfecto: "#FFD9A0", sombra: "brillo", fondo: F("vitral") }),
+  e("diagonalrayos", "Diagonal y rayos", "Pantalla partida", "Corte diagonal sobre rayos que giran", { fuente: "anton", negrita: false, mayusculas: true, entrada: "latigazo", unidad: "palabra", separacion: 0.08, pantalla: "diagonal", colorEfecto: "#B9A8FF", sombra: "solida", fondo: F("radial") }),
+  e("persianasfranjas", "Persianas de color", "Pantalla partida", "Persianas sobre franjas", { fuente: "archivo", negrita: false, mayusculas: true, entrada: "cortina", unidad: "linea", separacion: 0.2, pantalla: "persianas", colorEfecto: "#F6C344", sombra: "solida", fondo: F("franjas") }),
+  e("telonnubes", "Telón al cielo", "Pantalla partida", "Se abre y aparece el cielo", { fuente: "fraunces", entrada: "subir", unidad: "linea", separacion: 0.25, pantalla: "cortina", colorEfecto: "#FFFFFF", sombra: "suave", fondo: F("nubestarde") }),
+  e("tajoluz", "Tajo y rayo", "Pantalla partida", "Un corte de luz y un haz", { fuente: "bebas", negrita: false, mayusculas: true, entrada: "elastico", unidad: "palabra", separacion: 0.08, pantalla: "corte", colorEfecto: "#FFE9C0", sombra: "suave", fondo: F("hazdivino") }),
+
+  // ---------------- Juvenil (más) ----------------
+  e("invertidomarea", "Marea invertida", "Juvenil", "Letra que invierte las ondas", { fuente: "anton", negrita: false, mayusculas: true, tratamiento: "invertido", entrada: "latigazo", unidad: "palabra", separacion: 0.08, fondo: F("marea") }),
+  e("cromoarcos", "Cromo y arcos", "Juvenil", "Letra metálica sobre arcos de luz", { fuente: "bungee", negrita: false, tratamiento: "cromo", entrada: "caida", unidad: "palabra", separacion: 0.1, compas: true, fondo: F("arcos") }),
+  e("contornorayos", "Contorno y rayos", "Juvenil", "Solo el borde, sobre rayos que giran", { fuente: "anton", negrita: false, mayusculas: true, tratamiento: "contorno", claves: true, entrada: "girar3d", unidad: "palabra", separacion: 0.1, fondo: F("radial") }),
+  e("neonfranjas", "Neón y franjas", "Juvenil", "Letrero de neón sobre franjas", { fuente: "monoton", negrita: false, mayusculas: true, entrada: "parpadear", unidad: "letra", separacion: 0.04, permanencia: "chispear", sombra: "neon", colorEfecto: "#3EE7FF", fondo: F("franjas", { brillo: 0.7 }) }),
+  e("caladaaura", "Calada y aura", "Juvenil", "El aura se ve dentro de la letra", { fuente: "archivo", negrita: false, mayusculas: true, tratamiento: "calado", entrada: "crecer", unidad: "palabra", separacion: 0.1, sombra: "ninguna", fondo: F("aura", { brillo: 1.3 }) }),
+
+  // ---------------- Minimalista (más) ----------------
+  e("elegante", "Elegante", "Minimalista", "Serif que sale de la niebla, sobre tu fondo", { fuente: "fraunces", entrada: "desenfoque", unidad: "linea", separacion: 0.25, sombra: "suave", fondo: F("propio") }),
+  e("moderno", "Moderno", "Minimalista", "Letra ancha que sube, sobre tu fondo", { ...ANCHA, negrita: false, entrada: "subir", unidad: "palabra", separacion: 0.08, fondo: F("propio") }),
+  e("firma", "Firma", "Minimalista", "Como escrita a mano, sobre tu fondo", { fuente: "caveat", negrita: true, entrada: "cortina", unidad: "palabra", separacion: 0.12, sombra: "suave", fondo: F("propio") }),
+  e("titular", "Titular", "Minimalista", "Letra de titular que se descubre, sobre tu fondo", { fuente: "abril", negrita: false, entrada: "cortina", unidad: "linea", separacion: 0.2, sombra: "suave", fondo: F("propio") }),
 ];
