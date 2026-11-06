@@ -36,7 +36,7 @@ import { SettingsView } from "./pantallas/ajustes.jsx";
 import { MinistriesList, MinistryDetail } from "./pantallas/ministerios.jsx";
 import { AsistenteChatScreen } from "./pantallas/asistente.jsx";
 import { CancionesList, SongView, SongEditor } from "./pantallas/canciones.jsx";
-import { EventList, EventDetail } from "./pantallas/eventos.jsx";
+import { EventList, EventDetail, puedeVerDiapositivasEvento } from "./pantallas/eventos.jsx";
 import { BibleBrowserBody } from "./pantallas/biblia.jsx";
 import { MultimediaControl } from "./pantallas/envivo.jsx";
 import { ProjectionPanel } from "./pantallas/proyeccion.jsx";
@@ -1364,9 +1364,18 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // ---- Bosquejo del predicador (2026-11-01): quien está asignado a un bloque de Predicación (o quien
   // edita el Setlist) lo arma paso a paso; al enviarlo se vuelve diapositivas del Setlist (ver bosquejos.js).
   const puedeBosquejo = (block) => esBloquePredicacion(block) && (puedeEditarSetlistEvento || (block.encargados || []).some((m) => m.usuarioId === myUserId));
+  // ---- Diapositivas del Setlist (pedido de Eldin, 2026-11-06): las slides y el bosquejo no son para
+  // todos. Las ven Administrador, Supervisor, quien edita el Setlist, un rol con "ver_diapositivas" y,
+  // en cada evento, quien está asignado al bloque de Multimedia o al de Predicación. Un músico no.
+  const esSupervisorReal = usuariosReales.find((u) => u.id === myUserId)?.rol === "supervisor";
+  const verDiapositivasSiempre = isAdminViewer || puedeEditarSetlistEvento || esSupervisorReal || tienePermiso("ver_diapositivas");
+  const verDiapositivasEvento = puedeVerDiapositivasEvento(selectedEvent, myUserId, verDiapositivasSiempre);
+  // Quien puede ver las diapositivas también puede abrir el bosquejo ya enviado, solo para leerlo.
+  const puedeVerBosquejo = (block) => esBloquePredicacion(block) && verDiapositivasEvento && !!selectedEvent?.bosquejos?.[block.id]?.enviadoAt;
   const bloqueBosquejo = bosquejoAbierto ? (selectedEvent?.serviceOrder || []).find((it) => it.id === bosquejoAbierto) : null;
+  const bosquejoSoloLectura = !!bloqueBosquejo && !puedeBosquejo(bloqueBosquejo);
   // En vivo, el predicador ya no lo cambia (Multimedia sí puede corregir desde la consola).
-  const bosquejoBloqueado = !!bloqueBosquejo && liveEventId === selectedEventId && !puedeEditarSetlistEvento;
+  const bosquejoBloqueado = bosquejoSoloLectura || (!!bloqueBosquejo && liveEventId === selectedEventId && !puedeEditarSetlistEvento);
   const ponerBosquejoLocal = (eventoId, bloqueId, guardado) => setEventsSynced((evs) => evs.map((e) => (
     e.id === eventoId ? { ...e, bosquejos: { ...(e.bosquejos || {}), [bloqueId]: guardado } } : e
   )));
@@ -1397,7 +1406,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       throw err;
     }
   };
-  const bosquejoInfo = { puede: puedeBosquejo, abrir: setBosquejoAbierto, bosquejos: selectedEvent?.bosquejos || {} };
+  const bosquejoInfo = { puede: puedeBosquejo, puedeVer: puedeVerBosquejo, abrir: setBosquejoAbierto, bosquejos: selectedEvent?.bosquejos || {} };
 
   // ---- Estilo en vivo de la proyección: declarado más arriba (antes de `slides`), porque el tamaño de
   // letra decide en cuántas partes se dividen los versículos largos ----
@@ -2283,15 +2292,15 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
           showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
           showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
-          bosquejoInfo={bosquejoInfo}
+          bosquejoInfo={bosquejoInfo} verDiapositivas={verDiapositivasEvento}
         />
       )}
-      {tab === "eventos" && selectedEvent && bloqueBosquejo && (
+      {tab === "eventos" && selectedEvent && bloqueBosquejo && (puedeBosquejo(bloqueBosquejo) || puedeVerBosquejo(bloqueBosquejo)) && (
         <BosquejoWizard
           key={bloqueBosquejo.id}
           inicial={selectedEvent.bosquejos?.[bloqueBosquejo.id]}
           tituloBloque={bloqueBosquejo.title} tituloEvento={selectedEvent.title}
-          bloqueado={bosquejoBloqueado}
+          bloqueado={bosquejoBloqueado} soloLectura={bosquejoSoloLectura}
           onGuardar={guardarBorradorBosquejo} onEnviar={enviarBosquejo}
           onClose={() => setBosquejoAbierto(null)}
           BibliaSelector={BibleBrowserBody}

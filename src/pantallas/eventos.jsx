@@ -38,6 +38,23 @@ function isMultimediaBlock(item) {
   return item.type === "seccion" && normalizarTitulo(item.title).includes("multimedia");
 }
 
+// Diapositivas privadas del Setlist (pedido de Eldin, 2026-11-06): las slides (texto, imagen, video,
+// presentaciones importadas, cuenta regresiva) y todo lo que salió del bosquejo del predicador. Las
+// canciones, los versículos de lectura y los bloques se siguen viendo como siempre.
+export function esDiapositivaPrivada(item) {
+  return !!item && (item.type === "slide" || !!item.bosquejoDe);
+}
+
+// ¿Puede esta persona ver las diapositivas de ESTE evento? `general` ya trae lo que no depende del
+// evento (Administrador, Supervisor, quien edita el Setlist o un rol con "ver_diapositivas"). Además,
+// en cada evento: quien está asignado ese día al bloque de Multimedia o al de Predicación.
+export function puedeVerDiapositivasEvento(event, uid, general = false) {
+  if (general) return true;
+  if (!event || !uid) return false;
+  return (event.serviceOrder || []).some((it) => (isMultimediaBlock(it) || esBloquePredicacion(it))
+    && (it.encargados || []).some((m) => m.usuarioId === uid));
+}
+
 // Única fuente de verdad para la visibilidad del Setlist por grupo — la usan tanto SetlistPane (para
 // decidir qué panel mostrar) como el resumen en PDF (para no filtrar aparte y arriesgar que se
 // desincronicen). Nada de esto aplica a un administrador, que siempre ve todo:
@@ -46,7 +63,16 @@ function isMultimediaBlock(item) {
 // - Cualquier OTRO bloque organizativo (Limpieza, Ofrendas, Adolescentes, Escuelita Infantil, Lectura
 //   inicial, Predicación, etc.) restringe a su(s) encargado(s) a ver SOLO ese bloque — ni siquiera
 //   Alabanza/Multimedia, ni el resto de bloques.
-function decidirVisibilidadSetlist(event, isAdminViewer, userId, esSupervisor, gruposQueLidero = null) {
+// verDiapositivas = false quita del resultado las diapositivas privadas (ver esDiapositivaPrivada).
+export function decidirVisibilidadSetlist(event, isAdminViewer, userId, esSupervisor, gruposQueLidero = null, verDiapositivas = true) {
+  const decision = decidirVisibilidadPorGrupo(event, isAdminViewer, userId, esSupervisor, gruposQueLidero);
+  if (verDiapositivas || isAdminViewer) return decision;
+  if (decision.modo === "todo") return { modo: "filtrado", visibleOrder: event.serviceOrder.filter((it) => !esDiapositivaPrivada(it)) };
+  if (decision.modo === "filtrado") return { ...decision, visibleOrder: decision.visibleOrder.filter((it) => !esDiapositivaPrivada(it)) };
+  return decision; // "bloque-propio": solo bloques, no lleva diapositivas
+}
+
+function decidirVisibilidadPorGrupo(event, isAdminViewer, userId, esSupervisor, gruposQueLidero = null) {
   // Supervisor ve TODO, sin excepción — a diferencia de los demás roles, tener además una asignación
   // propia (ej. un bloque puntual) no lo restringe a ver solo eso. Es el único rol, aparte de
   // Administrador, que nunca queda encerrado en "bloque-propio" ni "filtrado".
@@ -79,8 +105,8 @@ function decidirVisibilidadSetlist(event, isAdminViewer, userId, esSupervisor, g
 
 // Ítems del Setlist que un usuario puede ver, aplicando decidirVisibilidadSetlist — se usa en el
 // resumen en PDF, que de otro modo mostraría el Setlist completo a cualquiera sin pasar por SetlistPane.
-function serviceOrderVisiblePara(event, isAdminViewer, userId, esSupervisor, gruposQueLidero = null) {
-  const decision = decidirVisibilidadSetlist(event, isAdminViewer, userId, esSupervisor, gruposQueLidero);
+function serviceOrderVisiblePara(event, isAdminViewer, userId, esSupervisor, gruposQueLidero = null, verDiapositivas = true) {
+  const decision = decidirVisibilidadSetlist(event, isAdminViewer, userId, esSupervisor, gruposQueLidero, verDiapositivas);
   if (decision.modo === "bloque-propio") return decision.blocks;
   if (decision.modo === "filtrado") return decision.visibleOrder;
   return event.serviceOrder;
@@ -534,7 +560,7 @@ export function EventDetail({
   event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onPracticar, onGoLive, onDelete,
   isDraftFromTemplate, onPublish,
   onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder,
-  onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null,
+  onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, verDiapositivas = true,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
   onViewMinistry, onOpenSong, onAddReminder, onRemoveReminder, onSetHora, onUpdateEventDetails, onMarkVisto, onSetEnsayo,
@@ -744,7 +770,7 @@ export function EventDetail({
             {(formatFullDate(event.date) || event.dateLabel || "")}{event.hora ? ` · ${event.hora}` : ""}
           </div>
           <ol style={{ paddingLeft: 20, margin: 0 }}>
-            {serviceOrderVisiblePara(event, isAdminViewer || puedeEditarSetlist, userId, usuariosReales.find((u) => u.id === userId)?.rol === "supervisor", new Set((ministries || []).filter((m) => m.leaderId === userId).map((m) => m.id))).map((item) => {
+            {serviceOrderVisiblePara(event, isAdminViewer || puedeEditarSetlist, userId, usuariosReales.find((u) => u.id === userId)?.rol === "supervisor", new Set((ministries || []).filter((m) => m.leaderId === userId).map((m) => m.id)), verDiapositivas).map((item) => {
               if (item.type === "seccion") {
                 const names = isWorshipBlock(item)
                   ? (event.worshipRoles || []).flatMap((r) => r.members.map((m) => `${m.n} (${r.name})`)).join(", ")
@@ -811,7 +837,7 @@ export function EventDetail({
         onRemove={onRemove} onRestaurar={onRestaurar} onDuplicate={onDuplicate} onReorder={onReorder}
         onLinkMinistry={onLinkMinistry} onUpdateSeccionText={onUpdateSeccionText}
         onSetSongKey={onSetSongKey}
-        canAddBibleReading={canAddBibleReading} canAddSermonPoints={canAddSermonPoints} bosquejoInfo={bosquejoInfo}
+        canAddBibleReading={canAddBibleReading} canAddSermonPoints={canAddSermonPoints} bosquejoInfo={bosquejoInfo} verDiapositivas={verDiapositivas}
         onAddEncargado={onAddEncargado} onSetEncargadoStatus={onSetEncargadoStatus} onSetEncargadoLead={onSetEncargadoLead} onRemoveEncargado={onRemoveEncargado}
         onAddWorshipRole={onAddWorshipRole} onRemoveWorshipRole={onRemoveWorshipRole} onAddWorshipRoleMember={onAddWorshipRoleMember} onSetWorshipRoleMemberStatus={onSetWorshipRoleMemberStatus} onSetWorshipRoleMemberLead={onSetWorshipRoleMemberLead} onRemoveWorshipRoleMember={onRemoveWorshipRoleMember}
         onViewMinistry={onViewMinistry} onOpenSong={onOpenSong}
@@ -967,7 +993,7 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar = null, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar = null, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, verDiapositivas = true, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   const [showImportar, setShowImportar] = useState(false); // Importar presentación (ver ImportarPresentacion)
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
@@ -1064,7 +1090,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   // Visibilidad del Setlist por grupo — ver decidirVisibilidadSetlist. Va DESPUÉS de todos los hooks
   // de arriba: un return anticipado antes de un useState rompe las reglas de hooks en cuanto ese mismo
   // componente vuelva a renderizar sin la restricción activa.
-  const visibilidadSetlist = decidirVisibilidadSetlist(event, isAdminViewer, userId, usuariosReales.find((u) => u.id === userId)?.rol === "supervisor", gruposQueLidero);
+  const visibilidadSetlist = decidirVisibilidadSetlist(event, isAdminViewer, userId, usuariosReales.find((u) => u.id === userId)?.rol === "supervisor", gruposQueLidero, verDiapositivas);
   // Si entre sus bloques hay alguno de un grupo que lidera, se usa la vista normal del Setlist (solo con
   // sus bloques) en vez del panel de solo lectura, para que pueda editarlos.
   const lideraAlgunoDeSusBloques = visibilidadSetlist.modo === "bloque-propio" && visibilidadSetlist.blocks.some((b) => lideraBloque(b, gruposQueLidero));
@@ -1325,7 +1351,9 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                   <div style={{ marginTop: 10 }}><BotonBosquejo bosquejo={bosquejoInfo.bosquejos[item.id]} onAbrir={() => bosquejoInfo.abrir(item.id)} /></div>
                 )}
                 {!bosquejoInfo?.puede(item) && esBloquePredicacion(item) && bosquejoInfo?.bosquejos[item.id]?.enviadoAt && (
-                  <div style={{ marginTop: 8 }}><EtiquetaBosquejoListo /></div>
+                  bosquejoInfo?.puedeVer?.(item)
+                    ? <div style={{ marginTop: 10 }}><BotonBosquejo bosquejo={bosquejoInfo.bosquejos[item.id]} onAbrir={() => bosquejoInfo.abrir(item.id)} /></div>
+                    : <div style={{ marginTop: 8 }}><EtiquetaBosquejoListo /></div>
                 )}
 
                 {isExpanded && (

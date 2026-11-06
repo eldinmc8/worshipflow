@@ -42,7 +42,9 @@ function TarjetaVersiculo({ v, onQuitar, compacta = false }) {
   );
 }
 
-export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bloqueado = false, onGuardar, onEnviar, onClose, BibliaSelector }) {
+// soloLectura (2026-11-06): lo abre alguien que no es el predicador (Supervisor, Multimedia, un rol con
+// "ver_diapositivas") solo para leer el bosquejo ya enviado — llega siempre junto con bloqueado.
+export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bloqueado = false, soloLectura = false, onGuardar, onEnviar, onClose, BibliaSelector }) {
   const [b, setB] = useState(() => ({ ...bosquejoVacio(), ...(inicial || {}) }));
   // Ya enviado antes → abre directo en "Revisar"; si no, en el primer paso.
   const [paso, setPaso] = useState(() => (inicial?.enviadoAt ? 4 : 0));
@@ -308,7 +310,7 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
         <button type="button" onClick={() => irA(3)} style={botonSecundario} aria-label="Atrás"><ChevronLeft size={16} /> Atrás</button>
         {bloqueado ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--wf-muted)", background: "var(--wf-hover)", borderRadius: 12, padding: "10px 12px" }}>
-            <Lock size={15} style={{ flexShrink: 0 }} /> El culto ya está en vivo. Si hay que corregir algo, pídeselo a Multimedia.
+            <Lock size={15} style={{ flexShrink: 0 }} /> {soloLectura ? "Solo para leer. Lo arma y lo envía el predicador." : "El culto ya está en vivo. Si hay que corregir algo, pídeselo a Multimedia."}
           </div>
         ) : (
           <button type="button" onClick={enviar} disabled={enviando || !bosquejoListoParaEnviar(b)} style={{ ...botonPrincipal, flex: 1, opacity: enviando ? 0.6 : 1 }}>
@@ -348,7 +350,7 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
         </div>
         {bloqueado && !eligiendo && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "12px 16px 0", fontSize: 12.5, color: "var(--wf-text-2)", background: "rgba(194,59,50,0.08)", borderRadius: 12, padding: "9px 12px" }}>
-            <Lock size={14} color="#C23B32" style={{ flexShrink: 0 }} /> El culto está en vivo: el bosquejo queda solo para leer.
+            <Lock size={14} color="#C23B32" style={{ flexShrink: 0 }} /> {soloLectura ? "Estás viendo el bosquejo del predicador, solo para leer." : "El culto está en vivo: el bosquejo queda solo para leer."}
           </div>
         )}
         <div ref={contenido} style={{ flex: 1, overflowY: "auto", padding: "18px 16px" }}>{cuerpo}</div>
