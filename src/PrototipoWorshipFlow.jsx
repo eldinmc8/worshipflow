@@ -421,6 +421,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
 
   const selectedEvent = events.find((e) => e.id === selectedEventId);
   const [liveEventId, setLiveEventId] = useState(null);
+  // Lo que Multimedia tiene al aire ahora (slide_actual de la sesión en vivo) — lo usa el Modo predicar
+  // del bosquejo para seguir solo al predicador por su bosquejo cuando no hay pantalla de escenario.
+  const [slideAlAireRemoto, setSlideAlAireRemoto] = useState(null);
   // Código secreto de las pantallas sin sesión (enlace que vence, 2026-11-02): va en el enlace/QR y en el
   // nombre del canal por el que la consola les manda lo que está al aire. La base lo cambia sola al
   // finalizar la transmisión, así que se vuelve a pedir al empezar y al terminar.
@@ -1576,6 +1579,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           return;
         }
         setLiveEventId(fila?.evento_id || null); setLiveOwnerId(fila?.liderado_por || null); setLiveLibre(!!fila?.libre);
+        setSlideAlAireRemoto(fila?.slide_actual || null);
         adoptarEstiloGuardado(fila?.estilo_en_vivo);
       })
       .catch(() => {});
@@ -1583,6 +1587,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       setLiveEventId(fila.evento_id || null);
       setLiveOwnerId(fila.liderado_por || null);
       setLiveLibre(!!fila.libre);
+      setSlideAlAireRemoto(fila.slide_actual || null);
       // Solo si lo cambió OTRO dispositivo: quien transmite ya tiene su estilo, y adoptar su propio eco
       // volvería a disparar el envío de la sesión.
       if (fila.liderado_por !== userIdRef.current) adoptarEstiloGuardado(fila.estilo_en_vivo);
@@ -2325,6 +2330,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           tituloBloque={bloqueBosquejo.title} tituloEvento={selectedEvent.title}
           bloqueado={bosquejoBloqueado} soloLectura={bosquejoSoloLectura}
           onEliminar={puedeEliminarBosquejo(bloqueBosquejo) ? borrarBosquejo : null}
+          vivo={{ serviceOrder: selectedEvent.serviceOrder || [], bloqueId: bloqueBosquejo.id, enVivo: liveEventId === selectedEvent.id, slideAlAire: slideAlAireRemoto }}
           onGuardar={guardarBorradorBosquejo} onEnviar={enviarBosquejo}
           onClose={() => setBosquejoAbierto(null)}
           BibliaSelector={BibleBrowserBody}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Mic2, BookOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Plus, Trash2, Check, Send, Eye, EyeOff, Lock } from "lucide-react";
+import { X, Mic2, BookOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Plus, Trash2, Check, Send, Eye, EyeOff, Lock, Presentation } from "lucide-react";
+import ModoPredicar from "./ModoPredicar.jsx";
 import { bosquejoVacio, nuevoPunto, bosquejoListoParaEnviar, bosquejoAItems } from "../lib/bosquejos.js";
 
 // Asistente paso a paso para que el predicador arme su bosquejo (pedido de Eldin, 2026-11-01):
@@ -44,7 +45,7 @@ function TarjetaVersiculo({ v, onQuitar, compacta = false }) {
 
 // soloLectura (2026-11-06): lo abre alguien que no es el predicador (Supervisor, Multimedia, un rol con
 // "ver_diapositivas") solo para leer el bosquejo ya enviado — llega siempre junto con bloqueado.
-export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bloqueado = false, soloLectura = false, onEliminar = null, onGuardar, onEnviar, onClose, BibliaSelector }) {
+export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bloqueado = false, soloLectura = false, onEliminar = null, vivo = null, onGuardar, onEnviar, onClose, BibliaSelector }) {
   const [b, setB] = useState(() => ({ ...bosquejoVacio(), ...(inicial || {}) }));
   // Ya enviado antes → abre directo en "Revisar"; si no, en el primer paso.
   const [paso, setPaso] = useState(() => (inicial?.enviadoAt ? 4 : 0));
@@ -52,6 +53,9 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
   const [enviando, setEnviando] = useState(false);
   const [eligiendo, setEligiendo] = useState(null); // null · "cita" · id del punto al que se agrega un versículo
   const [cambiarCita, setCambiarCita] = useState(false);
+  // Modo predicar (2026-11-06): seguir el bosquejo en el celular si no hay pantalla de escenario.
+  // vivo = { serviceOrder, bloqueId, enVivo, slideAlAire } — para que siga solo a Multimedia.
+  const [predicando, setPredicando] = useState(false);
   const ultimoGuardado = useRef(JSON.stringify(b));
   const contenido = useRef(null);
 
@@ -239,6 +243,12 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
   } else {
     cuerpo = (
       <>
+        {b.titulo.trim() && (
+          <button type="button" onClick={() => setPredicando(true)} style={{ ...botonPrincipal, width: "100%", marginBottom: 16, background: "#16324F", color: "#fff" }}>
+            <Presentation size={16} /> Modo predicar
+            <span style={{ fontWeight: 500, fontSize: 12, opacity: 0.8 }}>· síguelo en tu celular</span>
+          </button>
+        )}
         <Pregunta ayuda={b.enviadoAt ? "Ya lo enviaste. Si cambias algo, vuelve a enviarlo para que Multimedia tenga lo último." : "Revisa que todo esté bien. Toca cualquier parte para corregirla."}>Tu bosquejo</Pregunta>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button type="button" onClick={() => irA(0)} style={{ textAlign: "left", background: "var(--wf-card)", boxShadow: sombra, border: "none", borderRadius: 14, padding: "12px 14px", cursor: "pointer", fontFamily: "inherit" }}>
@@ -333,6 +343,7 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
               <div style={{ fontSize: 11.5, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{[tituloBloque, tituloEvento].filter(Boolean).join(" · ")}</div>
             </div>
             {/* Solo llega para el predicador asignado o un administrador (ver puedeEliminarBosquejo). */}
+            {b.titulo.trim() && <button type="button" onClick={() => setPredicando(true)} style={botonIcono} aria-label="Modo predicar" title="Modo predicar: síguelo en tu celular"><Presentation size={17} /></button>}
             {onEliminar && <button type="button" onClick={onEliminar} style={{ ...botonIcono, color: "#C23B32" }} aria-label="Eliminar bosquejo" title="Eliminar bosquejo"><Trash2 size={17} /></button>}
             <button type="button" onClick={cerrar} style={botonIcono} aria-label="Cerrar"><X size={18} /></button>
           </div>
@@ -358,6 +369,10 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
         <div ref={contenido} style={{ flex: 1, overflowY: "auto", padding: "18px 16px" }}>{cuerpo}</div>
         {barra && <div style={{ padding: "12px 16px calc(12px + env(safe-area-inset-bottom))", background: "var(--wf-card)", boxShadow: "0 -2px 10px rgba(22,50,79,0.06)" }}>{barra}</div>}
       </div>
+      {predicando && (
+        <ModoPredicar bosquejo={b} serviceOrder={vivo?.serviceOrder || []} bloqueId={vivo?.bloqueId} enVivo={!!vivo?.enVivo}
+          slideAlAire={vivo?.slideAlAire || null} onClose={() => setPredicando(false)} />
+      )}
     </div>,
     document.body
   );

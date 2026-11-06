@@ -126,3 +126,37 @@ export function aplicarBosquejoAlOrden(orden, bloqueId, items) {
   if (fin === -1) return sinViejas;
   return [...sinViejas.slice(0, fin), ...items, ...sinViejas.slice(fin)];
 }
+
+// ---------- Modo predicar (pedido de Eldin, 2026-11-06) ----------
+// Para cuando no hay pantalla de escenario: el predicador sigue su bosquejo en su celular, paso por paso.
+// Pasos: inicio (título + cita base) → idea central (si la escribió; el predicador la ve aunque no se
+// proyecte) → cada punto con algo escrito (título, nota o versículos).
+export function pasosPredicar(b) {
+  if (!b) return [];
+  const pasos = [{ tipo: "inicio" }];
+  if ((b.ideaCentral || "").trim()) pasos.push({ tipo: "idea" });
+  (b.puntos || []).forEach((p, i) => {
+    if ((p.titulo || "").trim() || (p.nota || "").trim() || (p.versiculos || []).length) pasos.push({ tipo: "punto", i });
+  });
+  return pasos;
+}
+
+// ¿En qué paso va lo que Multimedia tiene al aire? Mismo criterio de ids que la consola (perteneceA):
+// "<id>", "<id>-…" o "<id>~…". -1 si lo que está al aire no es de este bosquejo.
+export function pasoAlAire(pasos, serviceOrder, bloqueId, slide, bosquejo = null) {
+  if (!slide || !bloqueId) return -1;
+  const sid = String(slide.slideId || slide.id || "");
+  const item = (serviceOrder || []).find((it) => it.bosquejoDe === bloqueId && (sid === it.id || sid.startsWith(`${it.id}-`) || sid.startsWith(`${it.id}~`)));
+  if (!item) return -1;
+  const punto = item.bosquejoPunto || Number(/^Punto (\d+)$/.exec(item.subtitle || "")?.[1]) || null;
+  if (punto) {
+    const k = pasos.findIndex((p) => p.tipo === "punto" && p.i === punto - 1);
+    if (k >= 0) return k;
+  }
+  const idea = (bosquejo?.ideaCentral || "").trim();
+  if (idea && item.type === "slide" && (item.title || "").trim() === idea) {
+    const k = pasos.findIndex((p) => p.tipo === "idea");
+    if (k >= 0) return k;
+  }
+  return 0;
+}
