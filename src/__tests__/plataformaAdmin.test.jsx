@@ -10,9 +10,10 @@ const RESUMEN = [
 ];
 const consulta = (data) => { const q = { select: () => q, order: () => q, eq: () => q, is: () => q, maybeSingle: () => Promise.resolve({ data, error: null }), then: (fn) => Promise.resolve({ data, error: null }).then(fn) }; return q; };
 const CODIGOS = [
-  { codigo: "abc123def456", nota: "Iglesia Betel", creado_at: hace(1), usado_at: null, iglesia_id: null },
-  { codigo: "0f0f0f0f0f0f", nota: "Iglesia Sion", creado_at: hace(2), usado_at: null, iglesia_id: null },
-  { codigo: "999999999999", nota: null, creado_at: hace(9), usado_at: hace(5), iglesia_id: "ig-1" },
+  { codigo: "abc123def456", nota: "Iglesia Betel", creado_at: hace(1), vence_at: hace(-29), usado_at: null, iglesia_id: null },
+  { codigo: "0f0f0f0f0f0f", nota: "Iglesia Sion", creado_at: hace(28), vence_at: hace(-2), usado_at: null, iglesia_id: null },
+  { codigo: "999999999999", nota: null, creado_at: hace(9), vence_at: hace(-21), usado_at: hace(5), iglesia_id: "ig-1" },
+  { codigo: "777777777777", nota: "Iglesia Olvidada", creado_at: hace(40), vence_at: hace(10), usado_at: null, iglesia_id: null },
 ];
 const rpc = vi.fn((nombre) => {
   if (nombre === "resumen_plataforma") return Promise.resolve({ data: RESUMEN, error: null });
@@ -39,16 +40,20 @@ describe("consola de iglesias", () => {
     expect(screen.getByText("+3 esta semana")).toBeTruthy();
   });
 
-  it("muestra varios códigos de invitación pendientes a la vez, cada uno de un solo uso", async () => {
+  it("muestra varios códigos de invitación pendientes a la vez, cada uno de un solo uso y con vencimiento", async () => {
     render(<PlataformaAdmin onExit={() => {}} />);
     expect(await screen.findByText("abc123def456")).toBeTruthy();
     expect(screen.getByText("0f0f0f0f0f0f")).toBeTruthy();
     expect(screen.getAllByRole("button", { name: /Copiar enlace/ })).toHaveLength(2);
     expect(screen.getByText(/una sola iglesia/)).toBeTruthy();
+    expect(screen.getByText("vence en 29 días")).toBeTruthy();
+    expect(screen.getByText("vence en 2 días")).toBeTruthy();
     // Los usados quedan aparte, con la iglesia que lo usó.
     expect(screen.queryByText("999999999999")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Ver códigos usados \(1\)/ }));
+    expect(screen.queryByText("777777777777")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Ver códigos usados o vencidos \(2\)/ }));
     expect(screen.getByText(/por Iglesia Viva/)).toBeTruthy();
+    expect(screen.getByText(/sin usarse/)).toBeTruthy();
   });
 
   it("abre el perfil de una iglesia con primeros pasos, actividad y su equipo", async () => {

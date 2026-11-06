@@ -66,9 +66,12 @@ Deno.serve(async (req: Request) => {
     // cada uno de un solo uso (pedido de Eldin, 2026-11-06).
     const codigoIngresado = String(body.codigo_invitacion || "").trim().toLowerCase();
     if (!codigoIngresado) return json({ error: "Falta el código de invitación." }, 403);
-    const { data: invitacion } = await admin.from("codigos_invitacion").select("codigo, usado_at").eq("codigo", codigoIngresado).maybeSingle();
+    const { data: invitacion } = await admin.from("codigos_invitacion").select("codigo, usado_at, vence_at").eq("codigo", codigoIngresado).maybeSingle();
     if (!invitacion) return json({ error: "Código de invitación incorrecto." }, 403);
     if (invitacion.usado_at) return json({ error: "Ese código de invitación ya se usó. Pide uno nuevo a quien te invitó." }, 403);
+    if (invitacion.vence_at && new Date(invitacion.vence_at).getTime() < Date.now()) {
+      return json({ error: "Ese código de invitación ya venció. Pide uno nuevo a quien te invitó." }, 403);
+    }
 
     const iglesiaNombre = String(body.iglesia_nombre || "").trim();
     const zonaHoraria = ZONAS_VALIDAS.includes(body.zona_horaria) ? body.zona_horaria : "Etc/GMT+6";
@@ -92,7 +95,7 @@ Deno.serve(async (req: Request) => {
     // mismo código al mismo tiempo no pueden crear dos iglesias. Los demás códigos pendientes no se
     // tocan. Si algo de abajo falla, se libera para que puedan reintentar con el mismo.
     const { data: gastado } = await admin.from("codigos_invitacion").update({ usado_at: new Date().toISOString() })
-      .eq("codigo", codigoIngresado).is("usado_at", null).select("codigo");
+      .eq("codigo", codigoIngresado).is("usado_at", null).gt("vence_at", new Date().toISOString()).select("codigo");
     if (!gastado?.length) return json({ error: "Ese código de invitación ya se usó. Pide uno nuevo a quien te invitó." }, 403);
     const fallar = async (mensaje: string, status: number) => {
       await admin.from("codigos_invitacion").update({ usado_at: null, iglesia_id: null }).eq("codigo", codigoIngresado);

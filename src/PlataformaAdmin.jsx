@@ -212,7 +212,7 @@ function CodigosInvitacion({ iglesias }) {
   const [codigos, setCodigos] = useState(null); // null = cargando
   const [verUsados, setVerUsados] = useState(false);
   const cargar = () => {
-    supabase.from("codigos_invitacion").select("codigo, nota, creado_at, usado_at, iglesia_id").order("creado_at", { ascending: false })
+    supabase.from("codigos_invitacion").select("codigo, nota, creado_at, vence_at, usado_at, iglesia_id").order("creado_at", { ascending: false })
       .then(({ data, error }) => setCodigos(error ? [] : data || []));
   };
   useEffect(cargar, []);
@@ -237,8 +237,11 @@ function CodigosInvitacion({ iglesias }) {
     cargar();
   };
 
-  const pendientes = (codigos || []).filter((c) => !c.usado_at);
-  const usados = (codigos || []).filter((c) => c.usado_at);
+  const ahora = Date.now();
+  const vencido = (c) => c.vence_at && new Date(c.vence_at).getTime() < ahora;
+  const diasParaVencer = (c) => Math.max(0, Math.ceil((new Date(c.vence_at).getTime() - ahora) / 86400000));
+  const pendientes = (codigos || []).filter((c) => !c.usado_at && !vencido(c));
+  const usados = (codigos || []).filter((c) => c.usado_at || vencido(c));
 
   return (
     <div style={cardStyle}>
@@ -252,7 +255,7 @@ function CodigosInvitacion({ iglesias }) {
         <div key={c.codigo} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderTop: "1px solid var(--wf-border)" }}>
           <div style={{ flex: "1 1 180px", minWidth: 0 }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13.5, fontWeight: 600 }} aria-label="Código de invitación">{c.codigo}</div>
-            <div style={{ fontSize: 11.5, color: "var(--wf-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.nota || "Sin nota"} · creado el {fechaCorta(c.creado_at)}</div>
+            <div style={{ fontSize: 11.5, color: "var(--wf-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.nota || "Sin nota"} · creado el {fechaCorta(c.creado_at)}{c.vence_at && <> · <span style={{ color: diasParaVencer(c) <= 3 ? "#C23B32" : undefined }}>vence en {diasParaVencer(c)} {diasParaVencer(c) === 1 ? "día" : "días"}</span></>}</div>
           </div>
           <button onClick={() => copiar(enlaceDe(c.codigo), "Enlace de invitación copiado.")} style={ghostBtn}><Link2 size={14} /> Copiar enlace</button>
           <button onClick={() => copiar(c.codigo, "Código copiado.")} style={ghostBtn} aria-label={`Copiar código ${c.codigo}`}><Copy size={14} /></button>
@@ -260,14 +263,14 @@ function CodigosInvitacion({ iglesias }) {
         </div>
       ))}
       <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginTop: 6 }}>
-        Cada código sirve para <b>una sola iglesia</b>. Puedes tener varios pendientes a la vez: crear uno nuevo no anula los anteriores. El enlace ya lleva el código puesto.
+        Cada código sirve para <b>una sola iglesia</b>. Puedes tener varios pendientes a la vez: crear uno nuevo no anula los anteriores. Vence a los 30 días si no se usa. El enlace ya lleva el código puesto.
       </div>
       {usados.length > 0 && (
         <>
-          <button onClick={() => setVerUsados((v) => !v)} style={{ ...ghostBtn, marginTop: 10 }}>{verUsados ? "Ocultar" : "Ver"} códigos usados ({usados.length})</button>
+          <button onClick={() => setVerUsados((v) => !v)} style={{ ...ghostBtn, marginTop: 10 }}>{verUsados ? "Ocultar" : "Ver"} códigos usados o vencidos ({usados.length})</button>
           {verUsados && usados.map((c) => (
             <div key={c.codigo} style={{ fontSize: 12, color: "var(--wf-muted)", padding: "6px 0", borderTop: "1px solid var(--wf-border)" }}>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{c.codigo}</span>{c.nota ? ` · ${c.nota}` : ""} · usado el {fechaCorta(c.usado_at)}{nombreIglesia(c.iglesia_id) ? ` por ${nombreIglesia(c.iglesia_id)}` : ""}
+              <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{c.codigo}</span>{c.nota ? ` · ${c.nota}` : ""} · {c.usado_at ? <>usado el {fechaCorta(c.usado_at)}{nombreIglesia(c.iglesia_id) ? ` por ${nombreIglesia(c.iglesia_id)}` : ""}</> : <>venció el {fechaCorta(c.vence_at)} sin usarse</>}
             </div>
           ))}
         </>
