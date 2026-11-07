@@ -8,7 +8,7 @@ import { crearIndice, buscarEnIndice, filtrarResultadosApi } from "../lib/buscar
 import { stripBibleSearchMarkup } from "../lib/textoBiblia.js";
 import { leerCita, normalizar as normalizarBusqueda } from "../lib/busqueda.js";
 import { partesDeVersiculo } from "../lib/dividirTexto.js";
-import { fetchBibleBooks, fetchBibleChapter, BIBLE_VERSIONS, addBtnStyle, inputStyle, primaryBtn, ModalShell, iconGhost } from "./compartido.jsx";
+import { fetchBibleBooks, fetchBibleChapter, BIBLE_VERSIONS, SelectorVersionBiblia, addBtnStyle, inputStyle, primaryBtn, ModalShell, iconGhost } from "./compartido.jsx";
 
 const BIBLE_QUICK = [
   { ref: "Salmos 100:1-2", version: "RV1960", text: "Toda la tierra celebra con gozo la presencia del Señor y sirve delante de él con alegría." },
@@ -303,9 +303,7 @@ export function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", s
           <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, margin: "14px 0 8px" }}>O ESCRIBE UNO NUEVO</div>
           <div style={{ display: "flex", gap: 8 }}>
             <input placeholder="Referencia (ej. Juan 3:16)" value={custom.ref} onChange={(e) => setCustom({ ...custom, ref: e.target.value })} style={{ ...inputStyle, flex: 1 }} />
-            <select value={custom.version} onChange={(e) => setCustom({ ...custom, version: e.target.value })} style={{ ...inputStyle, width: 100 }}>
-              {BIBLE_VERSIONS.map((v) => <option key={v.code} value={v.code}>{v.code}</option>)}
-            </select>
+            <SelectorVersionBiblia value={custom.version} onChange={(v) => setCustom({ ...custom, version: v })} style={{ width: 130, flexShrink: 0 }} />
           </div>
           <textarea placeholder="Texto a proyectar..." value={custom.text} onChange={(e) => setCustom({ ...custom, text: e.target.value })} style={{ ...inputStyle, height: 70, marginTop: 8, resize: "none" }} />
           <button onClick={() => custom.ref && custom.text && onAdd(custom)} style={{ ...primaryBtn, marginTop: 10 }}>{submitLabel}</button>
@@ -314,10 +312,8 @@ export function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", s
 
       {mode === "browse" && (
         <>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-            {BIBLE_VERSIONS.map((v) => (
-              <button key={v.code} onClick={() => setVersion(v.code)} title={v.label} style={{ fontSize: 11, fontWeight: 700, padding: "5px 9px", borderRadius: 12, border: version === v.code ? "2px solid #2F5FA8" : "1px solid var(--wf-border)", background: version === v.code ? "#EAF0FA" : "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer" }}>{v.code}</button>
-            ))}
+          <div style={{ marginBottom: 10 }}>
+            <SelectorVersionBiblia value={version} onChange={setVersion} />
           </div>
 
           {(selectedBook || selectedChapter) && (
@@ -532,10 +528,8 @@ export function BibleLivePanel({ version, setVersion, history, setHistory, onPro
       {/* Columna 2: versión, capítulos, historial */}
       <div style={{ width: 210, flexShrink: 0, minHeight: 0, overflowY: "auto", paddingBottom: 64 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>VERSIÓN</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 14 }}>
-          {BIBLE_VERSIONS.map((v) => (
-            <button key={v.code} onClick={() => changeVersion(v.code)} title={v.label} style={{ fontSize: 10.5, fontWeight: 700, padding: "4px 7px", borderRadius: 10, border: version === v.code ? "2px solid #2F5FA8" : "1px solid var(--wf-border)", background: version === v.code ? "#EAF0FA" : "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer" }}>{v.code}</button>
-          ))}
+        <div style={{ marginBottom: 14 }}>
+          <SelectorVersionBiblia value={version} onChange={changeVersion} compacto />
         </div>
 
         {selectedBook ? (

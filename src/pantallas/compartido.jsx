@@ -74,14 +74,72 @@ export function fijarClasificacionesActuales(lista) { clasificacionesActuales = 
 // las que pediste; "TLA"/"DHH" no están disponibles en la fuente de datos gratuita usada por el prototipo, así
 // que se agregaron "PDT" (también en lenguaje sencillo, como TLA) y "LBLA" (más literal, como DHH) en su lugar.
 // En producción, cuando haya backend propio, esto se reemplaza por la fuente de texto bíblico que se contrate.
+// Más versiones, también en inglés (pedido de Eldin, 2026-11-07). Todas probadas una por una contra
+// bolls.life (Juan 3:16 y los 66 libros). Fuera a propósito:
+// - NVI y toda la familia NIV (NIV, NIV2011, NIVUK, NIRV, TNIV): Biblica se lo prohibió a bolls.life y
+//   en su lugar devuelve un mensaje de protesta en cada versículo, que saldría proyectado tal cual.
+// - AUV, WPNT y otras parciales (solo Nuevo Testamento o un solo libro).
+// code = el código de bolls.life (no cambiarlo: es lo que se pide a la API y lo que queda guardado).
 export const BIBLE_VERSIONS = [
-  { code: "RV1960", label: "Reina-Valera 1960" },
-  // NVI quitada (2026-10-21): bolls.life ya no la tiene — Biblica se lo prohibió y en su lugar devuelve
-  // un mensaje de protesta en cada versículo, que salía proyectado tal cual.
-  { code: "NTV", label: "Nueva Traducción Viviente" },
-  { code: "PDT", label: "Palabra de Dios para Todos" },
-  { code: "LBLA", label: "La Biblia de las Américas" },
+  { code: "RV1960", label: "Reina-Valera 1960", idioma: "es" },
+  { code: "NTV", label: "Nueva Traducción Viviente", idioma: "es" },
+  { code: "LBLA", label: "La Biblia de las Américas", idioma: "es" },
+  { code: "PDT", label: "Palabra de Dios para Todos", idioma: "es" },
+  { code: "RV2004", label: "Reina Valera Gómez 2004", idioma: "es" },
+  { code: "BTX3", label: "La Biblia Textual (3.ª edición)", idioma: "es" },
+  { code: "KJV", label: "King James Version", idioma: "en" },
+  { code: "NKJV", label: "New King James Version", idioma: "en" },
+  { code: "ESV", label: "English Standard Version", idioma: "en" },
+  { code: "NLT", label: "New Living Translation", idioma: "en" },
+  { code: "NASB", label: "New American Standard Bible (1995)", idioma: "en" },
+  { code: "CSB17", label: "Christian Standard Bible", idioma: "en" },
+  { code: "AMP", label: "Amplified Bible", idioma: "en" },
+  { code: "MSG", label: "The Message", idioma: "en" },
+  { code: "NET", label: "New English Translation", idioma: "en" },
+  { code: "LSB", label: "Legacy Standard Bible", idioma: "en" },
+  { code: "BSB", label: "Berean Standard Bible", idioma: "en" },
+  { code: "MEV", label: "Modern English Version", idioma: "en" },
+  { code: "CEB", label: "Common English Bible", idioma: "en" },
+  { code: "CEVD", label: "Contemporary English Version", idioma: "en" },
+  { code: "GNT", label: "Good News Bible", idioma: "en" },
+  { code: "ERV", label: "Easy-to-Read Version", idioma: "en" },
+  { code: "NLV", label: "New Life Version", idioma: "en" },
+  { code: "ISV", label: "International Standard Version", idioma: "en" },
+  { code: "WEB", label: "World English Bible", idioma: "en" },
+  { code: "ASV", label: "American Standard Version (1901)", idioma: "en" },
+  { code: "RSV", label: "Revised Standard Version (1952)", idioma: "en" },
+  { code: "YLT", label: "Young's Literal Translation", idioma: "en" },
+  { code: "LSV", label: "Literal Standard Version", idioma: "en" },
+  { code: "CJB", label: "Complete Jewish Bible", idioma: "en" },
+  { code: "TLV", label: "Tree of Life Version", idioma: "en" },
+  { code: "TS2009", label: "The Scriptures 2009", idioma: "en" },
+  { code: "GNV", label: "Geneva Bible (1599)", idioma: "en" },
+  { code: "NRSVCE", label: "New Revised Standard Version (católica)", idioma: "en" },
+  { code: "RSV2CE", label: "Revised Standard Version (católica)", idioma: "en" },
+  { code: "NABRE", label: "New American Bible (católica)", idioma: "en" },
+  { code: "NJB1985", label: "New Jerusalem Bible (católica)", idioma: "en" },
+  { code: "DRB", label: "Douay-Rheims Bible (católica)", idioma: "en" },
 ];
+export const IDIOMAS_BIBLIA = [{ id: "es", label: "Español" }, { id: "en", label: "English" }];
+
+// Selector de versión (2026-11-07): con más de 30 versiones ya no caben como botones — lista desplegable
+// agrupada por idioma, con el nombre completo para que nadie tenga que adivinar qué es "LSB".
+export function SelectorVersionBiblia({ value, onChange, style, compacto = false, id }) {
+  return (
+    <select id={id} value={value} onChange={(e) => onChange(e.target.value)} aria-label="Versión de la Biblia"
+      style={{ width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 10, padding: compacto ? "6px 8px" : "8px 10px", fontSize: compacto ? 12 : 13, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer", boxSizing: "border-box", fontFamily: "inherit", ...style }}>
+      {IDIOMAS_BIBLIA.map((idioma) => (
+        <optgroup key={idioma.id} label={idioma.label}>
+          {BIBLE_VERSIONS.filter((v) => v.idioma === idioma.id).map((v) => <option key={v.code} value={v.code}>{v.code} · {v.label}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
+
+// Solo los 66 libros: algunas Biblias en inglés traen además los deuterocanónicos (bookid > 66), que
+// caían mezclados en la lista del Nuevo Testamento.
+const soloCanon = (libros) => (Array.isArray(libros) ? libros.filter((b) => b.bookid >= 1 && b.bookid <= 66) : libros);
 
 export const TYPE_META = {
   cancion: { label: "Canción", color: "var(--wf-brand-accent)", icon: Music },
@@ -255,12 +313,12 @@ export async function fetchBibleBooks(version) {
   try {
     const res = await fetch(`https://bolls.life/get-books/${version}/`);
     if (!res.ok) throw new Error("No se pudo cargar la lista de libros.");
-    const data = await res.json();
+    const data = soloCanon(await res.json());
     bibleBooksCache[version] = data;
     saveCache(`biblia_libros_${version}`, data);
     return data;
   } catch (e) {
-    const cached = loadCache(`biblia_libros_${version}`);
+    const cached = soloCanon(loadCache(`biblia_libros_${version}`));
     if (cached) { bibleBooksCache[version] = cached; return cached; }
     throw e;
   }
