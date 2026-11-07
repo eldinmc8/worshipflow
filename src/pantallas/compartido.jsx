@@ -79,14 +79,19 @@ export function fijarClasificacionesActuales(lista) { clasificacionesActuales = 
 // - NVI y toda la familia NIV (NIV, NIV2011, NIVUK, NIRV, TNIV): Biblica se lo prohibió a bolls.life y
 //   en su lugar devuelve un mensaje de protesta en cada versículo, que saldría proyectado tal cual.
 // - AUV, WPNT y otras parciales (solo Nuevo Testamento o un solo libro).
-// code = el código de bolls.life (no cambiarlo: es lo que se pide a la API y lo que queda guardado).
+// code = el código que queda guardado en cada versículo (no cambiarlo). Por defecto es también el de
+// bolls.life; las que vienen de otra fuente lo dicen con fuente/api (ver fetchBibleBooks/fetchBibleChapter).
+// Más versiones en español (pedido de Eldin, 2026-11-07): bolls.life solo tiene 7 (NVI bloqueada), así
+// que se suman las dos completas en español de api.getbible.net (gratis, sin llave, dominio público).
 export const BIBLE_VERSIONS = [
   { code: "RV1960", label: "Reina-Valera 1960", idioma: "es" },
   { code: "NTV", label: "Nueva Traducción Viviente", idioma: "es" },
   { code: "LBLA", label: "La Biblia de las Américas", idioma: "es" },
   { code: "PDT", label: "Palabra de Dios para Todos", idioma: "es" },
   { code: "RV2004", label: "Reina Valera Gómez 2004", idioma: "es" },
+  { code: "RV1909", label: "Reina-Valera 1909", idioma: "es", fuente: "getbible", api: "valera" },
   { code: "BTX3", label: "La Biblia Textual (3.ª edición)", idioma: "es" },
+  { code: "SSE", label: "Sagradas Escrituras 1569 (Biblia del Oso)", idioma: "es", fuente: "getbible", api: "sse" },
   { code: "KJV", label: "King James Version", idioma: "en" },
   { code: "NKJV", label: "New King James Version", idioma: "en" },
   { code: "ESV", label: "English Standard Version", idioma: "en" },
@@ -139,6 +144,29 @@ export function SelectorVersionBiblia({ value, onChange, style, compacto = false
 
 // Solo los 66 libros: algunas Biblias en inglés traen además los deuterocanónicos (bookid > 66), que
 // caían mezclados en la lista del Nuevo Testamento.
+// ---- api.getbible.net (2026-11-07): misma forma de datos que bolls.life para el resto de la app ----
+// Sus libros no traen cuántos capítulos tienen: es la numeración estándar de 66 libros (1189 capítulos),
+// la misma de bolls.life (comprobado contra RV1960).
+export const CAPITULOS_POR_LIBRO = [50, 40, 27, 36, 34, 24, 21, 4, 31, 24, 22, 25, 29, 36, 10, 13, 10, 42, 150, 31, 12, 8, 66, 52, 5, 48, 12, 14, 3, 9, 1, 4, 7, 3, 3, 3, 2, 14, 4, 28, 16, 24, 21, 28, 16, 16, 13, 6, 6, 4, 4, 5, 3, 6, 4, 3, 1, 13, 5, 5, 3, 5, 1, 1, 1, 22];
+export const versionBiblia = (code) => BIBLE_VERSIONS.find((v) => v.code === code) || null;
+export function librosDesdeGetbible(data) {
+  const lista = Array.isArray(data) ? data : Object.values(data || {});
+  return lista.map((b) => ({ bookid: Number(b.nr), name: b.name, chapters: CAPITULOS_POR_LIBRO[Number(b.nr) - 1] || 1 }))
+    .filter((b) => b.bookid >= 1 && b.bookid <= 66).sort((a, b) => a.bookid - b.bookid);
+}
+export function capituloDesdeGetbible(data) {
+  return (data?.verses || []).map((v) => ({ verse: Number(v.verse), text: String(v.text || "").trim() }));
+}
+const urlLibros = (version) => {
+  const v = versionBiblia(version);
+  return v?.fuente === "getbible" ? `https://api.getbible.net/v2/${v.api}/books.json` : `https://bolls.life/get-books/${version}/`;
+};
+const urlCapitulo = (version, bookId, chapter) => {
+  const v = versionBiblia(version);
+  return v?.fuente === "getbible" ? `https://api.getbible.net/v2/${v.api}/${bookId}/${chapter}.json` : `https://bolls.life/get-chapter/${version}/${bookId}/${chapter}/`;
+};
+const esGetbible = (version) => versionBiblia(version)?.fuente === "getbible";
+
 const soloCanon = (libros) => (Array.isArray(libros) ? libros.filter((b) => b.bookid >= 1 && b.bookid <= 66) : libros);
 
 export const TYPE_META = {
@@ -311,9 +339,10 @@ const bibleBooksCache = {};
 export async function fetchBibleBooks(version) {
   if (bibleBooksCache[version]) return bibleBooksCache[version];
   try {
-    const res = await fetch(`https://bolls.life/get-books/${version}/`);
+    const res = await fetch(urlLibros(version));
     if (!res.ok) throw new Error("No se pudo cargar la lista de libros.");
-    const data = soloCanon(await res.json());
+    const crudo = await res.json();
+    const data = esGetbible(version) ? librosDesdeGetbible(crudo) : soloCanon(crudo);
     bibleBooksCache[version] = data;
     saveCache(`biblia_libros_${version}`, data);
     return data;
@@ -326,9 +355,10 @@ export async function fetchBibleBooks(version) {
 
 export async function fetchBibleChapter(version, bookId, chapter) {
   try {
-    const res = await fetch(`https://bolls.life/get-chapter/${version}/${bookId}/${chapter}/`);
+    const res = await fetch(urlCapitulo(version, bookId, chapter));
     if (!res.ok) throw new Error("No se pudo cargar el capítulo.");
-    const data = await res.json();
+    const crudo = await res.json();
+    const data = esGetbible(version) ? capituloDesdeGetbible(crudo) : crudo;
     guardarCapituloOffline(version, bookId, chapter, data); // sin esperarlo: no atrasa la lectura por guardar
     return data;
   } catch (e) {

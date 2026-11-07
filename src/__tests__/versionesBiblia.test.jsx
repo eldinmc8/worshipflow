@@ -34,3 +34,22 @@ describe("versiones de la Biblia", () => {
     expect(onChange).toHaveBeenCalledWith("ESV");
   });
 });
+
+describe("versiones de api.getbible.net (más en español)", () => {
+  it("RV1909 y la Biblia del Oso están en la lista y vienen de getbible", async () => {
+    const { versionBiblia } = await import("../pantallas/compartido.jsx");
+    expect(versionBiblia("RV1909")).toMatchObject({ idioma: "es", fuente: "getbible", api: "valera" });
+    expect(versionBiblia("SSE")).toMatchObject({ idioma: "es", fuente: "getbible", api: "sse" });
+    expect(BIBLE_VERSIONS.filter((v) => v.idioma === "es").length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("convierte libros y capítulos al mismo formato que usa el resto de la app", async () => {
+    const { librosDesdeGetbible, capituloDesdeGetbible, CAPITULOS_POR_LIBRO } = await import("../pantallas/compartido.jsx");
+    expect(CAPITULOS_POR_LIBRO).toHaveLength(66);
+    expect(CAPITULOS_POR_LIBRO.reduce((a, b) => a + b, 0)).toBe(1189);
+    const libros = librosDesdeGetbible({ 19: { nr: 19, name: "Salmos" }, 1: { nr: 1, name: "Génesis" } });
+    expect(libros).toEqual([{ bookid: 1, name: "Génesis", chapters: 50 }, { bookid: 19, name: "Salmos", chapters: 150 }]);
+    expect(capituloDesdeGetbible({ verses: [{ chapter: 23, verse: 1, name: "Salmos 23:1", text: " JEHOVÁ es mi pastor; nada me faltará." }] }))
+      .toEqual([{ verse: 1, text: "JEHOVÁ es mi pastor; nada me faltará." }]);
+  });
+});

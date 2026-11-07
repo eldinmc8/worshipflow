@@ -8,7 +8,7 @@ import { crearIndice, buscarEnIndice, filtrarResultadosApi } from "../lib/buscar
 import { stripBibleSearchMarkup } from "../lib/textoBiblia.js";
 import { leerCita, normalizar as normalizarBusqueda } from "../lib/busqueda.js";
 import { partesDeVersiculo } from "../lib/dividirTexto.js";
-import { fetchBibleBooks, fetchBibleChapter, BIBLE_VERSIONS, SelectorVersionBiblia, addBtnStyle, inputStyle, primaryBtn, ModalShell, iconGhost } from "./compartido.jsx";
+import { fetchBibleBooks, fetchBibleChapter, BIBLE_VERSIONS, SelectorVersionBiblia, versionBiblia, addBtnStyle, inputStyle, primaryBtn, ModalShell, iconGhost } from "./compartido.jsx";
 
 const BIBLE_QUICK = [
   { ref: "Salmos 100:1-2", version: "RV1960", text: "Toda la tierra celebra con gozo la presencia del Señor y sirve delante de él con alegría." },
@@ -167,6 +167,9 @@ async function indiceBibliaLocal(version) {
 }
 
 async function buscarEnApiBiblia(version, texto) {
+  // Las de api.getbible.net no tienen búsqueda por palabras: se busca en NTV/LBLA/PDT y se ofrece
+  // proyectar ese mismo versículo en la versión elegida (ver searchBibleVerses, "otraVersion").
+  if (versionBiblia(version)?.fuente) return [];
   const res = await fetch(`https://bolls.life/v2/find/${version}?search=${encodeURIComponent(texto)}&match_case=false`);
   if (!res.ok) throw new Error("No se pudo buscar en la Biblia.");
   const data = await res.json();
