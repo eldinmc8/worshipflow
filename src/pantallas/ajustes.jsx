@@ -5,7 +5,7 @@ import { showToast, notifyError } from "../lib/toast.js";
 import { getTema, setTema } from "../lib/theme.js";
 import { supabase } from "../lib/supabaseClient.js";
 import { confirmDialog } from "../lib/confirm.js";
-import { estaSuscritoPush, suscribirPush, desuscribirPush } from "../lib/notificaciones.js";
+import { estaSuscritoPush, suscribirPush, desuscribirPush, esRechazoDeNotificaciones } from "../lib/notificaciones.js";
 import { isUpcoming, formatFullDate } from "../lib/dates.js";
 import { usePreferencias, TAMANOS_LETRA, setTamanoLetra, NOTACIONES, setNotacion, acordeEn } from "../lib/preferencias.js";
 import { ChevronRight, ChevronUp, ChevronDown, KeyRound, Check, Calendar, Bell, Moon, Type, Music, Download, Radio, Tv, Users, Palette, Shield, Eye, Sparkles, MessageCircle, Send, LogOut } from "lucide-react";
@@ -58,7 +58,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
   const [showIdentidad, setShowIdentidad] = useState(false);
   const [showPantalla, setShowPantalla] = useState(false);
   const [showOtroEquipoAjustes, setShowOtroEquipoAjustes] = useState(false); // false · "proyeccion" · "escenario"
-  const [pushEstado, setPushEstado] = useState("cargando"); // cargando | activo | inactivo | sin-soporte
+  const [pushEstado, setPushEstado] = useState("cargando"); // cargando | activo | inactivo | bloqueado | sin-soporte
   const [pushBusy, setPushBusy] = useState(false);
   const [screensBusy, setScreensBusy] = useState(false);
   const activarDeteccionPantallas = async () => {
@@ -111,7 +111,8 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
       setPushEstado("sin-soporte");
       return;
     }
-    estaSuscritoPush().then((si) => setPushEstado(si ? "activo" : "inactivo")).catch(() => setPushEstado("inactivo"));
+    const bloqueado = () => (typeof Notification !== "undefined" && Notification.permission === "denied" ? "bloqueado" : "inactivo");
+    estaSuscritoPush().then((si) => setPushEstado(si ? "activo" : bloqueado())).catch(() => setPushEstado(bloqueado()));
   }, []);
   const activarPush = async () => {
     setPushBusy(true);
@@ -119,7 +120,9 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
       await suscribirPush(userId);
       setPushEstado("activo");
     } catch (e) {
-      notifyError("No se pudo activar las notificaciones push", e);
+      // No dar permiso no es una falla: se explica cómo desbloquearlo (sin "inténtalo de nuevo" ni alerta).
+      if (esRechazoDeNotificaciones(e)) setPushEstado(e.codigo === "sin-soporte" ? "sin-soporte" : "bloqueado");
+      else notifyError("No se pudo activar las notificaciones push", e);
     } finally {
       setPushBusy(false);
     }
@@ -235,6 +238,17 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
         />
       ) : pushEstado === "inactivo" ? (
         <NavRow icon={Bell} label="Activar avisos al celular" onClick={activarPush} right={pushBusy ? null : chevron} />
+      ) : pushEstado === "bloqueado" ? (
+        <div style={{ ...tarjeta, display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <Bell size={18} color="var(--wf-brand-accent)" style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ fontSize: 12.5, color: "var(--wf-text-2)", lineHeight: 1.5 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--wf-text)", marginBottom: 2 }}>Tus avisos están bloqueados en este navegador</div>
+            Para recibirlos, permite las notificaciones y vuelve a abrir la app:
+            <br />• <b>Computadora (Chrome o Edge):</b> clic en el ícono junto a la dirección → Notificaciones → Permitir.
+            <br />• <b>Android (Chrome):</b> toca el candado junto a la dirección → Permisos → Notificaciones → Permitir.
+            <br />• <b>iPhone con la app instalada:</b> Ajustes del iPhone → WorshipFlow → Notificaciones → Activar.
+          </div>
+        </div>
       ) : null}
 
       <SectionLabel>APARIENCIA</SectionLabel>
