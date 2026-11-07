@@ -75,6 +75,7 @@ function AvisoActivarPush({ estado, onActivar, onCerrar }) {
             Tu navegador no deja mandarte avisos todavía.
             <br />• <b>Android (Chrome):</b> toca el candado junto a la dirección → Permisos → Notificaciones → Permitir.
             <br />• <b>iPhone con la app instalada:</b> Ajustes del iPhone → WorshipFlow → Notificaciones → Activar.
+            <br />• <b>Computadora (Chrome o Edge):</b> clic en el ícono junto a la dirección → Notificaciones → Permitir, y recarga la página.
           </div>
         ) : (
           <div style={{ fontSize: 12, color: "var(--wf-text-2)", marginTop: 3, lineHeight: 1.5 }}>No tienes las notificaciones activadas en este dispositivo. Te avisamos cuando te asignen algo o se acerque un evento.</div>

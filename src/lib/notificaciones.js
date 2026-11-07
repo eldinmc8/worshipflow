@@ -47,14 +47,24 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
 }
 
+// Que la persona no dé permiso (o su navegador no admita push) NO es una falla de la app: se marca para
+// que la pantalla explique cómo desbloquearlo en vez de decir "inténtalo de nuevo", y para que no llegue
+// como error al monitoreo (alerta de Sentry del 2026-11-07: un admin tocó "Bloquear" en Chrome).
+function errorEsperado(mensaje, codigo) {
+  const e = new Error(mensaje);
+  e.codigo = codigo;
+  return e;
+}
+export const esRechazoDeNotificaciones = (err) => err?.codigo === "permiso-denegado" || err?.codigo === "sin-soporte";
+
 // Pide permiso de notificaciones, se suscribe a Web Push en este dispositivo/navegador y guarda la
 // suscripción en Supabase — a partir de acá, las Edge Functions ya le pueden mandar push de verdad.
 export async function suscribirPush(usuarioId) {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-    throw new Error("Este navegador no admite notificaciones push.");
+    throw errorEsperado("Este navegador no admite notificaciones push.", "sin-soporte");
   }
   const permiso = await Notification.requestPermission();
-  if (permiso !== "granted") throw new Error("No diste permiso para las notificaciones.");
+  if (permiso !== "granted") throw errorEsperado("No diste permiso para las notificaciones.", "permiso-denegado");
 
   const registration = await navigator.serviceWorker.ready;
   let subscription = await registration.pushManager.getSubscription();
