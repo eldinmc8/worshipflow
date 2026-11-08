@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Play, VolumeX } from "lucide-react";
 import { tipoDeVideo, urlIncrustada } from "../lib/videoEnlace.js";
 import { posicionActual } from "../lib/videoControl.js";
+import { aplicarSalidaAudio, escucharSalidaAudio } from "../lib/salidaAudio.js";
 
 // Video en la proyección (2026-11-08): archivos (.mp4, subidos a la app, Google Drive) con <video>;
 // YouTube y Vimeo con su reproductor incrustado, manejado por mensajes (postMessage) para que la consola
@@ -76,6 +77,17 @@ function useReporte(onEstado) {
 function ReproductorArchivo({ src, ajuste, conSonido, control, onEstado }) {
   const ref = useRef(null);
   const [bloqueado, setBloqueado] = useState(false);
+  // Salida de audio elegida en Ajustes para esta computadora (ej. la consola/mixer en vez del HDMI del
+  // proyector). Se aplica al cargar y cambia en vivo si alguien la ajusta. Ver lib/salidaAudio.js.
+  useEffect(() => {
+    if (!conSonido) return undefined;
+    aplicarSalidaAudio(ref.current);
+    const quitar = escucharSalidaAudio((salida) => aplicarSalidaAudio(ref.current, salida));
+    const md = typeof navigator !== "undefined" ? navigator.mediaDevices : null;
+    const alConectar = () => aplicarSalidaAudio(ref.current); // se conectó/desconectó la interfaz de audio
+    md?.addEventListener?.("devicechange", alConectar);
+    return () => { quitar(); md?.removeEventListener?.("devicechange", alConectar); };
+  }, [conSonido, src]);
   const reportar = useReporte(onEstado);
   const quiereSonido = conSonido && (control ? control.sonido !== false : true);
   const detenido = control?.estado === "stop";

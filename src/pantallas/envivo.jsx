@@ -1,7 +1,7 @@
 // Consola En vivo de Multimedia: orden del culto, diapositivas, Biblia en vivo, estilo, escenario. Separada de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { useState, useRef, useEffect, useMemo } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
-import { Pause, Square, Volume2, VolumeX } from "lucide-react";
+import { Pause, Square, Volume2, VolumeX, Speaker } from "lucide-react";
 import { Music, Search, Image as ImgIcon, ChevronLeft, ChevronRight, MonitorOff, Radio, BookOpen, Type, PenTool, FileUp, Plus, Pencil, MoreHorizontal, Trash2, GraduationCap, Pin, MessageSquare, AlertTriangle, PinOff, ListMusic, Palette, Play, SkipBack, SkipForward, X, SlidersHorizontal, Sparkles, ChevronUp, Tv, EyeOff, Eye, ArrowRightLeft, CopyPlus, Ungroup, Timer, RotateCcw } from "lucide-react";
 import { acordeEn } from "../lib/preferencias.js";
 import { loadCache, saveCache } from "../lib/offlineCache.js";
@@ -29,8 +29,9 @@ import { cuentaPorMinutos } from "../lib/cuentaRegresiva.js";
 import { TYPE_META, ModalShell, addBtnStyle, inputStyle, primaryBtn, BIBLE_VERSIONS, LIVE_FONTS, LIVE_THEMES, iconGhost, LIVE_SOMBRAS, LIVE_POSICIONES, LIVE_ALINEACIONES, ElegirParteDelCulto, Field } from "./compartido.jsx";
 import { BibleLivePanel } from "./biblia.jsx";
 import { MediaPicker, SlideModal, AvisoEnlaceVideo, VideoModal } from "./ventanas.jsx";
-import { avisoDeEnlace } from "../lib/videoEnlace.js";
+import { avisoDeEnlace, tipoDeVideo } from "../lib/videoEnlace.js";
 import { posicionActual, textoTiempo } from "../lib/videoControl.js";
+import { useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
 import { ProjectionPanel } from "./proyeccion.jsx";
 
 // ---------- Color por sección para el grid de diapositivas del panel Multimedia (estilo "grid de shows" tipo FreeShow) ----------
@@ -116,8 +117,11 @@ function AdHocSongModal({ library, onClose, onPick, Icono = null, color = "#5661
 // Controles del video al aire (2026-11-08): se maneja desde la consola, sin tocar la pantalla de
 // proyección (Smart TV, otra computadora). El avance viene de lo que reporta la pantalla; si todavía no
 // reporta nada, se calcula con las órdenes que se mandaron.
-export function ControlesVideo({ control, estado, onAccion }) {
+export function ControlesVideo({ control, estado, onAccion, url = "" }) {
   const [, tic] = useState(0);
+  const salidaAudio = useSalidaAudioActual(); // Ajustes → Salida de audio de los videos (esta computadora)
+  const tipo = tipoDeVideo(url).tipo;
+  const incrustado = tipo === "youtube" ? "YouTube" : tipo === "vimeo" ? "Vimeo" : null;
   useEffect(() => { const t = setInterval(() => tic((x) => x + 1), 500); return () => clearInterval(t); }, []);
   if (!control) return null;
   const ahora = Date.now();
@@ -148,6 +152,14 @@ export function ControlesVideo({ control, estado, onAccion }) {
         <button onClick={() => onAccion("stop")} title="Detener" aria-label="Detener" style={boton}><Square size={14} /></button>
         <button onClick={() => onAccion("sonido")} title={control.sonido ? "Silenciar" : "Activar sonido"} aria-label={control.sonido ? "Silenciar" : "Activar sonido"} style={boton}>{control.sonido ? <Volume2 size={15} /> : <VolumeX size={15} />}</button>
       </div>
+      {salidaAudio && control.sonido && (
+        <div title="Se cambia en Ajustes → Salida de audio de los videos" style={{ display: "flex", gap: 5, alignItems: "flex-start", marginTop: 6, fontSize: 11, color: "var(--wf-muted)", lineHeight: 1.35 }}>
+          <Speaker size={12} style={{ flexShrink: 0, marginTop: 1 }} />
+          {incrustado
+            ? <span>{incrustado}: el sonido sale por la salida de Chrome/Edge en Windows (Mezclador de volumen), no por «{salidaAudio.label || "la elegida"}».</span>
+            : <span style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>Sonido por: {salidaAudio.label || "salida elegida"}</span>}
+        </div>
+      )}
       {reciente && estado.sonidoBloqueado && control.sonido && (
         <div style={{ display: "flex", gap: 6, alignItems: "flex-start", marginTop: 8, fontSize: 11.5, color: "#C23B32", fontWeight: 600, lineHeight: 1.35 }}>
           <VolumeX size={14} style={{ flexShrink: 0, marginTop: 1 }} /> La pantalla de proyección no deja el sonido hasta que alguien la toque una vez (o presione OK en el control de la TV). Después ya suena sola todo el culto.
@@ -530,7 +542,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     onStartAdHocCuenta && { clave: "cuenta", Icon: Timer, color: "#5661B3", titulo: "Cuenta regresiva", detalle: "Un reloj antes del culto o de un receso (20 estilos)", accion: () => setShowCuenta(true) },
   ].filter(Boolean);
   // Debajo de la vista previa cuando lo que está al aire es una cuenta regresiva.
-  const controlesVideo = controlVideo && onControlVideo ? <ControlesVideo control={controlVideo} estado={estadoVideo} onAccion={onControlVideo} /> : null;
+  const controlesVideo = controlVideo && onControlVideo ? <ControlesVideo control={controlVideo} estado={estadoVideo} onAccion={onControlVideo} url={(fijada || current)?.videoUrl || ""} /> : null;
   const botonReiniciarCuenta = current?.cuenta && onReiniciarCuenta && cuentaPorMinutos(current.cuenta, eventoInfo) ? (
     <button onClick={onReiniciarCuenta} title="Vuelve a empezar la cuenta (por minutos)" style={{ ...ctrlBtn, justifyContent: "center", width: "100%", marginTop: 6 }}><RotateCcw size={13} /> Reiniciar cuenta regresiva</button>
   ) : null;
