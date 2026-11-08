@@ -26,8 +26,40 @@ export async function getLiveSession(iglesiaId) {
 // El panel de control llama esto cada vez que cambia lo que se está proyectando (diapositiva,
 // pantalla en negro, estilo). Upsert (no update): la primera vez que ESTA iglesia transmite algo,
 // todavía no existe su fila. onConflict en iglesia_id, que es la llave primaria desde la Fase 2b.
+//
+// Sesión vencida (Sentry, 2026-11-08, iglesia EL AMATE): la laptop del operador se "despierta" (o la
+// pestaña vuelve del fondo) con el permiso de la sesión ya vencido y sin internet todavía para
+// renovarlo. supabase-js manda entonces la petición SIN sesión, y la base la rechaza con "new row
+// violates row-level security policy" — parece un error de permisos, pero la persona sí tiene permiso:
+// 5 segundos después se renovó la sesión sola y todo siguió normal. Por eso, ante ese rechazo, se
+// renueva la sesión y se reintenta UNA vez; si aún no se puede renovar, se lanza un error marcado con
+// `sinSesion` para que la consola lo trate como "pendiente" (igual que sin internet) y lo reenvíe
+// apenas vuelva la sesión, en vez de asustar con un aviso de error.
+function esRechazoPorPermiso(error) {
+  return error?.code === "42501" || /row-level security/i.test(error?.message || "");
+}
+
+async function renovarSesion() {
+  try {
+    const { data } = await supabase.auth.refreshSession();
+    return !!data?.session;
+  } catch {
+    return false;
+  }
+}
+
 export async function updateLiveSession(iglesiaId, patch) {
-  const { error } = await supabase.from("sesiones_en_vivo").upsert({ iglesia_id: iglesiaId, ...patch, updated_at: new Date().toISOString() }, { onConflict: "iglesia_id" });
+  const enviar = () => supabase.from("sesiones_en_vivo").upsert({ iglesia_id: iglesiaId, ...patch, updated_at: new Date().toISOString() }, { onConflict: "iglesia_id" });
+  let { error } = await enviar();
+  if (error && esRechazoPorPermiso(error)) {
+    if (!(await renovarSesion())) {
+      const e = new Error("La sesión se está renovando; el cambio se enviará apenas vuelva.");
+      e.sinSesion = true;
+      e.causa = error;
+      throw e;
+    }
+    ({ error } = await enviar());
+  }
   if (error) throw error;
 }
 
