@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { ProjectionPanel } from "./pantallas/proyeccion.jsx";
 import { precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
 import { leerPantallaDeUrl } from "./lib/enlacePantalla.js";
-import { anunciarProyeccion, enviarEstadoVideo } from "./lib/liveSession.js";
+import { anunciarProyeccion, enviarEstadoVideo, alPedirCerrarProyeccion } from "./lib/liveSession.js";
 import { useSesionPublica } from "./lib/usarSesionPublica.js";
 import EnlaceVencido from "./components/EnlaceVencido.jsx";
 import { soportaPantallaCompleta, estaEnPantallaCompleta, pedirPantallaCompleta, salirDePantallaCompleta, alCambiarPantallaCompleta } from "./lib/pantallaCompleta.js";
@@ -40,6 +40,12 @@ export default function PublicScreen() {
   // Avisa a la consola que esta pantalla está abierta (ver anunciarProyeccion): si no, la consola
   // muestra "La pantalla de proyección no está abierta". Con el enlace vencido no se anuncia.
   useEffect(() => (iglesiaId && !vencido ? anunciarProyeccion(iglesiaId) : undefined), [iglesiaId, vencido]);
+  // Al finalizar el evento en la consola de esta computadora, esta ventana se cierra sola (ver
+  // pedirCerrarProyeccion). Solo si la abrió la consola: un TV o equipo aparte se queda como está.
+  useEffect(() => {
+    if (!iglesiaId || typeof window === "undefined" || !window.opener) return undefined;
+    return alPedirCerrarProyeccion(iglesiaId, () => { salirDePantallaCompleta(); window.close(); });
+  }, [iglesiaId]);
 
   useEffect(() => {
     const resetIdle = () => {

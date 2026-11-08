@@ -14,6 +14,24 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="WorshipFlow" />
     <title>WorshipFlow</title>
+    <!-- Proyección en pantalla completa sin tocar la segunda pantalla (2026-11-08). La consola le pasa
+         su permiso de pantalla completa a esta ventana (ver src/lib/delegarPantallaCompleta.js), pero solo
+         dentro de ~5 s del clic: por eso este aviso de "lista" va aquí, antes de que cargue la app, y no
+         dentro de React. Solo en la ventana de proyección abierta desde la consola. -->
+    <script>
+      (function () {
+        try {
+          if (!/[?&]screen=publico(&|$)/.test(location.search) || !window.opener) return;
+          window.addEventListener("message", function (e) {
+            if (e.origin !== location.origin || !e.data || e.data.wf !== "wf-pantalla-completa") return;
+            var el = document.documentElement;
+            var p = el.requestFullscreen ? el.requestFullscreen() : el.webkitRequestFullscreen ? el.webkitRequestFullscreen() : null;
+            if (p && p.catch) p.catch(function () {});
+          });
+          window.opener.postMessage({ wf: "wf-proyeccion-lista" }, location.origin);
+        } catch (e) { /* sin consola que la abrió: queda el aviso de siempre */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
