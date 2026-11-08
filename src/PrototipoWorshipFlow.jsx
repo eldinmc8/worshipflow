@@ -1581,7 +1581,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     // pendiente y se manda solo apenas vuelve la señal (ver el efecto de "online" justo abajo).
     updateLiveSession(myIglesiaId, fila)
       .then(() => { sincroPendienteRef.current = false; })
-      .catch((e) => { if (esFalloDeConexion(e)) sincroPendienteRef.current = true; else notifyError("No se pudo actualizar la proyección", e); });
+      .catch((e) => { if (esFalloDeConexion(e) || e?.sinSesion) sincroPendienteRef.current = true; else notifyError("No se pudo actualizar la proyección", e); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId, practica, fijada, escenarioClave, codigoPantalla, controlVideo]);
   // Código vigente de las pantallas: al abrir la app y cada vez que empieza una transmisión (al terminar
@@ -1605,7 +1605,13 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       updateLiveSession(myIglesiaId, filaAlAireRef.current).then(() => { sincroPendienteRef.current = false; }).catch(() => {});
     };
     window.addEventListener("online", alVolver);
-    return () => { quitarRespuesta(); window.removeEventListener("online", alVolver); };
+    // También cuando la sesión se renueva sola (la laptop se despertó con la sesión vencida y el cambio
+    // quedó pendiente, ver updateLiveSession en lib/liveSession.js).
+    // (setTimeout: supabase-js se traba si se le hace otra petición desde dentro de este aviso.)
+    const subAuth = supabase.auth?.onAuthStateChange?.((evento) => {
+      if (evento === "TOKEN_REFRESHED" || evento === "SIGNED_IN") setTimeout(alVolver, 0);
+    })?.data;
+    return () => { quitarRespuesta(); window.removeEventListener("online", alVolver); subAuth?.subscription?.unsubscribe(); };
   }, [myIglesiaId]);
 
   // ---- Sincroniza EN TIEMPO REAL, en todos los dispositivos, si hay un evento en vivo ahora mismo y
