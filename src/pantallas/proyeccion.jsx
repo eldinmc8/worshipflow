@@ -7,6 +7,8 @@ import { Mic2, Radio, Music } from "lucide-react";
 import AutoFitText from "../components/AutoFitText.jsx";
 import { efectoPantallaDe } from "../lib/animacionCancion.js";
 import RelojCuentaRegresiva from "../components/RelojCuentaRegresiva.jsx";
+import VideoProyectado from "../components/VideoProyectado.jsx";
+import { esVideoSolo } from "../lib/videoEnlace.js";
 import { LIVE_FONTS, LIVE_THEMES, LIVE_SOMBRAS, LIVE_ALINEACIONES, LIVE_POSICIONES, TYPE_META } from "./compartido.jsx";
 
 // ---------- Estilo en vivo de la proyección: fondo y tipografía, ajustables por multimedia mientras transmite ----------
@@ -69,6 +71,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
   const customBgEsImagen = !fondoAnimado && fondo?.theme === "custom" && (fondo.customBgType || "imagen") === "imagen";
   const globalVideoBg = !slideVideoBg && customBgEsVideo && fondo.customVideo;
   const videoSrc = slideVideoBg ? slide.videoUrl : globalVideoBg ? fondo.customVideo : null;
+  const videoSolo = !!slideVideoBg && esVideoSolo(slide);
   const slideImageBg = !videoSrc && slide?.type === "slide" && slide.bgType === "imagen" && slide.imageUrl;
   const globalImageBg = !videoSrc && !slideImageBg && customBgEsImagen && fondo.customImage;
   const imageSrc = slideImageBg || globalImageBg || null;
@@ -199,11 +202,14 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
       {animarLetra && !blanked && (efectoMomento?.startsWith("pantalla:") || anim.receta?.pantalla) && (
         <EfectoPantalla key={`efecto-${slide.slideId}`} tipo={efectoMomento?.startsWith("pantalla:") ? efectoMomento.slice(9) : anim.receta.pantalla} color={anim.receta?.colorEfecto || "#E8821E"} beat={beatSeg} />
       )}
-      {videoSrc && (
-        <>
-          <video src={videoSrc} autoPlay muted loop playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }} />
-          <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${oscurecerFondo})`, zIndex: 0 }} />
-        </>
+      {/* Video (2026-11-08): YouTube/Vimeo/archivo (ver VideoProyectado). Una diapositiva que es SOLO un
+          video se proyecta como video de verdad: con sonido, una vez, sin oscurecer, y "Negro" sí lo
+          apaga. Con texto encima es un fondo: sin sonido, en bucle y oscurecido, como siempre. */}
+      {videoSrc && !(videoSolo && blanked) && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
+          <VideoProyectado url={videoSrc} conSonido={videoSolo} miniatura={!!thumbnail} />
+          {!videoSolo && <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${oscurecerFondo})` }} />}
+        </div>
       )}
       {imageSrc && <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${oscurecerFondo})`, zIndex: 0 }} />}
       {blanked || !slide ? (

@@ -10,6 +10,7 @@ import { listarFondos, subirFondo, borrarFondo } from "../lib/multimedia.js";
 import { confirmDialog } from "../lib/confirm.js";
 import { notifyError } from "../lib/toast.js";
 import { ModalShell, Field, primaryBtn, inputStyle, addBtnStyle } from "./compartido.jsx";
+import { avisoDeEnlace } from "../lib/videoEnlace.js";
 
 // +502 4054 4813, sin "+" ni espacios para wa.me
 
@@ -356,6 +357,38 @@ export function MediaPicker({ iglesiaId, tipo, value, onChange, color = "#B15EA0
   );
 }
 
+// Qué se detectó en el enlace pegado, o por qué no se va a poder reproducir (2026-11-08).
+export function AvisoEnlaceVideo({ url }) {
+  const aviso = url && /^https?:/i.test(url) ? avisoDeEnlace(url) : null;
+  if (!aviso) return null;
+  return <div style={{ fontSize: 11.5, fontWeight: 600, color: aviso.ok ? "#1F8A73" : "#C23B32", marginBottom: 8, lineHeight: 1.4 }}>{aviso.texto}</div>;
+}
+
+// Agregar un video al Setlist para planificarlo (pedido de Eldin, 2026-11-08): enlace de YouTube/Vimeo/
+// .mp4 o un archivo subido, más un nombre para reconocerlo en el orden del culto. Se proyecta como video
+// solo: a pantalla completa y con sonido. Queda como una diapositiva de video (type "slide", bgType
+// "video"), así que se edita, mueve y proyecta como cualquier otra.
+export function VideoModal({ onClose, onAdd, iglesiaId, inicial = null }) {
+  const [url, setUrl] = useState(inicial?.videoUrl || "");
+  const [nombre, setNombre] = useState(inicial?.name || "");
+  const aviso = url ? avisoDeEnlace(url) : null;
+  const puede = !!url && aviso?.ok !== false;
+  const esEnlaceDeSitio = /^https?:\/\/(www\.|m\.)?(youtu|vimeo)/i.test(url);
+  return (
+    <ModalShell title={inicial ? "Editar video" : "Agregar video"} icon={Play} color="#C23B32" onClose={onClose}>
+      <label style={etiquetaCampo}>Enlace del video</label>
+      <input autoFocus placeholder="Pega un enlace de YouTube, Vimeo o un .mp4" value={esEnlaceDeSitio || /^https?:/i.test(url) ? url : ""} onChange={(e) => setUrl(e.target.value.trim())} style={{ ...inputStyle, marginBottom: 6 }} />
+      <AvisoEnlaceVideo url={url} />
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", margin: "6px 0" }}>O SUBE EL VIDEO</div>
+      <MediaPicker iglesiaId={iglesiaId} tipo="video" value={url && !esEnlaceDeSitio ? url : ""} onChange={(u) => setUrl(u)} color="#C23B32" />
+      <label style={{ ...etiquetaCampo, marginTop: 14 }}>Nombre · así sale en el orden del culto</label>
+      <input placeholder='Ej. "Testimonio de Juan" o "Video de misiones"' value={nombre} onChange={(e) => setNombre(e.target.value)} style={inputStyle} />
+      <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Se proyecta a pantalla completa y con sonido. Si quieres un video de fondo con texto encima, usa «Texto rápido» y elige Fondo → Video.</div>
+      <button onClick={() => puede && onAdd({ videoUrl: url, name: nombre.trim() || "Video" })} disabled={!puede} style={{ ...primaryBtn, marginTop: 14, opacity: puede ? 1 : 0.5 }}>{inicial ? "Guardar cambios" : "Agregar al culto"}</button>
+    </ModalShell>
+  );
+}
+
 const etiquetaCampo = { display: "block", fontSize: 11.5, fontWeight: 800, color: "var(--wf-text)", marginBottom: 6, letterSpacing: 0.2 };
 
 export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositiva de texto", submitLabel = "Agregar al culto", iglesiaId }) {
@@ -403,9 +436,10 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
           {/* El filtro !startsWith("http") es solo para no mostrar un video base64 viejo (de antes de
               este cambio) hecho ilegible dentro de este campo de texto -- uno nuevo (subido o elegido de
               la biblioteca) siempre es una URL https:// real, así que nunca lo oculta. */}
-          <input placeholder="o pega un enlace https://... (mp4 de fondo)" value={draft.videoUrl && !draft.videoUrl.startsWith("http") ? "" : draft.videoUrl || ""} onChange={(e) => setDraft({ ...draft, videoUrl: e.target.value })} style={{ ...inputStyle, marginBottom: 8 }} />
+          <input placeholder="Pega un enlace de YouTube, Vimeo o un .mp4" value={draft.videoUrl && !draft.videoUrl.startsWith("http") ? "" : draft.videoUrl || ""} onChange={(e) => setDraft({ ...draft, videoUrl: e.target.value.trim() })} style={{ ...inputStyle, marginBottom: 6 }} />
+          <AvisoEnlaceVideo url={draft.videoUrl} />
           <MediaPicker iglesiaId={iglesiaId} tipo="video" value={draft.videoUrl} onChange={(url) => setDraft({ ...draft, videoUrl: url })} />
-          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Se reproduce en bucle y sin sonido. Si dejas el título vacío, se proyecta a pantalla completa sin texto encima.</div>
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Con el contenido vacío se proyecta como video, a pantalla completa y <b>con sonido</b>. Con texto encima queda de fondo, sin sonido y en bucle.</div>
         </div>
       )}
       <button onClick={onAdd} style={{ ...primaryBtn, marginTop: 14 }}>{submitLabel}</button>

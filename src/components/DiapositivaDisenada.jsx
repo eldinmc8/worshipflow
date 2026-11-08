@@ -1,6 +1,7 @@
 import { familiaDe, LIENZO_ANCHO, cssDegradado } from "../lib/diapositivas.js";
 import { iconoDe } from "./iconosDiseno.js";
 import { cssAnimacion, capaTieneAnimacion } from "../lib/animaciones.js";
+import VideoProyectado from "./VideoProyectado.jsx";
 
 // Dibuja una diapositiva con diseño (ver lib/diapositivas.js) a cualquier tamaño: el lienzo 16:9 se
 // ajusta dentro de su contenedor (con bandas negras si no es 16:9) y todo se mide en unidades del
@@ -100,7 +101,8 @@ export function FondoDisenado({ fondo }) {
     <>
       <div style={{ position: "absolute", inset: 0, background: f.tipo === "degradado" ? cssDegradado(f) : f.color || "#000" }} />
       {f.tipo === "imagen" && f.url && <img src={f.url} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: f.ajuste || "cover", pointerEvents: "none", userSelect: "none" }} />}
-      {f.tipo === "video" && f.url && <video src={f.url} autoPlay muted loop playsInline style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: f.ajuste || "cover", pointerEvents: "none" }} />}
+      {/* Fondo de video: también acepta enlaces de YouTube/Vimeo (siempre sin sonido y en bucle: es fondo). */}
+      {f.tipo === "video" && f.url && <VideoProyectado url={f.url} ajuste={f.ajuste || "cover"} />}
     </>
   );
 }

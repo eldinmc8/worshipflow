@@ -1,7 +1,7 @@
 // Consola En vivo de Multimedia: orden del culto, diapositivas, Biblia en vivo, estilo, escenario. Separada de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { useState, useRef, useEffect, useMemo } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
-import { Music, Search, Image as ImgIcon, Paperclip, ChevronLeft, ChevronRight, MonitorOff, Radio, BookOpen, Type, PenTool, FileUp, Plus, Pencil, MoreHorizontal, Trash2, GraduationCap, Pin, MessageSquare, AlertTriangle, PinOff, ListMusic, Palette, Play, SkipBack, SkipForward, X, SlidersHorizontal, Sparkles, ChevronUp, Tv, EyeOff, Eye, ArrowRightLeft, CopyPlus, Ungroup, Timer, RotateCcw } from "lucide-react";
+import { Music, Search, Image as ImgIcon, ChevronLeft, ChevronRight, MonitorOff, Radio, BookOpen, Type, PenTool, FileUp, Plus, Pencil, MoreHorizontal, Trash2, GraduationCap, Pin, MessageSquare, AlertTriangle, PinOff, ListMusic, Palette, Play, SkipBack, SkipForward, X, SlidersHorizontal, Sparkles, ChevronUp, Tv, EyeOff, Eye, ArrowRightLeft, CopyPlus, Ungroup, Timer, RotateCcw } from "lucide-react";
 import { acordeEn } from "../lib/preferencias.js";
 import { loadCache, saveCache } from "../lib/offlineCache.js";
 import { escucharProyeccion } from "../lib/liveSession.js";
@@ -27,7 +27,8 @@ import CuentaRegresivaModal from "../components/CuentaRegresivaModal.jsx";
 import { cuentaPorMinutos } from "../lib/cuentaRegresiva.js";
 import { TYPE_META, ModalShell, addBtnStyle, inputStyle, primaryBtn, BIBLE_VERSIONS, LIVE_FONTS, LIVE_THEMES, iconGhost, LIVE_SOMBRAS, LIVE_POSICIONES, LIVE_ALINEACIONES, ElegirParteDelCulto, Field } from "./compartido.jsx";
 import { BibleLivePanel } from "./biblia.jsx";
-import { MediaPicker, SlideModal } from "./ventanas.jsx";
+import { MediaPicker, SlideModal, AvisoEnlaceVideo } from "./ventanas.jsx";
+import { avisoDeEnlace } from "../lib/videoEnlace.js";
 import { ProjectionPanel } from "./proyeccion.jsx";
 
 // ---------- Color por sección para el grid de diapositivas del panel Multimedia (estilo "grid de shows" tipo FreeShow) ----------
@@ -107,24 +108,22 @@ function AdHocSongModal({ library, onClose, onPick, Icono = null, color = "#5661
   );
 }
 
-function AdHocVideoModal({ onClose, onPlay }) {
+// Proyectar un video al momento (2026-11-08): acepta YouTube, Vimeo, un .mp4 o un archivo subido. Antes
+// "Subir video" lo convertía a texto (base64) y lo mandaba entero por la sesión en vivo: un video de
+// varios MB nunca llegaba a la pantalla de proyección en otro dispositivo. Ahora se sube al
+// almacenamiento de la iglesia (igual que los fondos) y se manda solo el enlace.
+function AdHocVideoModal({ onClose, onPlay, iglesiaId }) {
   const [url, setUrl] = useState("");
-  const fileInputRef = useRef(null);
-  const uploadVideoFile = (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => onPlay(reader.result);
-    reader.readAsDataURL(file);
-  };
+  const aviso = url ? avisoDeEnlace(url) : null;
+  const puede = !!url && aviso?.ok !== false;
   return (
     <ModalShell title="Proyectar un video" icon={ImgIcon} color="#C23B32" onClose={onClose}>
-      <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 10 }}>Se proyecta a pantalla completa de inmediato, sin agregarse al setlist.</div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <input placeholder="https://... (mp4)" value={url} onChange={(e) => setUrl(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-        <button onClick={() => fileInputRef.current?.click()} style={{ ...addBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}><Paperclip size={14} color="#C23B32" /> Subir video</button>
-        <input ref={fileInputRef} type="file" accept="video/*" style={{ display: "none" }} onChange={(e) => { uploadVideoFile(e.target.files?.[0]); e.target.value = ""; }} />
-      </div>
-      <button onClick={() => url && onPlay(url)} style={{ ...primaryBtn, marginTop: 14 }}>Proyectar ahora</button>
+      <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 10 }}>Se proyecta a pantalla completa y con sonido de inmediato, sin agregarse al setlist.</div>
+      <input placeholder="Pega un enlace de YouTube, Vimeo o un .mp4" value={url} onChange={(e) => setUrl(e.target.value.trim())} style={{ ...inputStyle, marginBottom: 6 }} />
+      <AvisoEnlaceVideo url={url} />
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", margin: "6px 0" }}>O SUBE EL VIDEO</div>
+      <MediaPicker iglesiaId={iglesiaId} tipo="video" value={url && !/^https?:\/\/(www\.)?(youtu|vimeo)/i.test(url) ? url : ""} onChange={(u) => setUrl(u)} color="#C23B32" />
+      <button onClick={() => puede && onPlay(url)} disabled={!puede} style={{ ...primaryBtn, marginTop: 14, opacity: puede ? 1 : 0.5 }}>Proyectar ahora</button>
     </ModalShell>
   );
 }
@@ -1485,7 +1484,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         </ModalShell>
       )}
       {showCuenta && <CuentaRegresivaModal enConsola evento={eventoInfo} onClose={() => setShowCuenta(false)} onGuardar={(c) => { onStartAdHocCuenta(c); setShowCuenta(false); }} />}
-      {showAdHocVideo && <AdHocVideoModal onClose={() => setShowAdHocVideo(false)} onPlay={(url) => { onStartAdHocVideo(url); setShowAdHocVideo(false); }} />}
+      {showAdHocVideo && <AdHocVideoModal iglesiaId={myIglesiaId} onClose={() => setShowAdHocVideo(false)} onPlay={(url) => { onStartAdHocVideo(url); setShowAdHocVideo(false); }} />}
       {showAddSlide && (
         <SlideModal
           iglesiaId={myIglesiaId}

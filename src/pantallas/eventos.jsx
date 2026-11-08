@@ -20,7 +20,8 @@ import RelojCuentaRegresiva, { estiloCuenta } from "../components/RelojCuentaReg
 import { esCuentaRegresiva, normalizarCuenta } from "../lib/cuentaRegresiva.js";
 import { NOTES, normalizarTitulo, lideraBloque, isWorshipBlock, primaryBtn, ghostToggleBtn, iconGhost, ModalShell, Field, inputStyle, DEFAULT_COVERS, misAsignacionesEnEvento, quienDirigeAlabanza, miniBtnStyle, addBtnStyle, textoEnsayo, clasificacionesActuales, TYPE_META, ElegirParteDelCulto } from "./compartido.jsx";
 import { BibleModal } from "./biblia.jsx";
-import { SlideModal } from "./ventanas.jsx";
+import { SlideModal, VideoModal } from "./ventanas.jsx";
+import { esVideoSolo } from "../lib/videoEnlace.js";
 
 // Tonalidades para cambiar una canción dentro del Setlist: solo las 12 notas. Si la canción original
 // es menor, las 12 salen en menor (Em pasa a Fm, nunca a F), así nunca se cambia sin querer de
@@ -1057,12 +1058,16 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   const [editTexto, setEditTexto] = useState(null); // { id, draft }
   // Cuenta regresiva (2026-11-05): null | { item } (editar) | {} (nueva).
   const [cuentaModal, setCuentaModal] = useState(null);
+  // Video para planificar (2026-11-08): null | {} (nuevo) | { item } (editar).
+  const [videoModal, setVideoModal] = useState(null);
   // Otro estilo de letra animada para una canción solo en este evento (2026-11-06): { id, valor } | null.
   const [animEvento, setAnimEvento] = useState(null);
-  const abrirEditarTexto = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", escalaSubtitulo: it.escalaSubtitulo, bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "" } });
+  // Un video solo (sin texto) se edita con su propio formulario, más simple (2026-11-08).
+  const abrirEditarTexto = (it) => (esVideoSolo(it) ? setVideoModal({ item: it }) : abrirEditarDiapositiva(it));
+  const abrirEditarDiapositiva = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", escalaSubtitulo: it.escalaSubtitulo, bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "" } });
   // La parte del culto elegida en "+ Agregar" solo vale mientras se está agregando: al cerrarse todo
   // (o cancelar), vuelve a "al final" para que lo siguiente no caiga en un bloque viejo.
-  const agregando = showAgregar || pickerCancion || showImportar || showBibleForm || showSlideForm || showSermonForm || !!cuentaModal;
+  const agregando = showAgregar || pickerCancion || showImportar || showBibleForm || showSlideForm || showSermonForm || !!cuentaModal || !!videoModal;
   useEffect(() => { if (!agregando && destinoAgregar) onDestinoAgregar?.(null); }, [agregando, destinoAgregar, onDestinoAgregar]);
   const [seccionDraft, setSeccionDraft] = useState({ title: "", description: "" });
   const confirmAddSeccion = () => {
@@ -1106,7 +1111,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   // ---- Fácil de usar (2026-10-10): "+ Agregar", menú "⋯" y "Empieza aquí" ----
   const puedeAgregarAlgo = isAdminViewer || canAddBibleReading || canAddSermonPoints;
   const nombreDeItem = (it) => (it.type === "cancion" ? library.find((x) => x.id === it.songId)?.title || "Canción"
-    : it.type === "biblia" ? it.reference || "Versículo" : it.title || (it.type === "seccion" ? "Bloque" : "Diapositiva"));
+    : it.type === "biblia" ? it.reference || "Versículo" : it.title || (it.type === "seccion" ? "Bloque" : it.name || (it.bgType === "video" ? "Video" : "Diapositiva")));
   const quitarConDeshacer = (it) => {
     const indice = event.serviceOrder.findIndex((x) => x.id === it.id);
     onRemove(it.id);
@@ -1146,6 +1151,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
     isAdminViewer && { clave: "cancion", Icon: Music, color: "#1F8A73", titulo: "Canción", detalle: "De la biblioteca, con su letra lista", accion: () => setPickerCancion(true) },
     canAddBibleReading && { clave: "biblia", Icon: BookOpen, color: "#2F5FA8", titulo: "Versículo", detalle: "Búscalo en la Biblia", accion: onAddBibleClick },
     isAdminViewer && { clave: "texto", Icon: Type, color: "#B15EA0", titulo: "Texto rápido", detalle: "Un aviso o un título en segundos", accion: onAddSlideClick },
+    isAdminViewer && { clave: "video", Icon: Play, color: "#C23B32", titulo: "Video", detalle: "De YouTube, Vimeo o subido. Se proyecta con sonido", accion: () => setVideoModal({}) },
     isAdminViewer && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(destinoAgregar ? anclaDeBloque(event.serviceOrder, destinoAgregar)?.id : undefined) },
     isAdminViewer && { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
     canAddSermonPoints && { clave: "bosquejo", Icon: Mic2, color: "var(--wf-heading)", titulo: "Punto del bosquejo", detalle: "Lo que el predicador va a ir mostrando", accion: () => setShowSermonForm(true) },
@@ -1559,6 +1565,14 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
       )}
       {showBibleForm && <BibleModal onClose={() => setShowBibleForm(false)} onAdd={addBible} splitVersesIndividually />}
       {showSlideForm && <SlideModal iglesiaId={myIglesiaId} draft={slideDraft} setDraft={setSlideDraft} onClose={() => setShowSlideForm(false)} onAdd={addSlide} />}
+      {videoModal && (
+        <VideoModal iglesiaId={myIglesiaId} inicial={videoModal.item || null} onClose={() => setVideoModal(null)}
+          onAdd={({ videoUrl, name }) => {
+            if (videoModal.item) onEditarItem(videoModal.item.id, { videoUrl, name });
+            else onAddItems([{ id: crypto.randomUUID(), type: "slide", title: "", subtitle: "", name, bg: "#000000", bgType: "video", videoUrl, imageUrl: "" }]);
+            setVideoModal(null);
+          }} />
+      )}
       {editTexto && (
         <SlideModal iglesiaId={myIglesiaId} title="Editar diapositiva" submitLabel="Guardar cambios" draft={editTexto.draft}
           setDraft={(d) => setEditTexto((e) => ({ ...e, draft: d }))} onClose={() => setEditTexto(null)}
@@ -1585,7 +1599,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
         return createPortal(
           <div onPointerDown={(e) => e.stopPropagation()} role="menu" style={{ position: "fixed", left: Math.max(8, menuItem.x), top: menuItem.y, zIndex: 3000, width: 210, background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: 4, boxShadow: "0 12px 30px rgba(0,0,0,0.3)" }}>
             {esCuentaRegresiva(it) && onEditarItem && opcion(Timer, "Editar cuenta regresiva", () => setCuentaModal({ item: it }))}
-            {it.type === "slide" && !esCuentaRegresiva(it) && !esGrupoDiapositivas(it) && onEditarItem && opcion(Pencil, "Editar texto", () => abrirEditarTexto(it))}
+            {it.type === "slide" && !esCuentaRegresiva(it) && !esGrupoDiapositivas(it) && onEditarItem && opcion(Pencil, esVideoSolo(it) ? "Editar video" : "Editar texto", () => abrirEditarTexto(it))}
             {it.type === "slide" && !esCuentaRegresiva(it) && onAbrirEditor && opcion(PenTool, esGrupoDiapositivas(it) ? "Editar diseño" : "Diseñar (imágenes, plantillas)", () => onAbrirEditor(it.id))}
             {it.type === "cancion" && opcion(Music, "Abrir la canción", () => onOpenSong(it.songId, it.id))}
             {it.type === "cancion" && onEditarItem && opcion(Sparkles, "Animación en este evento", () => setAnimEvento({ id: it.id, valor: it.animacion?.general || null }))}
