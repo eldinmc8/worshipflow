@@ -8,8 +8,9 @@ import { confirmDialog } from "../lib/confirm.js";
 import { estaSuscritoPush, suscribirPush, desuscribirPush, esRechazoDeNotificaciones } from "../lib/notificaciones.js";
 import { isUpcoming, formatFullDate } from "../lib/dates.js";
 import { usePreferencias, TAMANOS_LETRA, setTamanoLetra, NOTACIONES, setNotacion, acordeEn } from "../lib/preferencias.js";
-import { ChevronRight, ChevronUp, ChevronDown, KeyRound, Check, Calendar, Bell, Moon, Type, Music, Download, Radio, Tv, Users, Palette, Shield, Eye, Sparkles, MessageCircle, Send, LogOut } from "lucide-react";
+import { ChevronRight, ChevronUp, ChevronDown, KeyRound, Check, Calendar, Bell, Moon, Type, Music, Download, Radio, Tv, Users, Palette, Shield, Eye, Sparkles, MessageCircle, Send, LogOut, Speaker } from "lucide-react";
 import PantallaOtroEquipo from "../components/PantallaOtroEquipo.jsx";
+import { SalidaAudioModal, useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
 import { BibleDownloadSection } from "./biblia.jsx";
 import { IdentidadIglesiaModal, PantallaProyeccionModal, ChangePasswordModal } from "./ventanas.jsx";
 import { inputStyle, ModalShell } from "./compartido.jsx";
@@ -57,6 +58,8 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showIdentidad, setShowIdentidad] = useState(false);
   const [showPantalla, setShowPantalla] = useState(false);
+  const [showSalidaAudio, setShowSalidaAudio] = useState(false);
+  const salidaAudio = useSalidaAudioActual();
   const [showOtroEquipoAjustes, setShowOtroEquipoAjustes] = useState(false); // false · "proyeccion" · "escenario"
   const [pushEstado, setPushEstado] = useState("cargando"); // cargando | activo | inactivo | bloqueado | sin-soporte
   const [pushBusy, setPushBusy] = useState(false);
@@ -310,6 +313,22 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
           <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "-4px 4px 10px" }}>
             Hazlo una vez, con el proyector/monitor ya conectado — así "Iniciar evento" abre la proyección en pantalla completa ahí solo.
           </div>
+        </>
+      )}
+      {/* Salida de audio de los videos (2026-11-08): imagen al proyector, sonido a la consola/mixer.
+          Solo en computadora: es la que proyecta. */}
+      {!isCompact && (
+        <>
+          <NavRow
+            icon={Speaker}
+            label="Salida de audio de los videos"
+            onClick={() => setShowSalidaAudio(true)}
+            right={<span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--wf-faint)", maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{salidaAudio ? salidaAudio.label || "Elegida" : "Predeterminada"} {chevron}</span>}
+          />
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "-4px 4px 10px" }}>
+            Para mandar el sonido del video a la consola o mixer mientras la imagen va al proyector.
+          </div>
+          {showSalidaAudio && <SalidaAudioModal onClose={() => setShowSalidaAudio(false)} />}
         </>
       )}
       {/* Solo tiene sentido en la computadora que proyecta. */}
