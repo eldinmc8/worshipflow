@@ -59,11 +59,11 @@ describe("agregar un video al Setlist", () => {
     const enlace = screen.getByPlaceholderText(/enlace de YouTube/);
     fireEvent.change(enlace, { target: { value: "https://www.facebook.com/watch?v=1" } });
     expect(screen.getByText(/no se pueden proyectar/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Agregar al culto" }));
+    fireEvent.click(screen.getByRole("button", { name: "Agregar al setlist" }));
     expect(onAdd).not.toHaveBeenCalled();
     fireEvent.change(enlace, { target: { value: "https://youtu.be/dQw4w9WgXcQ" } });
     fireEvent.change(screen.getByPlaceholderText(/Testimonio de Juan/), { target: { value: "Testimonio" } });
-    fireEvent.click(screen.getByRole("button", { name: "Agregar al culto" }));
+    fireEvent.click(screen.getByRole("button", { name: "Agregar al setlist" }));
     expect(onAdd).toHaveBeenCalledWith({ videoUrl: "https://youtu.be/dQw4w9WgXcQ", name: "Testimonio" });
   });
 });

@@ -72,3 +72,35 @@ describe("controles en la consola", () => {
     expect(onAccion.mock.calls.map((c) => c[0])).toEqual(["alternar", { saltar: 10 }, "stop", "sonido"]);
   });
 });
+
+describe("YouTube: no hace falta detener y dar play", () => {
+  it("insiste hasta que el reproductor contesta y, si queda pausado, lo vuelve a arrancar solo", async () => {
+    const { vi } = await import("vitest");
+    const { act } = await import("@testing-library/react");
+    vi.useFakeTimers();
+    try {
+      const { container } = render(<VideoProyectado url="https://youtu.be/dQw4w9WgXcQ" conSonido control={controlInicial()} />);
+      const iframe = container.querySelector("iframe");
+      const enviados = [];
+      iframe.contentWindow.postMessage = (m) => enviados.push(JSON.parse(m));
+      const deYT = (data) => window.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(data), source: iframe.contentWindow }));
+      act(() => { iframe.dispatchEvent(new Event("load")); });
+      act(() => { vi.advanceTimersByTime(1000); });
+      // Pide "listening" varias veces mientras YouTube no conteste.
+      expect(enviados.filter((m) => m.event === "listening").length).toBeGreaterThan(1);
+      act(() => { deYT({ event: "onReady" }); });
+      expect(enviados.some((m) => m.func === "playVideo")).toBe(true);
+      // El navegador lo pausó al activarle el sonido (y no fue la consola).
+      act(() => { deYT({ event: "onStateChange", info: 2 }); });
+      enviados.length = 0;
+      act(() => { vi.advanceTimersByTime(3500); });
+      expect(enviados.some((m) => m.func === "playVideo")).toBe(true);
+      // Si sigue quieto, el siguiente intento ya va sin sonido (eso el navegador siempre lo deja).
+      enviados.length = 0;
+      act(() => { vi.advanceTimersByTime(2500); });
+      expect(enviados.map((m) => m.func)).toEqual(expect.arrayContaining(["mute", "playVideo"]));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

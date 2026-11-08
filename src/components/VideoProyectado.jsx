@@ -111,6 +111,20 @@ function ReproductorArchivo({ src, ajuste, conSonido, control, onEstado }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conSonido, control?.n, control?.estado, quiereSonido]);
 
+  // Vigilante (igual que en YouTube): si debe estar reproduciéndose y está quieto, se vuelve a arrancar
+  // solo — sin sonido si el navegador no lo deja — en vez de tener que detener y dar play.
+  useEffect(() => {
+    if (!conSonido) return undefined;
+    const t = setInterval(() => {
+      const v = ref.current;
+      if (!v || v.ended || v.readyState < 2 || (control && control.estado !== "play")) return;
+      if (!v.paused) return;
+      if (!v.muted && quiereSonido) { v.muted = true; setBloqueado(true); }
+      v.play?.().catch(() => {});
+    }, 2000);
+    return () => clearInterval(t);
+  });
+
   usePrimerGesto(bloqueado, () => {
     const v = ref.current;
     setBloqueado(false);
@@ -141,6 +155,9 @@ function ReproductorIncrustado({ info, conSonido, control, onEstado }) {
   const listo = useRef(false);
   const estado = useRef({ pos: 0, duration: null, reproduciendo: false, muted: true });
   const intentoSonido = useRef(0);
+  const ultimaOrden = useRef(0); // cuándo se mandó la última orden (para el vigilante)
+  const estadoConocido = useRef(false); // ¿el reproductor ya nos dijo si corre o está pausado?
+  const reintentos = useRef(0);
   const [bloqueado, setBloqueado] = useState(false);
   const reportar = useReporte(onEstado);
   const esYT = info.tipo === "youtube";
@@ -171,6 +188,8 @@ function ReproductorIncrustado({ info, conSonido, control, onEstado }) {
 
   const aplicar = () => {
     if (!listo.current || !conSonido) return;
+    ultimaOrden.current = Date.now();
+    reintentos.current = 0;
     const objetivo = control ? posicionActual(control) : null;
     if (objetivo != null && Math.abs((estado.current.pos || 0) - objetivo) > 1.5) mandar("seekTo", [objetivo, true]);
     if (control?.estado === "stop") { mandar("pauseVideo"); mandar("seekTo", [0, true]); return; }
@@ -190,12 +209,17 @@ function ReproductorIncrustado({ info, conSonido, control, onEstado }) {
       if (esYT) {
         if (d.event === "onReady" || d.event === "initialDelivery") { if (!listo.current) { listo.current = true; aplicar(); } }
         const i = d.info;
+        // onStateChange trae el estado como número suelto (1 = reproduciendo, 2 = pausado, 0 = terminó).
+        if (d.event === "onStateChange" && typeof i === "number") { estadoConocido.current = true; estado.current.reproduciendo = i === 1; estado.current.termino = i === 0; estado.current.cargando = i === 3; }
         if (i && typeof i === "object") {
           if (typeof i.currentTime === "number") estado.current.pos = i.currentTime;
           if (typeof i.duration === "number" && i.duration > 0) estado.current.duration = i.duration;
           if (typeof i.muted === "boolean") estado.current.muted = i.muted;
           if (typeof i.playerState === "number") {
+            estadoConocido.current = true;
             estado.current.reproduciendo = i.playerState === 1;
+            estado.current.termino = i.playerState === 0;
+            estado.current.cargando = i.playerState === 3; // cargando (internet lento): no es que esté trabado
             // Se pidió sonido y el navegador lo frenó: se pausa solo apenas se le activa el sonido.
             if (i.playerState === 2 && quiereSonido && Date.now() - intentoSonido.current < 2500 && control?.estado !== "pausa") {
               setBloqueado(true); mandar("mute"); mandar("playVideo");
@@ -208,8 +232,8 @@ function ReproductorIncrustado({ info, conSonido, control, onEstado }) {
           for (const ev of ["timeupdate", "pause", "play"]) ref.current?.contentWindow?.postMessage(JSON.stringify({ method: "addEventListener", value: ev }), "*");
           aplicar();
         }
-        if (d.event === "timeupdate" && d.data) { estado.current.pos = d.data.seconds || 0; estado.current.duration = d.data.duration || null; estado.current.reproduciendo = true; }
-        if (d.event === "pause") estado.current.reproduciendo = false;
+        if (d.event === "timeupdate" && d.data) { estadoConocido.current = true; estado.current.pos = d.data.seconds || 0; estado.current.duration = d.data.duration || null; estado.current.reproduciendo = true; }
+        if (d.event === "pause") { estadoConocido.current = true; estado.current.reproduciendo = false; }
       }
       reportar({ pos: estado.current.pos, duracion: estado.current.duration ?? null, reproduciendo: estado.current.reproduciendo, sonidoBloqueado: bloqueado || (quiereSonido && estado.current.muted && listo.current && Date.now() - intentoSonido.current > 3000) });
     };
@@ -217,14 +241,40 @@ function ReproductorIncrustado({ info, conSonido, control, onEstado }) {
     return () => window.removeEventListener("message", alMensaje);
   });
 
-  // YouTube manda sus mensajes solo después de que se le pide que avise ("listening").
+  // YouTube manda sus mensajes solo después de que se le pide que avise ("listening"). Arreglo
+  // (2026-11-08, "tuve que darle stop y play para que se reprodujera"): antes se pedía UNA vez al cargar,
+  // y si el reproductor de YouTube todavía no estaba listo nunca respondía — la app no se enteraba de si
+  // el video corría y no podía rescatarlo. Ahora se pide cada 250 ms hasta que conteste.
   const alCargar = () => {
-    const w = ref.current?.contentWindow;
-    if (!w) return;
-    if (esYT) w.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), "*");
+    if (esYT) {
+      let veces = 0;
+      const pedir = setInterval(() => {
+        veces += 1;
+        if (estadoConocido.current || veces > 60 || !ref.current) { clearInterval(pedir); return; }
+        ref.current.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), "*");
+      }, 250);
+    }
     // Por si el aviso de "listo" no llega: se aplica igual al rato.
     setTimeout(() => { if (!listo.current) { listo.current = true; aplicar(); } }, 1500);
   };
+
+  // Vigilante: si la consola dice "reproducir" y el video está quieto (el navegador lo pausó al activarle
+  // el sonido, o no arrancó), se vuelve a arrancar solo. Al segundo intento, sin sonido (eso siempre se
+  // deja) y con el aviso de "toca para activar el sonido". Ya no hace falta detener y volver a dar play.
+  useEffect(() => {
+    if (!conSonido) return undefined;
+    const t = setInterval(() => {
+      if (!listo.current || detenido || (control && control.estado !== "play")) return;
+      if (estado.current.reproduciendo || estado.current.termino || estado.current.cargando) { reintentos.current = 0; return; }
+      if (Date.now() - ultimaOrden.current < 2000) return;
+      ultimaOrden.current = Date.now();
+      reintentos.current += 1;
+      if (reintentos.current === 1 && estadoConocido.current) { mandar("playVideo"); return; }
+      if (quiereSonido) setBloqueado(true);
+      mandar("mute"); mandar("playVideo");
+    }, 1000);
+    return () => clearInterval(t);
+  });
 
   // Cada orden de la consola.
   // eslint-disable-next-line react-hooks/exhaustive-deps

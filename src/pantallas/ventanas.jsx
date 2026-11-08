@@ -376,7 +376,7 @@ export function VideoModal({ onClose, onAdd, iglesiaId, inicial = null, destino 
   const aviso = url ? avisoDeEnlace(url) : null;
   const puede = !!url && aviso?.ok !== false;
   return (
-    <ModalShell title={inicial ? "Editar video" : "Agregar video"} icon={Play} color="#C23B32" onClose={onClose}>
+    <ModalShell title={inicial ? "Editar video" : "Agregar video al setlist"} icon={Play} color="#C23B32" onClose={onClose}>
       {destino && <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10 }}>{destino}</div>}
       <label style={etiquetaCampo}>Enlace de YouTube</label>
       {!subir ? (
@@ -393,8 +393,8 @@ export function VideoModal({ onClose, onAdd, iglesiaId, inicial = null, destino 
       )}
       <label style={{ ...etiquetaCampo, marginTop: 14 }}>Nombre · así sale en el orden del culto</label>
       <input placeholder='Ej. "Testimonio de Juan" o "Video de misiones"' value={nombre} onChange={(e) => setNombre(e.target.value)} style={inputStyle} />
-      <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Al tocarlo en la consola sale a pantalla completa, empieza solo y con sonido. Lo pausas, detienes o adelantas desde los botones debajo de la vista previa.</div>
-      <button onClick={() => puede && onAdd({ videoUrl: url, name: nombre.trim() || "Video" })} disabled={!puede} style={{ ...primaryBtn, marginTop: 14, opacity: puede ? 1 : 0.5 }}>{inicial ? "Guardar cambios" : "Agregar al culto"}</button>
+      <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Queda en el orden del culto. Cuando lo toques en la consola sale a pantalla completa, empieza solo y con sonido; lo pausas, detienes o adelantas con los botones debajo de la vista previa.</div>
+      <button onClick={() => puede && onAdd({ videoUrl: url, name: nombre.trim() || "Video" })} disabled={!puede} style={{ ...primaryBtn, marginTop: 14, opacity: puede ? 1 : 0.5 }}>{inicial ? "Guardar cambios" : "Agregar al setlist"}</button>
     </ModalShell>
   );
 }
