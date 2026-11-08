@@ -17,6 +17,7 @@ import { esCuentaRegresiva, slideCuentaRegresiva, conHoraFinal, arrancarSiHaceFa
 import { confirmDialog } from "./lib/confirm.js";
 import { updateMusicoLive, clearMusicoLive, getMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
 import { escucharEstadoVideo } from "./lib/liveSession.js";
+import { elegirOtraPantalla, medidasVentana, motivoSinSegundaPantalla } from "./lib/segundaPantalla.js";
 import { controlInicial, aplicarAccion } from "./lib/videoControl.js";
 import { esVideoSolo } from "./lib/videoEnlace.js";
 import { broadcastLiveSession, enviarAPantallas, clearLiveSession, obtenerCodigoPantalla, updateLiveSession, responderPedidosDeEstado, getLiveSession, subscribeLiveSession } from "./lib/liveSession.js";
@@ -939,43 +940,61 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     document.addEventListener("pointerdown", reintentar, { once: true });
     return () => document.removeEventListener("pointerdown", reintentar);
   }, []);
-  const openOnOtherScreen = (screenDetails) => {
+  // Abre la proyección en el segundo monitor (ver lib/segundaPantalla.js, arreglo del 2026-11-08).
+  // Devuelve true si la abrió. pantalla = la de destino (elegirOtraPantalla).
+  const openOnOtherScreen = (pantalla) => {
     // ?igl=<slug> le dice a PublicScreen (que no tiene sesión iniciada) de qué iglesia leer la sesión
-    // en vivo — ver iglesia_id_por_slug en la migración 20260930000300 y PublicScreen.jsx. Si el slug
-    // todavía no cargó (carrera rara al abrir muy rápido), PublicScreen cae a iglesia_id_por_defecto(),
-    // que sigue siendo correcto mientras exista una sola iglesia.
+    // en vivo — ver iglesia_id_por_slug en la migración 20260930000300 y PublicScreen.jsx.
     const url = `${window.location.origin}${window.location.pathname}?screen=publico${myIglesia.slug ? `&igl=${encodeURIComponent(myIglesia.slug)}` : ""}${myIglesiaId ? `&iid=${myIglesiaId}` : ""}${codigoPantalla ? `&k=${encodeURIComponent(codigoPantalla)}` : ""}`;
-    const otherScreen = screenDetails.screens.find((s) => s !== screenDetails.currentScreen);
-    if (!otherScreen) {
-      showToast("No se detectó una segunda pantalla conectada. Conecta el proyector/monitor y vuelve a intentar para que se abra ahí solo.");
-      return;
+    const m = medidasVentana(pantalla);
+    const popup = window.open(url, PROYECCION_WINDOW_NAME, `${PROYECCION_WINDOW_FEATURES},${m.features}`);
+    if (!popup) {
+      showToast("El navegador bloqueó la ventana de proyección. Permite las ventanas emergentes para esta página (ícono en la barra de direcciones) y vuelve a intentar.");
+      return false;
     }
-    const popup = window.open(url, PROYECCION_WINDOW_NAME, `${PROYECCION_WINDOW_FEATURES},left=${otherScreen.left},top=${otherScreen.top},width=${otherScreen.width},height=${otherScreen.height}`);
-    // Pedir pantalla completa DESDE ACÁ (el opener, justo tras window.open, todavía con el gesto del
-    // clic activo) es más confiable que pedirla desde dentro de la propia ventana emergente una vez
-    // cargada — el "activation" del clic no siempre le alcanza a su propio script para cuando termina
-    // de montar React. Este es el patrón que la documentación de Chrome recomienda para abrir una
-    // ventana en pantalla completa sobre un segundo monitor. PublicScreen.jsx igual mantiene su propio
-    // intento + un botón de respaldo por si el navegador bloquea esto (Firefox, popup reutilizado, etc).
-    if (popup) {
-      const requestFs = () => popup.document?.documentElement?.requestFullscreen?.().catch(() => {});
+    // Si la ventana ya estaba abierta (se reutiliza por su nombre), window.open no la mueve: se lleva al
+    // segundo monitor a mano.
+    try { popup.moveTo(m.x, m.y); popup.resizeTo(m.ancho, m.alto); } catch { /* el navegador no lo deja: sigue igual */ }
+    // Pantalla completa pedida DESDE ACÁ (con el clic todavía activo) y EN la pantalla de destino: así
+    // queda en el proyector aunque la ventana haya caído en la pantalla de la consola. Sin el parámetro
+    // screen se iba a pantalla completa donde estuviera la ventana. PublicScreen mantiene su propio
+    // botón de respaldo por si el navegador no lo permite.
+    const requestFs = () => {
+      const el = popup.document?.documentElement;
+      if (!el?.requestFullscreen) return;
+      el.requestFullscreen({ screen: pantalla }).catch(() => el.requestFullscreen().catch(() => {}));
+    };
+    try {
       if (popup.document?.readyState === "complete") requestFs();
       else popup.addEventListener("load", requestFs, { once: true });
-    }
+    } catch { /* ventana de otro origen o cerrada */ }
+    popup.focus?.();
+    return true;
   };
   const startPresentation = async () => {
     if (!("getScreenDetails" in window)) {
-      showToast("Este navegador no permite detectar una segunda pantalla automáticamente. Usa Chrome o Edge para que la proyección se abra sola ahí.");
+      showToast(motivoSinSegundaPantalla({ soportado: false }));
       return;
     }
-    if (screenDetailsRef.current) { openOnOtherScreen(screenDetailsRef.current); return; }
-    try {
-      const screenDetails = await window.getScreenDetails();
-      screenDetailsRef.current = screenDetails;
-      openOnOtherScreen(screenDetails);
-    } catch {
-      showToast("No se pudo detectar las pantallas conectadas (permiso denegado). Conecta el proyector/monitor y vuelve a intentar.");
+    let detalles = screenDetailsRef.current;
+    let otra = elegirOtraPantalla(detalles);
+    if (!otra) {
+      // La lista guardada puede estar vieja (proyector conectado después de abrir la página, o el permiso
+      // recién concedido): se vuelve a preguntar antes de decir que no hay segunda pantalla.
+      try {
+        detalles = await window.getScreenDetails();
+        screenDetailsRef.current = detalles;
+        otra = elegirOtraPantalla(detalles);
+      } catch {
+        showToast(motivoSinSegundaPantalla({ permisoDenegado: true }));
+        return;
+      }
     }
+    if (!otra) {
+      showToast(motivoSinSegundaPantalla({ extendido: typeof window.screen?.isExtended === "boolean" ? window.screen.isExtended : null }));
+      return;
+    }
+    openOnOtherScreen(otra);
   };
   // Si ya hay algo en vivo (un evento real o una transmisión libre) y se va a reemplazar por otra cosa,
   // confirma antes — mismo diálogo para las tres combinaciones (evento→evento, evento→libre, libre→evento).
