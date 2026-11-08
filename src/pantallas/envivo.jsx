@@ -712,7 +712,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       {/* canEnd ya incluye a los administradores (isAdminViewer) además de a quien inició la
           transmisión -- antes SOLO ese dispositivo podía finalizarla, así que si se cerraba sin tocar
           "Finalizar evento" (compu apagada, batería muerta) la transmisión quedaba bloqueada para
-          absolutamente todos, incluido el admin, hasta que pasaran las 24h del cierre automático por
+          absolutamente todos, incluido el admin, hasta que pasara el cierre automático por
           abandono (ver LIVE_SESSION_STALE_MS) -- un admin necesita poder cortarla al instante. */}
       {!canEnd && <div style={{ padding: "0 16px 6px", fontSize: 10, color: "var(--wf-faint)" }}>Solo {liveOwner} o un administrador puede finalizar esta transmisión.</div>}
 

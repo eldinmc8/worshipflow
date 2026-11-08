@@ -390,6 +390,8 @@ export function BibleModal({ onClose, onAdd, title = "Agregar versículo", submi
   );
 }
 
+const VISTA_VERSICULOS_KEY = "wf-biblia-vista-versiculos";
+
 // ---------------- BIBLIA EN VIVO (estilo Proyektor: 3 columnas, clic en un versículo proyecta al instante) ----------------
 // Columna 1: libros divididos en Antiguo/Nuevo Testamento (bookid 1-39 = AT, 40-66 = NT en bolls.life).
 // Columna 2: versión arriba, capítulos del libro elegido, e historial de versículos ya proyectados esta
@@ -411,6 +413,15 @@ export function BibleLivePanel({ version, setVersion, history, setHistory, onPro
   const [searchError, setSearchError] = useState("");
   const [searchInfo, setSearchInfo] = useState({}); // { cita, otraVersion }
   const bibliaLista = useBibliaParaBuscar(); // descarga sola la RV1960 para buscar con errores
+  // Columna 3: versículos con su texto completo o solo sus números. Cada computadora recuerda lo
+  // que eligió quien la usa (localStorage puede fallar en modo privado: entonces vuelve a "texto").
+  const [vistaVersiculos, setVistaVersiculos] = useState(() => {
+    try { return localStorage.getItem(VISTA_VERSICULOS_KEY) === "numeros" ? "numeros" : "texto"; } catch { return "texto"; }
+  });
+  const cambiarVistaVersiculos = (val) => {
+    setVistaVersiculos(val);
+    try { localStorage.setItem(VISTA_VERSICULOS_KEY, val); } catch { /* sin almacenamiento: solo esta vez */ }
+  };
 
   useEffect(() => {
     setLoadError("");
@@ -599,9 +610,31 @@ export function BibleLivePanel({ version, setVersion, history, setHistory, onPro
         ) : (
           <>
             {!selectedBook && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 0", textAlign: "center" }}>Elige un libro y capítulo para ver los versículos.</div>}
-            {selectedBook && <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)", marginBottom: 8 }}>{selectedBook.name} {selectedChapter}</div>}
+            {selectedBook && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>{selectedBook.name} {selectedChapter}</div>
+                <div style={{ display: "flex", gap: 2, background: "var(--wf-hover)", padding: 2, borderRadius: 10, flexShrink: 0 }}>
+                  {[["texto", "Texto"], ["numeros", "Números"]].map(([val, label]) => (
+                    <button key={val} onClick={() => cambiarVistaVersiculos(val)} title={val === "texto" ? "Ver los versículos completos" : "Ver solo el número de cada versículo"} style={{ fontSize: 10.5, fontWeight: 700, padding: "4px 9px", borderRadius: 8, border: "none", cursor: "pointer", background: vistaVersiculos === val ? "var(--wf-brand-accent)" : "transparent", color: vistaVersiculos === val ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{label}</button>
+                  ))}
+                </div>
+              </div>
+            )}
             {loadingChapter && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "20px 0", textAlign: "center" }}>Cargando…</div>}
-            {!loadingChapter && verses && (
+            {/* Solo números (pedido de Eldin, 2026-11-07): una cuadrícula como la de capítulos, para
+                encontrar rápido el versículo que cita el pastor. Tocar uno lo proyecta igual que en la
+                vista de texto; si es largo arranca en su primera parte y las flechas siguen avanzando. */}
+            {!loadingChapter && verses && vistaVersiculos === "numeros" && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(44px, 1fr))", gap: 4 }}>
+                {verses.map((v) => {
+                  const isLive = liveVerse && liveVerse.bookId === selectedBook.bookid && liveVerse.chapter === selectedChapter && liveVerse.verseStart === v.verse && liveVerse.version === version;
+                  return (
+                    <button key={v.verse} onClick={() => pickVerse(v)} title={stripBibleSearchMarkup(v.text)} style={{ padding: "8px 0", borderRadius: 10, border: "none", background: isLive ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: isLive ? "var(--wf-brand-primary)" : "var(--wf-text)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{v.verse}</button>
+                  );
+                })}
+              </div>
+            )}
+            {!loadingChapter && verses && vistaVersiculos === "texto" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 {verses.map((v) => {
                   const isLive = liveVerse && liveVerse.bookId === selectedBook.bookid && liveVerse.chapter === selectedChapter && liveVerse.verseStart === v.verse && liveVerse.version === version;

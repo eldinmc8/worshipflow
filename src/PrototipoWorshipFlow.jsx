@@ -83,8 +83,14 @@ function songWithKeyOverride(song, overrideKey) {
   return { ...song, key: overrideKey, blocks };
 }
 
-// Umbral para dar por abandonada una sesión en vivo que nadie finalizó — ver el useEffect que llama a getLiveSession().
-const LIVE_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
+// Umbral para dar por abandonada una sesión en vivo que nadie finalizó (pedido de Eldin, 2026-11-07:
+// antes era un día entero y solo se revisaba al abrir la app) — 2 horas sin cambiar de diapositiva ni
+// tocar la consola. Ver el useEffect que llama a getLiveSession() y el de "Cierre por inactividad".
+const LIVE_SESSION_STALE_MS = 2 * 60 * 60 * 1000;
+// Cada cuánto se revisa, y cada cuánto quien transmite avisa a la base que sigue ahí aunque esté en la
+// misma diapositiva (así otro dispositivo no le cierra la transmisión durante una prédica larga).
+const LIVE_SESSION_CHECK_MS = 60 * 1000;
+const LIVE_SESSION_TOUCH_MS = 10 * 60 * 1000;
 
 // ---- Modo Músico líder/seguidor durante una transmisión en vivo (ver SongView, tabla musico_en_vivo) ----
 // Identifica esta pestaña/dispositivo para saber si el líder que aparece en musico_en_vivo soy yo o
@@ -332,6 +338,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && navigator.onLine === false);
   const filaAlAireRef = useRef(null); // lo último que se mandó a la proyección (ver sincronización en vivo)
   const sincroPendienteRef = useRef(false); // true = Supabase no recibió el último cambio por falta de internet
+  const actividadEnVivoRef = useRef(Date.now()); // último cambio de diapositiva o toque en la consola (quien transmite)
+  const ultimoAvisoBaseRef = useRef(Date.now()); // última vez que quien transmite renovó updated_at en la base
+  const endEventRef = useRef(null);
   const reloadLibrary = () => listCancionesCompletas().then(setLibrary).catch((e) => notifyError("No se pudo cargar el cancionero", e));
   // Se reutiliza tanto en la carga inicial como al recuperar la señal (ver el efecto de "online" más
   // abajo) — mismo Promise.all de siempre, solo que ahora tiene nombre para no repetirlo dos veces.
@@ -1071,6 +1080,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       .catch((e) => { if (!esFalloDeConexion(e)) notifyError("No se pudo cerrar la sesión en vivo", e); });
     resetMusicoLive();
   };
+  endEventRef.current = endEvent;
 
   const toggleFavorite = (songId) => {
     const song = library.find((s) => s.id === songId);
@@ -1563,6 +1573,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     // sigue siendo el camino real cuando la proyección de verdad está en otro dispositivo aparte.
     if (!myIglesiaId) return;
     filaAlAireRef.current = fila;
+    actividadEnVivoRef.current = Date.now(); ultimoAvisoBaseRef.current = Date.now();
     broadcastLiveSession(myIglesiaId, fila);
     enviarAPantallas(myIglesiaId, codigoPantalla, fila);
     // Sin internet (2026-10-17): la pantalla en ESTA computadora ya recibió el cambio por el canal local,
@@ -1634,6 +1645,47 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     });
     return unsubscribe;
   }, [myIglesiaId]);
+
+  // ---- Cierre por inactividad (pedido de Eldin, 2026-11-07): si una iglesia no finaliza su en vivo,
+  // se cierra solo después de LIVE_SESSION_STALE_MS sin actividad — revisando cada minuto mientras la
+  // app esté abierta, no solo al abrirla (la compu del culto suele quedarse prendida con la consola).
+  // - Quien transmite: cuenta como actividad cambiar de diapositiva/estilo o tocar la consola. Si alguien
+  //   la está tocando sin cambiar de diapositiva, renueva updated_at en la base cada 10 min, para que
+  //   ningún otro dispositivo la dé por abandonada.
+  // - Los demás: si la fila en la base lleva 2 horas sin cambios (ej. la compu de Multimedia se apagó sin
+  //   finalizar), la cierran. Solo Multimedia/admin puede escribir (RLS): para el resto falla en silencio.
+  const transmitiendoAqui = (!!liveEventId || liveLibre) && !practica && !!userId && userId === liveOwnerId;
+  const hayEnVivo = !!liveEventId || liveLibre;
+  useEffect(() => {
+    if (!transmitiendoAqui) return undefined;
+    actividadEnVivoRef.current = Date.now();
+    const alTocar = () => {
+      actividadEnVivoRef.current = Date.now();
+      if (Date.now() - ultimoAvisoBaseRef.current < LIVE_SESSION_TOUCH_MS || !filaAlAireRef.current || !myIglesiaId) return;
+      ultimoAvisoBaseRef.current = Date.now();
+      updateLiveSession(myIglesiaId, filaAlAireRef.current).catch(() => {});
+    };
+    const revisar = () => {
+      if (Date.now() - actividadEnVivoRef.current < LIVE_SESSION_STALE_MS) return;
+      endEventRef.current?.();
+      showToast("El en vivo se cerró solo después de 2 horas sin actividad.", "info");
+    };
+    window.addEventListener("pointerdown", alTocar);
+    window.addEventListener("keydown", alTocar);
+    const intervalo = setInterval(revisar, LIVE_SESSION_CHECK_MS);
+    return () => { window.removeEventListener("pointerdown", alTocar); window.removeEventListener("keydown", alTocar); clearInterval(intervalo); };
+  }, [transmitiendoAqui, myIglesiaId]);
+  useEffect(() => {
+    if (!hayEnVivo || transmitiendoAqui || !myIglesiaId) return undefined;
+    const revisar = () => {
+      getLiveSession(myIglesiaId).then((fila) => {
+        const abandonada = (fila?.evento_id || fila?.libre) && fila?.updated_at && (Date.now() - new Date(fila.updated_at).getTime() > LIVE_SESSION_STALE_MS);
+        if (abandonada) clearLiveSession(myIglesiaId).catch(() => {});
+      }).catch(() => {});
+    };
+    const intervalo = setInterval(revisar, 5 * LIVE_SESSION_CHECK_MS);
+    return () => clearInterval(intervalo);
+  }, [hayEnVivo, transmitiendoAqui, myIglesiaId]);
 
   // ---- Modo Músico líder/seguidor: estado propio (tabla musico_en_vivo, no sesiones_en_vivo — ver
   // src/lib/musicoLive.js) para que cualquier músico pueda tomar el mando sin necesitar el permiso de
