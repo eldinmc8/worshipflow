@@ -110,31 +110,8 @@ function AdHocSongModal({ library, onClose, onPick, Icono = null, color = "#5661
   );
 }
 
-// Proyectar un video al momento (2026-11-08): acepta YouTube, Vimeo, un .mp4 o un archivo subido. Antes
-// "Subir video" lo convertía a texto (base64) y lo mandaba entero por la sesión en vivo: un video de
-// varios MB nunca llegaba a la pantalla de proyección en otro dispositivo. Ahora se sube al
-// almacenamiento de la iglesia (igual que los fondos) y se manda solo el enlace.
-function AdHocVideoModal({ onClose, onPlay, iglesiaId }) {
-  const [url, setUrl] = useState("");
-  const [subir, setSubir] = useState(false);
-  const aviso = url ? avisoDeEnlace(url) : null;
-  const puede = !!url && aviso?.ok !== false;
-  return (
-    <ModalShell title="Proyectar un video ahora" icon={Play} color="#C23B32" onClose={onClose}>
-      <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 10 }}>Sale a pantalla completa de una vez, con sonido, sin quedar en el orden. Para planificarlo usa «+ Agregar → Video de YouTube».</div>
-      {!subir ? (
-        <>
-          <input autoFocus inputMode="url" placeholder="Pega aquí el enlace de YouTube" value={url} onChange={(e) => setUrl(e.target.value.trim())} style={{ ...inputStyle, marginBottom: 6 }} />
-          <AvisoEnlaceVideo url={url} />
-          <button type="button" onClick={() => { setSubir(true); setUrl(""); }} style={{ background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>¿No está en YouTube? Súbelo desde tu equipo</button>
-        </>
-      ) : (
-        <MediaPicker iglesiaId={iglesiaId} tipo="video" value={url} onChange={(u) => setUrl(u)} color="#C23B32" />
-      )}
-      <button onClick={() => puede && onPlay(url)} disabled={!puede} style={{ ...primaryBtn, marginTop: 14, opacity: puede ? 1 : 0.5 }}>Proyectar ahora</button>
-    </ModalShell>
-  );
-}
+// Videos (2026-11-08, pedido de Eldin): ya no hay "proyectar un video ahora" — todo video entra al orden
+// del culto (VideoModal) y se proyecta al tocarlo, como cualquier otro elemento.
 
 // Controles del video al aire (2026-11-08): se maneja desde la consola, sin tocar la pantalla de
 // proyección (Smart TV, otra computadora). El avance viene de lo que reporta la pantalla; si todavía no
@@ -259,7 +236,6 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   useEffect(() => { saveCache("bible_version", bibleVersion); }, [bibleVersion]);
   useEffect(() => { saveCache(claveHistorial, bibleHistory); }, [bibleHistory, claveHistorial]);
   const [showAdHocSong, setShowAdHocSong] = useState(false);
-  const [showAdHocVideo, setShowAdHocVideo] = useState(false);
   // "+ Agregar → Video" (2026-11-08): entra al orden del culto como cualquier otro elemento.
   const [showVideoOrden, setShowVideoOrden] = useState(false);
   const [showCuenta, setShowCuenta] = useState(false);
@@ -550,8 +526,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     { clave: "texto", Icon: Type, color: "#B15EA0", titulo: "Texto rápido", detalle: "Un aviso o el título de la prédica, en segundos", accion: nuevaDiapositivaTexto },
     !isCompact && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(anclaParaAgregar()?.id || null) },
     { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
-    { clave: "video", Icon: Play, color: "#C23B32", titulo: "Video de YouTube", detalle: "Queda en el orden del culto. Se reproduce con sonido y lo controlas desde aquí", accion: () => setShowVideoOrden(true) },
-    { clave: "video-ya", Icon: Radio, color: "#C23B32", titulo: "Proyectar un video ahora", detalle: "Sale en pantalla de una vez, sin quedar en el orden", accion: () => setShowAdHocVideo(true) },
+    { clave: "video", Icon: Play, color: "#C23B32", titulo: "Video de YouTube", detalle: "Queda en el orden del culto. Al tocarlo se reproduce con sonido y lo controlas desde aquí", accion: () => setShowVideoOrden(true) },
     onStartAdHocCuenta && { clave: "cuenta", Icon: Timer, color: "#5661B3", titulo: "Cuenta regresiva", detalle: "Un reloj antes del culto o de un receso (20 estilos)", accion: () => setShowCuenta(true) },
   ].filter(Boolean);
   // Debajo de la vista previa cuando lo que está al aire es una cuenta regresiva.
@@ -990,7 +965,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                 el ancho fijo de esta columna y obligar a hacer scroll horizontal para verla completa. */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
               <button onClick={() => setShowAdHocSong(true)} style={{ ...ctrlBtn, justifyContent: "center" }}><Music size={13} /> Canción</button>
-              <button onClick={() => setShowAdHocVideo(true)} style={{ ...ctrlBtn, justifyContent: "center" }}><ImgIcon size={13} /> Video</button>
+              <button onClick={() => setShowVideoOrden(true)} style={{ ...ctrlBtn, justifyContent: "center" }}><Play size={13} /> Video</button>
               {onStartAdHocCuenta && <button onClick={() => setShowCuenta(true)} style={{ ...ctrlBtn, justifyContent: "center", gridColumn: "1 / -1" }}><Timer size={13} /> Cuenta regresiva</button>}
               {/* A diferencia de Canción/Video (que se proyectan una vez y no quedan en ningún lado),
                   "Diapositiva" usa el mismo "Agregar diapositiva" de la pestaña Transmisión — queda fija
@@ -1160,7 +1135,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           grupoItem("De último momento", <>
               {onDisenarNueva && botonCinta({ icon: PenTool, label: "Diseñar", title: "Diseñar una diapositiva desde cero (con plantillas)", onClick: () => onDisenarNueva(anclaParaAgregar()?.id || null) })}
               {botonCinta({ icon: Type, label: "Diapositiva", onClick: () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); } })}
-              {botonCinta({ icon: ImgIcon, label: "Video", onClick: () => setShowAdHocVideo(true) })}
+              {botonCinta({ icon: Play, label: "Video", title: "Agregar un video de YouTube al orden del culto", onClick: () => setShowVideoOrden(true) })}
               {onStartAdHocCuenta && botonCinta({ icon: Timer, label: "Reloj", title: "Cuenta regresiva", onClick: () => setShowCuenta(true) })}
             </>, true),
         ] : [
@@ -1557,7 +1532,6 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             showToast(`"${name}" quedó en el orden del culto. Tócalo para proyectarlo.`, "info");
           }} />
       )}
-      {showAdHocVideo && <AdHocVideoModal iglesiaId={myIglesiaId} onClose={() => setShowAdHocVideo(false)} onPlay={(url) => { onStartAdHocVideo(url); setShowAdHocVideo(false); }} />}
       {showAddSlide && (
         <SlideModal
           iglesiaId={myIglesiaId}
