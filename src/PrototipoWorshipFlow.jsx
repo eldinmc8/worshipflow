@@ -1,6 +1,7 @@
 import { lazy, useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { esGrupoDiapositivas, slidesDeGrupo, itemConDiapositivas, tituloBase, diapositivasDeItem, nuevaDiapositiva, moverDiapositiva, quitarDiapositiva as quitarDiapositivaDeGrupo, reordenarEnGrupo } from "./lib/diapositivas.js";
 import { usePreferencias } from "./lib/preferencias.js";
+import { delegarPantallaCompleta, esperarListaYDelegar } from "./lib/delegarPantallaCompleta.js";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { showToast, notifyError, esFalloDeConexion } from "./lib/toast.js";
 import { ordenarPor } from "./lib/orden.js";
@@ -929,6 +930,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // permiso async de por medio — así el navegador sigue viendo la ventana como abierta por gesto del
   // usuario y le permite pedir pantalla completa sola, sin que el operador tenga que darle un clic extra.
   const screenDetailsRef = useRef(null);
+  const proyeccionRef = useRef(null); // la ventana de proyección abierta desde esta consola
   useEffect(() => {
     if (!("getScreenDetails" in window)) return;
     window.getScreenDetails().then((sd) => { screenDetailsRef.current = sd; }).catch(() => {});
@@ -956,11 +958,36 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     // en vivo — ver iglesia_id_por_slug en la migración 20260930000300 y PublicScreen.jsx.
     const url = `${window.location.origin}${window.location.pathname}?screen=publico${myIglesia.slug ? `&igl=${encodeURIComponent(myIglesia.slug)}` : ""}${myIglesiaId ? `&iid=${myIglesiaId}` : ""}${codigoPantalla ? `&k=${encodeURIComponent(codigoPantalla)}` : ""}`;
     const m = medidasVentana(pantalla);
+    const origen = window.location.origin;
+    // Respaldo cuando no entró sola (2026-11-08): si la proyección ya está abierta con lo mismo, tocar
+    // "Abrir proyección" en la CONSOLA la lleva al otro monitor y la pone en pantalla completa sin
+    // recargarla — ya nadie tiene que ir a hacer clic en la pantalla del proyector.
+    const abierta = proyeccionRef.current;
+    let mismaUrl = false;
+    try { mismaUrl = !!abierta && !abierta.closed && abierta.location.href === url; } catch { /* otra página */ }
+    if (mismaUrl) {
+      try { abierta.moveTo(m.x, m.y); abierta.resizeTo(m.ancho, m.alto); } catch { /* el navegador no lo deja */ }
+      delegarPantallaCompleta(abierta, origen);
+      abierta.focus?.();
+      return true;
+    }
     const popup = window.open(url, PROYECCION_WINDOW_NAME, `${PROYECCION_WINDOW_FEATURES},${m.features}`);
     if (!popup) {
       showToast("El navegador bloqueó la ventana de proyección. Permite las ventanas emergentes para esta página (ícono en la barra de direcciones) y vuelve a intentar.");
       return false;
     }
+    proyeccionRef.current = popup;
+    // Pantalla completa SIN tocar el proyector: la consola le pasa a la proyección el permiso del clic
+    // apenas esta avisa que está lista (lib/delegarPantallaCompleta.js + el script de index.html). Si
+    // igual no entró (navegador viejo, computadora muy lenta), se avisa aquí en la consola qué hacer.
+    esperarListaYDelegar(popup, { origen }).then(() => {
+      setTimeout(() => {
+        try {
+          if (popup.closed || popup.document.fullscreenElement || popup.document.webkitFullscreenElement) return;
+          showToast("La proyección se abrió en la otra pantalla, pero sin pantalla completa. Toca «Abrir proyección» aquí en la consola y entra sola.", "info");
+        } catch { /* ventana cerrada */ }
+      }, 1500);
+    });
     // Si la ventana ya estaba abierta (se reutiliza por su nombre), window.open no la mueve: se lleva al
     // segundo monitor a mano.
     try { popup.moveTo(m.x, m.y); popup.resizeTo(m.ancho, m.alto); } catch { /* el navegador no lo deja: sigue igual */ }
