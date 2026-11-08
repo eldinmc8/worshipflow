@@ -102,7 +102,23 @@ export function broadcastLiveSession(iglesiaId, fila) {
 export function subscribeLiveBroadcast(iglesiaId, onChange) {
   const channel = getLiveBroadcastChannel(iglesiaId);
   if (!channel) return () => {};
-  const listener = (e) => { if (e.data && !e.data.__pedirEstado) onChange(e.data); };
+  const listener = (e) => { if (e.data && !e.data.__pedirEstado && !e.data.__cerrarProyeccion) onChange(e.data); };
+  channel.addEventListener("message", listener);
+  return () => channel.removeEventListener("message", listener);
+}
+
+// ---- Cerrar la proyección al finalizar (pedido de Eldin, 2026-11-08) ----
+// Al tocar "Finalizar evento" (o al cerrarse solo por inactividad), la ventana de proyección del
+// segundo monitor desaparece sola. La consola la cierra si tiene su referencia, y además avisa por el
+// canal local: así se cierra aunque la consola se haya recargado durante el culto. Solo se cierra una
+// ventana que abrió la consola (window.opener): un TV u otro equipo conectado por enlace no se toca.
+export function pedirCerrarProyeccion(iglesiaId) {
+  getLiveBroadcastChannel(iglesiaId)?.postMessage({ __cerrarProyeccion: true });
+}
+export function alPedirCerrarProyeccion(iglesiaId, fn) {
+  const channel = getLiveBroadcastChannel(iglesiaId);
+  if (!channel) return () => {};
+  const listener = (e) => { if (e.data?.__cerrarProyeccion) fn(); };
   channel.addEventListener("message", listener);
   return () => channel.removeEventListener("message", listener);
 }

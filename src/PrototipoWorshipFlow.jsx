@@ -21,7 +21,7 @@ import { escucharEstadoVideo } from "./lib/liveSession.js";
 import { elegirOtraPantalla, medidasVentana, motivoSinSegundaPantalla } from "./lib/segundaPantalla.js";
 import { controlInicial, aplicarAccion } from "./lib/videoControl.js";
 import { esVideoSolo } from "./lib/videoEnlace.js";
-import { broadcastLiveSession, enviarAPantallas, clearLiveSession, obtenerCodigoPantalla, updateLiveSession, responderPedidosDeEstado, getLiveSession, subscribeLiveSession } from "./lib/liveSession.js";
+import { broadcastLiveSession, enviarAPantallas, clearLiveSession, obtenerCodigoPantalla, updateLiveSession, responderPedidosDeEstado, getLiveSession, subscribeLiveSession, pedirCerrarProyeccion } from "./lib/liveSession.js";
 import { aplicarCambioLetra, rearmarSeccion, letraEfectiva } from "./lib/letraEnVivo.js";
 import { textoALetra } from "./lib/textoCancion.js";
 import { sincronizarRecordatorios } from "./lib/recordatorios.js";
@@ -1101,6 +1101,10 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     filaAlAireRef.current = null;
     const filaFin = { evento_id: null, liderado_por: null, slide_actual: null, blanked: false, estilo_en_vivo: liveStyle, ad_hoc_label: null, libre: false };
     if (myIglesiaId) { broadcastLiveSession(myIglesiaId, filaFin); enviarAPantallas(myIglesiaId, codigoPantalla, filaFin); }
+    // La ventana de proyección del segundo monitor desaparece sola (pedido de Eldin, 2026-11-08).
+    if (myIglesiaId) pedirCerrarProyeccion(myIglesiaId);
+    try { if (proyeccionRef.current && !proyeccionRef.current.closed) proyeccionRef.current.close(); } catch { /* ya cerrada */ }
+    proyeccionRef.current = null;
     // Al cerrar la sesión, la base cambia el código de las pantallas: el enlace de este culto vence.
     clearLiveSession(myIglesiaId)
       .then(() => obtenerCodigoPantalla().then((c) => { if (c) setCodigoPantalla(c); }))
