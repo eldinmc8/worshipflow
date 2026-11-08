@@ -46,7 +46,7 @@ function AvisoSonido() {
 }
 
 // Se escucha en toda la ventana: el primer toque/tecla cuenta como permiso del navegador para el sonido.
-function usarPrimerGesto(activo, alTocar) {
+function usePrimerGesto(activo, alTocar) {
   const ref = useRef(alTocar);
   ref.current = alTocar;
   useEffect(() => {
@@ -59,7 +59,7 @@ function usarPrimerGesto(activo, alTocar) {
 }
 
 // Reporta a lo sumo una vez por segundo (y al cambiar algo importante).
-function usarReporte(onEstado) {
+function useReporte(onEstado) {
   const ultimo = useRef({ t: 0, clave: "", pos: 0 });
   return (estado) => {
     if (!onEstado) return;
@@ -76,7 +76,7 @@ function usarReporte(onEstado) {
 function ReproductorArchivo({ src, ajuste, conSonido, control, onEstado }) {
   const ref = useRef(null);
   const [bloqueado, setBloqueado] = useState(false);
-  const reportar = usarReporte(onEstado);
+  const reportar = useReporte(onEstado);
   const quiereSonido = conSonido && (control ? control.sonido !== false : true);
   const detenido = control?.estado === "stop";
 
@@ -111,7 +111,7 @@ function ReproductorArchivo({ src, ajuste, conSonido, control, onEstado }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conSonido, control?.n, control?.estado, quiereSonido]);
 
-  usarPrimerGesto(bloqueado, () => {
+  usePrimerGesto(bloqueado, () => {
     const v = ref.current;
     setBloqueado(false);
     if (v && quiereSonido) { v.muted = false; if (!control || control.estado === "play") v.play?.().catch(() => {}); }
@@ -142,7 +142,7 @@ function ReproductorIncrustado({ info, conSonido, control, onEstado }) {
   const estado = useRef({ pos: 0, duration: null, reproduciendo: false, muted: true });
   const intentoSonido = useRef(0);
   const [bloqueado, setBloqueado] = useState(false);
-  const reportar = usarReporte(onEstado);
+  const reportar = useReporte(onEstado);
   const esYT = info.tipo === "youtube";
   const quiereSonido = conSonido && (control ? control.sonido !== false : true);
   const detenido = control?.estado === "stop";
@@ -230,7 +230,7 @@ function ReproductorIncrustado({ info, conSonido, control, onEstado }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { aplicar(); }, [control?.n, control?.estado, quiereSonido]);
 
-  usarPrimerGesto(bloqueado, () => {
+  usePrimerGesto(bloqueado, () => {
     setBloqueado(false);
     intentoSonido.current = Date.now();
     if (quiereSonido) { mandar("unMute"); mandar("setVolume", [100]); }
