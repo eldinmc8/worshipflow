@@ -16,6 +16,9 @@ import { animacionEfectiva, estiloDeParte } from "./lib/animacionCancion.js";
 import { esCuentaRegresiva, slideCuentaRegresiva, conHoraFinal, arrancarSiHaceFalta, slideCuentaAlMomento, normalizarCuenta, itemCuentaRegresiva } from "./lib/cuentaRegresiva.js";
 import { confirmDialog } from "./lib/confirm.js";
 import { updateMusicoLive, clearMusicoLive, getMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
+import { escucharEstadoVideo } from "./lib/liveSession.js";
+import { controlInicial, aplicarAccion } from "./lib/videoControl.js";
+import { esVideoSolo } from "./lib/videoEnlace.js";
 import { broadcastLiveSession, enviarAPantallas, clearLiveSession, obtenerCodigoPantalla, updateLiveSession, responderPedidosDeEstado, getLiveSession, subscribeLiveSession } from "./lib/liveSession.js";
 import { aplicarCambioLetra, rearmarSeccion, letraEfectiva } from "./lib/letraEnVivo.js";
 import { textoALetra } from "./lib/textoCancion.js";
@@ -1513,9 +1516,27 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [llevoLaTransmision, current?.slideId, current?.cuenta?.hasta, fijada, activeIdx, adHocIdx]);
 
+  // ---- Control del video desde la consola (2026-11-08): play, pausa, detener, saltar y sonido sin tocar
+  // la pantalla de proyección. Viaja en slide_actual.video (ver lib/videoControl.js); la pantalla reporta
+  // en qué segundo va y si el navegador le bloqueó el sonido (escucharEstadoVideo). ----
+  const alAireVideo = (() => { const a = fijada || current || null; return a && esVideoSolo(a) ? a : null; })();
+  const [controlVideo, setControlVideo] = useState(null);
+  const [estadoVideoPantalla, setEstadoVideoPantalla] = useState(null);
+  const idVideoAlAire = alAireVideo ? `${alAireVideo.slideId}|${alAireVideo.videoUrl}` : null;
+  // Cada video que sale al aire arranca solo, desde el inicio y con sonido.
+  useEffect(() => { setControlVideo(idVideoAlAire ? controlInicial() : null); setEstadoVideoPantalla(null); }, [idVideoAlAire]);
+  const controlarVideo = (accion) => setControlVideo((c) => aplicarAccion(c, accion, { duracion: estadoVideoPantalla?.duracion || null }));
+  useEffect(() => {
+    if (!myIglesiaId || !idVideoAlAire || practica) return undefined;
+    const slideId = alAireVideo?.slideId;
+    return escucharEstadoVideo(myIglesiaId, codigoPantalla, (e) => { if (!e.slideId || e.slideId === slideId) setEstadoVideoPantalla({ ...e, recibido: Date.now() }); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myIglesiaId, codigoPantalla, idVideoAlAire, practica]);
+
   useEffect(() => {
     if (practica || (!liveEventId && !liveLibre) || userId !== liveOwnerId) return;
-    const alAire = (fijada || current) || null;
+    const alAireBase = (fijada || current) || null;
+    const alAire = alAireBase && controlVideo && esVideoSolo(alAireBase) ? { ...alAireBase, video: controlVideo } : alAireBase;
     const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: alAire ? (escenario ? { ...alAire, escenario } : alAire) : null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null, libre: liveLibre };
     // Se manda por las dos vías a la vez: BroadcastChannel llega al instante si la pantalla de
     // proyección está en la MISMA computadora (caso típico: TV por HDMI como segunda pantalla) — así el
@@ -1532,7 +1553,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       .then(() => { sincroPendienteRef.current = false; })
       .catch((e) => { if (esFalloDeConexion(e)) sincroPendienteRef.current = true; else notifyError("No se pudo actualizar la proyección", e); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId, practica, fijada, escenarioClave, codigoPantalla]);
+  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId, practica, fijada, escenarioClave, codigoPantalla, controlVideo]);
   // Código vigente de las pantallas: al abrir la app y cada vez que empieza una transmisión (al terminar
   // lo pide endEvent, DESPUÉS de cerrar la sesión, para no quedarse con el código que acaba de vencer).
   const codigoPedidoRef = useRef(false);
@@ -2416,6 +2437,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             enPractica={enPractica} onAyuda={() => setTourActivo(CLAVES_TUTORIAL.envivo)}
             fijada={fijada} onFijar={() => setFijada(current ? { ...current } : null)} onSoltar={() => setFijada(null)} liveOwner={usuariosReales.find((u) => u.id === liveOwnerId)?.nombre || "otro dispositivo"} liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={isCompact}
             adHoc={adHocVista} onExitAdHoc={exitAdHoc} onStartAdHocBible={startAdHocBible} onStartAdHocSong={startAdHocSong} onStartAdHocVideo={startAdHocVideo} onStartAdHocCuenta={startAdHocCuenta} onReiniciarCuenta={reiniciarCuenta} eventoInfo={liveEvent}
+            controlVideo={controlVideo} estadoVideo={estadoVideoPantalla} onControlVideo={controlarVideo}
             onOpenPublicScreen={enPractica ? () => avisoPractica("abre el proyector") : startPresentation}
             mensajeEscenario={mensajeEscenario} onMensajeEscenario={setMensajeEscenario} iglesiaSlug={myIglesia?.slug || null}
             temporizador={temporizador} onTemporizador={setTemporizador} autoTemporizador={autoTemporizador} onAutoTemporizador={setAutoTemporizador}

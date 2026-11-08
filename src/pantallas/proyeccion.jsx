@@ -33,7 +33,8 @@ export function colorLegibleAnimada(color) {
 // lo va reduciendo hasta que quepa entero — así, sin importar cuántas líneas tenga la diapositiva ni qué
 // tan arriba se suba el slider, el texto nunca se corta ni se sale de la pantalla.
 
-export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeight, thumbnail }) {
+// onEstadoVideo: solo la pantalla de proyección real — reporta a la consola cómo va el video (ver VideoProyectado).
+export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeight, thumbnail, onEstadoVideo = null }) {
   const font = LIVE_FONTS[liveStyle?.font || "elegante"];
   const scale = liveStyle?.fontScale ?? 1;
   // Tamaño real (medido, en px) al que AutoFitText terminó dejando el texto del versículo después de
@@ -207,7 +208,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeigh
           apaga. Con texto encima es un fondo: sin sonido, en bucle y oscurecido, como siempre. */}
       {videoSrc && !(videoSolo && blanked) && (
         <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-          <VideoProyectado url={videoSrc} conSonido={videoSolo} miniatura={!!thumbnail} />
+          <VideoProyectado url={videoSrc} conSonido={videoSolo} miniatura={!!thumbnail} control={videoSolo ? slide?.video || null : null} onEstado={videoSolo && !thumbnail ? onEstadoVideo : null} />
           {!videoSolo && <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${oscurecerFondo})` }} />}
         </div>
       )}
