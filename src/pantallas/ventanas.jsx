@@ -368,22 +368,32 @@ export function AvisoEnlaceVideo({ url }) {
 // .mp4 o un archivo subido, más un nombre para reconocerlo en el orden del culto. Se proyecta como video
 // solo: a pantalla completa y con sonido. Queda como una diapositiva de video (type "slide", bgType
 // "video"), así que se edita, mueve y proyecta como cualquier otra.
-export function VideoModal({ onClose, onAdd, iglesiaId, inicial = null }) {
+export function VideoModal({ onClose, onAdd, iglesiaId, inicial = null, destino = null }) {
   const [url, setUrl] = useState(inicial?.videoUrl || "");
-  const [nombre, setNombre] = useState(inicial?.name || "");
+  const [nombre, setNombre] = useState(inicial?.name && inicial.name !== "Video" ? inicial.name : "");
+  // Un video ya subido (no es un enlace de YouTube/Vimeo) se abre en "subir", para verlo y cambiarlo.
+  const [subir, setSubir] = useState(!!url && !/youtu|vimeo/i.test(url));
   const aviso = url ? avisoDeEnlace(url) : null;
   const puede = !!url && aviso?.ok !== false;
-  const esEnlaceDeSitio = /^https?:\/\/(www\.|m\.)?(youtu|vimeo)/i.test(url);
   return (
     <ModalShell title={inicial ? "Editar video" : "Agregar video"} icon={Play} color="#C23B32" onClose={onClose}>
-      <label style={etiquetaCampo}>Enlace del video</label>
-      <input autoFocus placeholder="Pega un enlace de YouTube, Vimeo o un .mp4" value={esEnlaceDeSitio || /^https?:/i.test(url) ? url : ""} onChange={(e) => setUrl(e.target.value.trim())} style={{ ...inputStyle, marginBottom: 6 }} />
-      <AvisoEnlaceVideo url={url} />
-      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", margin: "6px 0" }}>O SUBE EL VIDEO</div>
-      <MediaPicker iglesiaId={iglesiaId} tipo="video" value={url && !esEnlaceDeSitio ? url : ""} onChange={(u) => setUrl(u)} color="#C23B32" />
+      {destino && <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10 }}>{destino}</div>}
+      <label style={etiquetaCampo}>Enlace de YouTube</label>
+      {!subir ? (
+        <>
+          <input autoFocus inputMode="url" placeholder="Pega aquí el enlace de YouTube" value={url} onChange={(e) => setUrl(e.target.value.trim())} style={{ ...inputStyle, marginBottom: 6 }} />
+          <AvisoEnlaceVideo url={url} />
+          <button type="button" onClick={() => { setSubir(true); setUrl(""); }} style={{ background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>¿El video no está en YouTube? Súbelo desde tu equipo</button>
+        </>
+      ) : (
+        <>
+          <MediaPicker iglesiaId={iglesiaId} tipo="video" value={url} onChange={(u) => setUrl(u)} color="#C23B32" />
+          <button type="button" onClick={() => { setSubir(false); setUrl(""); }} style={{ background: "none", border: "none", padding: 0, marginTop: 8, fontSize: 12, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>Mejor pegar un enlace de YouTube</button>
+        </>
+      )}
       <label style={{ ...etiquetaCampo, marginTop: 14 }}>Nombre · así sale en el orden del culto</label>
       <input placeholder='Ej. "Testimonio de Juan" o "Video de misiones"' value={nombre} onChange={(e) => setNombre(e.target.value)} style={inputStyle} />
-      <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Se proyecta a pantalla completa y con sonido. Si quieres un video de fondo con texto encima, usa «Texto rápido» y elige Fondo → Video.</div>
+      <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Al tocarlo en la consola sale a pantalla completa, empieza solo y con sonido. Lo pausas, detienes o adelantas desde los botones debajo de la vista previa.</div>
       <button onClick={() => puede && onAdd({ videoUrl: url, name: nombre.trim() || "Video" })} disabled={!puede} style={{ ...primaryBtn, marginTop: 14, opacity: puede ? 1 : 0.5 }}>{inicial ? "Guardar cambios" : "Agregar al culto"}</button>
     </ModalShell>
   );

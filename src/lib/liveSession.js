@@ -221,3 +221,41 @@ export function escucharPantallas(iglesiaId, codigo, onFila) {
     .subscribe();
   return () => { supabase.removeChannel(canal); };
 }
+
+// ---- Estado del video, de la pantalla de proyección hacia la consola (2026-11-08) ----
+// La pantalla cuenta en qué segundo va, cuánto dura y si el navegador le bloqueó el sonido, para que la
+// consola muestre el avance y avise "toca una vez la pantalla". Mismos dos caminos que lo demás: canal
+// local (misma computadora, sin internet) y Supabase Realtime con el código (Smart TV, otro equipo).
+// Tema aparte del de las filas, para no mezclar mensajes.
+const nombreCanalEstadoVideo = (iglesiaId) => `worshipflow-video-estado-${iglesiaId}`;
+const temaEstadoVideo = (iglesiaId, codigo) => `pantallas_estado_${iglesiaId}_${codigo}`;
+const canalesEstadoVideo = new Map();
+
+export function enviarEstadoVideo(iglesiaId, codigo, estado) {
+  if (!iglesiaId || !estado) return;
+  try { if (typeof BroadcastChannel !== "undefined") { const bc = new BroadcastChannel(nombreCanalEstadoVideo(iglesiaId)); bc.postMessage(estado); bc.close(); } } catch { /* sin canal local */ }
+  if (!codigo) return;
+  const tema = temaEstadoVideo(iglesiaId, codigo);
+  let c = canalesEstadoVideo.get(tema);
+  if (!c) {
+    c = { canal: supabase.channel(tema, { config: { broadcast: { self: false } } }), listo: false };
+    canalesEstadoVideo.set(tema, c);
+    c.canal.subscribe((s) => { if (s === "SUBSCRIBED") c.listo = true; });
+  }
+  if (c.listo) Promise.resolve(c.canal.send({ type: "broadcast", event: "estado", payload: estado })).catch(() => {});
+}
+
+export function escucharEstadoVideo(iglesiaId, codigo, onEstado) {
+  if (!iglesiaId) return () => {};
+  let bc = null;
+  try {
+    if (typeof BroadcastChannel !== "undefined") {
+      bc = new BroadcastChannel(nombreCanalEstadoVideo(iglesiaId));
+      bc.onmessage = (e) => { if (e.data) onEstado(e.data); };
+    }
+  } catch { bc = null; }
+  const canal = codigo
+    ? supabase.channel(temaEstadoVideo(iglesiaId, codigo)).on("broadcast", { event: "estado" }, ({ payload }) => { if (payload) onEstado(payload); }).subscribe()
+    : null;
+  return () => { bc?.close(); if (canal) supabase.removeChannel(canal); };
+}

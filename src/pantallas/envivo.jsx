@@ -1,6 +1,7 @@
 // Consola En vivo de Multimedia: orden del culto, diapositivas, Biblia en vivo, estilo, escenario. Separada de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { useState, useRef, useEffect, useMemo } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
+import { Pause, Square, Volume2, VolumeX } from "lucide-react";
 import { Music, Search, Image as ImgIcon, ChevronLeft, ChevronRight, MonitorOff, Radio, BookOpen, Type, PenTool, FileUp, Plus, Pencil, MoreHorizontal, Trash2, GraduationCap, Pin, MessageSquare, AlertTriangle, PinOff, ListMusic, Palette, Play, SkipBack, SkipForward, X, SlidersHorizontal, Sparkles, ChevronUp, Tv, EyeOff, Eye, ArrowRightLeft, CopyPlus, Ungroup, Timer, RotateCcw } from "lucide-react";
 import { acordeEn } from "../lib/preferencias.js";
 import { loadCache, saveCache } from "../lib/offlineCache.js";
@@ -27,8 +28,9 @@ import CuentaRegresivaModal from "../components/CuentaRegresivaModal.jsx";
 import { cuentaPorMinutos } from "../lib/cuentaRegresiva.js";
 import { TYPE_META, ModalShell, addBtnStyle, inputStyle, primaryBtn, BIBLE_VERSIONS, LIVE_FONTS, LIVE_THEMES, iconGhost, LIVE_SOMBRAS, LIVE_POSICIONES, LIVE_ALINEACIONES, ElegirParteDelCulto, Field } from "./compartido.jsx";
 import { BibleLivePanel } from "./biblia.jsx";
-import { MediaPicker, SlideModal, AvisoEnlaceVideo } from "./ventanas.jsx";
+import { MediaPicker, SlideModal, AvisoEnlaceVideo, VideoModal } from "./ventanas.jsx";
 import { avisoDeEnlace } from "../lib/videoEnlace.js";
+import { posicionActual, textoTiempo } from "../lib/videoControl.js";
 import { ProjectionPanel } from "./proyeccion.jsx";
 
 // ---------- Color por sección para el grid de diapositivas del panel Multimedia (estilo "grid de shows" tipo FreeShow) ----------
@@ -114,23 +116,73 @@ function AdHocSongModal({ library, onClose, onPick, Icono = null, color = "#5661
 // almacenamiento de la iglesia (igual que los fondos) y se manda solo el enlace.
 function AdHocVideoModal({ onClose, onPlay, iglesiaId }) {
   const [url, setUrl] = useState("");
+  const [subir, setSubir] = useState(false);
   const aviso = url ? avisoDeEnlace(url) : null;
   const puede = !!url && aviso?.ok !== false;
   return (
-    <ModalShell title="Proyectar un video" icon={ImgIcon} color="#C23B32" onClose={onClose}>
-      <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 10 }}>Se proyecta a pantalla completa y con sonido de inmediato, sin agregarse al setlist.</div>
-      <input placeholder="Pega un enlace de YouTube, Vimeo o un .mp4" value={url} onChange={(e) => setUrl(e.target.value.trim())} style={{ ...inputStyle, marginBottom: 6 }} />
-      <AvisoEnlaceVideo url={url} />
-      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", margin: "6px 0" }}>O SUBE EL VIDEO</div>
-      <MediaPicker iglesiaId={iglesiaId} tipo="video" value={url && !/^https?:\/\/(www\.)?(youtu|vimeo)/i.test(url) ? url : ""} onChange={(u) => setUrl(u)} color="#C23B32" />
+    <ModalShell title="Proyectar un video ahora" icon={Play} color="#C23B32" onClose={onClose}>
+      <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 10 }}>Sale a pantalla completa de una vez, con sonido, sin quedar en el orden. Para planificarlo usa «+ Agregar → Video de YouTube».</div>
+      {!subir ? (
+        <>
+          <input autoFocus inputMode="url" placeholder="Pega aquí el enlace de YouTube" value={url} onChange={(e) => setUrl(e.target.value.trim())} style={{ ...inputStyle, marginBottom: 6 }} />
+          <AvisoEnlaceVideo url={url} />
+          <button type="button" onClick={() => { setSubir(true); setUrl(""); }} style={{ background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>¿No está en YouTube? Súbelo desde tu equipo</button>
+        </>
+      ) : (
+        <MediaPicker iglesiaId={iglesiaId} tipo="video" value={url} onChange={(u) => setUrl(u)} color="#C23B32" />
+      )}
       <button onClick={() => puede && onPlay(url)} disabled={!puede} style={{ ...primaryBtn, marginTop: 14, opacity: puede ? 1 : 0.5 }}>Proyectar ahora</button>
     </ModalShell>
   );
 }
 
+// Controles del video al aire (2026-11-08): se maneja desde la consola, sin tocar la pantalla de
+// proyección (Smart TV, otra computadora). El avance viene de lo que reporta la pantalla; si todavía no
+// reporta nada, se calcula con las órdenes que se mandaron.
+export function ControlesVideo({ control, estado, onAccion }) {
+  const [, tic] = useState(0);
+  useEffect(() => { const t = setInterval(() => tic((x) => x + 1), 500); return () => clearInterval(t); }, []);
+  if (!control) return null;
+  const ahora = Date.now();
+  const reciente = estado && ahora - (estado.recibido || 0) < 4000;
+  const pos = reciente ? (estado.pos || 0) + (estado.reproduciendo ? (ahora - estado.recibido) / 1000 : 0) : posicionActual(control, ahora);
+  const duracion = estado?.duracion || null;
+  const enPlay = control.estado === "play";
+  const boton = { flex: 1, minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center", height: 36, borderRadius: 10, border: "1px solid var(--wf-border)", background: "var(--wf-card)", color: "var(--wf-text)", cursor: "pointer", padding: 0 };
+  const irA = (e) => {
+    if (!duracion) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    onAccion({ ir: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duracion });
+  };
+  return (
+    <div aria-label="Controles del video" style={{ marginTop: 6, background: "var(--wf-hover)", borderRadius: 12, padding: 8 }}>
+      <div onClick={irA} title={duracion ? "Toca para ir a ese punto" : undefined} style={{ height: 6, borderRadius: 3, background: "var(--wf-border)", overflow: "hidden", cursor: duracion ? "pointer" : "default" }}>
+        <div style={{ height: "100%", width: duracion ? `${Math.min(100, (pos / duracion) * 100)}%` : "0%", background: "#C23B32" }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--wf-muted)", margin: "4px 2px 6px", fontVariantNumeric: "tabular-nums" }}>
+        <span>{control.estado === "stop" ? "Detenido" : textoTiempo(pos)}</span>
+        <span>{duracion ? textoTiempo(duracion) : reciente ? "" : "Esperando a la pantalla…"}</span>
+      </div>
+      <div style={{ display: "flex", gap: 4 }}>
+        <button onClick={() => onAccion("reiniciar")} title="Desde el inicio" aria-label="Desde el inicio" style={boton}><SkipBack size={15} /></button>
+        <button onClick={() => onAccion({ saltar: -10 })} title="Atrás 10 segundos" aria-label="Atrás 10 segundos" style={{ ...boton, fontSize: 11, fontWeight: 700 }}>-10</button>
+        <button onClick={() => onAccion("alternar")} title={enPlay ? "Pausa" : "Reproducir"} aria-label={enPlay ? "Pausa" : "Reproducir"} style={{ ...boton, flex: 1.4, background: "#C23B32", border: "none", color: "#fff" }}>{enPlay ? <Pause size={17} /> : <Play size={17} />}</button>
+        <button onClick={() => onAccion({ saltar: 10 })} title="Adelante 10 segundos" aria-label="Adelante 10 segundos" style={{ ...boton, fontSize: 11, fontWeight: 700 }}>+10</button>
+        <button onClick={() => onAccion("stop")} title="Detener" aria-label="Detener" style={boton}><Square size={14} /></button>
+        <button onClick={() => onAccion("sonido")} title={control.sonido ? "Silenciar" : "Activar sonido"} aria-label={control.sonido ? "Silenciar" : "Activar sonido"} style={boton}>{control.sonido ? <Volume2 size={15} /> : <VolumeX size={15} />}</button>
+      </div>
+      {reciente && estado.sonidoBloqueado && control.sonido && (
+        <div style={{ display: "flex", gap: 6, alignItems: "flex-start", marginTop: 8, fontSize: 11.5, color: "#C23B32", fontWeight: 600, lineHeight: 1.35 }}>
+          <VolumeX size={14} style={{ flexShrink: 0, marginTop: 1 }} /> La pantalla de proyección no deja el sonido hasta que alguien la toque una vez (o presione OK en el control de la TV). Después ya suena sola todo el culto.
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onStartAdHocCuenta = null, onReiniciarCuenta = null, eventoInfo = null, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {}, onEditarLetraCompleta, mensajeEscenario = "", onMensajeEscenario = null, iglesiaSlug = null, temporizador = null, onTemporizador = null, autoTemporizador = null, onAutoTemporizador = null }) {
+export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onStartAdHocCuenta = null, onReiniciarCuenta = null, eventoInfo = null, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {}, onEditarLetraCompleta, mensajeEscenario = "", onMensajeEscenario = null, iglesiaSlug = null, temporizador = null, onTemporizador = null, autoTemporizador = null, onAutoTemporizador = null, controlVideo = null, estadoVideo = null, onControlVideo = null }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -170,6 +222,9 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   const [animMenu, setAnimMenu] = useState(false);
   // "Pantalla en otro equipo": enlace corto + QR para abrir la proyección en un TV/tablet/otra computadora.
   const [showOtroEquipo, setShowOtroEquipo] = useState(false);
+  // Celular/tablet o navegador sin segunda pantalla (2026-11-08): "Proyección" abre "Pantallas y TV"
+  // (conectar una Smart TV con número, o abrir en otro equipo con QR) en vez de un aviso sin salida.
+  const abrirProyeccion = () => (!isCompact && typeof window !== "undefined" && "getScreenDetails" in window ? onOpenPublicScreen() : setShowOtroEquipo(true));
   const [showEscenario, setShowEscenario] = useState(false); // Pantalla de escenario: mensaje + enlace (ver PanelEscenario)
   // Al poner un fondo propio con letras animadas, se avisa una vez que la letra irá sobre ese fondo (oscurecido para que se lea).
   const avisarFondoPropioAnimada = () => {
@@ -205,6 +260,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   useEffect(() => { saveCache(claveHistorial, bibleHistory); }, [bibleHistory, claveHistorial]);
   const [showAdHocSong, setShowAdHocSong] = useState(false);
   const [showAdHocVideo, setShowAdHocVideo] = useState(false);
+  // "+ Agregar → Video" (2026-11-08): entra al orden del culto como cualquier otro elemento.
+  const [showVideoOrden, setShowVideoOrden] = useState(false);
   const [showCuenta, setShowCuenta] = useState(false);
   const [showImportar, setShowImportar] = useState(false);
   const [showAddSlide, setShowAddSlide] = useState(false);
@@ -386,7 +443,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   // Si en "+ Agregar" se eligió una parte del culto, entra al final de ese bloque.
   const [destinoConsola, setDestinoConsola] = useState(null);
   const anclaParaAgregar = () => (destinoConsola && anclaDeBloque(serviceOrder, destinoConsola)) || itemCentro || itemAlAire || null; // función: itemCentro se declara más abajo
-  const agregandoConsola = showAgregarConsola || showAdHocSong || showImportar || showAddSlide;
+  const agregandoConsola = showAgregarConsola || showAdHocSong || showImportar || showAddSlide || showVideoOrden;
   useEffect(() => { if (!agregandoConsola && destinoConsola) setDestinoConsola(null); }, [agregandoConsola, destinoConsola]);
   // "Proyectar ya" (pedido de Eldin, 2026-10-21: "si cantamos algo que no está, que la pueda buscar y
   // transmitir"): se agrega después de lo que está al aire y, apenas aparecen sus diapositivas, sale la
@@ -493,10 +550,12 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     { clave: "texto", Icon: Type, color: "#B15EA0", titulo: "Texto rápido", detalle: "Un aviso o el título de la prédica, en segundos", accion: nuevaDiapositivaTexto },
     !isCompact && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(anclaParaAgregar()?.id || null) },
     { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
-    { clave: "video", Icon: ImgIcon, color: "#C23B32", titulo: "Video", detalle: "Se proyecta una vez (no queda en el orden)", accion: () => setShowAdHocVideo(true) },
+    { clave: "video", Icon: Play, color: "#C23B32", titulo: "Video de YouTube", detalle: "Queda en el orden del culto. Se reproduce con sonido y lo controlas desde aquí", accion: () => setShowVideoOrden(true) },
+    { clave: "video-ya", Icon: Radio, color: "#C23B32", titulo: "Proyectar un video ahora", detalle: "Sale en pantalla de una vez, sin quedar en el orden", accion: () => setShowAdHocVideo(true) },
     onStartAdHocCuenta && { clave: "cuenta", Icon: Timer, color: "#5661B3", titulo: "Cuenta regresiva", detalle: "Un reloj antes del culto o de un receso (20 estilos)", accion: () => setShowCuenta(true) },
   ].filter(Boolean);
   // Debajo de la vista previa cuando lo que está al aire es una cuenta regresiva.
+  const controlesVideo = controlVideo && onControlVideo ? <ControlesVideo control={controlVideo} estado={estadoVideo} onAccion={onControlVideo} /> : null;
   const botonReiniciarCuenta = current?.cuenta && onReiniciarCuenta && cuentaPorMinutos(current.cuenta, eventoInfo) ? (
     <button onClick={onReiniciarCuenta} title="Vuelve a empezar la cuenta (por minutos)" style={{ ...ctrlBtn, justifyContent: "center", width: "100%", marginTop: 6 }}><RotateCcw size={13} /> Reiniciar cuenta regresiva</button>
   ) : null;
@@ -629,7 +688,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       {mensajeEscenario && onMensajeEscenario && franja("#E8821E", "#16233A", <MessageSquare size={17} />, <>En el ESCENARIO: «{mensajeEscenario}» · el público no lo ve</>, botonFranja("Quitar", () => onMensajeEscenario("")))}
       {blanked && franja("#C23B32", "#fff", <MonitorOff size={17} />, <>La pantalla está en NEGRO · la iglesia no ve nada</>, botonFranja("Volver a mostrar", () => setBlanked(false)))}
       {mostrarAvisoProyeccion && franja("#F6C344", "#16324F", <AlertTriangle size={17} />, <>La pantalla de proyección no está abierta · lo que pases aquí no se ve en el proyector</>, <>
-        {botonFranja("Abrir proyección", onOpenPublicScreen, { background: "#16324F", color: "#fff" })}
+        {botonFranja("Abrir proyección", abrirProyeccion, { background: "#16324F", color: "#fff" })}
         {botonFranja("Conectar un TV", () => setShowOtroEquipo(true))}
         {botonFranja("Ya está abierta en otro equipo", () => setAvisoProyeccionOculto(true), { background: "transparent", color: "#16324F", textDecoration: "underline", padding: "5px 4px" })}
       </>)}
@@ -686,7 +745,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       <>
       {/* Barra de herramientas: pantalla 2, negro */}
       <div style={{ display: "flex", gap: 8, padding: "8px 16px 10px", flexWrap: "wrap" }}>
-        <button data-tour="envivo-proyeccion" onClick={onOpenPublicScreen} style={{ ...ctrlBtn, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)" }}><Radio size={14} /> Reabrir proyección</button>
+        <button data-tour="envivo-proyeccion" onClick={abrirProyeccion} style={{ ...ctrlBtn, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)" }}><Tv size={14} /> Pantallas y TV</button>
         {onMensajeEscenario && <button onClick={() => setShowEscenario(true)} style={{ ...ctrlBtn, ...(mensajeEscenario || temporizadorActivo(temporizador) ? { background: "#E8821E", color: "#16233A", border: "none" } : {}) }}><MessageSquare size={14} /> Escenario</button>}
         <button data-tour="envivo-negro" onClick={() => setBlanked((b) => !b)} style={{ ...ctrlBtn, background: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)" }}><MonitorOff size={14} /> {blanked ? "Reanudar" : "Pantalla en negro"}</button>
         <div style={{ flex: 1 }} />
@@ -896,6 +955,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               <ProjectionPanel slide={current} blanked={blanked} split={false} liveStyle={liveStyle} thumbnail />
             </div>
             {botonReiniciarCuenta}
+            {controlesVideo}
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1113,7 +1173,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           grupoItem("Pantalla", <>
               {botonCinta({ icon: MonitorOff, label: "Negro", onClick: () => setBlanked((b) => !b), activo: blanked, tour: "envivo-negro" })}
               {onFijar && botonCinta({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", onClick: () => (fijada ? onSoltar() : onFijar()), activo: !!fijada, title: "Congelar la pantalla para moverte sin proyectar (tecla F)" })}
-              {botonCinta({ icon: Radio, label: "Proyección", onClick: onOpenPublicScreen, title: "Reabrir la pantalla de proyección", tour: "envivo-proyeccion" })}
+              {botonCinta({ icon: Radio, label: "Proyección", onClick: abrirProyeccion, title: "Reabrir la pantalla de proyección", tour: "envivo-proyeccion" })}
               {onMensajeEscenario && botonCinta({ icon: MessageSquare, label: "Escenario", onClick: () => setShowEscenario(true), activo: !!mensajeEscenario || temporizadorActivo(temporizador), title: "Pantalla de escenario: mensajes, temporizador del mensaje y enlace del monitor" })}
               {botonCinta({ icon: Tv, label: "Pantallas y TV", onClick: () => setShowOtroEquipo(true), title: "Conectar un Smart TV con número, o abrir en celular/tablet con QR", ancho: 76 })}
             </>),
@@ -1363,6 +1423,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             <ProjectionPanel slide={alAire} blanked={blanked} split={false} liveStyle={liveStyle} thumbnail />
           </div>
           {botonReiniciarCuenta}
+            {controlesVideo}
           {fijada && (
             <>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#7B3FA0", letterSpacing: 0.4, marginTop: 4 }}>DONDE ESTÁS · SE PROYECTA AL SOLTAR</div>
@@ -1484,6 +1545,18 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         </ModalShell>
       )}
       {showCuenta && <CuentaRegresivaModal enConsola evento={eventoInfo} onClose={() => setShowCuenta(false)} onGuardar={(c) => { onStartAdHocCuenta(c); setShowCuenta(false); }} />}
+      {showVideoOrden && (
+        <VideoModal iglesiaId={myIglesiaId} onClose={() => setShowVideoOrden(false)}
+          destino={anclaParaAgregar() ? `Entra después de "${tituloItem(anclaParaAgregar())}".` : "Entra al final del orden del culto."}
+          onAdd={({ videoUrl, name }) => {
+            const id = crypto.randomUUID();
+            onInsertarItems([{ id, type: "slide", title: "", subtitle: "", name, bg: "#000000", bgType: "video", videoUrl, imageUrl: "" }], anclaParaAgregar()?.id || null);
+            setShowVideoOrden(false);
+            setItemVisto(id); setVerTodas(false);
+            if (mmPanel === "biblia") setMmPanel("transmision");
+            showToast(`"${name}" quedó en el orden del culto. Tócalo para proyectarlo.`, "info");
+          }} />
+      )}
       {showAdHocVideo && <AdHocVideoModal iglesiaId={myIglesiaId} onClose={() => setShowAdHocVideo(false)} onPlay={(url) => { onStartAdHocVideo(url); setShowAdHocVideo(false); }} />}
       {showAddSlide && (
         <SlideModal

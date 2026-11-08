@@ -56,7 +56,7 @@ describe("agregar un video al Setlist", () => {
     const { VideoModal } = await import("../pantallas/ventanas.jsx");
     const onAdd = vi.fn();
     render(<VideoModal iglesiaId="ig" onClose={() => {}} onAdd={onAdd} />);
-    const enlace = screen.getByPlaceholderText(/YouTube, Vimeo/);
+    const enlace = screen.getByPlaceholderText(/enlace de YouTube/);
     fireEvent.change(enlace, { target: { value: "https://www.facebook.com/watch?v=1" } });
     expect(screen.getByText(/no se pueden proyectar/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Agregar al culto" }));

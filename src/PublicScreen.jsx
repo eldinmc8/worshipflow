@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { ProjectionPanel } from "./pantallas/proyeccion.jsx";
 import { precargarFuentesAnimacion } from "./components/LetrasAnimadas.jsx";
 import { leerPantallaDeUrl } from "./lib/enlacePantalla.js";
-import { anunciarProyeccion } from "./lib/liveSession.js";
+import { anunciarProyeccion, enviarEstadoVideo } from "./lib/liveSession.js";
 import { useSesionPublica } from "./lib/usarSesionPublica.js";
 import EnlaceVencido from "./components/EnlaceVencido.jsx";
 import { soportaPantallaCompleta, estaEnPantallaCompleta, pedirPantallaCompleta, salirDePantallaCompleta, alCambiarPantallaCompleta } from "./lib/pantallaCompleta.js";
@@ -111,7 +111,10 @@ export default function PublicScreen() {
 
   return (
     <div style={{ height: "100vh", display: "flex", cursor: cursorHidden ? "none" : "default" }}>
-      {vencido ? <EnlaceVencido tipo="proyeccion" /> : <ProjectionPanel slide={live.slide} blanked={live.blanked} split={false} liveStyle={live.liveStyle} />}
+      {vencido ? <EnlaceVencido tipo="proyeccion" /> : (
+        <ProjectionPanel slide={live.slide} blanked={live.blanked} split={false} liveStyle={live.liveStyle}
+          onEstadoVideo={(e) => enviarEstadoVideo(iglesiaId, enlace.codigo || null, { ...e, slideId: live.slide?.slideId || null })} />
+      )}
       {!cursorHidden && (
         <button
           onClick={salirDePantallaPublica}

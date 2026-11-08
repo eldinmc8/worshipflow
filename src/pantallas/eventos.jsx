@@ -1151,7 +1151,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
     isAdminViewer && { clave: "cancion", Icon: Music, color: "#1F8A73", titulo: "Canción", detalle: "De la biblioteca, con su letra lista", accion: () => setPickerCancion(true) },
     canAddBibleReading && { clave: "biblia", Icon: BookOpen, color: "#2F5FA8", titulo: "Versículo", detalle: "Búscalo en la Biblia", accion: onAddBibleClick },
     isAdminViewer && { clave: "texto", Icon: Type, color: "#B15EA0", titulo: "Texto rápido", detalle: "Un aviso o un título en segundos", accion: onAddSlideClick },
-    isAdminViewer && { clave: "video", Icon: Play, color: "#C23B32", titulo: "Video", detalle: "De YouTube, Vimeo o subido. Se proyecta con sonido", accion: () => setVideoModal({}) },
+    isAdminViewer && { clave: "video", Icon: Play, color: "#C23B32", titulo: "Video de YouTube", detalle: "Queda en el orden del culto y se reproduce con sonido", accion: () => setVideoModal({}) },
     isAdminViewer && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(destinoAgregar ? anclaDeBloque(event.serviceOrder, destinoAgregar)?.id : undefined) },
     isAdminViewer && { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
     canAddSermonPoints && { clave: "bosquejo", Icon: Mic2, color: "var(--wf-heading)", titulo: "Punto del bosquejo", detalle: "Lo que el predicador va a ir mostrando", accion: () => setShowSermonForm(true) },
