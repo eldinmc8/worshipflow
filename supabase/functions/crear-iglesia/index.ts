@@ -36,7 +36,7 @@ function json(payload: unknown, status: number) {
 // español de sobra para esto).
 function slugify(texto: string): string {
   const base = texto
-    .normalize("NFD").replace(/[̀-ͯ]/g, "") // quita acentos: é -> e
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quita acentos: é -> e
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
