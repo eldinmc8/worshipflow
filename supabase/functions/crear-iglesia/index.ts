@@ -45,10 +45,17 @@ function slugify(texto: string): string {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ZONAS_VALIDAS = [
-  "Etc/GMT+6", "America/Guatemala", "America/El_Salvador", "America/Tegucigalpa",
-  "America/Managua", "America/Costa_Rica", "America/Mexico_City", "America/Bogota", "America/Lima",
-];
+// Cualquier zona horaria válida del mundo (2026-11-09, antes solo 9 fijas: faltaba Venezuela, etc.).
+// La base vuelve a comprobarla (trigger wf_validar_zona_horaria); si no es válida, la de siempre.
+function zonaValida(zona: unknown): zona is string {
+  if (typeof zona !== "string" || !zona || zona.length > 64) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zona });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -74,7 +81,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const iglesiaNombre = String(body.iglesia_nombre || "").trim();
-    const zonaHoraria = ZONAS_VALIDAS.includes(body.zona_horaria) ? body.zona_horaria : "Etc/GMT+6";
+    const zonaHoraria = zonaValida(body.zona_horaria) ? body.zona_horaria : "Etc/GMT+6";
     const adminNombre = String(body.admin_nombre || "").trim();
     const adminEmail = String(body.admin_email || "").trim().toLowerCase();
     const adminPassword = String(body.admin_password || "");

@@ -8,11 +8,12 @@ import { confirmDialog } from "../lib/confirm.js";
 import { estaSuscritoPush, suscribirPush, desuscribirPush, esRechazoDeNotificaciones } from "../lib/notificaciones.js";
 import { isUpcoming, formatFullDate } from "../lib/dates.js";
 import { usePreferencias, TAMANOS_LETRA, setTamanoLetra, NOTACIONES, setNotacion, acordeEn } from "../lib/preferencias.js";
-import { ChevronRight, ChevronUp, ChevronDown, KeyRound, Check, Calendar, Bell, Moon, Type, Music, Download, Radio, Tv, Users, Palette, Shield, Eye, Sparkles, MessageCircle, Send, LogOut, Speaker } from "lucide-react";
+import { ChevronRight, ChevronUp, ChevronDown, KeyRound, Check, Calendar, Bell, Moon, Type, Music, Download, Radio, Tv, Users, Palette, Shield, Eye, Sparkles, MessageCircle, Send, LogOut, Speaker, Clock } from "lucide-react";
 import PantallaOtroEquipo from "../components/PantallaOtroEquipo.jsx";
 import { SalidaAudioModal, useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
 import { BibleDownloadSection } from "./biblia.jsx";
-import { IdentidadIglesiaModal, PantallaProyeccionModal, ChangePasswordModal } from "./ventanas.jsx";
+import { IdentidadIglesiaModal, PantallaProyeccionModal, ChangePasswordModal, ZonaHorariaModal } from "./ventanas.jsx";
+import { etiquetaZona } from "../lib/zonasHorarias.js";
 import { inputStyle, ModalShell } from "./compartido.jsx";
 
 // ---------------- AVATAR STACK ----------------
@@ -59,6 +60,9 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
   const [showIdentidad, setShowIdentidad] = useState(false);
   const [showPantalla, setShowPantalla] = useState(false);
   const [showSalidaAudio, setShowSalidaAudio] = useState(false);
+  const [showZona, setShowZona] = useState(false);
+  const [zonaIglesia, setZonaIglesia] = useState(perfil?.iglesias?.zona_horaria || null);
+  useEffect(() => { if (perfil?.iglesias?.zona_horaria) setZonaIglesia(perfil.iglesias.zona_horaria); }, [perfil?.iglesias?.zona_horaria]);
   const salidaAudio = useSalidaAudioActual();
   const [showOtroEquipoAjustes, setShowOtroEquipoAjustes] = useState(false); // false · "proyeccion" · "escenario"
   const [pushEstado, setPushEstado] = useState("cargando"); // cargando | activo | inactivo | bloqueado | sin-soporte
@@ -355,6 +359,8 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
           <NavRow icon={Users} label="Miembros" onClick={onGoToUsuarios} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{usuariosReales.length} {chevron}</span>} />
           <NavRow icon={Palette} label="Identidad de la iglesia" onClick={() => setShowIdentidad(true)} right={chevron} />
           {showIdentidad && <IdentidadIglesiaModal iglesiaId={myIglesiaId} onClose={() => setShowIdentidad(false)} />}
+          <NavRow icon={Clock} label="Zona horaria" onClick={() => setShowZona(true)} right={<span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--wf-faint)", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{zonaIglesia ? etiquetaZona(zonaIglesia) : ""} {chevron}</span>} />
+          {showZona && <ZonaHorariaModal iglesiaId={myIglesiaId} actual={zonaIglesia} onClose={() => setShowZona(false)} onGuardada={setZonaIglesia} />}
           <NavRow icon={Radio} label="Ajustes de la proyección" onClick={() => setShowPantalla(true)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Letra y versículos {chevron}</span>} />
           {showPantalla && <PantallaProyeccionModal iglesiaId={myIglesiaId} onClose={() => setShowPantalla(false)} />}
           {/* Visible solo si soy_super_admin() dio true para esta cuenta (ver AuthGate.jsx). */}

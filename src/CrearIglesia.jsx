@@ -1,4 +1,6 @@
 import { useState } from "react";
+import SelectorZonaHoraria from "./components/SelectorZonaHoraria.jsx";
+import { zonaDelDispositivo } from "./lib/zonasHorarias.js";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import MarkCircle from "./MarkCircle.jsx";
 import { validarPassword } from "./lib/passwordSegura.js";
@@ -8,17 +10,6 @@ const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px s
 const labelStyle = { fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 4, display: "block" };
 const primaryBtn = { width: "100%", background: "#E8821E", border: "none", borderRadius: 8, padding: "11px", fontSize: 14, fontWeight: 700, color: "#16324F", cursor: "pointer" };
 
-// Zonas de ejemplo más comunes para una iglesia de habla hispana — no es una lista exhaustiva (la
-// base acepta cualquier nombre IANA válido vía iglesias.zona_horaria), solo las más probables para
-// no obligar a escribir un identificador técnico a mano el primer día.
-const ZONAS = [
-  { value: "Etc/GMT+6", label: "Guatemala / El Salvador / Honduras (UTC-6, sin horario de verano)" },
-  { value: "America/Mexico_City", label: "Ciudad de México" },
-  { value: "America/Managua", label: "Nicaragua" },
-  { value: "America/Costa_Rica", label: "Costa Rica" },
-  { value: "America/Bogota", label: "Colombia" },
-  { value: "America/Lima", label: "Perú" },
-];
 
 // Puerta de alta para una iglesia NUEVA (Fase 4 del SaaS) — a propósito separada de Login.jsx y sin
 // ningún enlace visible desde ahí: se llega acá solo con la URL exacta (?crear-iglesia), que por ahora
@@ -30,7 +21,8 @@ export default function CrearIglesia() {
     try { return new URLSearchParams(window.location.search).get("codigo") || ""; } catch { return ""; }
   });
   const [iglesiaNombre, setIglesiaNombre] = useState("");
-  const [zonaHoraria, setZonaHoraria] = useState("Etc/GMT+6");
+  // Arranca con la zona de este dispositivo (quien crea la iglesia suele estar en ella).
+  const [zonaHoraria, setZonaHoraria] = useState(() => zonaDelDispositivo() || "Etc/GMT+6");
   const [adminNombre, setAdminNombre] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
@@ -98,9 +90,7 @@ export default function CrearIglesia() {
           </div>
           <div>
             <span style={labelStyle}>Zona horaria</span>
-            <select value={zonaHoraria} onChange={(e) => setZonaHoraria(e.target.value)} style={inputStyle}>
-              {ZONAS.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
-            </select>
+            <SelectorZonaHoraria value={zonaHoraria} onChange={setZonaHoraria} estiloCampo={inputStyle} />
           </div>
           <div>
             <span style={labelStyle}>Tu nombre</span>
