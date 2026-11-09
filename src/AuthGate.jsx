@@ -117,7 +117,7 @@ export default function AuthGate() {
 
   useEffect(() => {
     if (!session) { setPerfil(null); return; }
-    supabase.from("usuarios").select("*, iglesias(nombre, activa, slug, logo_url, color_primario, color_acento, categorias_canciones, formato_letra, dividir_versiculos)").eq("id", session.user.id).single()
+    supabase.from("usuarios").select("*, iglesias(nombre, activa, slug, logo_url, color_primario, color_acento, categorias_canciones, formato_letra, dividir_versiculos, zona_horaria)").eq("id", session.user.id).single()
       .then(({ data, error }) => {
         // Sin internet: NUNCA cerrar la sesión por no poder leer el perfil (antes, recargar la app sin
         // señal la tomaba como "acceso no autorizado" y sacaba a la persona). Se usa el último perfil

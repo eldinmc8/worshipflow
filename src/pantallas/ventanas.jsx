@@ -1,14 +1,16 @@
 // Ventanas sueltas de Ajustes y del Setlist (contraseña, identidad de la iglesia, ajustes de la proyección, selector de fondos). Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { useState, useEffect, useRef } from "react";
+import SelectorZonaHoraria from "../components/SelectorZonaHoraria.jsx";
+import { etiquetaZona } from "../lib/zonasHorarias.js";
 import { supabase } from "../lib/supabaseClient.js";
-import { Radio, Palette, Download, KeyRound, Play, Image as ImgIcon, LayoutGrid, Trash2 } from "lucide-react";
+import { Radio, Palette, Download, KeyRound, Play, Image as ImgIcon, LayoutGrid, Trash2, Clock } from "lucide-react";
 import { FORMATOS_LETRA } from "../lib/dividirTexto.js";
 import AppLogo from "../AppLogo.jsx";
 import { validarPassword } from "../lib/passwordSegura.js";
 import MedidorPassword from "../MedidorPassword.jsx";
 import { listarFondos, subirFondo, borrarFondo } from "../lib/multimedia.js";
 import { confirmDialog } from "../lib/confirm.js";
-import { notifyError } from "../lib/toast.js";
+import { notifyError, showToast, esFalloDeConexion } from "../lib/toast.js";
 import { ModalShell, Field, primaryBtn, inputStyle, addBtnStyle } from "./compartido.jsx";
 import { avisoDeEnlace } from "../lib/videoEnlace.js";
 
@@ -17,16 +19,6 @@ import { avisoDeEnlace } from "../lib/videoEnlace.js";
 // Cambiar la propia contraseña sin depender de un administrador — a diferencia de "Reiniciar
 // contraseña" en Usuarios (que un admin usa para OTRA persona), esto es autoservicio: updateUser()
 // de Supabase Auth ya cambia la contraseña de la sesión actual sin pedir la anterior.
-// Zonas de ejemplo más comunes — mismo criterio que CrearIglesia.jsx (la base acepta cualquier
-// nombre IANA válido, esto es solo para no obligar a escribir uno a mano).
-const ZONAS_HORARIAS = [
-  { value: "Etc/GMT+6", label: "Guatemala / El Salvador / Honduras (UTC-6, sin horario de verano)" },
-  { value: "America/Mexico_City", label: "Ciudad de México" },
-  { value: "America/Managua", label: "Nicaragua" },
-  { value: "America/Costa_Rica", label: "Costa Rica" },
-  { value: "America/Bogota", label: "Colombia" },
-  { value: "America/Lima", label: "Perú" },
-];
 
 // Fase 5: nombre, zona horaria, logo y colores de ESTA iglesia — antes de esto, lo único que existía
 // era la base de datos lista para guardarlos (Fase 3) y mostrarlos (ver myIglesia en
@@ -225,9 +217,7 @@ export function IdentidadIglesiaModal({ iglesiaId, onClose }) {
             </div>
           </Field>
           <Field label="Zona horaria">
-            <select value={zonaHoraria} onChange={(e) => setZonaHoraria(e.target.value)} style={inputStyle}>
-              {ZONAS_HORARIAS.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
-            </select>
+            <SelectorZonaHoraria value={zonaHoraria} onChange={setZonaHoraria} estiloCampo={inputStyle} />
           </Field>
           {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
           <button type="submit" disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
@@ -235,6 +225,41 @@ export function IdentidadIglesiaModal({ iglesiaId, onClose }) {
       )}
     </ModalShell>
   );
+}
+
+// Ajustes → Zona horaria (2026-11-09): a la vista, sin tener que entrar a "Identidad de la iglesia".
+// Se guarda en iglesias.zona_horaria (la base solo acepta zonas válidas). La usan los recordatorios
+// automáticos, el tope diario del asistente y qué eventos cuentan como "próximos".
+export function ZonaHorariaModal({ iglesiaId, actual, onClose, onGuardada }) {
+  const [zona, setZona] = useState(actual || "Etc/GMT+6");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const guardar = async () => {
+    setBusy(true); setError("");
+    const { error: err } = await supabase.from("iglesias").update({ zona_horaria: zona }).eq("id", iglesiaId);
+    setBusy(false);
+    if (err) { setError(esFalloDeConexion(err) ? "Sin conexión. Inténtalo de nuevo." : "No se pudo guardar la zona horaria."); return; }
+    showToast(`Zona horaria: ${etiquetaZona(zona)}`, "info");
+    onGuardada?.(zona);
+    onClose();
+  };
+  return (
+    <ModalShell title="Zona horaria" icon={Clock} color="#2F5FA8" onClose={onClose}>
+      <div style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.45, marginBottom: 12 }}>
+        La hora de tu iglesia: con ella salen los recordatorios de los eventos a la hora correcta. Busca tu país o ciudad.
+      </div>
+      <SelectorZonaHoraria value={zona} onChange={setZona} estiloCampo={inputStyle} />
+      <div style={{ fontSize: 12, color: "var(--wf-text-2)", margin: "10px 2px 12px" }}>
+        Hora allí ahora: <b>{horaEnZona(zona)}</b>
+      </div>
+      {error && <div style={{ fontSize: 12, color: "#C23B32", marginBottom: 8 }}>{error}</div>}
+      <button onClick={guardar} disabled={busy || zona === actual} style={{ ...primaryBtn, opacity: busy || zona === actual ? 0.6 : 1 }}>{busy ? "Guardando…" : "Guardar"}</button>
+    </ModalShell>
+  );
+}
+
+function horaEnZona(zona) {
+  try { return new Intl.DateTimeFormat("es", { timeZone: zona, hour: "numeric", minute: "2-digit", weekday: "long" }).format(new Date()); } catch { return "—"; }
 }
 
 export function ChangePasswordModal({ onClose }) {
