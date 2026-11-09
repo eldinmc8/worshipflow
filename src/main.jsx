@@ -2,7 +2,7 @@ import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import './lib/pwaInstall.js'
-import { iniciarActualizacionAutomatica, aplicarActualizacion } from './lib/swUpdate.js'
+import { iniciarActualizacionAutomatica, aplicarActualizacion, pausarActualizacion } from './lib/swUpdate.js'
 import { iniciarTema } from './lib/theme.js'
 import { iniciarPreferencias } from './lib/preferencias.js'
 import AuthGate from './AuthGate.jsx'
@@ -34,6 +34,9 @@ const isConectarTv = /^\/tv\/?$/.test(window.location.pathname)
 // hacia ella desde el resto de la app (ver CrearIglesia.jsx para el porqué).
 const isCrearIglesia = new URLSearchParams(window.location.search).has('crear-iglesia')
 if (isPublicScreen || isEscenario || isConectarTv) {
+  // Una pantalla de proyección/escenario nunca se recarga sola por una versión nueva (perdería la
+  // pantalla completa en pleno culto): la toma la próxima vez que se abra. Ver pausarActualizacion.
+  pausarActualizacion(true)
   const link = document.querySelector('link[rel="manifest"]')
   // Manifest armado aquí mismo (2026-11-02) para que "Agregar a inicio" / "Instalar" abra EXACTAMENTE
   // esta pantalla de esta iglesia (/p/<iglesia> o /e/<iglesia>). Con el archivo fijo, el ícono siempre

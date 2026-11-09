@@ -4,6 +4,8 @@
 // vite.config.js sobre injectRegister:false).
 import { registerSW } from "virtual:pwa-register";
 import versionCelular from "../versionCelular.json";
+import { actualizacionEnPausa, alReanudar } from "./pausaActualizacion.js";
+export { pausarActualizacion } from "./pausaActualizacion.js";
 
 // Mismo corte que useIsCompact en PrototipoWorshipFlow.jsx: por debajo de esto es "celular".
 const ANCHO_CELULAR = 768;
@@ -27,6 +29,13 @@ async function avisarEnEsteDispositivo() {
 }
 
 let registration = null;
+
+// No actualizar en pleno culto: ver lib/pausaActualizacion.js. Al reanudarse, se aplica lo que quedó pendiente.
+alReanudar(() => {
+  if (recargaPendiente) window.location.reload();
+  else if (refreshNeeded) pedirActivacion();
+});
+let recargaPendiente = false;
 // Función que devuelve registerSW() -- llamarla (ver aplicarActualizacion) le avisa al service worker
 // en espera que ya puede tomar control. Con registerType:'prompt' NO se aplica sola: se queda
 // genuinamente esperando hasta que la persona toque "Actualizar" en el aviso visible.
@@ -64,6 +73,8 @@ export function iniciarActualizacionAutomatica(onUpdateAvailable) {
   let recargando = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (recargando) return;
+    // En pleno culto no se recarga (ver pausarActualizacion): queda para cuando termine.
+    if (actualizacionEnPausa()) { recargaPendiente = true; return; }
     recargando = true;
     window.location.reload();
   });
@@ -74,9 +85,9 @@ export function iniciarActualizacionAutomatica(onUpdateAvailable) {
       registration = reg || null;
     },
     onNeedRefresh() {
-      // Se aplica sola, como siempre (la página se recarga por "controllerchange").
+      // Se aplica sola, como siempre (la página se recarga por "controllerchange")... salvo en pleno culto.
       refreshNeeded = true;
-      pedirActivacion();
+      if (!actualizacionEnPausa()) pedirActivacion();
     },
   });
 

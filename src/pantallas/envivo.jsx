@@ -32,6 +32,7 @@ import { MediaPicker, SlideModal, AvisoEnlaceVideo, VideoModal } from "./ventana
 import { avisoDeEnlace, tipoDeVideo } from "../lib/videoEnlace.js";
 import { posicionActual, textoTiempo } from "../lib/videoControl.js";
 import { useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
+import { estiloDeBiblia, setterDeBiblia } from "../lib/estiloBiblia.js";
 import { ProjectionPanel } from "./proyeccion.jsx";
 
 // ---------- Color por sección para el grid de diapositivas del panel Multimedia (estilo "grid de shows" tipo FreeShow) ----------
@@ -171,11 +172,40 @@ export function ControlesVideo({ control, estado, onAccion, url = "" }) {
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle, setLiveStyle, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onStartAdHocCuenta = null, onReiniciarCuenta = null, eventoInfo = null, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {}, onEditarLetraCompleta, mensajeEscenario = "", onMensajeEscenario = null, iglesiaSlug = null, temporizador = null, onTemporizador = null, autoTemporizador = null, onAutoTemporizador = null, controlVideo = null, estadoVideo = null, onControlVideo = null }) {
+export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle: estiloCompleto, setLiveStyle: setEstiloCompleto, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onStartAdHocCuenta = null, onReiniciarCuenta = null, eventoInfo = null, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {}, onEditarLetraCompleta, mensajeEscenario = "", onMensajeEscenario = null, iglesiaSlug = null, temporizador = null, onTemporizador = null, autoTemporizador = null, onAutoTemporizador = null, controlVideo = null, estadoVideo = null, onControlVideo = null }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
   const [mmPanel, setMmPanel] = useState("transmision"); // "biblia" | "transmision" | "estilo" | "insertar" (este último solo en escritorio)
+  // Estilo para Canciones o para la Biblia (pedido de Eldin, 2026-11-09, ver lib/estiloBiblia.js): el
+  // mismo panel de Estilo de siempre, pero lo que se elige queda para lo que diga "Estilo para". Sigue
+  // solo a lo que está al aire (versículo → Biblia; lo demás → Canciones) y se puede cambiar a mano para
+  // dejar listo el otro. De aquí para abajo, liveStyle/setLiveStyle son SIEMPRE el estilo que se edita;
+  // las vistas previas usan el completo (estiloCompleto) y cada diapositiva toma el suyo.
+  const tipoEstiloAlAire = (fijada || current)?.type === "biblia" ? "biblia" : "canciones";
+  const [destinoEstilo, setDestinoEstilo] = useState(tipoEstiloAlAire);
+  useEffect(() => { setDestinoEstilo(tipoEstiloAlAire); }, [tipoEstiloAlAire]);
+  const editandoBiblia = destinoEstilo === "biblia";
+  const liveStyle = useMemo(() => (editandoBiblia ? estiloDeBiblia(estiloCompleto) : estiloCompleto), [editandoBiblia, estiloCompleto]);
+  const setLiveStyle = useMemo(() => (editandoBiblia ? setterDeBiblia(setEstiloCompleto) : setEstiloCompleto), [editandoBiblia, setEstiloCompleto]);
+  const selectorDestinoEstilo = (compacto = false) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: compacto ? 0 : 12 }}>
+      {!compacto && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)" }}>ESTILO PARA</span>}
+      <div role="radiogroup" aria-label="Estilo para" style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 10, padding: 2 }}>
+        {[["canciones", "Canciones", Music, "#1F8A73"], ["biblia", "Biblia", BookOpen, "#2F5FA8"]].map(([k, l, Icono, color]) => {
+          const activo = destinoEstilo === k;
+          return (
+            <button key={k} role="radio" aria-checked={activo} onClick={() => setDestinoEstilo(k)}
+              title={k === "biblia" ? "Fondo y letra de los versículos (sin letra animada)" : "Fondo, letra animada y letra de las canciones"}
+              style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, border: "none", borderRadius: 8, padding: compacto ? "5px 9px" : "6px 11px", cursor: "pointer", whiteSpace: "nowrap", color: activo ? "#fff" : "var(--wf-text-2)", background: activo ? color : "transparent" }}>
+              <Icono size={13} /> {l}
+            </button>
+          );
+        })}
+      </div>
+      {!compacto && editandoBiblia && <span style={{ fontSize: 11, color: "var(--wf-faint)" }}>Solo los versículos. La letra animada es solo para canciones.</span>}
+    </div>
+  );
   // La Biblia se monta la primera vez que se abre y ya no se desmonta (solo se esconde) mientras dure la consola.
   const [bibliaAbierta, setBibliaAbierta] = useState(false);
   useEffect(() => { if (mmPanel === "biblia") setBibliaAbierta(true); }, [mmPanel]);
@@ -186,7 +216,9 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   // demás quedan en "Modo completo". Se recuerda por computadora; empieza en sencillo.
   const [sencillo, setSencillo] = useState(() => { const v = loadCache("consola_sencilla"); return v === null ? true : !!v; });
   useEffect(() => { saveCache("consola_sencilla", sencillo); }, [sencillo]);
-  useEffect(() => { if (sencillo && (mmPanel === "estilo" || mmPanel === "insertar")) setMmPanel("transmision"); }, [sencillo, mmPanel]);
+  // El modo sencillo es solo de escritorio (no tiene pestaña Estilo). En celular/tablet el riel sí la
+  // tiene: antes este efecto la cerraba al instante y el botón Estilo no hacía nada (2026-11-09).
+  useEffect(() => { if (!isCompact && sencillo && (mmPanel === "estilo" || mmPanel === "insertar")) setMmPanel("transmision"); }, [isCompact, sencillo, mmPanel]);
   // ¿Hay una pantalla de proyección abierta? (ver escucharProyeccion). null = todavía no se sabe: los
   // primeros segundos no se avisa nada, la ventana de proyección tarda en abrir.
   const [hayProyeccion, setHayProyeccion] = useState(null);
@@ -775,10 +807,13 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
 
         {mmPanel === "estilo" && (
           <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
+            {selectorDestinoEstilo()}
+            {!editandoBiblia && (<>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>LETRA ANIMADA</div>
             <div style={{ marginBottom: 16 }}>
               <SelectorAnimacion liveStyle={liveStyle} setLiveStyle={setLiveStyle} columnas={2} iglesiaId={myIglesiaId} iglesiaNombre={iglesiaNombre} usuarioId={usuarioId} />
             </div>
+            </>)}
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>FONDO DE LA PROYECCIÓN</div>
             <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
               {Object.entries(LIVE_THEMES).map(([key, t]) => (
@@ -860,6 +895,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               <span style={{ fontSize: 19, fontWeight: 700, color: "var(--wf-faint)" }}>A</span>
               <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)", width: 34, textAlign: "right" }}>{Math.round(fontScale * 100)}%</span>
             </div>
+            {editandoBiblia && (<>
             {/* Versículos: antes el texto usaba el mismo COLOR DE LETRA que canciones/slides (sigue
                 siendo el valor por defecto si no se toca nada acá) y la cita ("Mateo 5:25") tenía un
                 color fijo en el código -- ahora los dos son configurables por separado. */}
@@ -882,6 +918,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                 <input type="color" value={liveStyle.bibliaReferenciaColor || "#6E9BD1"} onChange={(e) => setLiveStyle((s) => ({ ...s, bibliaReferenciaColor: e.target.value }))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
               </label>
             </div>
+            </>)}
           </div>
         )}
 
@@ -939,7 +976,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           <div style={{ position: "sticky", top: 0, zIndex: 3, background: "var(--wf-bg)", paddingBottom: 10, flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4, marginBottom: 6 }}><Radio size={11} /> VISTA PREVIA</div>
             <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)" }}>
-              <ProjectionPanel slide={current} blanked={blanked} split={false} liveStyle={liveStyle} thumbnail />
+              <ProjectionPanel slide={current} blanked={blanked} split={false} liveStyle={estiloCompleto} thumbnail />
             </div>
             {botonReiniciarCuenta}
             {controlesVideo}
@@ -1056,8 +1093,9 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             </div>, false, "ayuda-biblia"),
         ] : mmPanel === "estilo" ? [
           grupoItem("Proyección", navegacionRapida()),
-          grupoItem("Letra animada", botonCinta({ icon: Sparkles, label: (() => { const n = nombreAnimacion(liveStyle) || "Animación"; return n.length > 12 ? n.slice(0, 11) + "…" : n; })(), onClick: () => { setEstiloMas(false); setAnimMenu((v) => !v); }, activo: !!animacionActiva(liveStyle) || animMenu, title: "Letras animadas: elegir un estilo con movimiento", ancho: 76 })),
-          grupoItem(editandoCancion ? `Fondo de "${cancionObjetivo.titulo.length > 22 ? cancionObjetivo.titulo.slice(0, 21) + "…" : cancionObjetivo.titulo}"` : "Fondo", <>
+          grupoItem("Estilo para", <div style={{ display: "flex", alignItems: "center", padding: "0 4px" }}>{selectorDestinoEstilo(true)}</div>, false, "destino-estilo"),
+          !editandoBiblia && grupoItem("Letra animada", botonCinta({ icon: Sparkles, label: (() => { const n = nombreAnimacion(liveStyle) || "Animación"; return n.length > 12 ? n.slice(0, 11) + "…" : n; })(), onClick: () => { setEstiloMas(false); setAnimMenu((v) => !v); }, activo: !!animacionActiva(liveStyle) || animMenu, title: "Letras animadas: elegir un estilo con movimiento", ancho: 76 })),
+          grupoItem(editandoCancion ? `Fondo de "${cancionObjetivo.titulo.length > 22 ? cancionObjetivo.titulo.slice(0, 21) + "…" : cancionObjetivo.titulo}"` : editandoBiblia ? "Fondo de la Biblia" : "Fondo", <>
               {Object.entries(LIVE_THEMES).map(([key, t]) => (
                 <button key={key} onClick={() => aplicarFondo({ theme: key })} title={t.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 5px", borderRadius: 10, cursor: "pointer", background: "var(--wf-card)", border: fondoEditado.theme === key && !(animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") ? "2px solid #B15EA0" : "1px solid var(--wf-border)" }}>
                   <span style={{ width: 34, height: 20, borderRadius: 5, background: t.bg }} />
@@ -1068,7 +1106,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               {botonCinta({ icon: Play, label: "Video", onClick: () => { aplicarFondo({ theme: "custom", customBgType: "video" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "video", ancho: 62 })}
               {botonCinta({ icon: Sparkles, label: "En movimiento", title: "Fondos animados (arcos de luz, aura, vitral, nubes…)", onClick: () => { setAnimMenu(false); setEstiloMas(true); }, activo: !!fondoEnMovimiento(fondoEditado.theme), ancho: 78 })}
             </>, false, "fondo"),
-          grupoItem("Fondo por canción", (
+          !editandoBiblia && grupoItem("Fondo por canción", (
               <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
                   <input
@@ -1197,7 +1235,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       {showOtroEquipo && <PantallaOtroEquipo iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipo(false)} />}
       {showEscenario && onMensajeEscenario && <PanelEscenario mensaje={mensajeEscenario} onMensaje={onMensajeEscenario} iglesiaId={myIglesiaId} slug={iglesiaSlug} onCerrar={() => setShowEscenario(false)}
         temporizador={temporizador} onTemporizador={onTemporizador} autoTemporizador={autoTemporizador} onAutoTemporizador={onAutoTemporizador} />}
-      {mmPanel === "estilo" && animMenu && (
+      {mmPanel === "estilo" && animMenu && !editandoBiblia && (
         <div style={{ position: "relative", height: 0, zIndex: 36 }}>
           <div onClick={() => setAnimMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />
           <div style={{ position: "absolute", top: 6, left: 16, zIndex: 1, width: "min(760px, calc(100vw - 32px))", maxHeight: "min(560px, 70vh)", overflowY: "auto", padding: "12px 14px 14px", background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 12px 36px rgba(22,50,79,0.25)", boxSizing: "border-box" }}>
@@ -1275,6 +1313,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               </>
             )}
           </div>
+          {editandoBiblia && (
           <div style={{ flex: "0 1 300px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>VERSÍCULOS</div>
             <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 4 }}>Color del texto</div>
@@ -1290,6 +1329,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               ))}
             </div>
           </div>
+          )}
           </div>
         </div>
       )}
@@ -1407,7 +1447,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             {alAire && <span style={{ fontSize: 11, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{blanked ? "Pantalla en negro" : alAire.type === "cancion" ? `${alAire.songTitle} · ${alAire.blockLabel}` : alAire.type === "biblia" ? alAire.reference : alAire.nombre || alAire.title}</span>}
           </div>
           <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)", border: "2px solid #C23B32", flexShrink: 0 }}>
-            <ProjectionPanel slide={alAire} blanked={blanked} split={false} liveStyle={liveStyle} thumbnail />
+            <ProjectionPanel slide={alAire} blanked={blanked} split={false} liveStyle={estiloCompleto} thumbnail />
           </div>
           {botonReiniciarCuenta}
             {controlesVideo}
@@ -1415,7 +1455,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             <>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#7B3FA0", letterSpacing: 0.4, marginTop: 4 }}>DONDE ESTÁS · SE PROYECTA AL SOLTAR</div>
               <div style={{ width: "62%", aspectRatio: "16/9", borderRadius: 12, overflow: "hidden", border: "2px dashed #7B3FA0", flexShrink: 0 }}>
-                <ProjectionPanel slide={current} blanked={false} split={false} liveStyle={liveStyle} thumbnail />
+                <ProjectionPanel slide={current} blanked={false} split={false} liveStyle={estiloCompleto} thumbnail />
               </div>
             </>
           )}
@@ -1426,7 +1466,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             </div>
           )}
           <div style={{ width: "62%", aspectRatio: "16/9", borderRadius: 12, overflow: "hidden", opacity: next ? 1 : 0.4, flexShrink: 0 }}>
-            <ProjectionPanel slide={next} blanked={false} split={false} liveStyle={liveStyle} thumbnail />
+            <ProjectionPanel slide={next} blanked={false} split={false} liveStyle={estiloCompleto} thumbnail />
           </div>
           <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>{next ? (next.type === "cancion" ? `${next.songTitle} · ${next.blockLabel}` : next.type === "biblia" ? next.reference : next.nombre || next.title) : adHoc ? "No hay más diapositivas" : "Última diapositiva del servicio"}</div>
           {/* Lo agregado (textos, diapositivas, canciones) se ve solo en el ORDEN DEL CULTO de la

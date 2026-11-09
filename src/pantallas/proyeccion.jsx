@@ -1,5 +1,6 @@
 // Lo que se ve en la pantalla de proyección (la usan la consola, las mini-vistas y la pantalla pública). Separada de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { useState } from "react";
+import { estiloParaDiapositiva } from "../lib/estiloBiblia.js";
 import { definicionAnimacion, armarLineasAnimadas, velocidadLetra, FondoAnimado, claseAnimacion, EfectoPantalla, fondoEnMovimiento } from "../components/LetrasAnimadas.jsx";
 import DiapositivaDisenada from "../components/DiapositivaDisenada.jsx";
 import { esPaginaPresentacion } from "../lib/importarPresentacion.js";
@@ -34,7 +35,9 @@ export function colorLegibleAnimada(color) {
 // tan arriba se suba el slider, el texto nunca se corta ni se sale de la pantalla.
 
 // onEstadoVideo: solo la pantalla de proyección real — reporta a la consola cómo va el video (ver VideoProyectado).
-export function ProjectionPanel({ slide, blanked, split, liveStyle, compactHeight, thumbnail, onEstadoVideo = null }) {
+export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloCompleto, compactHeight, thumbnail, onEstadoVideo = null }) {
+  // Versículos con su propio estilo (sin letra animada); el resto con el de las canciones. Ver lib/estiloBiblia.js.
+  const liveStyle = estiloParaDiapositiva(estiloCompleto, slide);
   const font = LIVE_FONTS[liveStyle?.font || "elegante"];
   const scale = liveStyle?.fontScale ?? 1;
   // Tamaño real (medido, en px) al que AutoFitText terminó dejando el texto del versículo después de
