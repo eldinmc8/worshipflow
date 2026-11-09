@@ -2,6 +2,7 @@ import { lazy, useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { esGrupoDiapositivas, slidesDeGrupo, itemConDiapositivas, tituloBase, diapositivasDeItem, nuevaDiapositiva, moverDiapositiva, quitarDiapositiva as quitarDiapositivaDeGrupo, reordenarEnGrupo } from "./lib/diapositivas.js";
 import { usePreferencias } from "./lib/preferencias.js";
 import { delegarPantallaCompleta, esperarListaYDelegar } from "./lib/delegarPantallaCompleta.js";
+import { pausarActualizacion } from "./lib/pausaActualizacion.js";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { showToast, notifyError, esFalloDeConexion } from "./lib/toast.js";
 import { ordenarPor } from "./lib/orden.js";
@@ -573,6 +574,15 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // la lista de diapositivas, y al cambiar el orden esa misma diapositiva queda en otro índice — se
   // recuerda su slideId y, apenas se recalculan las diapositivas, se vuelve a apuntar a ella.
   const mantenerAlAireRef = useRef(null);
+  // Diapositiva a retomar tras recargar la consola en pleno culto (ver getLiveSession más abajo).
+  const retomarSlideRef = useRef(null);
+  useEffect(() => {
+    const id = retomarSlideRef.current;
+    if (!id || !slides.length) return;
+    const i = slides.findIndex((s) => s.slideId === id);
+    if (i === -1) { retomarSlideRef.current = null; return; } // ya no está en el orden: sigue normal
+    setActiveIdx(i); // el envío a la proyección espera a que current sea esa (ver el efecto de envío)
+  }, [slides]);
   const cambiarOrdenEnVivo = (fn) => {
     if (!adHoc && slides[activeIdx]) mantenerAlAireRef.current = slides[activeIdx].slideId;
     updateLiveOrder(fn);
@@ -637,10 +647,19 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const editLiveSlide = (slideId, patch) => updateLiveOrder((o) => o.map((item) => (item.id === slideId ? { ...item, ...patch } : item)));
   // Borrar una diapositiva agregada a mano por error — si era la que estaba en pantalla, activeIdx se
   // recorta para no quedar apuntando más allá del final del plan (pantalla en negro hasta elegir otra).
+  // Arreglo (2026-11-09, "en vivo de repente se va a la primera diapositiva"): antes se recortaba
+  // activeIdx con la cantidad de ELEMENTOS del orden (no de diapositivas), calculada dentro de un
+  // setState que React puede correr después — quedaba en 0 o en una diapositiva anterior cualquiera.
+  // Ahora se elige qué diapositiva queda al aire y se vuelve a apuntar a ella (mantenerAlAireRef):
+  // la misma si lo borrado era otra cosa; si no, la que seguía (o la anterior, si era la última).
   const removeLiveSlide = (slideId) => {
-    let nuevaLongitud = 0;
-    updateLiveOrder((o) => { const filtrado = o.filter((item) => item.id !== slideId); nuevaLongitud = filtrado.length; return filtrado; });
-    setActiveIdx((i) => Math.min(i, Math.max(0, nuevaLongitud - 1)));
+    const esDeEste = (s) => !!s && (s.slideId === slideId || String(s.slideId).startsWith(`${slideId}-`) || String(s.slideId).startsWith(`${slideId}~`));
+    const alAire = slides[activeIdx];
+    const destino = !esDeEste(alAire) ? alAire
+      : slides.slice(activeIdx + 1).find((s) => !esDeEste(s)) || slides.slice(0, activeIdx).reverse().find((s) => !esDeEste(s)) || null;
+    mantenerAlAireRef.current = destino?.slideId || null;
+    updateLiveOrder((o) => o.filter((item) => item.id !== slideId));
+    if (!destino) setActiveIdx(0);
   };
   // Siempre sobre el versículo COMPLETO (baseSlideId), aunque en pantalla esté una de sus partes — y
   // después se salta a la primera parte del versículo nuevo (que puede tener otra cantidad de partes).
@@ -1595,6 +1614,12 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
 
   useEffect(() => {
     if (practica || (!liveEventId && !liveLibre) || userId !== liveOwnerId) return;
+    // Recién recargada: no manda nada hasta estar de vuelta en la diapositiva que estaba al aire (así la
+    // proyección no muestra la primera ni un instante).
+    if (retomarSlideRef.current) {
+      if (!slides.length || (current?.slideId ?? null) !== retomarSlideRef.current) return;
+      retomarSlideRef.current = null;
+    }
     const alAireBase = (fijada || current) || null;
     const alAire = alAireBase && controlVideo && esVideoSolo(alAireBase) ? { ...alAireBase, video: controlVideo } : alAireBase;
     const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: alAire ? (escenario ? { ...alAire, escenario } : alAire) : null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null, libre: liveLibre };
@@ -1666,6 +1691,14 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           setLiveEventId(null); setLiveOwnerId(null); setLiveLibre(false);
           return;
         }
+        // Si la consola se recargó en pleno culto (F5, el navegador se cerró…) y la transmisión era de
+        // esta persona, vuelve a la diapositiva que estaba al aire en vez de a la primera (2026-11-09).
+        if (fila?.liderado_por && fila.liderado_por === userIdRef.current && fila.evento_id && fila.slide_actual?.slideId) {
+          const id = fila.slide_actual.slideId;
+          retomarSlideRef.current = id;
+          // Por si el evento no termina de cargar (sin internet, borrado): no frena la consola para siempre.
+          setTimeout(() => { if (retomarSlideRef.current === id) retomarSlideRef.current = null; }, 15000);
+        }
         setLiveEventId(fila?.evento_id || null); setLiveOwnerId(fila?.liderado_por || null); setLiveLibre(!!fila?.libre);
         setSlideAlAireRemoto(fila?.slide_actual || null);
         adoptarEstiloGuardado(fila?.estilo_en_vivo);
@@ -1692,6 +1725,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // - Los demás: si la fila en la base lleva 2 horas sin cambios (ej. la compu de Multimedia se apagó sin
   //   finalizar), la cierran. Solo Multimedia/admin puede escribir (RLS): para el resto falla en silencio.
   const transmitiendoAqui = (!!liveEventId || liveLibre) && !practica && !!userId && userId === liveOwnerId;
+  // Mientras esta computadora transmite (o practica), una versión nueva de la app NO la recarga: antes
+  // la consola volvía sola a la primera diapositiva en pleno culto. Se aplica al terminar (lib/swUpdate.js).
+  useEffect(() => { pausarActualizacion(transmitiendoAqui || enPractica); }, [transmitiendoAqui, enPractica]);
   const hayEnVivo = !!liveEventId || liveLibre;
   useEffect(() => {
     if (!transmitiendoAqui) return undefined;
