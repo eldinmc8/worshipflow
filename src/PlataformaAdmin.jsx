@@ -286,7 +286,7 @@ function CodigosInvitacion({ iglesias }) {
   );
 }
 
-const NOMBRE_PLAN = { gratis: "Gratis", ministerio: "Ministerio · $9.99", iglesia: "Iglesia · $29.99" };
+const NOMBRE_PLAN = { gratis: "Gratis", ministerio: "Ministerio · $9.99", crecimiento: "Crecimiento · $19.99", iglesia: "Iglesia · $29.99" };
 const DURACIONES = [
   { id: "mes", label: "1 mes", dias: 31 },
   { id: "anio", label: "1 año", dias: 366 },

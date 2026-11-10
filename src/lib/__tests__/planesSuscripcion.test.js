@@ -136,4 +136,13 @@ describe("planes de suscripción", () => {
     expect(r[0].plan_vence).not.toBeNull();
     expect(r[1]).toMatchObject({ slug: "cod-viejo", plan: "iglesia", plan_vence: null, en_prueba: false });
   });
+
+  it("Crecimiento: 50 miembros, 6 ministerios, 60 mensajes al día", async () => {
+    await actuarComo(db, ELDIN);
+    await sql("select public.cambiar_plan_iglesia($1, 'crecimiento', null, null)", [IG]);
+    await actuarComo(db, ADMIN);
+    const p = (await sql("select public.mi_plan() as p")).rows[0].p;
+    expect(p.plan).toBe("crecimiento");
+    expect(p.limites).toMatchObject({ miembros: 50, ministerios: 6, modo_musico: true, plantillas: true });
+  });
 });
