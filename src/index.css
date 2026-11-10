@@ -69,6 +69,9 @@
 body {
   margin: 0;
   font-family: 'Poppins', sans-serif;
+  /* Color de texto por defecto según el tema: sin esto, lo que no fija su propio color (títulos de
+     ventanas, precios, la consola) salía NEGRO sobre fondo oscuro en modo oscuro. */
+  color: var(--wf-text);
   /* Que se sienta como una app instalada, no una página web: sin el "rebote" de scroll del navegador
      ni el gesto de "pull to refresh" que recarga la página sin querer al arrastrar hacia abajo. */
   overscroll-behavior: none;
