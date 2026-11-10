@@ -1,3 +1,4 @@
+import { usePlan, tiene, abrirPlanes } from "./lib/planes.js";
 import { useEffect, useState } from "react";
 import { listarRoles, crearRol, actualizarRol, eliminarRol, PERMISOS_APP, GRUPOS_PERMISOS, PLANTILLAS_ROL, permisoIncluidoPor, resumenPermisos } from "./lib/roles.js";
 import { showToast } from "./lib/toast.js";
@@ -145,6 +146,8 @@ function RoleEditor({ role, onBack, onSaved, onDeleted }) {
 export default function RolesAdmin({ onExit, textoVolver = "← Volver a la app" }) {
   const [roles, setRoles] = useState(null);
   const [error, setError] = useState("");
+  // Crear roles nuevos: plan Iglesia (editar los permisos de los roles de fábrica, en todos los planes).
+  const rolesPropiosOk = tiene(usePlan(), "roles_personalizados");
   const [editingRole, setEditingRole] = useState(undefined); // undefined = lista · null = crear nuevo · objeto = editar
 
   const load = async () => {
@@ -179,7 +182,7 @@ export default function RolesAdmin({ onExit, textoVolver = "← Volver a la app"
 
           {error && <div style={{ background: "#FDECEA", border: "1px solid #C23B32", color: "#8A2A24", borderRadius: 12, padding: "8px 12px", fontSize: 13, marginBottom: 14 }}>{error}</div>}
 
-          <button onClick={() => setEditingRole(null)} style={{ ...primaryBtn, marginBottom: 16 }}>+ Crear rol</button>
+          <button onClick={() => (rolesPropiosOk ? setEditingRole(null) : abrirPlanes())} style={{ ...primaryBtn, marginBottom: 16 }}>{rolesPropiosOk ? "+ Crear rol" : "🔒 Crear rol · Plan Iglesia"}</button>
 
           <div style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", overflow: "hidden" }}>
             {roles === null && <div style={{ padding: 20, color: "var(--wf-faint)", fontSize: 13 }}>Cargando…</div>}

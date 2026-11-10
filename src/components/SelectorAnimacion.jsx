@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, Copy, Globe2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Copy, Globe2, Lock } from "lucide-react";
+import { usePlan, estilosAvanzados, tiene, abrirPlanes } from "../lib/planes.js";
 import { ANIMACIONES, GRUPOS_ANIMACION, animacionActiva, definicionDeReceta, MiniaturaAnimada, precargarFuentesAnimacion, VELOCIDADES_LETRA, velocidadLetra, FONDOS_DISPONIBLES, muestraFondo, fondoEnMovimiento, PREFIJO_MOVIMIENTO } from "./LetrasAnimadas.jsx";
 import EditorAnimacion from "./EditorAnimacion.jsx";
 import { listarAnimaciones, guardarAnimacion, borrarAnimacion } from "../lib/animacionesIglesia.js";
@@ -9,12 +10,14 @@ import { showToast } from "../lib/toast.js";
 // Menú de "Letra animada" (panel de Estilo): estilos de fábrica, los de la iglesia ("De mi iglesia",
 // creados en EditorAnimacion) y la galería de animaciones que otras iglesias compartieron.
 // Al pasar el cursor por una tarjeta se ve la animación en vivo (como las miniaturas de YouTube).
-export function SelectorAnimacion({ liveStyle, setLiveStyle, columnas = 3, iglesiaId, iglesiaNombre, usuarioId }) {
+function SelectorAnimacionInterno({ liveStyle, setLiveStyle, columnas = 3, iglesiaId, iglesiaNombre, usuarioId }) {
   const actual = animacionActiva(liveStyle);
   const fondoPropio = liveStyle?.animFondo === "propio";
   const [enVista, setEnVista] = useState(null);
   const [lista, setLista] = useState(undefined); // undefined = cargando · null = falta activar la tabla
   const [editando, setEditando] = useState(null); // { id?, nombre, receta, compartida }
+  // Crear o editar animaciones propias: plan Crecimiento en adelante (usarlas no).
+  const animacionesPropiasOk = tiene(usePlan(), "animaciones_propias");
   const [verGaleria, setVerGaleria] = useState(false);
   // Con tantos estilos (2026-11-06), se ve una categoría a la vez: la del estilo puesto, o Concierto.
   const [grupo, setGrupo] = useState(() => (actual && ANIMACIONES[actual]?.grupo) || "Atmósfera");
@@ -101,7 +104,7 @@ export function SelectorAnimacion({ liveStyle, setLiveStyle, columnas = 3, igles
             </button>
           ) : null)}
           {grid(<>
-            <button type="button" onClick={() => setEditando({ nombre: "", receta: null, compartida: false })} style={{ ...tarjeta(false), alignItems: "center", justifyContent: "center", minHeight: 96, borderStyle: "dashed", color: "#B15EA0", gap: 6 }}>
+            <button type="button" onClick={() => (animacionesPropiasOk ? setEditando({ nombre: "", receta: null, compartida: false }) : abrirPlanes())} style={{ ...tarjeta(false), alignItems: "center", justifyContent: "center", minHeight: 96, borderStyle: "dashed", color: "#B15EA0", gap: 6 }}>
               <Plus size={20} />
               <span style={{ fontSize: 12, fontWeight: 700 }}>Crear animación</span>
               <span style={{ fontSize: 10.5, color: "var(--wf-muted)", textAlign: "center" }}>Tu propio estilo, con tu letra y tu fondo</span>
@@ -114,7 +117,7 @@ export function SelectorAnimacion({ liveStyle, setLiveStyle, columnas = 3, igles
                   {miniatura(id, def)}
                   {pie(f.nombre, f.compartida ? "Compartida en la galería" : "De tu iglesia")}
                   <span style={{ position: "absolute", top: 9, right: 9, display: "flex", gap: 4 }}>
-                    {botonMini(Pencil, "Editar", () => setEditando(f))}
+                    {botonMini(Pencil, "Editar", () => (animacionesPropiasOk ? setEditando(f) : abrirPlanes()))}
                     {botonMini(Trash2, "Borrar", () => borrar(f), true)}
                   </span>
                 </button>
@@ -242,7 +245,7 @@ export default SelectorAnimacion;
 // Fondos en movimiento (2026-11-06): los mismos fondos animados de la letra animada, como fondo de la
 // proyección para todo (letra normal, versículos y diapositivas). valor = liveStyle.theme.
 const ORDEN_MOVIMIENTO = ["aura", "arcos", "cortina", "horizonte", "portal", "franjas", "vitral", "radial", "hazdivino", "marea", "palabra", "nubes", "nubestarde", "nubesnoche", "oceano", "oceanonoche", "vidrio", "ecos", "cruz", "estrella", "auroranavidad"];
-export function SelectorFondoMovimiento({ valor, onElegir, columnas = 4 }) {
+function SelectorFondoMovimientoInterno({ valor, onElegir, columnas = 4 }) {
   const actual = fondoEnMovimiento(valor);
   const lista = [...ORDEN_MOVIMIENTO.map((k) => FONDOS_DISPONIBLES.find(([x]) => x === k)).filter(Boolean), ...FONDOS_DISPONIBLES.filter(([k]) => !ORDEN_MOVIMIENTO.includes(k))];
   return (
@@ -259,4 +262,19 @@ export function SelectorFondoMovimiento({ valor, onElegir, columnas = 4 }) {
       })}
     </div>
   );
+}
+
+// Plan Gratis: letras animadas y fondos en movimiento llevan candado (abre la ventana de planes).
+function CandadoEstilo({ texto }) {
+  return (
+    <button onClick={abrirPlanes} className="hoverable" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 12px", borderRadius: 12, border: "1px dashed var(--wf-border)", background: "var(--wf-card)", color: "var(--wf-muted)", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+      <Lock size={14} /> {texto} · Plan Ministerio
+    </button>
+  );
+}
+export function SelectorAnimacion(props) {
+  return estilosAvanzados(usePlan()) ? <SelectorAnimacionInterno {...props} /> : <CandadoEstilo texto="Letras animadas" />;
+}
+export function SelectorFondoMovimiento(props) {
+  return estilosAvanzados(usePlan()) ? <SelectorFondoMovimientoInterno {...props} /> : <CandadoEstilo texto="Fondos en movimiento" />;
 }

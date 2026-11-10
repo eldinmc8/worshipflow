@@ -11,6 +11,7 @@ import PantallaEscenario from './PantallaEscenario.jsx'
 import ConectarTv from './ConectarTv.jsx'
 import { leerPantallaDeUrl, leerEscenarioDeUrl } from './lib/enlacePantalla.js'
 import CrearIglesia from './CrearIglesia.jsx'
+import SitioWeb, { esRutaSitioWeb } from './SitioWeb.jsx'
 import { manifestDePantalla } from './lib/manifestPantalla.js'
 import ToastHost from './ToastHost.jsx'
 import ConfirmDialogHost from './ConfirmDialogHost.jsx'
@@ -34,6 +35,8 @@ const isConectarTv = /^\/tv\/?$/.test(window.location.pathname)
 // Alta de una iglesia nueva (Fase 4) — su propia URL (?crear-iglesia), sin ningún enlace visible
 // hacia ella desde el resto de la app (ver CrearIglesia.jsx para el porqué).
 const isCrearIglesia = new URLSearchParams(window.location.search).has('crear-iglesia')
+// Página web pública (inicio, precios, términos, privacidad, reembolsos): /web/... — ver SitioWeb.jsx.
+const isSitioWeb = esRutaSitioWeb(window.location.pathname)
 if (isPublicScreen || isEscenario || isConectarTv) {
   // Una pantalla de proyección/escenario nunca se recarga sola por una versión nueva (perdería la
   // pantalla completa en pleno culto): la toma la próxima vez que se abra. Ver pausarActualizacion.
@@ -43,7 +46,7 @@ if (isPublicScreen || isEscenario || isConectarTv) {
   // esta pantalla de esta iglesia (/p/<iglesia> o /e/<iglesia>). Con el archivo fijo, el ícono siempre
   // abría la proyección de la iglesia por defecto, aunque se hubiera agregado desde la de escenario.
   if (link) link.setAttribute('href', manifestDePantalla(isEscenario ? 'escenario' : 'proyeccion'))
-} else {
+} else if (!isSitioWeb) {
   // Antes de que React monte nada — así no hay parpadeo de claro-y-luego-oscuro si ya se había
   // elegido oscuro antes. La pantalla de Proyección real nunca aplica esto: siempre se ve oscura.
   iniciarTema()
@@ -76,10 +79,10 @@ function App() {
           </button>
         </div>
       )}
-      <ErrorPantalla>{isPublicScreen ? <PublicScreen /> : isEscenario ? <PantallaEscenario /> : isConectarTv ? <ConectarTv /> : isCrearIglesia ? <CrearIglesia /> : <AuthGate />}</ErrorPantalla>
+      <ErrorPantalla>{isPublicScreen ? <PublicScreen /> : isEscenario ? <PantallaEscenario /> : isConectarTv ? <ConectarTv /> : isCrearIglesia ? <CrearIglesia /> : isSitioWeb ? <SitioWeb /> : <AuthGate />}</ErrorPantalla>
       <ToastHost />
       <ConfirmDialogHost />
-      {!isPublicScreen && !isEscenario && !isConectarTv && !isCrearIglesia && <PlanesHost />}
+      {!isPublicScreen && !isEscenario && !isConectarTv && !isCrearIglesia && !isSitioWeb && <PlanesHost />}
     </>
   )
 }
