@@ -8,12 +8,12 @@ export const PLANES = [
   {
     id: "gratis", nombre: "Gratis", precio: 0, precioAnual: 0, color: "#5661B3",
     resumen: "Para empezar a proyectar el domingo",
-    incluye: ["Hasta 5 miembros", "Biblia en todas las versiones", "Pantalla de escenario (teleprompter)", "Eventos y setlist", "Proyección en vivo", "Hasta 50 canciones", "1 ministerio", "Asistente: 5 mensajes al día"],
+    incluye: ["Hasta 5 miembros", "Biblia en todas las versiones", "Pantalla de escenario (teleprompter)", "Eventos y setlist", "Proyección en vivo", "Temas de color y tipos de letra", "Hasta 50 canciones", "1 ministerio", "Asistente: 5 mensajes al día"],
   },
   {
     id: "ministerio", nombre: "Ministerio", precio: 9.99, precioAnual: 99, color: "#1F8A73",
     resumen: "Para el equipo de alabanza completo",
-    incluye: ["Hasta 20 miembros", "Todo lo del plan Gratis", "Modo Músico (acordes, auto-avance, tap tempo)", "Canciones ilimitadas", "Plantillas de eventos", "Hasta 3 ministerios", "Asistente: 30 mensajes al día"],
+    incluye: ["Hasta 20 miembros", "Todo lo del plan Gratis", "Modo Músico (acordes, auto-avance, tap tempo)", "Letras animadas y fondos en movimiento", "Imagen o video propio de fondo", "Canciones ilimitadas", "Plantillas de eventos", "Hasta 3 ministerios", "Asistente: 30 mensajes al día"],
   },
   {
     id: "crecimiento", nombre: "Crecimiento", precio: 19.99, precioAnual: 199, color: "#2F5FA8",
@@ -61,6 +61,43 @@ export function permite(plan, funcion) {
   if (!plan?.limites) return true;
   return plan.limites[funcion] !== false;
 }
+
+// Estilos avanzados de proyección (letras animadas, fondos en movimiento, imagen o video propio de
+// fondo): planes de pago. Se decide aquí (no en la base) porque es solo cómo se ve la pantalla.
+export function estilosAvanzados(plan) {
+  return !plan?.plan || plan.plan !== "gratis";
+}
+
+// Cuadro comparativo (página de precios). Valor por plan: true/false o un texto.
+export const COMPARATIVO = [
+  { grupo: "Equipo", filas: [
+    ["Miembros con cuenta", "5", "20", "50", "Ilimitados"],
+    ["Ministerios", "1", "3", "6", "Ilimitados"],
+    ["Roles, confirmaciones y recordatorios", true, true, true, true],
+  ] },
+  { grupo: "Canciones y culto", filas: [
+    ["Canciones", "50", "Ilimitadas", "Ilimitadas", "Ilimitadas"],
+    ["Eventos y setlist", true, true, true, true],
+    ["Plantillas de eventos", false, true, true, true],
+    ["Biblia (RVR1960, NVI, TLA, DHH, NTV)", true, true, true, true],
+  ] },
+  { grupo: "Proyección", filas: [
+    ["Proyección en vivo y TV", true, true, true, true],
+    ["Pantalla de escenario (teleprompter)", true, true, true, true],
+    ["Temas de color y tipos de letra", true, true, true, true],
+    ["Letras animadas", false, true, true, true],
+    ["Fondos en movimiento", false, true, true, true],
+    ["Imagen o video propio de fondo", false, true, true, true],
+  ] },
+  { grupo: "Músicos", filas: [
+    ["Acordes y transporte de tono", true, true, true, true],
+    ["Modo Músico: auto-avance, tap tempo y dirigir", false, true, true, true],
+  ] },
+  { grupo: "Extras", filas: [
+    ["Asistente con IA (mensajes al día)", "5", "30", "60", "100"],
+    ["Soporte", "Correo", "Correo y WhatsApp", "Correo y WhatsApp", "Prioritario por WhatsApp"],
+  ] },
+];
 
 // ¿Queda cupo? (null en el límite = ilimitado)
 export function quedaCupo(plan, clave) {

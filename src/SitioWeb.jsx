@@ -3,9 +3,9 @@
 // dirección), así que NO toca el inicio de sesión ni la app de las iglesias actuales. Paddle revisa
 // estas páginas (precios + términos + privacidad + reembolsos) antes de aprobar la cuenta de cobro.
 import { useEffect, useState } from "react";
-import { Radio, Music, ListMusic, BookOpen, Users, Tv, Check, MessageCircle, Menu, X, ChevronDown } from "lucide-react";
+import { Radio, Music, ListMusic, BookOpen, Users, Tv, Check, MessageCircle, Menu, X, ChevronDown, Minus } from "lucide-react";
 import WorshipFlowIcon from "./WorshipFlowIcon.jsx";
-import { PLANES } from "./lib/planes.js";
+import { PLANES, COMPARATIVO } from "./lib/planes.js";
 import { CORREO_SOPORTE, WHATSAPP_SOPORTE } from "./lib/soporte.js";
 
 const AZUL = "#16324F";
@@ -209,6 +209,9 @@ function Precios() {
         </div>
         <p style={{ textAlign: "center", fontSize: 12.5, color: SUAVE, marginTop: 16 }}>Precios en dólares estadounidenses (USD). Ver <Enlace ruta="/web/reembolsos" style={{ color: "#2F5FA8" }}>política de reembolsos</Enlace>.</p>
 
+        <h2 style={{ ...tituloSeccion, marginTop: 40 }}>Compara los planes</h2>
+        <Comparativo />
+
         <h2 style={{ ...tituloSeccion, marginTop: 40 }}>Preguntas frecuentes</h2>
         {PREGUNTAS.map(([p, r], i) => (
           <div key={p} style={{ ...tarjeta, padding: 0, marginBottom: 10 }}>
@@ -221,6 +224,42 @@ function Precios() {
       </main>
       <Pie />
     </>
+  );
+}
+
+function Comparativo() {
+  const celda = { padding: "11px 10px", fontSize: 13, borderBottom: "1px solid #EEF1F6", textAlign: "center", verticalAlign: "middle" };
+  const primera = { ...celda, textAlign: "left", position: "sticky", left: 0, background: "#fff", fontWeight: 500, minWidth: 150, boxShadow: "6px 0 8px -8px rgba(22,50,79,0.25)" };
+  const valor = (v, color) => v === true ? <Check size={18} color={color} strokeWidth={2.6} aria-label="Incluido" style={{ display: "block", margin: "0 auto" }} />
+    : v === false ? <Minus size={16} color="#B8C0CC" aria-label="No incluido" style={{ display: "block", margin: "0 auto" }} />
+    : <span style={{ fontWeight: 600 }}>{v}</span>;
+  return (
+    <div style={{ ...tarjeta, padding: 0, overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620 }}>
+        <thead>
+          <tr>
+            <th style={{ ...primera, fontWeight: 700, fontSize: 12, color: SUAVE, textTransform: "uppercase", letterSpacing: 0.4 }}>Función</th>
+            {PLANES.map((p) => (
+              <th key={p.id} style={{ ...celda, color: p.color, fontWeight: 700, fontSize: 14, background: p.id === "ministerio" ? p.color + "12" : undefined }}>
+                {p.nombre}
+                <div style={{ fontSize: 12, color: TEXTO, fontWeight: 600 }}>{p.precio === 0 ? "$0" : `$${p.precio}`}</div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {COMPARATIVO.map(({ grupo, filas }) => [
+            <tr key={grupo}><td colSpan={5} style={{ ...celda, textAlign: "left", fontWeight: 700, fontSize: 12, color: AZUL, background: "#F7F9FC", textTransform: "uppercase", letterSpacing: 0.4 }}>{grupo}</td></tr>,
+            ...filas.map(([nombre, ...vals]) => (
+              <tr key={nombre}>
+                <td style={primera}>{nombre}</td>
+                {vals.map((v, i) => <td key={i} style={{ ...celda, background: PLANES[i].id === "ministerio" ? PLANES[i].color + "0A" : undefined }}>{valor(v, PLANES[i].color)}</td>)}
+              </tr>
+            )),
+          ])}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

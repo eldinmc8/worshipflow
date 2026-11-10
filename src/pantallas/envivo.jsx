@@ -9,6 +9,7 @@ import { escucharProyeccion } from "../lib/liveSession.js";
 import { confirmDialog, promptDialog } from "../lib/confirm.js";
 import { animacionActiva, precargarFuentesAnimacion, nombreAnimacion, fondoEnMovimiento } from "../components/LetrasAnimadas.jsx";
 import { showToast } from "../lib/toast.js";
+import { usePlan, estilosAvanzados, abrirPlanes } from "../lib/planes.js";
 import { letraATexto } from "../lib/textoCancion.js";
 import { letraEfectiva } from "../lib/letraEnVivo.js";
 import { pasosDeDiapositiva } from "../lib/animaciones.js";
@@ -176,6 +177,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
+  // Plan Gratis: imagen o video propio de fondo llevan candado (ver lib/planes.js → estilosAvanzados).
+  const estilosOk = estilosAvanzados(usePlan());
   const [mmPanel, setMmPanel] = useState("transmision"); // "biblia" | "transmision" | "estilo" | "insertar" (este último solo en escritorio)
   // Estilo para Canciones o para la Biblia (pedido de Eldin, 2026-11-09, ver lib/estiloBiblia.js): el
   // mismo panel de Estilo de siempre, pero lo que se elige queda para lo que diga "Estilo para". Sigue
@@ -828,8 +831,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               <SelectorFondoMovimiento valor={fondoEditado.theme} columnas={3} onElegir={(t) => { avisarFondoPropioAnimada(); aplicarFondo({ theme: t }); }} />
             </div>
             <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 8, width: "fit-content" }}>
-              <button onClick={() => { avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "imagen" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "imagen" ? "#fff" : "var(--wf-muted)" }}><ImgIcon size={12} /> Imagen</button>
-              <button onClick={() => { avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "video" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "video" ? "#fff" : "var(--wf-muted)" }}><Play size={12} /> Video (movimiento)</button>
+              <button onClick={() => { if (!estilosOk) return abrirPlanes(); avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "imagen" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "imagen" ? "#fff" : "var(--wf-muted)" }}><ImgIcon size={12} /> Imagen</button>
+              <button onClick={() => { if (!estilosOk) return abrirPlanes(); avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "video" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "video" ? "#fff" : "var(--wf-muted)" }}><Play size={12} /> Video (movimiento)</button>
             </div>
             {customBgType === "imagen" ? (
               <div style={{ marginBottom: 12 }}>
@@ -1102,8 +1105,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                   <span style={{ fontSize: 9.5, fontWeight: 600, color: "var(--wf-text)", whiteSpace: "nowrap" }}>{t.label}</span>
                 </button>
               ))}
-              {botonCinta({ icon: ImgIcon, label: "Imagen", onClick: () => { aplicarFondo({ theme: "custom", customBgType: "imagen" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen", ancho: 62 })}
-              {botonCinta({ icon: Play, label: "Video", onClick: () => { aplicarFondo({ theme: "custom", customBgType: "video" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "video", ancho: 62 })}
+              {botonCinta({ icon: ImgIcon, label: "Imagen", onClick: () => { if (!estilosOk) return abrirPlanes(); aplicarFondo({ theme: "custom", customBgType: "imagen" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen", ancho: 62 })}
+              {botonCinta({ icon: Play, label: "Video", onClick: () => { if (!estilosOk) return abrirPlanes(); aplicarFondo({ theme: "custom", customBgType: "video" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "video", ancho: 62 })}
               {botonCinta({ icon: Sparkles, label: "En movimiento", title: "Fondos animados (arcos de luz, aura, vitral, nubes…)", onClick: () => { setAnimMenu(false); setEstiloMas(true); }, activo: !!fondoEnMovimiento(fondoEditado.theme), ancho: 78 })}
             </>, false, "fondo"),
           !editandoBiblia && grupoItem("Fondo por canción", (
