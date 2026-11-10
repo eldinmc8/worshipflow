@@ -1,3 +1,4 @@
+import ConPlan from "./components/ConPlan.jsx";
 import { lazy, useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { esGrupoDiapositivas, slidesDeGrupo, itemConDiapositivas, tituloBase, diapositivasDeItem, nuevaDiapositiva, moverDiapositiva, quitarDiapositiva as quitarDiapositivaDeGrupo, reordenarEnGrupo } from "./lib/diapositivas.js";
 import { usePreferencias } from "./lib/preferencias.js";
@@ -2413,8 +2414,10 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         <CancionesList library={library} clasificaciones={clasificaciones} puedeConfigurarClasificaciones={realIsAdmin && isAdminViewer} onGuardarClasificaciones={guardarClasificaciones} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onImportarPdf={() => setImportandoPdf(true)} onDelete={deleteSong} />
       )}
       {importandoPdf && (
+        <ConPlan funcion="importar" onCerrar={() => setImportandoPdf(false)}>
         <ImportarCancionesPdf library={library} clasificaciones={clasificaciones} iglesiaId={myIglesiaId} userId={userId}
           onCerrar={() => setImportandoPdf(false)} onImportadas={() => reloadLibrary()} />
+        </ConPlan>
       )}
       {tab === "canciones" && openSong && openSong.mode === "view" && (
         <SongView song={library.find((s) => s.id === openSong.id)} notasCtx={notasCtx} iglesiaId={myIglesiaId} onAdjuntosChange={marcarAdjuntos} isAdminViewer={puedeGestionarCanciones} mode="biblioteca" onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
@@ -2489,6 +2492,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         />
       )}
       {tab === "eventos" && selectedEvent && bloqueBosquejo && (puedeBosquejo(bloqueBosquejo) || puedeVerBosquejo(bloqueBosquejo)) && (
+        <ConPlan funcion="bosquejo" onCerrar={() => setBosquejoAbierto(null)}>
         <BosquejoWizard
           key={bloqueBosquejo.id}
           inicial={selectedEvent.bosquejos?.[bloqueBosquejo.id]}
@@ -2500,6 +2504,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onClose={() => setBosquejoAbierto(null)}
           BibliaSelector={BibleBrowserBody}
         />
+        </ConPlan>
       )}
 
       {tab === "eventos" && selectedEvent && openSong && (() => {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, Copy, Globe2, Lock } from "lucide-react";
-import { usePlan, estilosAvanzados, abrirPlanes } from "../lib/planes.js";
+import { usePlan, estilosAvanzados, tiene, abrirPlanes } from "../lib/planes.js";
 import { ANIMACIONES, GRUPOS_ANIMACION, animacionActiva, definicionDeReceta, MiniaturaAnimada, precargarFuentesAnimacion, VELOCIDADES_LETRA, velocidadLetra, FONDOS_DISPONIBLES, muestraFondo, fondoEnMovimiento, PREFIJO_MOVIMIENTO } from "./LetrasAnimadas.jsx";
 import EditorAnimacion from "./EditorAnimacion.jsx";
 import { listarAnimaciones, guardarAnimacion, borrarAnimacion } from "../lib/animacionesIglesia.js";
@@ -16,6 +16,8 @@ function SelectorAnimacionInterno({ liveStyle, setLiveStyle, columnas = 3, igles
   const [enVista, setEnVista] = useState(null);
   const [lista, setLista] = useState(undefined); // undefined = cargando · null = falta activar la tabla
   const [editando, setEditando] = useState(null); // { id?, nombre, receta, compartida }
+  // Crear o editar animaciones propias: plan Crecimiento en adelante (usarlas no).
+  const animacionesPropiasOk = tiene(usePlan(), "animaciones_propias");
   const [verGaleria, setVerGaleria] = useState(false);
   // Con tantos estilos (2026-11-06), se ve una categoría a la vez: la del estilo puesto, o Concierto.
   const [grupo, setGrupo] = useState(() => (actual && ANIMACIONES[actual]?.grupo) || "Atmósfera");
@@ -102,7 +104,7 @@ function SelectorAnimacionInterno({ liveStyle, setLiveStyle, columnas = 3, igles
             </button>
           ) : null)}
           {grid(<>
-            <button type="button" onClick={() => setEditando({ nombre: "", receta: null, compartida: false })} style={{ ...tarjeta(false), alignItems: "center", justifyContent: "center", minHeight: 96, borderStyle: "dashed", color: "#B15EA0", gap: 6 }}>
+            <button type="button" onClick={() => (animacionesPropiasOk ? setEditando({ nombre: "", receta: null, compartida: false }) : abrirPlanes())} style={{ ...tarjeta(false), alignItems: "center", justifyContent: "center", minHeight: 96, borderStyle: "dashed", color: "#B15EA0", gap: 6 }}>
               <Plus size={20} />
               <span style={{ fontSize: 12, fontWeight: 700 }}>Crear animación</span>
               <span style={{ fontSize: 10.5, color: "var(--wf-muted)", textAlign: "center" }}>Tu propio estilo, con tu letra y tu fondo</span>
@@ -115,7 +117,7 @@ function SelectorAnimacionInterno({ liveStyle, setLiveStyle, columnas = 3, igles
                   {miniatura(id, def)}
                   {pie(f.nombre, f.compartida ? "Compartida en la galería" : "De tu iglesia")}
                   <span style={{ position: "absolute", top: 9, right: 9, display: "flex", gap: 4 }}>
-                    {botonMini(Pencil, "Editar", () => setEditando(f))}
+                    {botonMini(Pencil, "Editar", () => (animacionesPropiasOk ? setEditando(f) : abrirPlanes()))}
                     {botonMini(Trash2, "Borrar", () => borrar(f), true)}
                   </span>
                 </button>

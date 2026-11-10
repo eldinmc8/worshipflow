@@ -1,4 +1,5 @@
 // Eventos: calendario y lista, detalle del evento y su Setlist (bloques, encargados, equipo de alabanza, bosquejo). Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
+import ConPlan from "../components/ConPlan.jsx";
 import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Calendar, Music, ArrowLeft, Trash2, Bell, X, Settings, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy, Timer } from "lucide-react";
 import { bosquejoTieneCambiosSinEnviar, esBloquePredicacion } from "../lib/bosquejos.js";
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -1671,11 +1672,13 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
         </ModalShell>
       )}
       {showImportar && (
+        <ConPlan funcion="importar" onCerrar={() => setShowImportar(false)}>
         <ImportarPresentacion
           iglesiaId={myIglesiaId} destino="Entra al final del culto. Luego la puedes mover con ⋯ → Subir/Bajar."
           onClose={() => setShowImportar(false)}
           onImportar={(items) => { onAddItems(items); setShowImportar(false); }}
         />
+        </ConPlan>
       )}
       {showSeccionForm && (
         <ModalShell title="Agregar bloque del culto" icon={ListMusic} color="#5661B3" onClose={() => setShowSeccionForm(false)}>

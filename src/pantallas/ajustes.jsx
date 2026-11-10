@@ -1,4 +1,5 @@
 // Ajustes: perfil, iglesia, miembros, pantallas y TV, apariencia y ayuda. Separada de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
+import ConPlan from "../components/ConPlan.jsx";
 import { useState, useEffect, useMemo } from "react";
 import { getInstallState, subscribeInstallState, promptInstall, isIosSafari } from "../lib/pwaInstall.js";
 import { showToast, notifyError } from "../lib/toast.js";
@@ -362,7 +363,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
           <NavRow icon={Users} label="Miembros" onClick={onGoToUsuarios} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{usuariosReales.length} {chevron}</span>} />
           <NavRow icon={Crown} label="Plan" onClick={abrirPlanes} right={<span style={{ fontSize: 11, color: plan?.en_prueba || plan?.vencido ? "var(--wf-brand-accent)" : "var(--wf-faint)", fontWeight: plan?.en_prueba ? 700 : 400, display: "flex", alignItems: "center", gap: 4 }}>{plan ? (plan.en_prueba ? `Prueba · ${diasRestantes(plan.vence)} días` : planPorId(plan.plan).nombre) : ""} {chevron}</span>} />
           <NavRow icon={Palette} label="Identidad de la iglesia" onClick={() => setShowIdentidad(true)} right={chevron} />
-          {showIdentidad && <IdentidadIglesiaModal iglesiaId={myIglesiaId} onClose={() => setShowIdentidad(false)} />}
+          {showIdentidad && <ConPlan funcion="identidad" onCerrar={() => setShowIdentidad(false)}><IdentidadIglesiaModal iglesiaId={myIglesiaId} onClose={() => setShowIdentidad(false)} /></ConPlan>}
           <NavRow icon={Clock} label="Zona horaria" onClick={() => setShowZona(true)} right={<span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--wf-faint)", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{zonaIglesia ? etiquetaZona(zonaIglesia) : ""} {chevron}</span>} />
           {showZona && <ZonaHorariaModal iglesiaId={myIglesiaId} actual={zonaIglesia} onClose={() => setShowZona(false)} onGuardada={setZonaIglesia} />}
           <NavRow icon={Radio} label="Ajustes de la proyección" onClick={() => setShowPantalla(true)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Letra y versículos {chevron}</span>} />

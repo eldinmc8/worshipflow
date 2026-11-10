@@ -1,4 +1,5 @@
 // Consola En vivo de Multimedia: orden del culto, diapositivas, Biblia en vivo, estilo, escenario. Separada de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
+import ConPlan from "../components/ConPlan.jsx";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
 import { Pause, Square, Volume2, VolumeX, Speaker } from "lucide-react";
@@ -9,7 +10,7 @@ import { escucharProyeccion } from "../lib/liveSession.js";
 import { confirmDialog, promptDialog } from "../lib/confirm.js";
 import { animacionActiva, precargarFuentesAnimacion, nombreAnimacion, fondoEnMovimiento } from "../components/LetrasAnimadas.jsx";
 import { showToast } from "../lib/toast.js";
-import { usePlan, estilosAvanzados, abrirPlanes } from "../lib/planes.js";
+import { usePlan, tiene, abrirPlanes } from "../lib/planes.js";
 import { letraATexto } from "../lib/textoCancion.js";
 import { letraEfectiva } from "../lib/letraEnVivo.js";
 import { pasosDeDiapositiva } from "../lib/animaciones.js";
@@ -177,8 +178,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
-  // Plan Gratis: imagen o video propio de fondo llevan candado (ver lib/planes.js → estilosAvanzados).
-  const estilosOk = estilosAvanzados(usePlan());
+  // Imagen o video propio de fondo: plan Crecimiento en adelante (ver lib/planes.js → FUNCIONES_PLAN).
+  const fondoPropioOk = tiene(usePlan(), "fondo_propio");
   const [mmPanel, setMmPanel] = useState("transmision"); // "biblia" | "transmision" | "estilo" | "insertar" (este último solo en escritorio)
   // Estilo para Canciones o para la Biblia (pedido de Eldin, 2026-11-09, ver lib/estiloBiblia.js): el
   // mismo panel de Estilo de siempre, pero lo que se elige queda para lo que diga "Estilo para". Sigue
@@ -831,12 +832,12 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               <SelectorFondoMovimiento valor={fondoEditado.theme} columnas={3} onElegir={(t) => { avisarFondoPropioAnimada(); aplicarFondo({ theme: t }); }} />
             </div>
             <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 8, width: "fit-content" }}>
-              <button onClick={() => { if (!estilosOk) return abrirPlanes(); avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "imagen" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "imagen" ? "#fff" : "var(--wf-muted)" }}><ImgIcon size={12} /> Imagen</button>
-              <button onClick={() => { if (!estilosOk) return abrirPlanes(); avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "video" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "video" ? "#fff" : "var(--wf-muted)" }}><Play size={12} /> Video (movimiento)</button>
+              <button onClick={() => { if (!fondoPropioOk) return abrirPlanes(); avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "imagen" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "imagen" ? "#fff" : "var(--wf-muted)" }}><ImgIcon size={12} /> Imagen</button>
+              <button onClick={() => { if (!fondoPropioOk) return abrirPlanes(); avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "video" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "video" ? "#fff" : "var(--wf-muted)" }}><Play size={12} /> Video (movimiento)</button>
             </div>
             {customBgType === "imagen" ? (
               <div style={{ marginBottom: 12 }}>
-                <MediaPicker iglesiaId={myIglesiaId} tipo="imagen" value={liveStyle.customImage} onChange={(url) => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", customImage: url }))} />
+                <MediaPicker iglesiaId={myIglesiaId} tipo="imagen" value={liveStyle.customImage} onChange={(url) => !fondoPropioOk ? abrirPlanes() : setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", customImage: url }))} />
               </div>
             ) : (
               <div style={{ marginBottom: 12 }}>
@@ -845,10 +846,10 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                 <input
                   placeholder="o pega un enlace https://... (mp4 de fondo con movimiento)"
                   value={liveStyle.customVideo && !liveStyle.customVideo.startsWith("http") ? "" : liveStyle.customVideo || ""}
-                  onChange={(e) => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", customVideo: e.target.value }))}
+                  onChange={(e) => !fondoPropioOk ? abrirPlanes() : setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", customVideo: e.target.value }))}
                   style={{ ...inputStyle, marginBottom: 8 }}
                 />
-                <MediaPicker iglesiaId={myIglesiaId} tipo="video" value={liveStyle.customVideo} onChange={(url) => setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", customVideo: url }))} />
+                <MediaPicker iglesiaId={myIglesiaId} tipo="video" value={liveStyle.customVideo} onChange={(url) => !fondoPropioOk ? abrirPlanes() : setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", customVideo: url }))} />
                 {liveStyle.customVideo && (
                   <div style={{ fontSize: 11, color: "#1F8A73", marginTop: 6 }}>Video de fondo configurado ✓ — se reproduce en bucle detrás de toda la letra/versículos.</div>
                 )}
@@ -1105,8 +1106,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                   <span style={{ fontSize: 9.5, fontWeight: 600, color: "var(--wf-text)", whiteSpace: "nowrap" }}>{t.label}</span>
                 </button>
               ))}
-              {botonCinta({ icon: ImgIcon, label: "Imagen", onClick: () => { if (!estilosOk) return abrirPlanes(); aplicarFondo({ theme: "custom", customBgType: "imagen" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen", ancho: 62 })}
-              {botonCinta({ icon: Play, label: "Video", onClick: () => { if (!estilosOk) return abrirPlanes(); aplicarFondo({ theme: "custom", customBgType: "video" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "video", ancho: 62 })}
+              {botonCinta({ icon: ImgIcon, label: "Imagen", onClick: () => { if (!fondoPropioOk) return abrirPlanes(); aplicarFondo({ theme: "custom", customBgType: "imagen" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen", ancho: 62 })}
+              {botonCinta({ icon: Play, label: "Video", onClick: () => { if (!fondoPropioOk) return abrirPlanes(); aplicarFondo({ theme: "custom", customBgType: "video" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "video", ancho: 62 })}
               {botonCinta({ icon: Sparkles, label: "En movimiento", title: "Fondos animados (arcos de luz, aura, vitral, nubes…)", onClick: () => { setAnimMenu(false); setEstiloMas(true); }, activo: !!fondoEnMovimiento(fondoEditado.theme), ancho: 78 })}
             </>, false, "fondo"),
           !editandoBiblia && grupoItem("Fondo por canción", (
@@ -1303,16 +1304,16 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           <div style={{ flex: "1 1 340px", minWidth: 0 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>{fondoEditadoTipo === "imagen" ? "IMAGEN DE FONDO" : "VIDEO DE FONDO"}{editandoCancion ? ` · SOLO "${cancionObjetivo.titulo.toUpperCase()}"` : ""}</div>
             {fondoEditadoTipo === "imagen" ? (
-              <MediaPicker iglesiaId={myIglesiaId} tipo="imagen" value={fondoEditado.customImage} onChange={(url) => aplicarFondo({ theme: "custom", customBgType: "imagen", customImage: url })} />
+              <MediaPicker iglesiaId={myIglesiaId} tipo="imagen" value={fondoEditado.customImage} onChange={(url) => !fondoPropioOk ? abrirPlanes() : aplicarFondo({ theme: "custom", customBgType: "imagen", customImage: url })} />
             ) : (
               <>
                 <input
                   placeholder="o pega un enlace https://... (mp4 de fondo con movimiento)"
                   value={fondoEditado.customVideo && !fondoEditado.customVideo.startsWith("http") ? "" : fondoEditado.customVideo || ""}
-                  onChange={(e) => aplicarFondo({ theme: "custom", customBgType: "video", customVideo: e.target.value })}
+                  onChange={(e) => !fondoPropioOk ? abrirPlanes() : aplicarFondo({ theme: "custom", customBgType: "video", customVideo: e.target.value })}
                   style={{ ...inputStyle, marginBottom: 8 }}
                 />
-                <MediaPicker iglesiaId={myIglesiaId} tipo="video" value={fondoEditado.customVideo} onChange={(url) => aplicarFondo({ theme: "custom", customBgType: "video", customVideo: url })} />
+                <MediaPicker iglesiaId={myIglesiaId} tipo="video" value={fondoEditado.customVideo} onChange={(url) => !fondoPropioOk ? abrirPlanes() : aplicarFondo({ theme: "custom", customBgType: "video", customVideo: url })} />
               </>
             )}
           </div>
@@ -1537,6 +1538,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         />
       )}
       {showImportar && (
+        <ConPlan funcion="importar" onCerrar={() => setShowImportar(false)}>
         <ImportarPresentacion
           iglesiaId={myIglesiaId}
           destino={anclaParaAgregar() ? `Entra después de "${tituloItem(anclaParaAgregar())}". Luego puedes arrastrarla a otro lugar.` : "Entra al final del orden del culto."}
@@ -1550,6 +1552,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             showToast(`Se agregaron ${items.filter((it) => it.type !== "seccion").length} diapositivas al orden del culto.`, "info");
           }}
         />
+        </ConPlan>
       )}
       {/* "+ Agregar" de la consola: las mismas opciones que el Setlist, con lo que pasa con cada una. */}
       {showAgregarConsola && (
