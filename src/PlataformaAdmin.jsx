@@ -64,15 +64,22 @@ export default function PlataformaAdmin({ onExit }) {
       supabase.rpc("resumen_plataforma"),
       supabase.from("iglesias").select("id, nombre, slug, activa, created_at, logo_url").order("created_at"),
       supabase.from("usuarios").select("id, nombre, email, rol, iglesia_id"),
-    ]).then(([res, igl, usr]) => {
+      supabase.rpc("planes_plataforma"),
+    ]).then(([res, igl, usr, pla]) => {
       setUsuariosBasicos(ordenarPor(usr.data, (u) => u.nombre));
+      // Planes de suscripción (si la migración de planes ya corrió; si no, la consola sigue igual).
+      const planes = new Map((pla.error ? [] : pla.data || []).map((p) => [p.iglesia_id, p]));
+      const conPlan = (fila) => {
+        const p = planes.get(fila.id);
+        return p ? { ...fila, plan: p.plan, plan_efectivo: p.plan_efectivo, plan_vence: p.plan_vence, plan_nota: p.plan_nota, en_prueba: p.en_prueba } : fila;
+      };
       if (!res.error && Array.isArray(res.data)) {
-        setResumen(res.data);
+        setResumen(res.data.map(conPlan));
         setSinActividad(false);
       } else {
         // Sin la migración de la consola: lo básico de siempre (nombre, usuarios, estado).
         setSinActividad(true);
-        setResumen((igl.data || []).map((i) => ({ ...i, creada: i.created_at, usuarios: (usr.data || []).filter((u) => u.iglesia_id === i.id).length })));
+        setResumen((igl.data || []).map((i) => conPlan({ ...i, creada: i.created_at, usuarios: (usr.data || []).filter((u) => u.iglesia_id === i.id).length })));
       }
       setCargando(false);
     });
@@ -279,6 +286,61 @@ function CodigosInvitacion({ iglesias }) {
   );
 }
 
+const NOMBRE_PLAN = { gratis: "Gratis", ministerio: "Ministerio · $9.99", iglesia: "Iglesia · $29.99" };
+const DURACIONES = [
+  { id: "mes", label: "1 mes", dias: 31 },
+  { id: "anio", label: "1 año", dias: 366 },
+  { id: "siempre", label: "Sin vencimiento", dias: null },
+];
+
+function PlanIglesia({ r, onCambio }) {
+  const [plan, setPlan] = useState(r.plan);
+  const [duracion, setDuracion] = useState("mes");
+  const [nota, setNota] = useState(r.plan_nota || "");
+  const [busy, setBusy] = useState(false);
+  const vence = r.plan_vence ? new Date(r.plan_vence) : null;
+  const vencido = vence && vence.getTime() < Date.now();
+
+  const guardar = async () => {
+    const d = DURACIONES.find((x) => x.id === duracion);
+    const p_vence = plan === "gratis" || d.dias == null ? null : new Date(Date.now() + d.dias * 86400000).toISOString();
+    if (!(await confirmDialog(`¿Poner a "${r.nombre}" en el plan ${NOMBRE_PLAN[plan]}${p_vence ? ` hasta el ${new Date(p_vence).toLocaleDateString()}` : plan === "gratis" ? "" : " sin vencimiento"}?`, { textoConfirmar: "Guardar plan" }))) return;
+    setBusy(true);
+    const { error } = await supabase.rpc("cambiar_plan_iglesia", { p_iglesia: r.id, p_plan: plan, p_vence, p_nota: nota });
+    setBusy(false);
+    if (error) { showToast("No se pudo cambiar el plan: " + error.message, "error"); return; }
+    showToast("Plan actualizado.", "info");
+    onCambio();
+  };
+
+  return (
+    <div style={{ ...cardStyle, marginTop: 12 }}>
+      <div style={tituloSeccion}>Plan</div>
+      <div style={{ fontSize: 13, marginBottom: 10 }}>
+        Ahora: <b>{NOMBRE_PLAN[r.plan_efectivo || r.plan]}</b>
+        {r.en_prueba && !vencido && <span style={{ color: "#E8821E", fontWeight: 700 }}> · en prueba</span>}
+        {vence && <span style={{ color: vencido ? "#C23B32" : "var(--wf-muted)" }}> · {vencido ? `venció el ${vence.toLocaleDateString()} (${NOMBRE_PLAN[r.plan]})` : `hasta el ${vence.toLocaleDateString()}`}</span>}
+        {!vence && r.plan !== "gratis" && <span style={{ color: "var(--wf-muted)" }}> · sin vencimiento</span>}
+        {r.plan_nota && <div style={{ fontSize: 12, color: "var(--wf-muted)", marginTop: 2 }}>Nota: {r.plan_nota}</div>}
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+        {Object.keys(NOMBRE_PLAN).map((p) => (
+          <button key={p} onClick={() => setPlan(p)} style={{ ...ghostBtn, background: plan === p ? "#E8821E" : ghostBtn.background, color: plan === p ? "#fff" : ghostBtn.color, border: "none" }}>{NOMBRE_PLAN[p]}</button>
+        ))}
+      </div>
+      {plan !== "gratis" && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+          {DURACIONES.map((d) => (
+            <button key={d.id} onClick={() => setDuracion(d.id)} style={{ ...ghostBtn, background: duracion === d.id ? "#16324F" : ghostBtn.background, color: duracion === d.id ? "#fff" : ghostBtn.color, border: "none" }}>{d.label}</button>
+          ))}
+        </div>
+      )}
+      <input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Nota (ej. pagó por transferencia el 10/11, fundadora)" style={{ ...inputStyle, marginBottom: 8 }} />
+      <button disabled={busy} onClick={guardar} style={{ ...ghostBtn, background: "#E8821E", color: "#fff", border: "none", opacity: busy ? 0.5 : 1 }}>Guardar plan</button>
+    </div>
+  );
+}
+
 function PerfilIglesia({ r, sinActividad, usuariosBasicos, onVolver, onCambio }) {
   const [equipo, setEquipo] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -439,6 +501,9 @@ function PerfilIglesia({ r, sinActividad, usuariosBasicos, onVolver, onCambio })
           </div>
         ))}
       </div>
+
+      {/* Plan de suscripción: se activa a mano (transferencias, fundadoras, regalos) hasta conectar la pasarela. */}
+      {r.plan && <PlanIglesia r={r} onCambio={onCambio} />}
 
       {/* Soporte */}
       <div style={{ ...cardStyle, marginTop: 12 }}>

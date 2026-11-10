@@ -24,11 +24,11 @@ beforeAll(async () => {
 afterAll(async () => { await db?.close(); });
 
 describe("tope diario del asistente", () => {
-  it("las iglesias empiezan con 30 mensajes al día", async () => {
+  it("las iglesias nuevas empiezan con 100 en la consola (desde los planes, manda el plan)", async () => {
     await comoServidor();
     await sql("insert into public.iglesias (id, nombre, slug) values ('11111111-1111-1111-1111-1111111111d3', 'C', 'tope-c')");
     const r = await sql("select limite_asistente_diario as l from public.iglesias where slug = 'tope-c'");
-    expect(r.rows[0].l).toBe(30);
+    expect(r.rows[0].l).toBe(100);
   });
   it("deja pasar hasta el tope y luego no", async () => {
     expect(await reservar(IG_A)).toEqual({ permitido: true, usados: 1, limite: 3 });

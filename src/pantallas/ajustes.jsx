@@ -8,13 +8,15 @@ import { confirmDialog } from "../lib/confirm.js";
 import { estaSuscritoPush, suscribirPush, desuscribirPush, esRechazoDeNotificaciones } from "../lib/notificaciones.js";
 import { isUpcoming, formatFullDate } from "../lib/dates.js";
 import { usePreferencias, TAMANOS_LETRA, setTamanoLetra, NOTACIONES, setNotacion, acordeEn } from "../lib/preferencias.js";
-import { ChevronRight, ChevronUp, ChevronDown, KeyRound, Check, Calendar, Bell, Moon, Type, Music, Download, Radio, Tv, Users, Palette, Shield, Eye, Sparkles, MessageCircle, Send, LogOut, Speaker, Clock } from "lucide-react";
+import { ChevronRight, ChevronUp, ChevronDown, KeyRound, Check, Calendar, Bell, Moon, Type, Music, Download, Radio, Tv, Users, Palette, Shield, Eye, Sparkles, MessageCircle, Send, LogOut, Speaker, Clock, Crown } from "lucide-react";
 import PantallaOtroEquipo from "../components/PantallaOtroEquipo.jsx";
 import { SalidaAudioModal, useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
 import { BibleDownloadSection } from "./biblia.jsx";
 import { IdentidadIglesiaModal, PantallaProyeccionModal, ChangePasswordModal, ZonaHorariaModal } from "./ventanas.jsx";
 import { etiquetaZona } from "../lib/zonasHorarias.js";
 import { inputStyle, ModalShell } from "./compartido.jsx";
+import { CORREO_SOPORTE, WHATSAPP_SOPORTE } from "../lib/soporte.js";
+import { usePlan, planPorId, diasRestantes, abrirPlanes } from "../lib/planes.js";
 
 // ---------------- AVATAR STACK ----------------
 function AvatarStack({ initials, max = 3 }) {
@@ -158,6 +160,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
   // arriba, lo suyo, cómo se ve, este aparato, la iglesia (admins), ayuda. Lo de pruebas de
   // administrador queda guardado en "Opciones avanzadas" para que nadie lo toque sin querer.
   const { tamanoLetra, notacion } = usePreferencias();
+  const plan = usePlan();
   const [cuentaAbierta, setCuentaAbierta] = useState(false);
   const [avanzadoAbierto, setAvanzadoAbierto] = useState(!!(roleOverride || nameOverride));
   const chevron = <ChevronRight size={16} color="var(--wf-faint)" />;
@@ -357,6 +360,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
           {/* Una sola entrada para todo lo de las personas (2026-10-30): invitar, rol, estado, y Roles y
               permisos adentro. */}
           <NavRow icon={Users} label="Miembros" onClick={onGoToUsuarios} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{usuariosReales.length} {chevron}</span>} />
+          <NavRow icon={Crown} label="Plan" onClick={abrirPlanes} right={<span style={{ fontSize: 11, color: plan?.en_prueba || plan?.vencido ? "var(--wf-brand-accent)" : "var(--wf-faint)", fontWeight: plan?.en_prueba ? 700 : 400, display: "flex", alignItems: "center", gap: 4 }}>{plan ? (plan.en_prueba ? `Prueba · ${diasRestantes(plan.vence)} días` : planPorId(plan.plan).nombre) : ""} {chevron}</span>} />
           <NavRow icon={Palette} label="Identidad de la iglesia" onClick={() => setShowIdentidad(true)} right={chevron} />
           {showIdentidad && <IdentidadIglesiaModal iglesiaId={myIglesiaId} onClose={() => setShowIdentidad(false)} />}
           <NavRow icon={Clock} label="Zona horaria" onClick={() => setShowZona(true)} right={<span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--wf-faint)", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{zonaIglesia ? etiquetaZona(zonaIglesia) : ""} {chevron}</span>} />
@@ -421,7 +425,3 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
   );
 }
 
-// Adónde llega "Escríbenos" en Ajustes → Ayuda.
-const CORREO_SOPORTE = "eldinmc8@gmail.com";
-
-const WHATSAPP_SOPORTE = "50240544813";

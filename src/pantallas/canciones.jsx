@@ -1,7 +1,8 @@
 // Canciones: biblioteca, vista de la canción (acordes, Modo Músico), editor y sus ventanas. Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { useState, useMemo, useRef, useEffect } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
-import { FileUp, Plus, Search, Heart, Pencil, Paperclip, Trash2, ListMusic, Music, Minus, FileText, Image as ImgIcon, Link2, ArrowLeft, ChevronDown, Radio, Pause, Users, Play, PencilLine, ChevronLeft, ChevronRight, RefreshCw, X, Check, ClipboardPaste, GripVertical, ChevronUp } from "lucide-react";
+import { FileUp, Plus, Search, Heart, Pencil, Paperclip, Trash2, ListMusic, Music, Minus, FileText, Image as ImgIcon, Link2, ArrowLeft, ChevronDown, Radio, Pause, Users, Play, PencilLine, ChevronLeft, ChevronRight, RefreshCw, X, Check, ClipboardPaste, GripVertical, ChevronUp, Lock } from "lucide-react";
+import { usePlan, permite, abrirPlanes } from "../lib/planes.js";
 import { acordeEn, usePreferencias, lineaEn } from "../lib/preferencias.js";
 import { confirmDialog } from "../lib/confirm.js";
 import { listarAdjuntos, tipoDeArchivo, subirAdjunto, agregarEnlace, borrarAdjunto } from "../lib/adjuntosCancion.js";
@@ -529,6 +530,7 @@ function AdjuntosModal({ song, iglesiaId, puedeEditar, onClose, onCambio }) {
 }
 
 export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, enterDirection, structureOverride, liveSync, iglesiaId, notasCtx, onAdjuntosChange }) {
+  const modoMusicoPermitido = permite(usePlan(), "modo_musico");
   const sectionRefs = useRef({});
   const [showAdjuntos, setShowAdjuntos] = useState(false);
   // Ref aparte, por POSICIÓN en el orden (no por clave de sección): si una sección se repite (V1, V2,
@@ -1019,8 +1021,14 @@ export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onE
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, background: (autoMode || isLeaderMe) ? "var(--wf-active-bg)" : "var(--wf-bg)", border: `1px solid ${(autoMode || isLeaderMe) ? "var(--wf-brand-accent)" : "var(--wf-divider)"}`, borderRadius: 16, padding: "8px 10px", marginBottom: 16, flexWrap: "wrap" }}>
         {/* En vivo, Modo Músico es voluntario: alguien dirige, y cada músico decide si se une o va a su
-            propio ritmo. Fuera de vivo, "Ensayar juntos" hace lo mismo sin un líder fijo. */}
-        {isLeaderMe ? (
+            propio ritmo. Fuera de vivo, "Ensayar juntos" hace lo mismo sin un líder fijo.
+            Plan Gratis: sin Modo Músico (auto-avance, dirigir, ensayar juntos) — se ven los acordes y se
+            avanza a mano, y el candado abre la ventana de planes. */}
+        {!modoMusicoPermitido ? (
+          <button onClick={abrirPlanes} className="hoverable" title="Modo Músico es parte de los planes Ministerio e Iglesia" style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-card)", color: "var(--wf-muted)", border: "1px dashed var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            <Lock size={13} /> Modo Músico · Plan Ministerio
+          </button>
+        ) : isLeaderMe ? (
           <>
             <span style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700 }}><Radio size={13} /> Estás dirigiendo</span>
             <button onClick={dejarDeDirigir} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-card)", color: "var(--wf-text)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Dejar de dirigir</button>

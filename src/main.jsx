@@ -14,6 +14,7 @@ import CrearIglesia from './CrearIglesia.jsx'
 import { manifestDePantalla } from './lib/manifestPantalla.js'
 import ToastHost from './ToastHost.jsx'
 import ConfirmDialogHost from './ConfirmDialogHost.jsx'
+import PlanesHost from './components/PlanesModal.jsx'
 import ErrorPantalla from './ErrorPantalla.jsx'
 import { iniciarMonitoreo } from './lib/monitoreo.js'
 
@@ -78,6 +79,7 @@ function App() {
       <ErrorPantalla>{isPublicScreen ? <PublicScreen /> : isEscenario ? <PantallaEscenario /> : isConectarTv ? <ConectarTv /> : isCrearIglesia ? <CrearIglesia /> : <AuthGate />}</ErrorPantalla>
       <ToastHost />
       <ConfirmDialogHost />
+      {!isPublicScreen && !isEscenario && !isConectarTv && !isCrearIglesia && <PlanesHost />}
     </>
   )
 }
