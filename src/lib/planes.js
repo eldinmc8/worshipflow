@@ -16,6 +16,11 @@ export const PLANES = [
     incluye: ["Hasta 20 miembros", "Todo lo del plan Gratis", "Modo Músico (acordes, auto-avance, tap tempo)", "Canciones ilimitadas", "Plantillas de eventos", "Hasta 3 ministerios", "Asistente: 30 mensajes al día"],
   },
   {
+    id: "crecimiento", nombre: "Crecimiento", precio: 19.99, precioAnual: 199, color: "#2F5FA8",
+    resumen: "Para la iglesia que está creciendo",
+    incluye: ["Hasta 50 miembros", "Todo lo del plan Ministerio", "Hasta 6 ministerios", "Asistente: 60 mensajes al día"],
+  },
+  {
     id: "iglesia", nombre: "Iglesia", precio: 29.99, precioAnual: 299, color: "#E8821E",
     resumen: "Toda la iglesia, sin límites",
     incluye: ["Miembros ilimitados", "Todo lo del plan Ministerio", "Ministerios ilimitados", "Asistente: 100 mensajes al día", "Soporte prioritario por WhatsApp"],
