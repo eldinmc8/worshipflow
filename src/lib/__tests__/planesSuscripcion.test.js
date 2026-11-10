@@ -2,7 +2,7 @@ import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { levantarBaseDePrueba, actuarComo } from "./pgliteHarness.js";
 
 // Prueba la migración 20261115000000_planes_suscripcion.sql: Gratis (5 miembros, 50 canciones,
-// 1 ministerio, sin plantillas, asistente 5/día), Ministerio (15 miembros, 3 ministerios, 30/día),
+// 1 ministerio, sin plantillas, asistente 5/día), Ministerio (20 miembros, 3 ministerios, 30/día),
 // Iglesia (ilimitado, 100/día), prueba de 14 días para iglesias nuevas, y plan vencido = Gratis.
 const IG = "11111111-1111-1111-1111-1111111111e1";
 const IG_VIEJA = "11111111-1111-1111-1111-1111111111e2";
@@ -77,14 +77,14 @@ describe("planes de suscripción", () => {
     await expect(sql("insert into public.canciones (titulo, iglesia_id) values ('Una más', $1)", [IG])).rejects.toThrow(/50 canciones/);
   });
 
-  it("Ministerio: sube a 15 miembros, canciones ilimitadas, plantillas y Modo Músico", async () => {
+  it("Ministerio: sube a 20 miembros, canciones ilimitadas, plantillas y Modo Músico", async () => {
     await ponerPlan("ministerio");
     await agregarMiembro();
     await sql("insert into public.canciones (titulo, iglesia_id) values ('Una más', $1)", [IG]);
     await sql("insert into public.eventos (titulo, fecha, es_plantilla, iglesia_id) values ('Plantilla', current_date, true, $1)", [IG]);
     await actuarComo(db, ADMIN);
     const p = (await sql("select public.mi_plan() as p")).rows[0].p;
-    expect(p.limites).toMatchObject({ miembros: 15, modo_musico: true, ministerios: 3 });
+    expect(p.limites).toMatchObject({ miembros: 20, modo_musico: true, ministerios: 3 });
     expect(p.uso.miembros).toBe(6);
   });
 
@@ -122,5 +122,18 @@ describe("planes de suscripción", () => {
     expect(r).toMatchObject({ plan: "ministerio", plan_efectivo: "ministerio", plan_nota: "Transferencia", en_prueba: false });
     const vieja = (await sql("select * from public.planes_plataforma() where iglesia_id = $1", [IG_VIEJA])).rows[0];
     expect(vieja).toMatchObject({ plan: "iglesia", plan_vence: null });
+  });
+
+  it("un código entregado antes de los planes da plan fundador; uno nuevo da la prueba", async () => {
+    await comoServidor();
+    // El código viejo se simula marcándolo como lo hace la migración.
+    await sql("insert into public.codigos_invitacion (codigo, plan_fundadora) values ('viejo0000001', true), ('nuevo0000001', false)");
+    await sql("insert into public.iglesias (id, nombre, slug) values ('11111111-1111-1111-1111-1111111111e3', 'Con código viejo', 'cod-viejo'), ('11111111-1111-1111-1111-1111111111e4', 'Con código nuevo', 'cod-nuevo')");
+    await sql("update public.codigos_invitacion set usado_at = now(), iglesia_id = '11111111-1111-1111-1111-1111111111e3' where codigo = 'viejo0000001'");
+    await sql("update public.codigos_invitacion set usado_at = now(), iglesia_id = '11111111-1111-1111-1111-1111111111e4' where codigo = 'nuevo0000001'");
+    const r = (await sql("select slug, plan, plan_vence, en_prueba from public.iglesias where slug in ('cod-viejo', 'cod-nuevo') order by slug")).rows;
+    expect(r[0]).toMatchObject({ slug: "cod-nuevo", plan: "iglesia", en_prueba: true });
+    expect(r[0].plan_vence).not.toBeNull();
+    expect(r[1]).toMatchObject({ slug: "cod-viejo", plan: "iglesia", plan_vence: null, en_prueba: false });
   });
 });

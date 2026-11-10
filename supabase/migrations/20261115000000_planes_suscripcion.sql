@@ -2,7 +2,7 @@
 --
 -- Tres planes por iglesia:
 --   gratis      → 5 miembros, 50 canciones, 1 ministerio, asistente 5/día, sin Modo Músico ni plantillas.
---   ministerio  → $9.99/mes: 15 miembros, canciones ilimitadas, 3 ministerios, asistente 30/día, Modo Músico.
+--   ministerio  → $9.99/mes: 20 miembros, canciones ilimitadas, 3 ministerios, asistente 30/día, Modo Músico.
 --   iglesia     → $29.99/mes: todo ilimitado, asistente 100/día.
 --
 -- Reglas:
@@ -42,7 +42,7 @@ returns jsonb language sql immutable as $$
   select case coalesce(p_plan, 'gratis')
     when 'iglesia' then jsonb_build_object('miembros', null, 'canciones', null, 'ministerios', null,
       'asistente', 100, 'modo_musico', true, 'plantillas', true)
-    when 'ministerio' then jsonb_build_object('miembros', 15, 'canciones', null, 'ministerios', 3,
+    when 'ministerio' then jsonb_build_object('miembros', 20, 'canciones', null, 'ministerios', 3,
       'asistente', 30, 'modo_musico', true, 'plantillas', true)
     else jsonb_build_object('miembros', 5, 'canciones', 50, 'ministerios', 1,
       'asistente', 5, 'modo_musico', false, 'plantillas', false)
@@ -53,6 +53,26 @@ create or replace function public.wf_limite(p_iglesia uuid, p_clave text)
 returns int language sql stable security definer set search_path = public as $$
   select (public.wf_limites_plan(public.wf_plan_efectivo(p_iglesia)) ->> p_clave)::int
 $$;
+
+-- Códigos de invitación que ya estaban entregados (sin usar) al aplicar esta migración: la iglesia que
+-- se registre con uno de ellos queda como fundadora (plan Iglesia sin vencimiento, sin prueba), igual
+-- que las iglesias que ya existían. Los códigos nuevos dan la prueba normal de 14 días.
+alter table public.codigos_invitacion add column if not exists plan_fundadora boolean not null default false;
+update public.codigos_invitacion set plan_fundadora = true where usado_at is null;
+
+create or replace function public.wf_fundadora_por_codigo() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.plan_fundadora and new.iglesia_id is not null and old.iglesia_id is distinct from new.iglesia_id then
+    update public.iglesias set plan = 'iglesia', plan_vence = null, en_prueba = false,
+      plan_nota = coalesce(plan_nota, 'Fundadora (código entregado antes de los planes)')
+      where id = new.iglesia_id;
+  end if;
+  return new;
+end $$;
+drop trigger if exists fundadora_por_codigo on public.codigos_invitacion;
+create trigger fundadora_por_codigo after update of iglesia_id on public.codigos_invitacion
+  for each row execute function public.wf_fundadora_por_codigo();
 
 -- ---------- Bloqueos al agregar por encima del límite ----------
 
