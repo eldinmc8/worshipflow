@@ -19,6 +19,14 @@
     {
       "source": "/tv",
       "destination": "/index.html"
+    },
+    {
+      "source": "/web",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/web/:pagina",
+      "destination": "/index.html"
     }
   ]
 }
