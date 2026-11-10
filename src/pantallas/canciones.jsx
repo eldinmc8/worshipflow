@@ -1087,7 +1087,7 @@ export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onE
         )}
         {/* TAP tempo y el bpm ya no aplican en vivo — ahí no hay compases/BPM, solo el líder avanzando a
             mano y todos reflejándolo. */}
-        {porMiCuenta && (
+        {porMiCuenta && modoMusicoPermitido && (
           <>
             <button onClick={handleTap} className="hoverable" style={{ background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 12px", fontSize: 12, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer" }}>TAP</button>
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-muted)" }}>{liveBpm} bpm</span>
