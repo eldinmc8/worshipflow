@@ -106,6 +106,19 @@ Deno.serve(async (req: Request) => {
       .from("usuarios").select("email").eq("email", email).maybeSingle();
     if (yaExiste) return json({ error: "Ya existe un usuario con ese correo." }, 400);
 
+    // 4b. Tope de miembros del plan (ver migración 20261115000000_planes_suscripcion.sql). La base lo
+    // vuelve a revisar en el insert; esto es para NO mandar el correo de invitación si no hay cupo.
+    if (callerIglesiaId) {
+      const { data: limite } = await admin.rpc("wf_limite", { p_iglesia: callerIglesiaId, p_clave: "miembros" });
+      if (typeof limite === "number") {
+        const { count } = await admin.from("usuarios").select("id", { count: "exact", head: true })
+          .eq("iglesia_id", callerIglesiaId).eq("estado", "activo");
+        if ((count ?? 0) >= limite) {
+          return json({ error: `Tu plan permite hasta ${limite} miembros. Mejora tu plan en Ajustes → Plan para agregar más.`, limite_plan: "miembros" }, 400);
+        }
+      }
+    }
+
     // 5. Crear el acceso (login). El primer administrador se crea con contraseña directa (todavía no
     // hay a quién mandarle un correo de invitación en el primer arranque de la app) — todos los demás
     // reciben una invitación por correo y eligen su propia contraseña al aceptarla.
