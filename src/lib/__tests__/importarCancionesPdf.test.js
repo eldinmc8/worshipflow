@@ -105,3 +105,13 @@ describe("separar canciones (sin PDF)", () => {
     expect(cs[0].titulo).toBe("Mi canción");
   });
 });
+
+describe("PDF real (Coros en tonalidad menor)", () => {
+  it("títulos del mismo tamaño, sin negrita ni números: espacio arriba y acordes debajo", async () => {
+    const cs = await leer("coros-tonalidad-menor.pdf");
+    expect(cs.map((c) => c.titulo)).toEqual(["En el Principio el Espíritu de Dios", "Cuando el pueblo del Señor alaba a Dios", "Quien, quien, quien", "Oh Jerusalén", "Su gloria cubrió lo cielos", "Pon aceite en mi lámpara Señor", "Satúrame", "Yo me alegré", "Hallé un buen amigo", "Mi Sendero de amor"]);
+    // La canción que sigue en la otra página no pierde su letra.
+    expect(cs[4].texto).toContain("rayos brilla[A]ntes salían de sus m[Dm]anos.");
+    expect(cs[8].texto.split("\n")).toHaveLength(4);
+  });
+});
