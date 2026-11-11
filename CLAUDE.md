@@ -27,6 +27,7 @@ App de presentación y gestión para iglesias (competidor de OnStage/ProPresente
 - Contenido: letra con acordes inline `[Acorde]texto`, barra de acordes diatónicos de la tonalidad elegida (triadas y con séptima) que se insertan en el cursor, campo de "compases" por sección
 - Letra: editor de diapositivas independiente del Contenido — cada sección puede dividirse en varias diapositivas con mini-preview oscura; esto es lo que realmente alimenta la proyección, no los acordes
 - Estructura: orden de secciones con multiplicador (x1, x2...)
+Buscar en internet (botón "Internet" de la biblioteca): busca en LaCuerda.net y trae letra + acordes para revisar y guardar. La página la trae la Edge Function `buscar-cancion-web` (solo ese sitio, solo con sesión) y la lee `src/lib/cancionesWeb.js`. Cifra Club y Letras.com bloquean lecturas automáticas: NO saltarse ese bloqueo — para esos sitios la app abre la búsqueda en otra pestaña y la letra se pega en Nueva canción → Escribir.
 Vista de solo lectura separada del editor (pestañas V1/C/V2/V3 tipo pill, acordes arriba de la letra en fuente monoespaciada alineados por carácter).
 
 **Eventos**: creación desde plantilla (clona roles y setlist de otro evento, reseteando confirmaciones) o en blanco. Cada evento tiene:
