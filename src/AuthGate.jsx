@@ -14,6 +14,7 @@ import PrototipoWorshipFlow from "./PrototipoWorshipFlow.jsx";
 import GenericMark from "./GenericMark.jsx";
 import MarkCircle from "./MarkCircle.jsx";
 import { identificarUsuario } from "./lib/monitoreo.js";
+import { desfaseDeReloj, relojMal, describirDesfase } from "./lib/relojDispositivo.js";
 
 // Puerta de acceso real: exige sesión de Supabase antes de mostrar la app. La app en sí ya es el
 // prototipo completo (Canciones, Eventos, En vivo, Ministerios...), pero ahora leyendo y guardando
@@ -49,6 +50,11 @@ export default function AuthGate() {
   // igual que a Eldin le pasó con OnStage al dejar de pagar — y se reactiva solo con el interruptor,
   // sin que nadie tenga que recrear ni reconfigurar nada.
   const [iglesiaInactiva, setIglesiaInactiva] = useState(null); // null | nombre de la iglesia
+  // Reloj de la computadora corrido (ver lib/relojDispositivo.js): segundos de diferencia, o null.
+  const [relojCorrido, setRelojCorrido] = useState(null);
+  // No se pudo leer el perfil por un error que NO es "no estás invitado" (y no hay copia guardada).
+  const [errorPerfil, setErrorPerfil] = useState(false);
+  const [reintento, setReintento] = useState(0);
   // Consola general (super admin DE LA PLATAFORMA, no de una iglesia) — soy_super_admin() es una
   // función de la base (ver migración 20261001000000) que revisa una tabla que ningún cliente puede
   // leer directamente (super_admins); esto es solo para decidir si mostrar la entrada en Ajustes,
@@ -111,25 +117,59 @@ export default function AuthGate() {
         setSession(guardada);
         if (!guardada) setErrorSesion(e.message);
       });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((evento, s) => {
+      // Una llave recién renovada dice qué hora es en el servidor: si la computadora está muy corrida,
+      // se corta aquí (cerrando la sesión solo en este equipo) antes de que se arme la cadena de
+      // renovaciones que termina en "Todavía no tienes acceso".
+      if (evento === "TOKEN_REFRESHED") {
+        const desfase = desfaseDeReloj(s);
+        if (relojMal(desfase)) {
+          setRelojCorrido(desfase);
+          supabase.auth.signOut({ scope: "local" });
+          return;
+        }
+      }
+      setSession(s);
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Depende del id de la persona, no del objeto de sesión: cada renovación de la llave trae un objeto
+  // nuevo y antes eso volvía a leer el perfil cada vez (en la PC con el reloj mal, decenas por segundo).
+  const userId = session?.user?.id || null;
   useEffect(() => {
-    if (!session) { setPerfil(null); return; }
-    supabase.from("usuarios").select("*, iglesias(nombre, activa, slug, logo_url, color_primario, color_acento, categorias_canciones, formato_letra, dividir_versiculos, zona_horaria)").eq("id", session.user.id).single()
-      .then(({ data, error }) => {
+    if (!userId) { setPerfil(null); return; }
+    let vigente = true; // una respuesta que llega después de cerrar sesión o cambiar de cuenta se ignora
+    setErrorPerfil(false);
+    const usarGuardado = () => {
+      try {
+        const guardado = JSON.parse(localStorage.getItem(`worshipflow_perfil_${userId}`) || "null");
+        if (guardado) { setPerfil(guardado); return true; }
+      } catch { /* sin storage */ }
+      return false;
+    };
+    supabase.from("usuarios").select("*, iglesias(nombre, activa, slug, logo_url, color_primario, color_acento, categorias_canciones, formato_letra, dividir_versiculos, zona_horaria)").eq("id", userId).single()
+      .then(async ({ data, error }) => {
+        if (!vigente) return;
         // Sin internet: NUNCA cerrar la sesión por no poder leer el perfil (antes, recargar la app sin
         // señal la tomaba como "acceso no autorizado" y sacaba a la persona). Se usa el último perfil
         // guardado en este dispositivo.
         if (!data && error && esFalloDeConexion(error)) {
-          try {
-            const guardado = JSON.parse(localStorage.getItem(`worshipflow_perfil_${session.user.id}`) || "null");
-            if (guardado) setPerfil(guardado);
-          } catch { /* sin storage */ }
+          usarGuardado();
           return;
         }
         if (!data) {
+          // "No estás invitado" SOLO si la base contestó de verdad "no hay fila" (PGRST116) y la sesión de
+          // ESTA persona sigue activa. Antes cualquier falla caía aquí: si la sesión se había caído a
+          // media lectura (reloj de la PC corrido, ver lib/relojDispositivo.js), la lectura salía sin
+          // sesión, no veía la fila, y a una persona invitada se le decía que no tenía acceso.
+          const { data: { session: actual } } = await supabase.auth.getSession();
+          if (!vigente) return;
+          if (!actual || actual.user?.id !== userId) return; // se cerró la sesión: lo maneja onAuthStateChange
+          if (error?.code !== "PGRST116") {
+            if (!usarGuardado()) setErrorPerfil(true);
+            return;
+          }
           setAccessDenied(true);
           // Descarta de una la cuenta huérfana que Google acaba de crear en Auth (ver
           // descartar-acceso-no-invitado) — si no, un admin que después invite este mismo correo se
@@ -146,9 +186,10 @@ export default function AuthGate() {
           return;
         }
         setPerfil(data);
-        try { localStorage.setItem(`worshipflow_perfil_${session.user.id}`, JSON.stringify(data)); } catch { /* sin storage */ }
+        try { localStorage.setItem(`worshipflow_perfil_${userId}`, JSON.stringify(data)); } catch { /* sin storage */ }
       });
-  }, [session]);
+    return () => { vigente = false; };
+  }, [userId, reintento]);
 
   // Ir a Usuarios empuja su propia entrada del historial ("usuarios-root") — así el botón/gesto
   // "atrás" regresa a la app en vez de salir de golpe. El propio WorshipFlowPrototype maneja sus
@@ -203,6 +244,28 @@ export default function AuthGate() {
       </div>
     );
   }
+  if (relojCorrido !== null) {
+    const horaReal = new Date(Date.now() - relojCorrido * 1000);
+    const formato = { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" };
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "var(--wf-font-ui)", padding: 20 }}>
+        <div className="screen-enter" style={{ width: 380, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--wf-text)", marginBottom: 8 }}>La fecha u hora de este equipo está mal</div>
+          <div style={{ fontSize: 13, color: "var(--wf-muted)", lineHeight: 1.5, marginBottom: 12 }}>
+            Tu reloj va {describirDesfase(relojCorrido)}, y así la sesión no se puede mantener abierta. Tu cuenta está bien: solo hay que corregir el reloj.
+          </div>
+          <div style={{ fontSize: 12.5, color: "var(--wf-text)", background: "var(--wf-bg)", borderRadius: 10, padding: "10px 12px", lineHeight: 1.6, marginBottom: 12, textAlign: "left" }}>
+            Este equipo marca: <b>{new Date().toLocaleString("es", formato)}</b><br />
+            Hora real aproximada: <b>{horaReal.toLocaleString("es", formato)}</b>
+          </div>
+          <div style={{ fontSize: 12.5, color: "var(--wf-muted)", lineHeight: 1.5, marginBottom: 18, textAlign: "left" }}>
+            <b>En Windows:</b> Configuración → Hora e idioma → Fecha y hora → activa <i>Establecer la hora automáticamente</i> y <i>Establecer la zona horaria automáticamente</i>, y toca <i>Sincronizar ahora</i>. Después vuelve a entrar.
+          </div>
+          <button onClick={() => setRelojCorrido(null)} style={primaryBtn}>Ya lo corregí, volver a entrar</button>
+        </div>
+      </div>
+    );
+  }
   if (iglesiaInactiva) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "'Poppins', sans-serif", padding: 20 }}>
@@ -215,6 +278,19 @@ export default function AuthGate() {
     );
   }
   if (!session) return <Login />;
+
+  if (errorPerfil) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "var(--wf-font-ui)", padding: 20 }}>
+        <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--wf-text)", marginBottom: 8 }}>No pudimos cargar tu cuenta</div>
+          <div style={{ fontSize: 13, color: "var(--wf-muted)", lineHeight: 1.5, marginBottom: 18 }}>Fue un problema momentáneo, no de tu acceso. Intenta de nuevo en unos segundos.</div>
+          <button onClick={() => setReintento((n) => n + 1)} style={primaryBtn}>Reintentar</button>
+          <button onClick={() => { setErrorPerfil(false); supabase.auth.signOut({ scope: "local" }); }} style={{ ...primaryBtn, background: "transparent", color: "var(--wf-muted)", marginTop: 6 }}>Cerrar sesión</button>
+        </div>
+      </div>
+    );
+  }
 
   if (needsPassword) {
     return (
