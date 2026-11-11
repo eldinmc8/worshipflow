@@ -35,6 +35,7 @@ import { Eye, WifiOff, EyeOff, ChevronRight, Bell, Pencil, Check, LayoutGrid, Ho
 import AppLogo from "./AppLogo.jsx";
 import Tour from "./components/Tour.jsx";
 import ImportarCancionesPdf from "./components/ImportarCancionesPdf.jsx";
+import BuscarCancionWeb from "./components/BuscarCancionWeb.jsx";
 import BosquejoWizard from "./components/BosquejoWizard.jsx";
 import { stripBibleSearchMarkup } from "./lib/textoBiblia.js";
 import { semitoneShift, transposeLine, CLASIFICACIONES_DEFAULT, fijarClasificacionesActuales, EVENTO_LIBRE, isWorshipBlock, serviceItemLabel, DEFAULT_COVERS, lideraBloque, nextMinistryChildId, misAsignacionesEnEvento, ModalShell, ghostToggleBtn, primaryBtn, fetchBibleChapter, fetchBibleBooks } from "./pantallas/compartido.jsx";
@@ -338,6 +339,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // Refleja el estado real de conexión del navegador (no solo "falló la última carga") — así se puede
   // avisar apenas se corta la señal, aunque los datos ya estuvieran cargados de antes.
   const [importandoPdf, setImportandoPdf] = useState(false); // ver components/ImportarCancionesPdf.jsx
+  const [buscandoWeb, setBuscandoWeb] = useState(false); // ver components/BuscarCancionWeb.jsx
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && navigator.onLine === false);
   const filaAlAireRef = useRef(null); // lo último que se mandó a la proyección (ver sincronización en vivo)
   const sincroPendienteRef = useRef(false); // true = Supabase no recibió el último cambio por falta de internet
@@ -2418,12 +2420,18 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       )}
 
       {tab === "canciones" && openSong === null && (
-        <CancionesList library={library} clasificaciones={clasificaciones} puedeConfigurarClasificaciones={realIsAdmin && isAdminViewer} onGuardarClasificaciones={guardarClasificaciones} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onImportarPdf={() => setImportandoPdf(true)} onDelete={deleteSong} />
+        <CancionesList library={library} clasificaciones={clasificaciones} puedeConfigurarClasificaciones={realIsAdmin && isAdminViewer} onGuardarClasificaciones={guardarClasificaciones} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onImportarPdf={() => setImportandoPdf(true)} onBuscarWeb={() => setBuscandoWeb(true)} onDelete={deleteSong} />
       )}
       {importandoPdf && (
         <ConPlan funcion="importar" onCerrar={() => setImportandoPdf(false)}>
         <ImportarCancionesPdf library={library} clasificaciones={clasificaciones} iglesiaId={myIglesiaId} userId={userId}
           onCerrar={() => setImportandoPdf(false)} onImportadas={() => reloadLibrary()} />
+        </ConPlan>
+      )}
+      {buscandoWeb && (
+        <ConPlan funcion="importar" onCerrar={() => setBuscandoWeb(false)}>
+        <BuscarCancionWeb library={library} clasificaciones={clasificaciones} userId={userId}
+          onCerrar={() => setBuscandoWeb(false)} onImportadas={() => reloadLibrary()} />
         </ConPlan>
       )}
       {tab === "canciones" && openSong && openSong.mode === "view" && (

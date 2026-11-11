@@ -201,7 +201,7 @@ export default function ImportarCancionesPdf({ library = [], clasificaciones = [
 }
 
 // Una línea con [acordes] dibujada como en la vista del músico: acordes arriba, letra abajo.
-function VistaLinea({ linea }) {
+export function VistaLinea({ linea }) {
   if (!String(linea).trim()) return <div style={{ height: 8 }} />;
   const { plain, positions } = parseChordLine(linea);
   const fila = positions.length ? buildChordRow(positions) : "";

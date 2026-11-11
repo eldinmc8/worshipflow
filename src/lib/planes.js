@@ -68,7 +68,7 @@ const NIVEL = { gratis: 0, ministerio: 1, crecimiento: 2, iglesia: 3 };
 export const FUNCIONES_PLAN = {
   estilos_animados: { plan: "ministerio", nombre: "Letras animadas y fondos en movimiento" },
   fondo_propio: { plan: "crecimiento", nombre: "Imagen o video propio de fondo" },
-  importar: { plan: "crecimiento", nombre: "Importar PowerPoint y PDF" },
+  importar: { plan: "crecimiento", nombre: "Importar PowerPoint, PDF y canciones de internet" },
   bosquejo: { plan: "crecimiento", nombre: "Bosquejo del predicador y Modo Predicar" },
   identidad: { plan: "crecimiento", nombre: "Identidad de la iglesia (logo y colores)" },
   animaciones_propias: { plan: "crecimiento", nombre: "Crear letras animadas propias" },
