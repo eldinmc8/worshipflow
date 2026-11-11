@@ -48,3 +48,60 @@ describe("PDF real (Yeshua – Generación 12)", () => {
     expect(Object.values(r.blocks).map((b) => b.label)).toEqual(["Estrofa", "Pre-coro", "Coro"]);
   });
 });
+
+// Cancioneros donde los títulos NO son más grandes (pedido de Eldin, 2026-11-11: "que solo metan el
+// PDF y se separen solas"). PDFs de prueba hechos con reportlab: 5 canciones cada uno.
+const CINCO = ["Cuán grande es Él", "Sublime gracia", "Castillo fuerte", "Santo Santo Santo", "Grande es tu fidelidad"];
+describe("separar canciones de un cancionero", () => {
+  it("títulos en negrita, del mismo tamaño que la letra", async () => {
+    const cs = await leer("cancionero-negrita.pdf");
+    expect(cs.map((c) => c.titulo)).toEqual(CINCO);
+    expect(cs[0].texto).toContain("[G]Señor mi Dios");
+    expect(cs[1].texto).not.toContain("Castillo");
+  });
+  it("títulos numerados (\"1. Título\"): el número no queda en el título", async () => {
+    expect((await leer("cancionero-numerado.pdf")).map((c) => c.titulo)).toEqual(CINCO);
+  });
+  it("títulos en MAYÚSCULAS", async () => {
+    const cs = await leer("cancionero-mayusculas.pdf");
+    expect(cs).toHaveLength(5);
+    expect(cs[1].titulo).toBe("Sublime gracia");
+  });
+  it("una canción por página, con el título en letra normal", async () => {
+    expect((await leer("cancionero-por-pagina.pdf")).map((c) => c.titulo)).toEqual(CINCO);
+  });
+  it("índice al principio: se salta, y una línea en mayúsculas dentro de la letra no corta la canción", async () => {
+    const cs = await leer("cancionero-con-indice.pdf");
+    expect(cs.map((c) => c.titulo)).toEqual(CINCO);
+    expect(cs[0].texto).not.toMatch(/\.{3,}/);
+    expect(cs[0].texto).toContain("ALELUYA ALELUYA");
+  });
+});
+
+describe("separar canciones (sin PDF)", () => {
+  const linea = (texto, pagina, y, extra = {}) => ({ texto, pagina, y, alto: 11, xs: [...texto].map((_, i) => 60 + i * 6), items: [], negrita: false, ...extra });
+  it("100 canciones numeradas en 25 páginas", () => {
+    const lineas = [];
+    for (let n = 1; n <= 100; n++) {
+      const pagina = Math.ceil(n / 4);
+      const base = 700 - ((n - 1) % 4) * 150;
+      lineas.push(linea(`${n}. Canción número ${n}`, pagina, base));
+      lineas.push(linea(`Primera línea de la canción ${n}`, pagina, base - 30));
+      lineas.push(linea(`Segunda línea, canción ${n}`, pagina, base - 46));
+    }
+    const cs = cancionesDeLineas(lineas, "cancionero.pdf");
+    expect(cs).toHaveLength(100);
+    expect(cs[41].titulo).toBe("Canción número 42");
+    expect(cs[41].texto).toBe("Primera línea de la canción 42\nSegunda línea, canción 42");
+  });
+  it("una canción sola con el título en negrita no se parte", () => {
+    const cs = cancionesDeLineas([
+      linea("Mi canción", 1, 700, { negrita: true }),
+      linea("Coro", 1, 670, { negrita: true }),
+      linea("Letra del coro", 1, 654),
+      linea("Otra línea", 1, 638),
+    ], "mi-cancion.pdf");
+    expect(cs).toHaveLength(1);
+    expect(cs[0].titulo).toBe("Mi canción");
+  });
+});
