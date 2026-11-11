@@ -105,7 +105,9 @@ function quitarRepetidosDePagina(lineas) {
 // solo metan el PDF y se separen solas"):
 //   1. letra más grande que el resto · 2. numerados ("12. Título", "#12 Título", "012 - Título")
 //   3. en negrita (con la letra normal sin negrita) · 4. EN MAYÚSCULAS con espacio arriba
-//   5. una canción por página (desde 3 páginas)
+//   5. renglón de texto con espacio grande arriba y acordes justo debajo (título "normal" de
+//      cancionero de acordes: el título, y abajo empieza la canción con su primera línea de acordes)
+//   6. una canción por página (desde 3 páginas)
 // Ninguna línea de acordes ni encabezado de parte ("Coro", "Estrofa 2") cuenta como título, y un
 // índice (muchos títulos seguidos sin letra entre ellos) se salta.
 const RE_NUMERADO = /^\s*(?:#|n[°º.]\s*)?(\d{1,4})\s*(?:[.)\-–—:]\s*|\s+(?=[A-ZÁÉÍÓÚÑ¿¡"“]))(\S.*)$/;
@@ -158,6 +160,10 @@ export function iniciosDeCanciones(lineas) {
     const c = sinIndices(indices((l, i) => esMayusculas(l.texto) && espacioArriba(i)), lineas);
     return pocas(c, 0.2) ? c : [];
   })();
+  const porEspacio = (() => {
+    const c = indices((l, i) => espacioArriba(i) && lineas[i + 1] && esLineaDeAcordes(lineas[i + 1].texto) && lineas[i + 1].pagina === l.pagina);
+    return pocas(c, 0.25) ? c : [];
+  })();
   const porPagina = (() => {
     const paginas = [...new Set(lineas.map((l) => l.pagina))];
     if (paginas.length < 3) return [];
@@ -165,8 +171,9 @@ export function iniciosDeCanciones(lineas) {
     return c.length >= paginas.length * 0.8 ? c : [];
   })();
 
-  for (const [modo, inicios] of [["tamano", porTamano], ["numerados", numerados], ["negrita", enNegrita], ["mayusculas", enMayusculas], ["pagina", porPagina]]) {
-    if (inicios.length >= 2) return { modo, inicios };
+  for (const [modo, inicios] of [["tamano", porTamano], ["numerados", numerados], ["negrita", enNegrita], ["mayusculas", enMayusculas], ["espacio", porEspacio], ["pagina", porPagina]]) {
+    // "espacio" es la señal más débil (una estrofa también puede tener espacio arriba): pide 3+.
+    if (inicios.length >= (modo === "espacio" ? 3 : 2)) return { modo, inicios };
   }
   // Una sola canción: su título es la línea marcada (más grande, o en negrita/mayúsculas al principio).
   if (porTamano.length === 1) return { modo: "tamano", inicios: porTamano };
