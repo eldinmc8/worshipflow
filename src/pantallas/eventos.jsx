@@ -238,19 +238,39 @@ function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event, bosquej
   );
 }
 
-export function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, onSelect, onCreate, canStartLive, onStartFree, library, myUserId }) {
+// Etiqueta de color con el ministerio dueño de un evento (Jóvenes, Damas…).
+function EtiquetaMinisterio({ ministerio, claro = false }) {
+  if (!ministerio) return null;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, borderRadius: 10, padding: "2px 8px", flexShrink: 0, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      background: claro ? "rgba(255,255,255,0.92)" : `${ministerio.color}22`, color: claro ? "var(--wf-heading)" : ministerio.color }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: ministerio.color, flexShrink: 0 }} />{ministerio.name}
+    </span>
+  );
+}
+
+export function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, onSelect, onCreate, canStartLive, onStartFree, library, myUserId, ministries = [], gruposQueLidero = new Set() }) {
   const [viewMode, setViewMode] = useState("eventos"); // eventos | plantillas (solo administradores alternan)
   const [step, setStep] = useState(null); // null | 'template' | 'details'
   const [templateId, setTemplateId] = useState("blank");
-  const [form, setForm] = useState({ title: "", dateLabel: "", date: "", hora: "", location: "" });
+  const [form, setForm] = useState({ title: "", dateLabel: "", date: "", hora: "", location: "", ministryId: null });
   const [monthFilter, setMonthFilter] = useState("proximos"); // 'proximos' | mes (para revisar eventos pasados)
+  // Eventos por ministerio: filtro (todos | general | id del ministerio) y quién puede crear qué.
+  const [ministerioFiltro, setMinisterioFiltro] = useState("todos");
+  const ministerioDe = (ev) => (ev.ministryId ? ministries.find((m) => m.id === ev.ministryId) : null);
+  // Ministerios para los que esta persona puede crear eventos: todos si organiza eventos; si no, los que lidera.
+  const ministeriosParaCrear = isAdminViewer ? ministries : ministries.filter((m) => gruposQueLidero.has(m.id));
+  const puedeCrear = isAdminViewer || ministeriosParaCrear.length > 0;
+  const ministeriosConEventos = ministries.filter((m) => events.some((ev) => ev.ministryId === m.id));
 
   const isPlantillaMode = isAdminViewer && viewMode === "plantillas";
   // Crear una plantilla no pasa por "seleccionar plantilla" (sería plantilla-de-plantilla) — va directo
   // al formulario de detalles, y se guarda con esPlantilla: true.
   const openCreate = () => {
     setTemplateId("blank");
-    setForm({ title: "", dateLabel: "", date: "", hora: "", location: "" });
+    // Si está filtrando un ministerio, el evento nuevo ya viene de ese ministerio.
+    const filtrado = ministeriosParaCrear.find((m) => m.id === ministerioFiltro);
+    setForm({ title: "", dateLabel: "", date: "", hora: "", location: "", ministryId: filtrado ? filtrado.id : (isAdminViewer ? null : ministeriosParaCrear[0]?.id || null) });
     setStep(isPlantillaMode ? "details" : "template");
   };
   const confirmTemplate = () => setStep("details");
@@ -264,7 +284,7 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
   };
   const confirmCreate = () => {
     if (!form.title.trim() || (!isPlantillaMode && !form.date)) return;
-    onCreate({ templateId: templateId === "blank" ? null : templateId, title: form.title, dateLabel: form.dateLabel || "", date: form.date || null, hora: form.hora || null, location: form.location || "Por definir", esPlantilla: isPlantillaMode });
+    onCreate({ templateId: templateId === "blank" ? null : templateId, title: form.title, dateLabel: form.dateLabel || "", date: form.date || null, hora: form.hora || null, location: form.location || "Por definir", esPlantilla: isPlantillaMode, ministryId: isPlantillaMode ? null : form.ministryId || null });
     setStep(null);
   };
 
@@ -289,14 +309,15 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
 
   const isProximos = monthFilter === "proximos";
   const visibleEvents = useMemo(() => {
-    const list = isProximos
+    const list = (isProximos
       ? events.filter(isUpcoming)
       : events.filter((ev) => {
           const d = parseIsoDateLocal(ev.date);
           return d && monthKey(d.getFullYear(), d.getMonth()) === monthFilter;
-        });
+        }))
+      .filter((ev) => ministerioFiltro === "todos" || (ministerioFiltro === "general" ? !ev.ministryId : ev.ministryId === ministerioFiltro));
     return list.slice().sort(compareByDay);
-  }, [events, monthFilter, isProximos]);
+  }, [events, monthFilter, isProximos, ministerioFiltro]);
 
   const hero = isProximos ? visibleEvents[0] : null;
   const rest = isProximos ? visibleEvents.slice(1) : visibleEvents;
@@ -358,6 +379,20 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
         </div>
       </div>
 
+      {ministeriosConEventos.length > 0 && (
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", margin: "-6px 0 14px", paddingBottom: 2 }}>
+          {[["todos", "Todos", null], ["general", "Generales", null], ...ministeriosConEventos.map((m) => [m.id, m.name, m.color])].map(([id, nombre, color]) => {
+            const on = ministerioFiltro === id;
+            return (
+              <button key={id} onClick={() => setMinisterioFiltro(id)} style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 16, border: "none", cursor: "pointer",
+                background: on ? (color || "var(--wf-brand-accent)") : "var(--wf-hover)", color: on ? "#fff" : "var(--wf-text)" }}>
+                {color && !on && <span style={{ width: 7, height: 7, borderRadius: "50%", background: color }} />}{nombre}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {canStartLive && (
         <button data-tour="eventos-libre" onClick={onStartFree} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: liveLibre ? "var(--wf-active-bg)" : "var(--wf-card)", border: liveLibre ? "1px solid var(--wf-brand-accent)" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 18, padding: "12px 14px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
           <div style={{ width: 34, height: 34, borderRadius: 14, background: liveLibre ? "var(--wf-brand-accent)" : "var(--wf-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Radio size={16} color={liveLibre ? "#fff" : "#C23B32"} /></div>
@@ -380,6 +415,7 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
                   <div style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-brand-accent)" }}>{heroDate ? MONTH_ABBR[heroDate.getMonth()] : ""}</div>
                 </div>
                 <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: "rgba(255,255,255,0.85)" }}>PRÓXIMO EVENTO</span>
+                <EtiquetaMinisterio ministerio={ministerioDe(hero)} claro />
               </div>
               <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, color: "#fff" }}>{hero.title}</div>
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)" }}>{hero.location}</div>
@@ -425,8 +461,9 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
                 {isPast && <span style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-faint)", flexShrink: 0 }}>PASADO</span>}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--wf-muted)", fontSize: 12 }}>
-                <MapPin size={11} /> {ev.location}
+                <MapPin size={11} /> <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.location}</span>
                 <span style={{ marginLeft: 8, display: "flex", alignItems: "center", gap: 4 }}><Users size={11} /> {totalMembers}</span>
+                <EtiquetaMinisterio ministerio={ministerioDe(ev)} />
               </div>
               {misCargos.length > 0 && (
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-brand-accent)", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -438,8 +475,9 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
         );
       })}
 
-      {/* Botón flotante circular para crear evento — solo administradores */}
-      {isAdminViewer && (
+      {/* Botón flotante circular para crear evento — quien organiza eventos, o el líder de un ministerio
+          (para los eventos de su ministerio). */}
+      {puedeCrear && (
         <button data-tour="eventos-nuevo" onClick={openCreate} style={{ position: "fixed", right: 20, bottom: 92, width: 54, height: 54, borderRadius: "50%", background: "var(--wf-brand-accent)", border: "none", boxShadow: "0 8px 18px rgba(232,130,30,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 41 }}>
           <Plus size={24} color="var(--wf-brand-primary)" />
         </button>
@@ -468,7 +506,22 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
       {step === "details" && (
         <ModalShell title="Detalles del evento" icon={Calendar} color="var(--wf-brand-accent)" onClose={() => setStep(null)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <Field label="Título" required><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ej. Domingo AM – 19 Jul" style={inputStyle} /></Field>
+            {!isPlantillaMode && ministeriosParaCrear.length > 0 && (
+              <Field label="¿De quién es este evento?">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {[...(isAdminViewer ? [{ id: null, name: "General (toda la iglesia)", color: null }] : []), ...ministeriosParaCrear].map((m) => {
+                    const on = (form.ministryId || null) === m.id;
+                    return (
+                      <button key={m.id || "general"} type="button" onClick={() => setForm({ ...form, ministryId: m.id })} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 14, cursor: "pointer",
+                        border: on ? "none" : "1px solid var(--wf-divider)", background: on ? (m.color || "var(--wf-brand-accent)") : "var(--wf-card)", color: on ? "#fff" : "var(--wf-text)" }}>
+                        {m.color && !on && <span style={{ width: 7, height: 7, borderRadius: "50%", background: m.color }} />}{m.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+            )}
+            <Field label="Título" required><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={form.ministryId ? "Ej. Retiro de jóvenes" : "Ej. Domingo AM – 19 Jul"} style={inputStyle} /></Field>
             <Field label="Fecha del calendario" required>
               <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} style={inputStyle} />
               <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Es la fecha real del evento — de aquí sale su lugar en Inicio y en el filtro de mes, y también trae sola la planificación de Ministerios de esa semana.</span>

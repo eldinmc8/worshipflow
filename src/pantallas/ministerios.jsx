@@ -1,7 +1,7 @@
 // Grupos (ministerios): lista y detalle con planificación y recursos. Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { useState, useRef, useEffect } from "react";
 import { monthKey, monthLabelFromKey } from "../lib/dates.js";
-import { Plus, Users, LayoutGrid, ArrowLeft, Trash2, ChevronLeft, ChevronRight, StickyNote, ChevronDown, ChevronUp, ClipboardList, FolderOpen, ExternalLink, Pencil, Paperclip, X } from "lucide-react";
+import { Plus, Users, LayoutGrid, ArrowLeft, Trash2, ChevronLeft, ChevronRight, CalendarDays, StickyNote, ChevronDown, ChevronUp, ClipboardList, FolderOpen, ExternalLink, Pencil, Paperclip, X } from "lucide-react";
 import { subirArchivoRecurso, getResumenMensual, guardarResumenMensual } from "../lib/ministerios.js";
 import { notifyError } from "../lib/toast.js";
 import { PERMISOS_LIDER } from "../lib/roles.js";
@@ -66,7 +66,55 @@ export function MinistriesList({ ministries, usuariosReales, isAdminViewer, onSe
   );
 }
 
-export function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, canEdit, onBack, onSavePlan, onAddResource, onEditResource, onRemoveResource, onSetLeader, onSetName, onSetColor, onSetPermisosLider, onDelete }) {
+const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+const fechaCorta = (iso) => { const [, m, d] = String(iso || "").split("-").map(Number); return d ? `${d} ${MESES[m - 1].slice(0, 3).toLowerCase()}` : ""; };
+
+// Plan anual del ministerio: los 12 meses de un vistazo, con sus eventos y su planificación.
+// Tocar un mes abre ese mes; tocar un evento lo abre.
+function VistaAnual({ anio, ministry, plan, eventos, onAbrirMes, onAbrirEvento }) {
+  const hoy = new Date();
+  // Al abrir el año en curso, ir directo al mes actual (lo de antes ya pasó).
+  const mesActualRef = useRef(null);
+  useEffect(() => {
+    if (anio === hoy.getFullYear() && hoy.getMonth() > 1) mesActualRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  }, [anio]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 10, marginBottom: 16 }}>
+      {MESES.map((nombre, i) => {
+        const key = monthKey(anio, i);
+        const evs = eventos.filter((e) => (e.date || "").slice(0, 7) === key).sort((a, b) => a.date.localeCompare(b.date));
+        const planes = plan.filter((p) => (p.date || "").slice(0, 7) === key && (p.title || "").trim()).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+        const esActual = anio === hoy.getFullYear() && i === hoy.getMonth();
+        const vacio = !evs.length && !planes.length;
+        return (
+          <div key={key} ref={esActual ? mesActualRef : null} style={{ scrollMarginTop: 16, background: "var(--wf-card)", borderRadius: 16, padding: 12, boxShadow: esActual ? `0 0 0 2px ${ministry.color}` : "0 3px 14px rgba(22,50,79,0.08)", display: "flex", flexDirection: "column", gap: 6 }}>
+            <button onClick={() => onAbrirMes(key)} className="hoverable" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--wf-text)", textAlign: "left" }}>
+              <span style={{ fontSize: 14, fontWeight: 700 }}>{nombre}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 11, color: "var(--wf-faint)" }}>{vacio ? "Planificar" : "Abrir"} <ChevronRight size={13} /></span>
+            </button>
+            {evs.map((e) => (
+              <button key={e.id} onClick={() => onAbrirEvento(e.id)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 7, background: `${ministry.color}14`, border: "none", borderRadius: 10, padding: "6px 8px", cursor: "pointer", textAlign: "left", color: "var(--wf-text)" }}>
+                <CalendarDays size={13} color={ministry.color} style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: ministry.color, flexShrink: 0 }}>{fechaCorta(e.date)}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.title}</span>
+              </button>
+            ))}
+            {planes.slice(0, 4).map((p) => (
+              <div key={p.id} style={{ display: "flex", gap: 7, fontSize: 12, color: "var(--wf-text-2)", padding: "0 2px" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-faint)", flexShrink: 0, minWidth: 40 }}>{fechaCorta(p.date)}</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</span>
+              </div>
+            ))}
+            {planes.length > 4 && <div style={{ fontSize: 11, color: "var(--wf-faint)", paddingLeft: 2 }}>+{planes.length - 4} más</div>}
+            {vacio && <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>Sin planes todavía</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminViewer, canEdit, onBack, onSavePlan, onAddResource, onEditResource, onRemoveResource, onSetLeader, onSetName, onSetColor, onSetPermisosLider, onDelete, eventos = [], puedeCrearEventos = false, onCrearEvento, onAbrirEvento }) {
   const [showResourceForm, setShowResourceForm] = useState(false);
   const [resourceDraft, setResourceDraft] = useState({ title: "", link: "" });
   // null = agregando uno nuevo; con valor = editando ese recurso ya existente (mismo modal para los dos).
@@ -102,6 +150,21 @@ export function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminV
     const [y, m] = selectedMonth.split("-").map(Number);
     const d = new Date(y, m - 1 + delta, 1);
     setSelectedMonth(monthKey(d.getFullYear(), d.getMonth()));
+  };
+  // Mes (planificar semana a semana) o Año (plan anual de un vistazo).
+  const [vista, setVista] = useState("mes");
+  const anioSel = Number(selectedMonth.slice(0, 4));
+  const cambiarAnio = (delta) => setSelectedMonth(`${anioSel + delta}${selectedMonth.slice(4)}`);
+  // Nuevo evento del ministerio (Retiro, Vigilia, Reunión de damas…).
+  const [nuevoEvento, setNuevoEvento] = useState(null); // null | { title, date, hora, location }
+  const abrirNuevoEvento = () => {
+    const hoyIso = new Date().toISOString().slice(0, 10);
+    setNuevoEvento({ title: "", date: hoyIso.slice(0, 7) === selectedMonth ? hoyIso : `${selectedMonth}-01`, hora: "", location: "" });
+  };
+  const crearEvento = () => {
+    if (!nuevoEvento?.title.trim() || !nuevoEvento.date) return;
+    onCrearEvento?.({ title: nuevoEvento.title.trim(), date: nuevoEvento.date, hora: nuevoEvento.hora || null, dateLabel: "", location: nuevoEvento.location.trim() || "Por definir", ministryId: ministry.id });
+    setNuevoEvento(null);
   };
 
   // La planificación se edita en un borrador LOCAL, no letra por letra contra Supabase — antes cada
@@ -267,11 +330,46 @@ export function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminV
           el mes (se filtran acá por fecha/mes), así que cambiar de mes no pierde nada de lo ya
           cargado en otros meses — solo cambia qué parte de esa lista se ve y a qué mes se etiqueta
           lo nuevo que se agregue. */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginBottom: 16, background: "var(--wf-hover)", borderRadius: 14, padding: "8px 12px" }}>
-        <button onClick={() => changeMonth(-1)} className="hoverable" style={iconGhost}><ChevronLeft size={16} /></button>
-        <span style={{ fontSize: 13, fontWeight: 700, minWidth: 140, textAlign: "center" }}>{monthLabelFromKey(selectedMonth)}</span>
-        <button onClick={() => changeMonth(1)} className="hoverable" style={iconGhost}><ChevronRight size={16} /></button>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 14, padding: 3 }}>
+          {[["mes", "Mes"], ["anio", "Año completo"]].map(([v, t]) => (
+            <button key={v} onClick={() => setVista(v)} style={{ border: "none", borderRadius: 11, padding: "7px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: vista === v ? ministry.color : "transparent", color: vista === v ? "#fff" : "var(--wf-text)" }}>{t}</button>
+          ))}
+        </div>
+        <div style={{ flex: 1, minWidth: 210, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "var(--wf-hover)", borderRadius: 14, padding: "5px 10px" }}>
+          <button onClick={() => (vista === "anio" ? cambiarAnio(-1) : changeMonth(-1))} className="hoverable" style={iconGhost}><ChevronLeft size={16} /></button>
+          <span style={{ fontSize: 13, fontWeight: 700, minWidth: 120, textAlign: "center" }}>{vista === "anio" ? anioSel : monthLabelFromKey(selectedMonth)}</span>
+          <button onClick={() => (vista === "anio" ? cambiarAnio(1) : changeMonth(1))} className="hoverable" style={iconGhost}><ChevronRight size={16} /></button>
+        </div>
+        {puedeCrearEventos && (
+          <button onClick={abrirNuevoEvento} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 6, border: "none", borderRadius: 14, padding: "9px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: ministry.color, color: "#fff" }}>
+            <Plus size={14} /> Nuevo evento
+          </button>
+        )}
       </div>
+
+      {vista === "anio" ? (
+        <VistaAnual anio={anioSel} ministry={ministry} plan={planDraft} eventos={eventos}
+          onAbrirMes={(key) => { setSelectedMonth(key); setVista("mes"); }} onAbrirEvento={(id) => onAbrirEvento?.(id)} />
+      ) : (<>
+      {/* Eventos del ministerio en este mes (los crea el líder con "Nuevo evento"). */}
+      {(() => {
+        const delMes = eventos.filter((e) => (e.date || "").slice(0, 7) === selectedMonth).sort((a, b) => a.date.localeCompare(b.date));
+        if (!delMes.length && !puedeCrearEventos) return null;
+        return (
+          <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 14, marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, marginBottom: delMes.length ? 10 : 6 }}><CalendarDays size={15} color={ministry.color} /> Eventos de {monthLabelFromKey(selectedMonth)}</div>
+            {delMes.map((e) => (
+              <button key={e.id} onClick={() => onAbrirEvento?.(e.id)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: `${ministry.color}12`, border: "none", borderRadius: 12, padding: "9px 10px", marginBottom: 6, cursor: "pointer", textAlign: "left", color: "var(--wf-text)" }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: ministry.color, minWidth: 44 }}>{fechaCorta(e.date)}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.title}</span>
+                <ChevronRight size={15} color="var(--wf-faint)" />
+              </button>
+            ))}
+            {!delMes.length && <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>No hay eventos este mes. Toca "Nuevo evento" para crear uno (retiro, vigilia, reunión…).</div>}
+          </div>
+        );
+      })()}
 
       {/* Resumen del mes: nota de cierre general, aparte de la planificación semana a semana de abajo —
           a diferencia de esta, no se carga junto con el resto del ministerio (ver getResumenMensual). */}
@@ -370,6 +468,21 @@ export function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminV
         ))}
         {resourcesForMonth.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>No hay recursos compartidos para {monthLabelFromKey(selectedMonth)}.</div>}
       </div>
+
+      </>)}
+
+      {nuevoEvento && (
+        <ModalShell title={`Nuevo evento de ${ministry.name}`} icon={CalendarDays} color={ministry.color} onClose={() => setNuevoEvento(null)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Field label="¿Qué evento es?"><input autoFocus value={nuevoEvento.title} onChange={(e) => setNuevoEvento({ ...nuevoEvento, title: e.target.value })} placeholder="Ej. Retiro, Vigilia, Reunión mensual" style={inputStyle} /></Field>
+            <Field label="Fecha"><input type="date" value={nuevoEvento.date} onChange={(e) => setNuevoEvento({ ...nuevoEvento, date: e.target.value })} style={inputStyle} /></Field>
+            <Field label="Hora (opcional)"><input type="time" value={nuevoEvento.hora} onChange={(e) => setNuevoEvento({ ...nuevoEvento, hora: e.target.value })} style={inputStyle} /></Field>
+            <Field label="Lugar (opcional)"><input value={nuevoEvento.location} onChange={(e) => setNuevoEvento({ ...nuevoEvento, location: e.target.value })} placeholder="Ej. Salón principal" style={inputStyle} /></Field>
+          </div>
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 10 }}>Se abre el evento para que armes su programa y su equipo. Lo verán quienes asignes y los líderes.</div>
+          <button onClick={crearEvento} disabled={!nuevoEvento.title.trim() || !nuevoEvento.date} style={{ ...primaryBtn, marginTop: 14, background: ministry.color, color: "#fff", opacity: nuevoEvento.title.trim() && nuevoEvento.date ? 1 : 0.4 }}>Crear evento</button>
+        </ModalShell>
+      )}
 
       {showResourceForm && (
         <ModalShell title={editingResourceId ? "Editar recurso" : "Agregar recurso"} icon={FolderOpen} color={ministry.color} onClose={closeResourceForm}>
