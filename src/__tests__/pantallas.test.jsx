@@ -118,6 +118,29 @@ describe("¿abre la pantalla?", () => {
     sinPantallaDeError();
   });
 
+  it("Ajustes: cada categoría abre su pantalla con los mismos controles de siempre", async () => {
+    abrirApp();
+    await screen.findByText(/Miembros del equipo/, {}, { timeout: 4000 });
+    await irA("Ajustes");
+    const abrir = async (categoria, esperado) => {
+      const botones = await screen.findAllByRole("button", { name: new RegExp(categoria) });
+      fireEvent.click(botones.find((x) => x.classList.contains("fila-ajuste")) || botones[0]);
+      expect(await screen.findAllByText(esperado)).not.toHaveLength(0);
+      sinPantallaDeError();
+      fireEvent.click(screen.getByRole("button", { name: /Volver a Ajustes/ }));
+      await screen.findByText("Para mí");
+    };
+    await abrir("Mi cuenta", /Cambiar contraseña/);
+    await abrir("^Apariencia", /Modo de color/);
+    await abrir("^Notificaciones", /avisos/i);
+    await abrir("^Este dispositivo", /instal/i);
+    await abrir("^Mis próximas fechas", /Culto dominical|No tienes nada asignado/);
+    await abrir("^Proyección y pantallas", /Pantallas y TV/);
+    await abrir("^Identidad y horario", /Zona horaria/);
+    await abrir("^Ayuda y contacto", /WhatsApp/);
+    await abrir("^Avanzado", /Probar la app con otro rol/);
+  });
+
   it("abre una canción", async () => {
     abrirApp();
     await screen.findByText(/Miembros del equipo/, {}, { timeout: 4000 });

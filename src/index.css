@@ -479,3 +479,6 @@ img, svg {
 /* ---- Momentos especiales de la canción (pestaña "Animación" del editor, 2026-11-06) ---- */
 .wfa .wfm-gigante { font-size: 1.45em; color: #FFD23F !important; }
 .wfa .wfm-brillo { text-shadow: 0 0 .25em #FFFFFF, 0 0 .7em #FFD9A0, 0 0 1.4em #FF9A3A !important; }
+
+/* Ajustes (rediseño, idea A): línea fina entre filas de un mismo grupo. */
+.fila-ajuste + .fila-ajuste { border-top: 1px solid var(--wf-divider) !important; }
