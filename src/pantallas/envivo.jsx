@@ -1068,7 +1068,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         {!sencillo && [["transmision", "Transmisión"], ["biblia", "Biblia"], ["estilo", "Estilo"], ["insertar", "Insertar"]].map(([key, label]) => (
           <button
             key={key} onClick={() => setMmPanel(key)}
-            style={{ padding: "7px 12px 6px", border: "none", background: "transparent", cursor: "pointer", fontSize: 12.5, fontWeight: mmPanel === key ? 700 : 500, color: mmPanel === key ? "var(--wf-text)" : "var(--wf-muted)", borderBottom: `2px solid ${mmPanel === key ? "var(--wf-brand-accent)" : "transparent"}`, flexShrink: 0 }}
+            style={{ padding: "10px 14px 9px", border: "none", background: "transparent", cursor: "pointer", fontSize: 14, fontWeight: mmPanel === key ? 700 : 500, color: mmPanel === key ? "var(--wf-heading)" : "var(--wf-muted)", borderBottom: `2px solid ${mmPanel === key ? "var(--wf-brand-accent)" : "transparent"}`, flexShrink: 0 }}
           >{label}</button>
         ))}
         <div style={{ flex: 1 }} />
@@ -1445,7 +1445,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         )}
 
         {/* Lo que está al aire y lo que sigue — siempre visibles, en cualquier pestaña */}
-        <aside aria-label="Vista previa" data-tour="envivo-alaire" style={{ width: "clamp(260px, 25vw, 400px)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, minHeight: 0, overflowY: "auto", paddingRight: 2 }}>
+        <aside aria-label="Vista previa" data-tour="envivo-alaire" style={{ width: "clamp(300px, 32vw, 480px)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, minHeight: 0, overflowY: "auto", paddingRight: 2 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#C23B32", letterSpacing: 0.4 }}><Radio size={11} /> AL AIRE</span>
             {alAire && <span style={{ fontSize: 11, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{blanked ? "Pantalla en negro" : alAire.type === "cancion" ? `${alAire.songTitle} · ${alAire.blockLabel}` : alAire.type === "biblia" ? alAire.reference : alAire.nombre || alAire.title}</span>}
