@@ -13,11 +13,11 @@ App de presentación y gestión para iglesias (competidor de OnStage/ProPresente
   - Naranja: `#E8821E` (acento principal, CTAs, activo)
   - Fondo general claro: `#F4F6FA`, tarjetas blancas `#FFFFFF`
   - Acentos secundarios: teal `#1F8A73` (acordes), azul `#2F5FA8` (versículos), índigo `#5661B3` (bloques), orquídea `#B15EA0` (slides), rojo `#C23B32` (en vivo/peligro)
-- **Tipografía**: Fraunces (serif, solo títulos grandes), Poppins (sans, todo el resto), JetBrains Mono (acordes/código)
-- **Tarjetas**: sombra suave, sin bordes duros (`boxShadow`, no `border: 1px solid`), `border-radius` generoso (12-20px)
+- **Tipografía** (rediseño de estilo, 2026-11-11): Inter para TODO el chrome — títulos y texto — vía `var(--wf-font-titulo)` / `var(--wf-font-ui)` en `index.css`; JetBrains Mono para acordes/código. Fraunces y Poppins siguen cargadas solo para la proyección, letras animadas, cuenta regresiva, Modo Predicar, pantalla de TV y las fuentes de DISEÑO DE LAS LETRAS — no volver a usarlas en el chrome
+- **Tarjetas**: sombra muy suave (`0 1px 3px rgba(22,50,79,0.08)`), sin bordes duros, `border-radius` generoso (12-20px)
 - **Navegación**: barra flotante inferior tipo isla redondeada (NO sidebar como OnStage) — pestaña activa se convierte en burbuja naranja
 - **Regla de oro**: TODO el chrome de la app es claro/cálido, EXCEPTO la pantalla de Proyección real y sus mini-previews, que se mantienen oscuras (estilo escenario) porque así se ve bien un proyector en una iglesia con luces bajas
-- Header con borde inferior curvo (no rectángulo recto), círculos decorativos translúcidos de fondo
+- Header con borde inferior curvo (no rectángulo recto), SIN círculos decorativos (quitados en el rediseño de estilo). El logo de la iglesia (AppLogo) y el ícono de WorshipFlow no se cambian
 - Ícono de marca: trazo simple de báculo de pastor (no micrófono)
 
 ## Módulos principales
