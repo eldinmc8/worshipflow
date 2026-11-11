@@ -71,7 +71,7 @@ export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCer
   const dirTv = direccionTv(origen).replace(/^https?:\/\//, "");
 
   const boton = { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 12px", borderRadius: 12, border: "1px solid var(--wf-border)", background: "var(--wf-card)", color: "var(--wf-text)", fontSize: 13, fontWeight: 600, cursor: "pointer", textDecoration: "none", flex: 1, fontFamily: "inherit" };
-  const tarjeta = { background: "var(--wf-card)", borderRadius: 16, padding: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", marginBottom: 12 };
+  const tarjeta = { background: "var(--wf-card)", borderRadius: 16, padding: 14, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", marginBottom: 12 };
   const tituloTarjeta = { display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700, color: "var(--wf-heading)", marginBottom: 8 };
   const paso = { display: "flex", gap: 8, fontSize: 12.5, color: "var(--wf-text)", lineHeight: 1.5, marginBottom: 8 };
   const numPaso = { width: 20, height: 20, borderRadius: 10, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 };

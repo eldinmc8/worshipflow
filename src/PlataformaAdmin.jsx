@@ -7,7 +7,7 @@ import { validarPassword } from "./lib/passwordSegura.js";
 import { ordenarPor } from "./lib/orden.js";
 import { ESTADOS_SALUD, estadoSalud, alertasIglesia, pasosArranque, ultimaActividad, haceCuanto, prioridadAtencion } from "./lib/saludIglesia.js";
 
-const cardStyle = { background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: "14px 16px", marginBottom: 12 };
+const cardStyle = { background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", padding: "14px 16px", marginBottom: 12 };
 const ghostBtn = { background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 11px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit" };
 const dangerBtn = { ...ghostBtn, color: "#C23B32" };
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 10, padding: "9px 10px", fontSize: 13, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
@@ -96,7 +96,7 @@ export default function PlataformaAdmin({ onExit }) {
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
         <button onClick={onExit} style={{ ...ghostBtn, padding: 8 }} aria-label="Salir de la consola"><ArrowLeft size={16} /></button>
         <Shield size={18} color="var(--wf-brand-accent)" />
-        <span style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600 }}>Consola de iglesias</span>
+        <span style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, fontWeight: 600 }}>Consola de iglesias</span>
         <button onClick={cargar} style={{ ...ghostBtn, marginLeft: "auto" }} aria-label="Actualizar"><RefreshCw size={14} /></button>
       </div>
       <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>
@@ -416,7 +416,7 @@ function PerfilIglesia({ r, sinActividad, usuariosBasicos, onVolver, onCambio })
         <Inicial igl={r} size={56} />
         <div style={{ flex: 1, minWidth: 180 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 21, fontWeight: 600 }}>{r.nombre}</span>
+            <span style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 21, fontWeight: 600 }}>{r.nombre}</span>
             <PildoraSalud estado={estado} />
             {r.en_vivo_ahora && <span style={{ fontSize: 10.5, fontWeight: 800, color: "#fff", background: "#C23B32", borderRadius: 10, padding: "2px 8px" }}>EN VIVO AHORA</span>}
           </div>

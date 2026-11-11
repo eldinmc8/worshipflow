@@ -47,7 +47,7 @@ function OpcionesRol({ rolesApp }) {
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "9px 10px", fontSize: 13, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
 const primaryBtn = { background: "var(--wf-brand-accent)", border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: "var(--wf-brand-primary)", cursor: "pointer" };
 const ghostBtn = { background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer" };
-const cardStyle = { background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: "12px 14px", marginBottom: 8 };
+const cardStyle = { background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", padding: "12px 14px", marginBottom: 8 };
 
 // Todos los eventos (reales, no plantillas) donde este usuario aparece como encargado — ya sea de un
 // ítem del Setlist (miembros_rol.item_servicio_id) o de un rol del equipo de alabanza
@@ -398,14 +398,14 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
         ) : (
           <div className="screen-enter">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, color: "var(--wf-heading)", margin: 0 }}>Miembros</h1>
+              <h1 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, color: "var(--wf-heading)", margin: 0 }}>Miembros</h1>
               <button onClick={onExit} style={ghostBtn}>← Volver a la app</button>
             </div>
             <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 14 }}>Todo lo de las personas en un solo lugar: invitar por correo, cambiar su rol y su estado aquí mismo. Toca a alguien para ver su horario, reiniciar su contraseña o eliminarlo. Lo que puede hacer el líder de un grupo se decide dentro de cada grupo.</div>
 
             {error && <div style={{ background: "#FDECEA", border: "1px solid #C23B32", color: "#8A2A24", borderRadius: 12, padding: "8px 12px", fontSize: 13, marginBottom: 14 }}>{error}</div>}
 
-            <form onSubmit={addUser} style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: 16, marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+            <form onSubmit={addUser} style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", padding: 16, marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
               <div style={{ flex: "1 1 220px" }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)" }}>Correo</label>
                 <input type="email" required value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} style={inputStyle} />
@@ -426,7 +426,7 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
             </div>
             {rows && <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "0 4px 8px" }}>{rows.length} {rows.length === 1 ? "persona" : "personas"} · {activos} {activos === 1 ? "activa" : "activas"}</div>}
 
-            <div style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", overflow: "hidden" }}>
+            <div style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", overflow: "hidden" }}>
               {rows === null && <div style={{ padding: 20, color: "var(--wf-faint)", fontSize: 13 }}>Cargando…</div>}
               {rows?.length === 0 && <div style={{ padding: 20, color: "var(--wf-faint)", fontSize: 13 }}>Todavía no hay miembros — invita al primero con su correo.</div>}
               {rows?.length > 0 && filasVisibles.length === 0 && <div style={{ padding: 20, color: "var(--wf-faint)", fontSize: 13 }}>Nadie coincide con "{busqueda}".</div>}

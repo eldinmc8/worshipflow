@@ -9,7 +9,7 @@ import { confirmDialog } from "../lib/confirm.js";
 import { estaSuscritoPush, suscribirPush, desuscribirPush, esRechazoDeNotificaciones } from "../lib/notificaciones.js";
 import { isUpcoming, formatFullDate } from "../lib/dates.js";
 import { usePreferencias, TAMANOS_LETRA, setTamanoLetra, NOTACIONES, setNotacion, acordeEn } from "../lib/preferencias.js";
-import { ChevronRight, ChevronUp, ChevronDown, KeyRound, Check, Calendar, Bell, Moon, Type, Music, Download, Radio, Tv, Users, Palette, Shield, Eye, Sparkles, MessageCircle, Send, LogOut, Speaker, Clock, Crown } from "lucide-react";
+import { ChevronRight, ChevronLeft, KeyRound, Check, Calendar, Bell, Moon, Type, Music, Download, Radio, Tv, Users, Palette, Shield, Sparkles, MessageCircle, Send, LogOut, Speaker, Clock, Crown } from "lucide-react";
 import PantallaOtroEquipo from "../components/PantallaOtroEquipo.jsx";
 import { SalidaAudioModal, useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
 import { BibleDownloadSection } from "./biblia.jsx";
@@ -19,26 +19,12 @@ import { inputStyle, ModalShell } from "./compartido.jsx";
 import { CORREO_SOPORTE, WHATSAPP_SOPORTE } from "../lib/soporte.js";
 import { usePlan, planPorId, diasRestantes, abrirPlanes } from "../lib/planes.js";
 
-// ---------------- AVATAR STACK ----------------
-function AvatarStack({ initials, max = 3 }) {
-  const shown = initials.slice(0, max);
-  const rest = initials.length - shown.length;
-  return (
-    <div style={{ display: "flex" }}>
-      {shown.map((init, i) => (
-        <div key={i} style={{ width: 26, height: 26, borderRadius: "50%", background: "#3A4B6E", border: "2px solid var(--wf-text)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, marginLeft: i === 0 ? 0 : -8 }}>{init}</div>
-      ))}
-      {rest > 0 && <div style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--wf-brand-accent)", color: "var(--wf-text)", border: "2px solid var(--wf-text)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, marginLeft: -8 }}>+{rest}</div>}
-    </div>
-  );
-}
-
 function NavRow({ icon: Icon, label, onClick, right, danger }) {
   // Si no hay onClick propio de la fila (ej. cuando "right" ya es interactivo, como un ToggleSwitch),
   // usamos un <div> en vez de <button> — un <button> no puede contener otro <button> (HTML inválido).
   const Tag = onClick ? "button" : "div";
   return (
-    <Tag onClick={onClick} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: onClick ? "pointer" : "default", boxSizing: "border-box" }}>
+    <Tag onClick={onClick} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: onClick ? "pointer" : "default", boxSizing: "border-box" }}>
       <Icon size={18} color={danger ? "#C23B32" : "var(--wf-text-2)"} />
       <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: danger ? "#C23B32" : "var(--wf-text)" }}>{label}</span>
       {right}
@@ -50,6 +36,33 @@ function SectionLabel({ children }) {
   return <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.5, margin: "18px 0 8px" }}>{children}</div>;
 }
 
+function GrupoAjustes({ titulo, nota, children }) {
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0 4px", marginBottom: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--wf-muted)" }}>{titulo}</span>
+        {nota && <span style={{ fontSize: 11, color: "var(--wf-faint)" }}>{nota}</span>}
+      </div>
+      <div style={{ background: "var(--wf-card)", borderRadius: 18, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", overflow: "hidden" }}>{children}</div>
+    </div>
+  );
+}
+
+// Fila de la portada de Ajustes: ícono en cuadrito de color, título, resumen y flecha. Las filas van
+// separadas por una línea fina (regla .fila-ajuste + .fila-ajuste en index.css).
+function FilaAjuste({ icon: Icon, color, label, sub, onClick }) {
+  return (
+    <button onClick={onClick} className="hoverable fila-ajuste" style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", minHeight: 60, textAlign: "left", background: "transparent", border: "none", padding: "12px 14px", cursor: "pointer", color: "var(--wf-text)", fontFamily: "inherit" }}>
+      <span style={{ width: 34, height: 34, borderRadius: 10, background: color + "1F", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={18} color={color} /></span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 15, fontWeight: 600 }}>{label}</span>
+        {sub && <span style={{ display: "block", fontSize: 12, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</span>}
+      </span>
+      <ChevronRight size={16} color="var(--wf-faint)" style={{ flexShrink: 0 }} />
+    </button>
+  );
+}
+
 function useInstallState() {
   const [state, setState] = useState(getInstallState);
   useEffect(() => subscribeInstallState(() => setState(getInstallState())), []);
@@ -57,7 +70,6 @@ function useInstallState() {
 }
 
 export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverride, myName, nameOverride, setNameOverride, usuariosReales, perfil, events, onSelectEvent, onGoToUsuarios, onGoToRoles, onGoToPlataforma, userId, myIglesiaId, teamName, isCompact, onVerTutorial }) {
-  const [horarioAbierto, setHorarioAbierto] = useState(false);
   const [showTeamList, setShowTeamList] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showIdentidad, setShowIdentidad] = useState(false);
@@ -162,10 +174,9 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
   // administrador queda guardado en "Opciones avanzadas" para que nadie lo toque sin querer.
   const { tamanoLetra, notacion } = usePreferencias();
   const plan = usePlan();
-  const [cuentaAbierta, setCuentaAbierta] = useState(false);
-  const [avanzadoAbierto, setAvanzadoAbierto] = useState(!!(roleOverride || nameOverride));
+  const [seccion, setSeccion] = useState(null); // null = portada · "cuenta" · "apariencia" · …
   const chevron = <ChevronRight size={16} color="var(--wf-faint)" />;
-  const tarjeta = { background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "12px 16px", marginBottom: 8 };
+  const tarjeta = { background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: "12px 16px", marginBottom: 8 };
   const opcion = (activa) => ({ flex: 1, fontSize: 12.5, fontWeight: 700, padding: "9px 6px", borderRadius: 12, border: "none", cursor: "pointer", background: activa ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: activa ? "var(--wf-brand-primary)" : "var(--wf-text)" });
   const subtitulo = (icono, texto) => (
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -179,217 +190,13 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
     supabase.auth.signOut();
   };
 
-  return (
-    <div className="screen-enter" style={{ padding: 20, maxWidth: 640, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
-      <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, marginBottom: 18 }}>Ajustes</h2>
-
-      {/* Mi cuenta: tocar la tarjeta abre contraseña y Google. */}
-      <button onClick={() => setCuentaAbierta((v) => !v)} className="hoverable" aria-expanded={cuentaAbierta} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 18, padding: 14, cursor: "pointer", marginBottom: 8, color: "var(--wf-text)" }}>
-        {perfil?.foto_url ? (
-          <img src={perfil.foto_url} alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-        ) : (
-          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#6E63C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700, flexShrink: 0, color: "#fff" }}>{initials}</div>
-        )}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>{myName || "Sin nombre"}</div>
-          {perfil?.email && <div style={{ fontSize: 12, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis" }}>{perfil.email}</div>}
-          <span style={{ display: "inline-block", marginTop: 4, background: "var(--wf-hover)", borderRadius: 16, padding: "2px 10px", fontSize: 11, color: "var(--wf-text-2)" }}>{myRole}</span>
-        </div>
-        <span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 2 }}>Mi cuenta {cuentaAbierta ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>
-      </button>
-      {cuentaAbierta && (
-        <div style={{ marginBottom: 6 }}>
-          <NavRow icon={KeyRound} label="Cambiar contraseña" onClick={() => setShowChangePassword(true)} right={chevron} />
-          {googleLinked === true ? (
-            <NavRow
-              icon={Check} label="Puedes entrar con Google"
-              right={googleBusy ? null : <span onClick={(e) => { e.stopPropagation(); desvincularGoogle(); }} style={{ fontSize: 11, color: "var(--wf-faint)", fontWeight: 600, cursor: "pointer" }}>Desvincular</span>}
-            />
-          ) : googleLinked === false ? (
-            <NavRow icon={KeyRound} label="Entrar con Google" onClick={googleBusy ? undefined : vincularGoogle} right={googleBusy ? null : chevron} />
-          ) : null}
-        </div>
-      )}
-
-      <SectionLabel>MI SERVICIO</SectionLabel>
-      <NavRow icon={Calendar} label="Mis próximas fechas" onClick={() => setHorarioAbierto((v) => !v)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{misEventos.length} {horarioAbierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>} />
-      {horarioAbierto && (
-        misEventos.length ? (
-          <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-            {misEventos.map((e) => (
-              <button key={e.id} onClick={() => onSelectEvent(e.id)} className="hoverable" style={{ textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 2px 10px rgba(22,50,79,0.07)", borderRadius: 14, padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{e.title}</div>
-                  <div style={{ fontSize: 11, color: "var(--wf-faint)" }}>{formatFullDate(e.date) || e.dateLabel}</div>
-                </div>
-                <ChevronRight size={14} color="var(--wf-faint)" />
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div style={{ fontSize: 12, color: "var(--wf-faint)", marginBottom: 8, padding: "0 4px" }}>No tienes nada asignado en los próximos eventos.</div>
-        )
-      )}
-      {pushEstado === "sin-soporte" ? (
-        <NavRow icon={Bell} label="Avisos no disponibles en este navegador" right={null} />
-      ) : pushEstado === "activo" ? (
-        // A propósito sin un botón de un solo toque para desactivar — solo un enlace chico que primero
-        // confirma con una advertencia, para que nadie las apague sin querer o sin pensarlo.
-        <NavRow
-          icon={Bell}
-          label="Avisos al celular activados"
-          right={pushBusy ? null : (
-            <span
-              onClick={async (e) => { e.stopPropagation(); if (await confirmDialog("¿Seguro que quieres desactivar los avisos? Podrías perderte avisos de tus asignaciones y recordatorios de eventos.", { danger: true, textoConfirmar: "Desactivar" })) desactivarPush(); }}
-              style={{ fontSize: 11, color: "var(--wf-faint)", fontWeight: 600, cursor: "pointer" }}
-            >
-              Desactivar
-            </span>
-          )}
-        />
-      ) : pushEstado === "inactivo" ? (
-        <NavRow icon={Bell} label="Activar avisos al celular" onClick={activarPush} right={pushBusy ? null : chevron} />
-      ) : pushEstado === "bloqueado" ? (
-        <div style={{ ...tarjeta, display: "flex", gap: 10, alignItems: "flex-start" }}>
-          <Bell size={18} color="var(--wf-brand-accent)" style={{ flexShrink: 0, marginTop: 2 }} />
-          <div style={{ fontSize: 12.5, color: "var(--wf-text-2)", lineHeight: 1.5 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--wf-text)", marginBottom: 2 }}>Tus avisos están bloqueados en este navegador</div>
-            Para recibirlos, permite las notificaciones y vuelve a abrir la app:
-            <br />• <b>Computadora (Chrome o Edge):</b> clic en el ícono junto a la dirección → Notificaciones → Permitir.
-            <br />• <b>Android (Chrome):</b> toca el candado junto a la dirección → Permisos → Notificaciones → Permitir.
-            <br />• <b>iPhone con la app instalada:</b> Ajustes del iPhone → WorshipFlow → Notificaciones → Activar.
-          </div>
-        </div>
-      ) : null}
-
-      <SectionLabel>APARIENCIA</SectionLabel>
-      <div style={tarjeta}>
-        {subtitulo(<Moon size={18} color="var(--wf-text-2)" />, "Modo de color")}
-        <div style={{ display: "flex", gap: 6 }}>
-          {[["claro", "Claro"], ["oscuro", "Oscuro"], ["auto", "Automático"]].map(([val, label]) => (
-            <button key={val} onClick={() => cambiarTema(val)} style={opcion(tema === val)}>{label}</button>
-          ))}
-        </div>
-      </div>
-      <div style={tarjeta}>
-        {subtitulo(<Type size={18} color="var(--wf-text-2)" />, "Tamaño de letra")}
-        <div style={{ display: "flex", gap: 6 }}>
-          {TAMANOS_LETRA.map((t, i) => (
-            <button key={t.value} onClick={() => setTamanoLetra(t.value)} aria-pressed={tamanoLetra === t.value} style={{ ...opcion(tamanoLetra === t.value), display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-              <span style={{ fontSize: 14 + i * 4, lineHeight: 1.1 }}>Aa</span>
-              <span>{t.label}</span>
-            </button>
-          ))}
-        </div>
-        <div style={{ fontSize: 11, color: "var(--wf-muted)", marginTop: 8 }}>Solo en este dispositivo. No cambia la pantalla de proyección.</div>
-      </div>
-      <div style={tarjeta}>
-        {subtitulo(<Music size={18} color="var(--wf-text-2)" />, "Cómo ver los tonos y acordes")}
-        <div style={{ display: "flex", gap: 6 }}>
-          {NOTACIONES.map((n) => (
-            <button key={n.value} onClick={() => setNotacion(n.value)} aria-pressed={notacion === n.value} style={{ ...opcion(notacion === n.value), fontFamily: "'JetBrains Mono', monospace" }}>{n.label}</button>
-          ))}
-        </div>
-        <div style={{ fontSize: 11, color: "var(--wf-muted)", marginTop: 8 }}>
-          Ejemplo: <b style={{ fontFamily: "'JetBrains Mono', monospace", color: "#1F8A73" }}>{acordeEn("G", notacion)} · {acordeEn("Em", notacion)} · {acordeEn("D/F#", notacion)}</b> — solo cambia lo que tú ves.
-        </div>
-      </div>
-
-      <SectionLabel>ESTE DISPOSITIVO</SectionLabel>
-      {install.installed ? (
-        <NavRow icon={Check} label="La app ya está instalada" right={null} />
-      ) : install.canInstall ? (
-        <NavRow icon={Download} label="Instalar la app" onClick={() => promptInstall()} right={chevron} />
-      ) : isIosSafari() ? (
-        <NavRow icon={Download} label="Compartir → Agregar a inicio para instalar" right={null} />
-      ) : (
-        <NavRow icon={Download} label="Instalar la app" right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>Desde el menú del navegador</span>} />
-      )}
-      {/* El navegador pide permiso para "administrar ventanas en varias pantallas" la primera vez que
-          se usa getScreenDetails() -- si esa primera vez coincide con el clic de "Iniciar evento", para
-          cuando la persona responde ya se perdió el "gesto de usuario" y la pantalla completa automática
-          en el segundo monitor falla en silencio. Pidiéndolo acá, una sola vez, Chrome lo recuerda.
-          Solo en computadora: un teléfono no maneja "otra pantalla" por HDMI. */}
-      {!isCompact && typeof window !== "undefined" && "getScreenDetails" in window && (
-        <>
-          <NavRow
-            icon={Radio}
-            label={screensBusy ? "Pidiendo permiso…" : "Activar detección automática de pantalla"}
-            onClick={screensBusy ? undefined : activarDeteccionPantallas}
-            right={screensBusy ? null : chevron}
-          />
-          <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "-4px 4px 10px" }}>
-            Hazlo una vez, con el proyector/monitor ya conectado — así "Iniciar evento" abre la proyección en pantalla completa ahí solo.
-          </div>
-        </>
-      )}
-      {/* Salida de audio de los videos (2026-11-08): imagen al proyector, sonido a la consola/mixer.
-          Solo en computadora: es la que proyecta. */}
-      {!isCompact && (
-        <>
-          <NavRow
-            icon={Speaker}
-            label="Salida de audio de los videos"
-            onClick={() => setShowSalidaAudio(true)}
-            right={<span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--wf-faint)", maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{salidaAudio ? salidaAudio.label || "Elegida" : "Predeterminada"} {chevron}</span>}
-          />
-          <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "-4px 4px 10px" }}>
-            Para mandar el sonido del video a la consola o mixer mientras la imagen va al proyector.
-          </div>
-          {showSalidaAudio && <SalidaAudioModal onClose={() => setShowSalidaAudio(false)} />}
-        </>
-      )}
-      {/* Solo tiene sentido en la computadora que proyecta. */}
-      {!isCompact && <BibleDownloadSection />}
-
-      <SectionLabel>MI IGLESIA</SectionLabel>
-      <button onClick={() => setShowTeamList(true)} className="hoverable" style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 16, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", cursor: "pointer", textAlign: "left", color: "var(--wf-text)" }}>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>{teamName}</div>
-          <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{usuariosReales.length} {usuariosReales.length === 1 ? "miembro" : "miembros"}</div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <AvatarStack initials={usuariosReales.map((u) => u.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase())} max={2} />
-          {chevron}
-        </div>
-      </button>
-      {/* Todo en una sola opción (2026-11-02): proyección y escenario, Smart TV con número, QR y enlace. */}
-      <NavRow icon={Tv} label="Pantallas y TV" onClick={() => setShowOtroEquipoAjustes("proyeccion")} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Proyección · Escenario {chevron}</span>} />
+  // Ventanas: se dibujan igual que antes, estén donde estén (portada o sub-pantalla).
+  const modales = (
+    <>
       {showOtroEquipoAjustes && <PantallaOtroEquipo tipo={showOtroEquipoAjustes} iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipoAjustes(false)} />}
-      {realIsAdmin && (
-        <>
-          {/* Una sola entrada para todo lo de las personas (2026-10-30): invitar, rol, estado, y Roles y
-              permisos adentro. */}
-          <NavRow icon={Users} label="Miembros" onClick={onGoToUsuarios} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{usuariosReales.length} {chevron}</span>} />
-          <NavRow icon={Crown} label="Plan" onClick={abrirPlanes} right={<span style={{ fontSize: 11, color: plan?.en_prueba || plan?.vencido ? "var(--wf-brand-accent)" : "var(--wf-faint)", fontWeight: plan?.en_prueba ? 700 : 400, display: "flex", alignItems: "center", gap: 4 }}>{plan ? (plan.en_prueba ? `Prueba · ${diasRestantes(plan.vence)} días` : planPorId(plan.plan).nombre) : ""} {chevron}</span>} />
-          <NavRow icon={Palette} label="Identidad de la iglesia" onClick={() => setShowIdentidad(true)} right={chevron} />
-          {showIdentidad && <ConPlan funcion="identidad" onCerrar={() => setShowIdentidad(false)}><IdentidadIglesiaModal iglesiaId={myIglesiaId} onClose={() => setShowIdentidad(false)} /></ConPlan>}
-          <NavRow icon={Clock} label="Zona horaria" onClick={() => setShowZona(true)} right={<span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--wf-faint)", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{zonaIglesia ? etiquetaZona(zonaIglesia) : ""} {chevron}</span>} />
-          {showZona && <ZonaHorariaModal iglesiaId={myIglesiaId} actual={zonaIglesia} onClose={() => setShowZona(false)} onGuardada={setZonaIglesia} />}
-          <NavRow icon={Radio} label="Ajustes de la proyección" onClick={() => setShowPantalla(true)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Letra y versículos {chevron}</span>} />
-          {showPantalla && <PantallaProyeccionModal iglesiaId={myIglesiaId} onClose={() => setShowPantalla(false)} />}
-          {/* Visible solo si soy_super_admin() dio true para esta cuenta (ver AuthGate.jsx). */}
-          {onGoToPlataforma && <NavRow icon={Shield} label="Consola general" onClick={onGoToPlataforma} right={chevron} />}
-          <NavRow icon={Eye} label="Ver la app como otra persona" onClick={() => setAvanzadoAbierto((v) => !v)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{nameOverride || roleOverride || ""} {avanzadoAbierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>} />
-          {avanzadoAbierto && (
-        <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)", marginBottom: 6 }}>Elige a quién</div>
-          <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 8 }}>Para revisar que cada quien vea solo lo que le corresponde.</div>
-          <select value={nameOverride || ""} onChange={(e) => setNameOverride(e.target.value || null)} style={{ ...inputStyle, marginBottom: 14 }}>
-            <option value="">Yo mismo</option>
-            {usuariosReales.map((u) => <option key={u.nombre} value={u.nombre}>{u.nombre}{u.rol === "admin" ? " (administrador)" : ""}</option>)}
-          </select>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)", marginBottom: 6 }}>Probar la app con otro rol</div>
-          <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 8 }}>Solo en este dispositivo. Solo Administrador y Multimedia pueden controlar la transmisión en vivo.</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-            {ROLE_OPTIONS.map((r) => (
-              <button key={r} onClick={() => setRoleOverride(r === myRole && roleOverride ? null : r)} style={{ fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: "none", cursor: "pointer", background: myRole === r ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: myRole === r ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{r}</button>
-            ))}
-          </div>
-        </div>
-          )}
-        </>
-      )}
+      {showIdentidad && <ConPlan funcion="identidad" onCerrar={() => setShowIdentidad(false)}><IdentidadIglesiaModal iglesiaId={myIglesiaId} onClose={() => setShowIdentidad(false)} /></ConPlan>}
+      {showZona && <ZonaHorariaModal iglesiaId={myIglesiaId} actual={zonaIglesia} onClose={() => setShowZona(false)} onGuardada={setZonaIglesia} />}
+      {showPantalla && <PantallaProyeccionModal iglesiaId={myIglesiaId} onClose={() => setShowPantalla(false)} />}
       {showTeamList && (
         <ModalShell title={teamName} icon={Users} color="#6E63C7" onClose={() => setShowTeamList(false)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: "60vh", overflowY: "auto" }}>
@@ -410,16 +217,303 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
         </ModalShell>
       )}
 
-      <SectionLabel>AYUDA</SectionLabel>
-      {onVerTutorial && <NavRow icon={Sparkles} label="Ver el tutorial de nuevo" onClick={onVerTutorial} right={chevron} />}
-      <NavRow icon={MessageCircle} label="Escríbenos por WhatsApp" onClick={() => { window.open(`https://wa.me/${WHATSAPP_SOPORTE}?text=${encodeURIComponent(`Hola, te escribo de ${teamName || "mi iglesia"} sobre WorshipFlow: `)}`, "_blank", "noopener"); }} right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>Dudas o ideas</span>} />
-      <NavRow icon={Send} label="Escríbenos por correo" onClick={() => { window.location.href = `mailto:${CORREO_SOPORTE}?subject=${encodeURIComponent("WorshipFlow — " + (teamName || "mi iglesia"))}`; }} right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>{CORREO_SOPORTE}</span>} />
-
-      <div style={{ marginTop: 18 }}>
-        <NavRow icon={LogOut} label="Cerrar sesión" danger onClick={signOut} />
-      </div>
-
+      {showSalidaAudio && <SalidaAudioModal onClose={() => setShowSalidaAudio(false)} />}
       {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
+    </>
+  );
+
+  // Ajustes con "menú por categorías" (rediseño, idea A — 2026-11-11): la portada es corta y cada
+  // categoría abre su propia pantalla con EXACTAMENTE los mismos controles de antes. No cambia ninguna
+  // función: solo dónde se encuentra cada cosa.
+  const estadoAvisos = { "sin-soporte": "No disponibles en este navegador", activo: "Activados", inactivo: "Desactivados", bloqueado: "Bloqueados en este navegador", cargando: "" }[pushEstado] || "";
+  const nombreTema = { claro: "Claro", oscuro: "Oscuro", auto: "Automático" }[tema] || "";
+  const nombreTamano = (TAMANOS_LETRA.find((t) => t.value === tamanoLetra) || {}).label || "";
+  const nombreNotacion = ((NOTACIONES.find((n) => n.value === notacion) || {}).label || "").replace(/\s+/g, " ");
+  const textoPlan = plan ? (plan.en_prueba ? `${planPorId(plan.plan).nombre} · Prueba, ${diasRestantes(plan.vence)} días` : planPorId(plan.plan).nombre) : "";
+  const TITULOS = { cuenta: "Mi cuenta", fechas: "Mis próximas fechas", avisos: "Notificaciones", apariencia: "Apariencia", dispositivo: "Este dispositivo", proyeccion: "Proyección y pantallas", identidad: "Identidad y horario", ayuda: "Ayuda y contacto", avanzado: "Avanzado" };
+
+  if (seccion) {
+    return (
+      <div className="screen-enter" style={{ padding: 20, maxWidth: 640, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+        <button onClick={() => setSeccion(null)} style={{ display: "inline-flex", alignItems: "center", gap: 2, background: "none", border: "none", padding: "10px 0", minHeight: 44, cursor: "pointer", fontSize: 15, fontWeight: 600, color: "#2F5FA8", fontFamily: "inherit" }}>
+          <ChevronLeft size={20} /> Volver a Ajustes
+        </button>
+        <h2 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.03em", fontSize: 28, fontWeight: 700, color: "var(--wf-heading)", margin: "4px 0 18px" }}>{TITULOS[seccion]}</h2>
+        {seccion === "apariencia" && <div style={{ fontSize: 13.5, color: "var(--wf-muted)", margin: "-10px 0 16px" }}>Solo cambia cómo ves la app en este dispositivo. La proyección no se afecta.</div>}
+
+        {seccion === "cuenta" && (
+          <>
+          {(
+            <div style={{ marginBottom: 6 }}>
+              <NavRow icon={KeyRound} label="Cambiar contraseña" onClick={() => setShowChangePassword(true)} right={chevron} />
+              {googleLinked === true ? (
+                <NavRow
+                  icon={Check} label="Puedes entrar con Google"
+                  right={googleBusy ? null : <span onClick={(e) => { e.stopPropagation(); desvincularGoogle(); }} style={{ fontSize: 11, color: "var(--wf-faint)", fontWeight: 600, cursor: "pointer" }}>Desvincular</span>}
+                />
+              ) : googleLinked === false ? (
+                <NavRow icon={KeyRound} label="Entrar con Google" onClick={googleBusy ? undefined : vincularGoogle} right={googleBusy ? null : chevron} />
+              ) : null}
+            </div>
+          )}
+
+          </>
+        )}
+        {seccion === "fechas" && (
+          <>
+          {(
+            misEventos.length ? (
+              <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                {misEventos.map((e) => (
+                  <button key={e.id} onClick={() => onSelectEvent(e.id)} className="hoverable" style={{ textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 2px 10px rgba(22,50,79,0.07)", borderRadius: 14, padding: "10px 14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{e.title}</div>
+                      <div style={{ fontSize: 11, color: "var(--wf-faint)" }}>{formatFullDate(e.date) || e.dateLabel}</div>
+                    </div>
+                    <ChevronRight size={14} color="var(--wf-faint)" />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: "var(--wf-faint)", marginBottom: 8, padding: "0 4px" }}>No tienes nada asignado en los próximos eventos.</div>
+            )
+          )}
+
+          </>
+        )}
+        {seccion === "avisos" && (
+          <>
+          {pushEstado === "sin-soporte" ? (
+            <NavRow icon={Bell} label="Avisos no disponibles en este navegador" right={null} />
+          ) : pushEstado === "activo" ? (
+            // A propósito sin un botón de un solo toque para desactivar — solo un enlace chico que primero
+            // confirma con una advertencia, para que nadie las apague sin querer o sin pensarlo.
+            <NavRow
+              icon={Bell}
+              label="Avisos al celular activados"
+              right={pushBusy ? null : (
+                <span
+                  onClick={async (e) => { e.stopPropagation(); if (await confirmDialog("¿Seguro que quieres desactivar los avisos? Podrías perderte avisos de tus asignaciones y recordatorios de eventos.", { danger: true, textoConfirmar: "Desactivar" })) desactivarPush(); }}
+                  style={{ fontSize: 11, color: "var(--wf-faint)", fontWeight: 600, cursor: "pointer" }}
+                >
+                  Desactivar
+                </span>
+              )}
+            />
+          ) : pushEstado === "inactivo" ? (
+            <NavRow icon={Bell} label="Activar avisos al celular" onClick={activarPush} right={pushBusy ? null : chevron} />
+          ) : pushEstado === "bloqueado" ? (
+            <div style={{ ...tarjeta, display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <Bell size={18} color="var(--wf-brand-accent)" style={{ flexShrink: 0, marginTop: 2 }} />
+              <div style={{ fontSize: 12.5, color: "var(--wf-text-2)", lineHeight: 1.5 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--wf-text)", marginBottom: 2 }}>Tus avisos están bloqueados en este navegador</div>
+                Para recibirlos, permite las notificaciones y vuelve a abrir la app:
+                <br />• <b>Computadora (Chrome o Edge):</b> clic en el ícono junto a la dirección → Notificaciones → Permitir.
+                <br />• <b>Android (Chrome):</b> toca el candado junto a la dirección → Permisos → Notificaciones → Permitir.
+                <br />• <b>iPhone con la app instalada:</b> Ajustes del iPhone → WorshipFlow → Notificaciones → Activar.
+              </div>
+            </div>
+          ) : null}
+
+          </>
+        )}
+        {seccion === "apariencia" && (
+          <>
+          <div style={tarjeta}>
+            {subtitulo(<Moon size={18} color="var(--wf-text-2)" />, "Modo de color")}
+            <div style={{ display: "flex", gap: 6 }}>
+              {[["claro", "Claro"], ["oscuro", "Oscuro"], ["auto", "Automático"]].map(([val, label]) => (
+                <button key={val} onClick={() => cambiarTema(val)} style={opcion(tema === val)}>{label}</button>
+              ))}
+            </div>
+          </div>
+          <div style={tarjeta}>
+            {subtitulo(<Type size={18} color="var(--wf-text-2)" />, "Tamaño de letra")}
+            <div style={{ display: "flex", gap: 6 }}>
+              {TAMANOS_LETRA.map((t, i) => (
+                <button key={t.value} onClick={() => setTamanoLetra(t.value)} aria-pressed={tamanoLetra === t.value} style={{ ...opcion(tamanoLetra === t.value), display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                  <span style={{ fontSize: 14 + i * 4, lineHeight: 1.1 }}>Aa</span>
+                  <span>{t.label}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--wf-muted)", marginTop: 8 }}>Solo en este dispositivo. No cambia la pantalla de proyección.</div>
+          </div>
+          <div style={tarjeta}>
+            {subtitulo(<Music size={18} color="var(--wf-text-2)" />, "Cómo ver los tonos y acordes")}
+            <div style={{ display: "flex", gap: 6 }}>
+              {NOTACIONES.map((n) => (
+                <button key={n.value} onClick={() => setNotacion(n.value)} aria-pressed={notacion === n.value} style={{ ...opcion(notacion === n.value), fontFamily: "'JetBrains Mono', monospace" }}>{n.label}</button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--wf-muted)", marginTop: 8 }}>
+              Ejemplo: <b style={{ fontFamily: "'JetBrains Mono', monospace", color: "#1F8A73" }}>{acordeEn("G", notacion)} · {acordeEn("Em", notacion)} · {acordeEn("D/F#", notacion)}</b> — solo cambia lo que tú ves.
+            </div>
+          </div>
+
+          </>
+        )}
+        {seccion === "dispositivo" && (
+          <>
+          {install.installed ? (
+            <NavRow icon={Check} label="La app ya está instalada" right={null} />
+          ) : install.canInstall ? (
+            <NavRow icon={Download} label="Instalar la app" onClick={() => promptInstall()} right={chevron} />
+          ) : isIosSafari() ? (
+            <NavRow icon={Download} label="Compartir → Agregar a inicio para instalar" right={null} />
+          ) : (
+            <NavRow icon={Download} label="Instalar la app" right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>Desde el menú del navegador</span>} />
+          )}
+          {/* El navegador pide permiso para "administrar ventanas en varias pantallas" la primera vez que
+              se usa getScreenDetails() -- si esa primera vez coincide con el clic de "Iniciar evento", para
+              cuando la persona responde ya se perdió el "gesto de usuario" y la pantalla completa automática
+              en el segundo monitor falla en silencio. Pidiéndolo acá, una sola vez, Chrome lo recuerda.
+              Solo en computadora: un teléfono no maneja "otra pantalla" por HDMI. */}
+          {!isCompact && typeof window !== "undefined" && "getScreenDetails" in window && (
+            <>
+              <NavRow
+                icon={Radio}
+                label={screensBusy ? "Pidiendo permiso…" : "Activar detección automática de pantalla"}
+                onClick={screensBusy ? undefined : activarDeteccionPantallas}
+                right={screensBusy ? null : chevron}
+              />
+              <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "-4px 4px 10px" }}>
+                Hazlo una vez, con el proyector/monitor ya conectado — así "Iniciar evento" abre la proyección en pantalla completa ahí solo.
+              </div>
+            </>
+          )}
+          {/* Salida de audio de los videos (2026-11-08): imagen al proyector, sonido a la consola/mixer.
+              Solo en computadora: es la que proyecta. */}
+          {!isCompact && (
+            <>
+              <NavRow
+                icon={Speaker}
+                label="Salida de audio de los videos"
+                onClick={() => setShowSalidaAudio(true)}
+                right={<span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--wf-faint)", maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{salidaAudio ? salidaAudio.label || "Elegida" : "Predeterminada"} {chevron}</span>}
+              />
+              <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "-4px 4px 10px" }}>
+                Para mandar el sonido del video a la consola o mixer mientras la imagen va al proyector.
+              </div>
+                </>
+          )}
+          {/* Solo tiene sentido en la computadora que proyecta. */}
+          {!isCompact && <BibleDownloadSection />}
+
+          </>
+        )}
+        {seccion === "proyeccion" && (
+          <>
+          <NavRow icon={Tv} label="Pantallas y TV" onClick={() => setShowOtroEquipoAjustes("proyeccion")} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Proyección · Escenario {chevron}</span>} />
+
+            {realIsAdmin && (
+              <>
+              <NavRow icon={Radio} label="Ajustes de la proyección" onClick={() => setShowPantalla(true)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Letra y versículos {chevron}</span>} />
+
+              </>
+            )}
+          </>
+        )}
+        {seccion === "identidad" && realIsAdmin && (
+          <>
+              <NavRow icon={Palette} label="Identidad de la iglesia" onClick={() => setShowIdentidad(true)} right={chevron} />
+              <NavRow icon={Clock} label="Zona horaria" onClick={() => setShowZona(true)} right={<span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--wf-faint)", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{zonaIglesia ? etiquetaZona(zonaIglesia) : ""} {chevron}</span>} />
+
+          </>
+        )}
+        {seccion === "ayuda" && (
+          <>
+          {onVerTutorial && <NavRow icon={Sparkles} label="Ver el tutorial de nuevo" onClick={onVerTutorial} right={chevron} />}
+          <NavRow icon={MessageCircle} label="Escríbenos por WhatsApp" onClick={() => { window.open(`https://wa.me/${WHATSAPP_SOPORTE}?text=${encodeURIComponent(`Hola, te escribo de ${teamName || "mi iglesia"} sobre WorshipFlow: `)}`, "_blank", "noopener"); }} right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>Dudas o ideas</span>} />
+          <NavRow icon={Send} label="Escríbenos por correo" onClick={() => { window.location.href = `mailto:${CORREO_SOPORTE}?subject=${encodeURIComponent("WorshipFlow — " + (teamName || "mi iglesia"))}`; }} right={<span style={{ fontSize: 11, color: "var(--wf-faint)" }}>{CORREO_SOPORTE}</span>} />
+
+          </>
+        )}
+        {seccion === "avanzado" && realIsAdmin && (
+          <>
+              {/* Visible solo si soy_super_admin() dio true para esta cuenta (ver AuthGate.jsx). */}
+              {onGoToPlataforma && <NavRow icon={Shield} label="Consola general" onClick={onGoToPlataforma} right={chevron} />}
+              <SectionLabel>VER LA APP COMO OTRA PERSONA</SectionLabel>
+              {(
+            <div style={{ background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)", marginBottom: 6 }}>Elige a quién</div>
+              <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 8 }}>Para revisar que cada quien vea solo lo que le corresponde.</div>
+              <select value={nameOverride || ""} onChange={(e) => setNameOverride(e.target.value || null)} style={{ ...inputStyle, marginBottom: 14 }}>
+                <option value="">Yo mismo</option>
+                {usuariosReales.map((u) => <option key={u.nombre} value={u.nombre}>{u.nombre}{u.rol === "admin" ? " (administrador)" : ""}</option>)}
+              </select>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)", marginBottom: 6 }}>Probar la app con otro rol</div>
+              <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 8 }}>Solo en este dispositivo. Solo Administrador y Multimedia pueden controlar la transmisión en vivo.</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+                {ROLE_OPTIONS.map((r) => (
+                  <button key={r} onClick={() => setRoleOverride(r === myRole && roleOverride ? null : r)} style={{ fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 20, border: "none", cursor: "pointer", background: myRole === r ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: myRole === r ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{r}</button>
+                ))}
+              </div>
+            </div>
+              )}
+
+          </>
+        )}
+        {modales}
+      </div>
+    );
+  }
+
+  return (
+    <div className="screen-enter" style={{ padding: 20, maxWidth: 640, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+      <h2 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.03em", fontSize: 28, fontWeight: 700, color: "var(--wf-heading)", margin: "4px 0 18px" }}>Ajustes</h2>
+
+      {/* Perfil: abre "Mi cuenta" (contraseña y Google). */}
+      <button onClick={() => setSeccion("cuenta")} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 18, padding: 16, cursor: "pointer", marginBottom: 12, color: "var(--wf-text)", fontFamily: "inherit" }}>
+        {perfil?.foto_url ? (
+          <img src={perfil.foto_url} alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+        ) : (
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--wf-brand-primary)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700, flexShrink: 0, color: "var(--wf-on-brand-primary)" }}>{initials}</div>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 17, fontWeight: 700 }}>{myName || "Sin nombre"}</div>
+          {perfil?.email && <div style={{ fontSize: 13, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis" }}>{perfil.email}</div>}
+          <span style={{ display: "inline-block", marginTop: 6, background: "var(--wf-hover)", borderRadius: 6, padding: "3px 8px", fontSize: 11, fontWeight: 600, color: "var(--wf-text-2)" }}>{myRole}</span>
+        </div>
+        <span style={{ fontSize: 12, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 2 }}>Mi cuenta {chevron}</span>
+      </button>
+
+      {realIsAdmin && plan && (plan.en_prueba || plan.vencido) && (
+        <button onClick={abrirPlanes} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "var(--wf-active-bg)", border: "none", borderRadius: 16, padding: "14px 16px", cursor: "pointer", marginBottom: 12, fontFamily: "inherit" }}>
+          <Crown size={20} color="var(--wf-active-text)" style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: "var(--wf-active-text)" }}>{plan.vencido ? "Tu plan venció" : `Plan ${planPorId(plan.plan).nombre} · Prueba`}</span>
+            {plan.en_prueba && <span style={{ display: "block", fontSize: 12, color: "var(--wf-active-text)" }}>Te quedan {diasRestantes(plan.vence)} días</span>}
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-active-text)" }}>Ver planes</span>
+        </button>
+      )}
+
+      <GrupoAjustes titulo="Para mí" nota="Solo en este dispositivo">
+        <FilaAjuste icon={Bell} color="#E8821E" label="Notificaciones" sub={estadoAvisos} onClick={() => setSeccion("avisos")} />
+        <FilaAjuste icon={Moon} color="#5661B3" label="Apariencia" sub={[nombreTema, `Letra ${nombreTamano.toLowerCase()}`, nombreNotacion].filter(Boolean).join(" · ")} onClick={() => setSeccion("apariencia")} />
+        <FilaAjuste icon={Download} color="#1F8A73" label="Este dispositivo" sub={install.installed ? "App instalada" : "Instalar la app"} onClick={() => setSeccion("dispositivo")} />
+        <FilaAjuste icon={Calendar} color="#2F5FA8" label="Mis próximas fechas" sub={misEventos.length ? `${misEventos.length} ${misEventos.length === 1 ? "fecha" : "fechas"}` : "Nada asignado por ahora"} onClick={() => setSeccion("fechas")} />
+      </GrupoAjustes>
+
+      <GrupoAjustes titulo="Mi iglesia" nota={realIsAdmin ? "Solo administradores" : ""}>
+        <FilaAjuste icon={Users} color="#6E63C7" label={teamName || "Mi equipo"} sub={`${usuariosReales.length} ${usuariosReales.length === 1 ? "miembro" : "miembros"}`} onClick={() => setShowTeamList(true)} />
+        {realIsAdmin && <FilaAjuste icon={Users} color="#2F5FA8" label="Miembros y roles" sub="Invitar, permisos y estado" onClick={onGoToUsuarios} />}
+        <FilaAjuste icon={Tv} color="#C23B32" label="Proyección y pantallas" sub={realIsAdmin ? "Pantallas y TV · Letra y versículos" : "Proyección · Escenario"} onClick={() => setSeccion("proyeccion")} />
+        {realIsAdmin && <FilaAjuste icon={Palette} color="#B15EA0" label="Identidad y horario" sub={["Logo y colores", zonaIglesia ? etiquetaZona(zonaIglesia) : ""].filter(Boolean).join(" · ")} onClick={() => setSeccion("identidad")} />}
+        {realIsAdmin && <FilaAjuste icon={Crown} color="#E8821E" label="Plan" sub={textoPlan} onClick={abrirPlanes} />}
+      </GrupoAjustes>
+
+      <GrupoAjustes titulo="Más">
+        <FilaAjuste icon={MessageCircle} color="#1F8A73" label="Ayuda y contacto" sub="Tutorial, WhatsApp y correo" onClick={() => setSeccion("ayuda")} />
+        {realIsAdmin && <FilaAjuste icon={Shield} color="#64707F" label="Avanzado" sub={nameOverride || roleOverride ? `Viendo como: ${nameOverride || roleOverride}` : "Ver como otra persona" + (onGoToPlataforma ? " · Consola" : "")} onClick={() => setSeccion("avanzado")} />}
+      </GrupoAjustes>
+
+      <button onClick={signOut} style={{ width: "100%", minHeight: 48, borderRadius: 14, border: "1px solid var(--wf-divider)", background: "var(--wf-card)", color: "#C23B32", fontSize: 15, fontWeight: 600, cursor: "pointer", marginTop: 4, fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        <LogOut size={17} /> Cerrar sesión
+      </button>
+
+      {modales}
 
       <div style={{ textAlign: "center", fontSize: 11, color: "var(--wf-border-soft)", marginTop: 20 }}>WorshipFlow</div>
     </div>

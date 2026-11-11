@@ -136,7 +136,7 @@ export function CancionesList({ library, clasificaciones, puedeConfigurarClasifi
   return (
     <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>{library.length} Canciones</h2>
+        <h2 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, margin: 0 }}>{library.length} Canciones</h2>
         {isAdminViewer && (
           <div style={{ display: "flex", gap: 8 }}>
             {onImportarPdf && (
@@ -188,7 +188,7 @@ export function CancionesList({ library, clasificaciones, puedeConfigurarClasifi
         />
       )}
       {filtered.map((s) => (
-        <div key={s.id} onClick={() => onOpen(s.id)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: "pointer" }}>
+        <div key={s.id} onClick={() => onOpen(s.id)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: "pointer" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>{s.title}</div>
             <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{s.artist || "Unknown"}</div>
@@ -1013,7 +1013,7 @@ export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onE
         </div>
       </div>
 
-      <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600, margin: "0 0 4px" }}>{song.title}</h2>
+      <h2 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 24, fontWeight: 600, margin: "0 0 4px" }}>{song.title}</h2>
       <div style={{ fontSize: 13, color: "var(--wf-muted)", marginBottom: 16 }}>
         {song.artist || "Unknown"} · {song.tempo} bpm{song.compas ? ` · ${song.compas}` : ""}
         {positionLabel && <span style={{ marginLeft: 8, fontWeight: 700, color: "var(--wf-brand-accent)" }}>· {positionLabel} en el setlist</span>}
@@ -1494,7 +1494,7 @@ export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChang
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             <button onClick={onCancel} style={iconGhost}><ArrowLeft size={16} /></button>
-            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{song ? "Editar canción" : "Nueva canción"}</span>
+            <span style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 20, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{song ? "Editar canción" : "Nueva canción"}</span>
           </div>
           <span style={{ flex: 1 }} />
           <button data-tour="cancion-guardar" disabled={!canSave || isSaving} onClick={handleSaveClick} style={{ ...primaryBtn, width: "auto", padding: "8px 18px", opacity: canSave && !isSaving ? 1 : 0.4, cursor: canSave && !isSaving ? "pointer" : "not-allowed" }}>{isSaving ? "Guardando…" : "Guardar"}</button>
@@ -1578,7 +1578,7 @@ export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChang
 
           {blockKeys.length > 1 && <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginBottom: 8 }}>Para cambiar el orden de las partes, usa las flechas o arrastra la parte desde su barra de arriba.</div>}
           {blockKeys.map((key, idx) => (
-            <div key={key} data-parte={key} {...arrastreContenido.filaProps(idx)} style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 14, marginBottom: 10, ...arrastreContenido.estiloFila(idx) }}>
+            <div key={key} data-parte={key} {...arrastreContenido.filaProps(idx)} style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: 14, marginBottom: 10, ...arrastreContenido.estiloFila(idx) }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                 {blockKeys.length > 1 && <GripVertical size={14} color="var(--wf-border-soft)" style={{ flexShrink: 0, cursor: "grab" }} />}
                 <input data-no-arrastre value={draft.blocks[key].badge} onChange={(e) => setBlockField(key, "badge", e.target.value)} style={{ ...inputStyle, width: 46, textAlign: "center", padding: "6px 4px" }} />
@@ -1622,7 +1622,7 @@ export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChang
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 8 }}><ListMusic size={13} /> ESTRUCTURA ACTUAL</div>
             {entries.map((e, idx) => (
-              <div key={idx} {...arrastreEstructura.filaProps(idx)} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "8px 10px", marginBottom: 6, ...arrastreEstructura.estiloFila(idx) }}>
+              <div key={idx} {...arrastreEstructura.filaProps(idx)} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 12, padding: "8px 10px", marginBottom: 6, ...arrastreEstructura.estiloFila(idx) }}>
                 <GripVertical size={14} color="var(--wf-border-soft)" />
                 <span style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--wf-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{draft.blocks[e.key]?.badge}</span>
                 <span style={{ fontSize: 13, flex: 1 }}>{draft.blocks[e.key]?.label}</span>
@@ -1636,7 +1636,7 @@ export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChang
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 8 }}><ListMusic size={13} /> ESTRUCTURAS DISPONIBLES</div>
             {blockKeys.map((key) => (
-              <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "8px 10px", marginBottom: 6 }}>
+              <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 12, padding: "8px 10px", marginBottom: 6 }}>
                 <span style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--wf-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{draft.blocks[key].badge}</span>
                 <span style={{ fontSize: 13, flex: 1 }}>{draft.blocks[key].label}</span>
                 <button onClick={() => addEntry(key)} style={iconGhost}><Plus size={15} color="var(--wf-brand-accent)" /></button>

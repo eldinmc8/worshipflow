@@ -229,7 +229,7 @@ export default function EditorTextoCancion({ cancion: cancionProp, nueva: nuevaP
   );
   if (inline) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", height: angosto ? "calc(100dvh - 190px)" : "calc(100vh - 200px)", minHeight: 380, borderRadius: 16, overflow: "hidden", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", background: "var(--wf-card)" }}>
+      <div style={{ display: "flex", flexDirection: "column", height: angosto ? "calc(100dvh - 190px)" : "calc(100vh - 200px)", minHeight: 380, borderRadius: 16, overflow: "hidden", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", background: "var(--wf-card)" }}>
         {pestanasCelular}
         {cuerpo}
       </div>
@@ -240,7 +240,7 @@ export default function EditorTextoCancion({ cancion: cancionProp, nueva: nuevaP
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderBottom: `1px solid ${C.borde}`, background: "var(--wf-card)", flexShrink: 0 }}>
         <button onClick={onCerrar} aria-label="Cerrar" style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--wf-text)", display: "flex", padding: 4 }}><X size={20} /></button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600 }}>{nueva ? "Pegar canción" : "Editar como texto"}</div>
+          <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 17, fontWeight: 600 }}>{nueva ? "Pegar canción" : "Editar como texto"}</div>
           <div style={{ fontSize: 11.5, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nueva ? "Con o sin acordes · los acordes encima de la letra se acomodan solos" : "Las secciones que no cambies conservan sus diapositivas"}</div>
         </div>
         <button onClick={aplicar} disabled={vacio} style={{ border: "none", borderRadius: 12, padding: "9px 16px", fontWeight: 800, fontSize: 13.5, cursor: vacio ? "not-allowed" : "pointer", opacity: vacio ? 0.4 : 1, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit" }}><Check size={16} /> Usar esto</button>

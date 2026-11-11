@@ -10,7 +10,7 @@ import { EFECTOS_MOMENTO, normalizarAnimCancion, estiloDeParte } from "../lib/an
 
 const etiqueta = { fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4, marginBottom: 6, textTransform: "uppercase" };
 const campo = { width: "100%", boxSizing: "border-box", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 10, padding: "8px 10px", fontSize: 13, color: "var(--wf-text)", fontFamily: "inherit" };
-const tarjeta = { background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: 14, marginBottom: 12 };
+const tarjeta = { background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", padding: 14, marginBottom: 12 };
 
 // Lista de estilos agrupada por categoría (un <select>: cómodo en el celular con 100+ estilos).
 export function SelectEstilo({ valor, onCambiar, vacio = "Lo que elija Multimedia", incluirNinguna = true, ...resto }) {

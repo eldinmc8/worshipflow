@@ -25,14 +25,14 @@ export function MinistriesList({ ministries, usuariosReales, isAdminViewer, onSe
   return (
     <div className="screen-enter" style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Ministerios</h2>
+        <h2 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, margin: 0 }}>Ministerios</h2>
         {isAdminViewer && <button onClick={() => setShowForm(true)} style={{ ...iconGhost, width: 30, height: 30, background: "var(--wf-hover)", border: "1px solid var(--wf-border)" }}><Plus size={16} /></button>}
       </div>
       <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>Cada ministerio tiene su propio espacio para compartir la planificación del mes y recursos con su equipo. Cualquier miembro puede ser el líder de un grupo.</div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
         {ministries.map((m) => (
-          <button key={m.id} onClick={() => onSelect(m.id)} className="hoverable" style={{ textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 16, cursor: "pointer" }}>
+          <button key={m.id} onClick={() => onSelect(m.id)} className="hoverable" style={{ textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 16, padding: 16, cursor: "pointer" }}>
             <div style={{ width: 34, height: 34, borderRadius: 12, background: `${m.color}22`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
               <Users size={17} color={m.color} />
             </div>
@@ -276,10 +276,10 @@ export function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminV
         {isAdminViewer ? (
           <input
             value={ministry.name} onChange={(e) => onSetName(e.target.value)}
-            style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, marginBottom: 8, border: "none", background: "transparent", outline: "none", width: "100%", padding: 0 }}
+            style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, fontWeight: 600, marginBottom: 8, border: "none", background: "transparent", outline: "none", width: "100%", padding: 0 }}
           />
         ) : (
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, marginBottom: 8 }}>{ministry.name}</div>
+          <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, fontWeight: 600, marginBottom: 8 }}>{ministry.name}</div>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--wf-text-2)", marginBottom: isAdminViewer ? 10 : 0 }}>
           Líder:
@@ -294,7 +294,7 @@ export function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminV
         </div>
         {/* Qué puede hacer el líder (permisos por grupo, 2026-10-30) — así no hace falta darle un rol aparte. */}
         {isAdminViewer && (
-          <div style={{ background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: "10px 14px", marginBottom: 12 }}>
+          <div style={{ background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", padding: "10px 14px", marginBottom: 12 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4 }}>QUÉ PUEDE HACER EL LÍDER</div>
             <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "3px 0 4px", lineHeight: 1.4 }}>Siempre: editar este grupo y, en cada evento, el título y los encargados de los bloques vinculados a él. Además:</div>
             {PERMISOS_LIDER.map((p) => {
@@ -357,7 +357,7 @@ export function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminV
         const delMes = eventos.filter((e) => (e.date || "").slice(0, 7) === selectedMonth).sort((a, b) => a.date.localeCompare(b.date));
         if (!delMes.length && !puedeCrearEventos) return null;
         return (
-          <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 14, marginBottom: 16 }}>
+          <div style={{ background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: 14, marginBottom: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, marginBottom: delMes.length ? 10 : 6 }}><CalendarDays size={15} color={ministry.color} /> Eventos de {monthLabelFromKey(selectedMonth)}</div>
             {delMes.map((e) => (
               <button key={e.id} onClick={() => onAbrirEvento?.(e.id)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: `${ministry.color}12`, border: "none", borderRadius: 12, padding: "9px 10px", marginBottom: 6, cursor: "pointer", textAlign: "left", color: "var(--wf-text)" }}>
@@ -373,7 +373,7 @@ export function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminV
 
       {/* Resumen del mes: nota de cierre general, aparte de la planificación semana a semana de abajo —
           a diferencia de esta, no se carga junto con el resto del ministerio (ver getResumenMensual). */}
-      <div style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 14, marginBottom: 16 }}>
+      <div style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: 14, marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
           <StickyNote size={15} color={ministry.color} /> Resumen de {monthLabelFromKey(selectedMonth)}
         </div>
@@ -421,7 +421,7 @@ export function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminV
         {planForMonth.map((p) => {
           const isExpanded = !!expandedPlanIds[p.id];
           return (
-          <div key={p.id} style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 14 }}>
+          <div key={p.id} style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: isExpanded ? 8 : 0 }}>
               <input type="date" disabled={!canEdit} title="Fecha del domingo (o día) al que corresponde esta planificación" value={p.date || ""} onChange={(e) => updateDraftPlanItem(p.id, "date", e.target.value)} style={{ ...inputStyle, width: 150, fontSize: 12, fontWeight: 700, flexShrink: 0 }} />
               <input disabled={!canEdit} value={p.title} onChange={(e) => updateDraftPlanItem(p.id, "title", e.target.value)} placeholder="Título de la semana" style={{ ...inputStyle, flex: 1, fontWeight: 700 }} />
@@ -458,7 +458,7 @@ export function MinistryDetail({ myIglesiaId, ministry, usuariosReales, isAdminV
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {resourcesForMonth.map((r) => (
-          <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "10px 12px" }}>
+          <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 12, padding: "10px 12px" }}>
             <FolderOpen size={14} color="var(--wf-faint)" />
             <span style={{ fontSize: 13, flex: 1 }}>{r.title}</span>
             {r.link && <a href={r.link} target="_blank" rel="noreferrer" style={{ color: "#2F5FA8" }}><ExternalLink size={14} /></a>}

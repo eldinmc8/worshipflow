@@ -146,7 +146,7 @@ function BotonBosquejo({ bosquejo, onAbrir, grande = false }) {
   }
   const enviado = !!bosquejo.enviadoAt;
   return (
-    <button onClick={onAbrir} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "10px 12px", cursor: "pointer", marginBottom: grande ? 16 : 0, fontFamily: "inherit" }}>
+    <button onClick={onAbrir} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: "10px 12px", cursor: "pointer", marginBottom: grande ? 16 : 0, fontFamily: "inherit" }}>
       <div style={{ width: 32, height: 32, borderRadius: 12, background: "rgba(232,130,30,0.14)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Mic2 size={15} color="var(--wf-brand-accent)" /></div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{bosquejo.titulo}</div>
@@ -174,9 +174,9 @@ function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event, bosquej
           const eventMonth = event.date ? event.date.slice(0, 7) : null;
           const resourcesForEventMonth = linkedMinistry ? linkedMinistry.resources.filter((r) => r.month === eventMonth) : [];
           return (
-          <div key={block.id} style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 18, padding: 20 }}>
+          <div key={block.id} style={{ background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 18, padding: 20 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><Sparkles size={13} color="#5661B3" /> TU PRIVILEGIO EN ESTE EVENTO</div>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, marginBottom: 4 }}>{block.title}</div>
+            <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 20, fontWeight: 600, marginBottom: 4 }}>{block.title}</div>
             {block.description && <div style={{ fontSize: 13, color: "var(--wf-text-2)", marginBottom: 16 }}>{block.description}</div>}
             {bosquejoInfo?.puede(block) && <BotonBosquejo bosquejo={bosquejoInfo.bosquejos[block.id]} onAbrir={() => bosquejoInfo.abrir(block.id)} grande />}
             {linkedMinistry && currentPlan?.detail && (
@@ -216,9 +216,9 @@ function RestrictedGroupPanel({ blocks, worshipRoles, ministries, event, bosquej
           );
         })}
         {worshipRoles.map((role) => (
-          <div key={role.id} style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 18, padding: 20 }}>
+          <div key={role.id} style={{ background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 18, padding: 20 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 10 }}><Sparkles size={13} color="var(--wf-brand-accent)" /> EQUIPO DE ALABANZA</div>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, marginBottom: 10 }}>{role.name}</div>
+            <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 20, fontWeight: 600, marginBottom: 10 }}>{role.name}</div>
             {(role.members || []).length === 0 ? (
               <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>Nadie asignado todavía.</div>
             ) : (
@@ -327,13 +327,13 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
     return (
       <div className="screen-enter" style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 12 }}>
-          <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Plantillas</h2>
+          <h2 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, margin: 0 }}>Plantillas</h2>
           <button onClick={() => setViewMode("eventos")} style={ghostToggleBtn}>← Ver eventos</button>
         </div>
         <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>Arma aquí bloques ya establecidos (orden del culto) que cualquier administrador podrá usar como base al crear un evento nuevo.</div>
         {plantillas.length === 0 && <div style={{ textAlign: "center", color: "var(--wf-faint)", fontSize: 13, padding: "40px 0" }}>Todavía no hay plantillas — crea la primera con el botón +.</div>}
         {plantillas.map((pl) => (
-          <div key={pl.id} style={{ display: "flex", alignItems: "center", gap: 4, width: "100%", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 20, padding: 10, marginBottom: 10 }}>
+          <div key={pl.id} style={{ display: "flex", alignItems: "center", gap: 4, width: "100%", background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 20, padding: 10, marginBottom: 10 }}>
             <button onClick={() => aplicarPlantilla(pl)} className="hoverable" title="Crear un evento con esta base" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, textAlign: "left", background: "transparent", border: "none", borderRadius: 14, padding: 4, cursor: "pointer" }}>
               <div style={{ width: 34, height: 34, borderRadius: 14, background: "var(--wf-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ListMusic size={16} color="#5661B3" /></div>
               <div style={{ minWidth: 0 }}>
@@ -362,7 +362,7 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
   return (
     <div className="screen-enter" style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12 }}>
-        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Eventos</h2>
+        <h2 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, margin: 0 }}>Eventos</h2>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {isAdminViewer && <button data-tour="eventos-plantillas" onClick={() => setViewMode("plantillas")} style={ghostToggleBtn}>Plantillas</button>}
           <select
@@ -394,7 +394,7 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
       )}
 
       {canStartLive && (
-        <button data-tour="eventos-libre" onClick={onStartFree} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: liveLibre ? "var(--wf-active-bg)" : "var(--wf-card)", border: liveLibre ? "1px solid var(--wf-brand-accent)" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 18, padding: "12px 14px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
+        <button data-tour="eventos-libre" onClick={onStartFree} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: liveLibre ? "var(--wf-active-bg)" : "var(--wf-card)", border: liveLibre ? "1px solid var(--wf-brand-accent)" : "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 18, padding: "12px 14px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
           <div style={{ width: 34, height: 34, borderRadius: 14, background: liveLibre ? "var(--wf-brand-accent)" : "var(--wf-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Radio size={16} color={liveLibre ? "#fff" : "#C23B32"} /></div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700 }}>{liveLibre ? "Transmisión libre en vivo" : "Transmitir sin evento"}</div>
@@ -417,7 +417,7 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
                 <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: "rgba(255,255,255,0.85)" }}>PRÓXIMO EVENTO</span>
                 <EtiquetaMinisterio ministerio={ministerioDe(hero)} claro />
               </div>
-              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, color: "#fff" }}>{hero.title}</div>
+              <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 20, fontWeight: 600, color: "#fff" }}>{hero.title}</div>
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)" }}>{hero.location}</div>
               {(() => {
                 const misCargos = misAsignacionesEnEvento(hero, myUserId, library);
@@ -449,7 +449,7 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
         const d = parseIsoDateLocal(ev.date);
         const misCargos = misAsignacionesEnEvento(ev, myUserId, library);
         return (
-          <button key={ev.id} onClick={() => onSelect(ev.id)} className="hoverable" style={{ display: "flex", gap: 12, alignItems: "center", width: "100%", textAlign: "left", background: "var(--wf-card)", border: isLive ? "2px solid #C23B32" : "none", boxShadow: "0 3px 14px rgba(22,50,79,0.08)", borderRadius: 20, padding: 14, marginBottom: 10, cursor: "pointer", opacity: isPast ? 0.7 : 1 }}>
+          <button key={ev.id} onClick={() => onSelect(ev.id)} className="hoverable" style={{ display: "flex", gap: 12, alignItems: "center", width: "100%", textAlign: "left", background: "var(--wf-card)", border: isLive ? "2px solid #C23B32" : "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 20, padding: 14, marginBottom: 10, cursor: "pointer", opacity: isPast ? 0.7 : 1 }}>
             <div style={{ width: 48, height: 48, borderRadius: 18, background: "var(--wf-hover)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: "var(--wf-heading)", lineHeight: 1.1 }}>{d ? d.getDate() : "–"}</div>
               <div style={{ fontSize: 9, fontWeight: 700, color: "#2F5FA8" }}>{d ? MONTH_ABBR[d.getMonth()] : ""}</div>
@@ -560,7 +560,7 @@ function EnsayoAlabanzaCard({ event, userId, isAdminViewer, onGuardar }) {
     try { await onGuardar(borrador); setEditando(false); } catch { /* el aviso de error ya se mostró */ } finally { setGuardando(false); }
   };
   return (
-    <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 12 }}>
+    <div style={{ background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 16, padding: 14, marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: editando || tieneAlgo ? 10 : 0 }}>
         <Music size={16} color="#1F8A73" />
         <span style={{ flex: 1, fontSize: 13.5, fontWeight: 700 }}>Ensayo de alabanza</span>
@@ -660,7 +660,7 @@ export function EventDetail({
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <button onClick={() => setShowEventSettings(false)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: "4px 6px 4px 0", borderRadius: 12 }}>
               <ArrowLeft size={18} color="var(--wf-text)" />
-              <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "var(--wf-text)" }}>Ajustes del evento</span>
+              <span style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 19, fontWeight: 600, color: "var(--wf-text)" }}>Ajustes del evento</span>
             </button>
             {isAdminViewer && (
               <button onClick={() => onDelete(event)} title="Eliminar evento" style={iconGhost}>
@@ -701,7 +701,7 @@ export function EventDetail({
           )}
 
           {isAdminViewer && (
-            <div style={{ marginTop: 22, background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14 }}>
+            <div style={{ marginTop: 22, background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 16, padding: 14 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><Bell size={14} color="var(--wf-brand-accent)" /> Recordatorios</div>
                 <button onClick={() => setShowReminderForm(true)} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar</button>
@@ -771,7 +771,7 @@ export function EventDetail({
           <div style={{ display: "inline-block", background: event.esPlantilla ? "#5661B3" : "rgba(0,0,0,0.35)", borderRadius: 20, padding: "4px 12px", fontSize: 12, marginBottom: 10 }}>
             {event.esPlantilla ? "PLANTILLA" : (formatFullDate(event.date) || "Sin fecha") + (event.dateLabel ? ` · ${event.dateLabel}` : "")}
           </div>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600, marginBottom: 4 }}>{event.title}</div>
+          <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 24, fontWeight: 600, marginBottom: 4 }}>{event.title}</div>
           {!event.esPlantilla && <div style={{ fontSize: 13, color: "#C8CDD6" }}>{event.location}</div>}
         </div>
 
@@ -820,7 +820,7 @@ export function EventDetail({
         {/* Oculta en pantalla (ver .print-only en index.css) — solo aparece al imprimir/"Guardar como
             PDF", como respaldo en papel del Setlist si algún día falla la app o el internet en pleno culto. */}
         <div className="print-only" style={{ padding: 28, fontFamily: "'Poppins', sans-serif", color: "#111" }}>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, marginBottom: 2 }}>{event.title}</div>
+          <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, fontWeight: 600, marginBottom: 2 }}>{event.title}</div>
           <div style={{ fontSize: 12, color: "#444", marginBottom: 20 }}>
             {(formatFullDate(event.date) || event.dateLabel || "")}{event.hora ? ` · ${event.hora}` : ""}
           </div>
@@ -1219,7 +1219,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
           (versículo, diapositivas, importar, bloques...) está en "+ Agregar". En el celular, la
           biblioteca se abre desde "+ Agregar → Canción". */}
       {!isCompact && isAdminViewer && (
-      <div style={{ width: 270, margin: "14px 0 14px 14px", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, display: "flex", flexDirection: "column", minHeight: 0, boxSizing: "border-box", flexShrink: 0 }}>
+      <div style={{ width: 270, margin: "14px 0 14px 14px", background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 16, padding: 14, display: "flex", flexDirection: "column", minHeight: 0, boxSizing: "border-box", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--wf-muted)", fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 4 }}><ListMusic size={13} /> AGREGAR CANCIONES</div>
         <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginBottom: 10 }}>
           Toca una canción para agregarla al final.
@@ -1251,7 +1251,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
 
       <div style={{ flex: 1, padding: 16, overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, gap: 8 }}>
-          <h2 data-tour="evento-setlist" style={{ fontFamily: "'Fraunces', serif", fontSize: 20, margin: 0 }}>Setlist</h2>
+          <h2 data-tour="evento-setlist" style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 20, margin: 0 }}>Setlist</h2>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             {!isCompact && <span style={{ fontSize: 12, color: "var(--wf-faint)" }}>{formatFullDate(event.date) || event.dateLabel}</span>}
             {canEditNow && event.serviceOrder.length > 1 && (
@@ -1281,7 +1281,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
         {/* Evento nuevo: en vez de verse vacío, dice por dónde empezar. Cada paso se toca para hacerlo
             y se tacha solo cuando ya está listo; desaparece cuando lo principal está hecho. */}
         {pasosInicio && (
-          <div style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", marginBottom: 14, overflow: "hidden" }}>
+          <div style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", marginBottom: 14, overflow: "hidden" }}>
             <div style={{ padding: "12px 14px 6px", display: "flex", alignItems: "flex-start", gap: 8 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14.5, fontWeight: 700 }}>Empieza aquí</div>
@@ -1441,7 +1441,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                       </>
                     )}
                     {linkedMinistry && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "10px 12px", marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 12, padding: "10px 12px", marginBottom: 10 }}>
                         <div style={{ width: 28, height: 28, borderRadius: 12, background: `${linkedMinistry.color}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Users size={14} color={linkedMinistry.color} /></div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 12, fontWeight: 700 }}>{linkedMinistry.name}</div>
@@ -1453,7 +1453,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                     {/* Bosquejo completo de la semana — el título ya se ve arriba sin desplegar, acá va
                         el detalle completo para quien esté encargado de este bloque. */}
                     {linkedMinistry && currentPlan?.detail && (
-                      <div style={{ background: "var(--wf-card)", borderRadius: 12, padding: "10px 12px", marginBottom: 10, boxShadow: "0 3px 14px rgba(22,50,79,0.09)" }}>
+                      <div style={{ background: "var(--wf-card)", borderRadius: 12, padding: "10px 12px", marginBottom: 10, boxShadow: "0 1px 3px rgba(22,50,79,0.08)" }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 4 }}>PLANIFICACIÓN DE ESTA SEMANA</div>
                         <div style={{ fontSize: 12.5, color: "var(--wf-text-2)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{currentPlan.detail}</div>
                       </div>
@@ -1465,7 +1465,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>RECURSOS</div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                           {resourcesForEventMonth.map((r) => (
-                            <a key={r.id} href={r.link || undefined} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", borderRadius: 12, padding: "8px 10px", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", textDecoration: "none", color: "var(--wf-text)", fontSize: 12, fontWeight: 600 }}>
+                            <a key={r.id} href={r.link || undefined} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", borderRadius: 12, padding: "8px 10px", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", textDecoration: "none", color: "var(--wf-text)", fontSize: 12, fontWeight: 600 }}>
                               <FolderOpen size={13} color="var(--wf-faint)" />
                               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</span>
                               {r.link && <ExternalLink size={12} color="#2F5FA8" style={{ flexShrink: 0 }} />}
@@ -1529,7 +1529,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
               <div
                 {...filaArrastre}
                 style={{
-                  display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)",
+                  display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)",
                   ...arrastre.estiloFila(idx),
                 }}
               >

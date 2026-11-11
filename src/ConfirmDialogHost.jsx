@@ -40,7 +40,7 @@ export default function ConfirmDialogHost() {
         onClick={(e) => e.stopPropagation()}
       >
         {dialog.titulo && (
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, color: "var(--wf-heading)", marginBottom: 8 }}>{dialog.titulo}</div>
+          <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 17, fontWeight: 600, color: "var(--wf-heading)", marginBottom: 8 }}>{dialog.titulo}</div>
         )}
         <div style={{ fontSize: 14, color: "var(--wf-text)", lineHeight: 1.5, marginBottom: esPrompt ? 12 : 22 }}>{dialog.mensaje}</div>
         {esPrompt && (

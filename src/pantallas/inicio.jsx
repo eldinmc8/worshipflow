@@ -17,7 +17,7 @@ function greetingWord() {
 function StatCard({ icon: Icon, label, value, onClick }) {
   const Tag = onClick ? "button" : "div";
   return (
-    <Tag onClick={onClick} className={onClick ? "hoverable" : undefined} style={{ flex: 1, background: "var(--wf-card)", border: "none", borderRadius: 20, boxShadow: "0 4px 14px rgba(22,50,79,0.06)", padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, minWidth: 0, textAlign: "left", cursor: onClick ? "pointer" : "default" }}>
+    <Tag onClick={onClick} className={onClick ? "hoverable" : undefined} style={{ flex: 1, background: "var(--wf-card)", border: "none", borderRadius: 20, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, minWidth: 0, textAlign: "left", cursor: onClick ? "pointer" : "default" }}>
       <div style={{ width: 34, height: 34, borderRadius: 14, background: "var(--wf-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <Icon size={16} color="#2F5FA8" />
       </div>
@@ -105,7 +105,7 @@ function AvisoActivarPush({ estado, onActivar, onCerrar }) {
 function TituloSeccion({ children, derecha }) {
   return (
     <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, margin: "16px 4px 6px" }}>
-      <span style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-text-2)" }}>{children}</span>
+      <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--wf-heading)" }}>{children}</span>
       {derecha}
     </div>
   );
@@ -120,7 +120,7 @@ function BotonVerMas({ abierto, restantes, onClick }) {
 }
 
 function TarjetaInicio({ children, style }) {
-  return <div style={{ background: "var(--wf-card)", borderRadius: 18, boxShadow: "0 3px 14px rgba(22,50,79,0.08)", overflow: "hidden", ...style }}>{children}</div>;
+  return <div style={{ background: "var(--wf-card)", borderRadius: 18, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", overflow: "hidden", ...style }}>{children}</div>;
 }
 
 function Iniciales({ nombre, fondo = "var(--wf-hover)", color = "var(--wf-text)" }) {
@@ -177,29 +177,29 @@ export function InicioView({ events, library, ministries = [], myUserId, myName,
     {/* Toda la tarjeta lleva al culto (pedido de Eldin, 2026-10-11); el equipo va en su propia
         tarjeta aparte, abajo, con su botón "Ver equipo". */}
     <div role="button" tabIndex={0} onClick={() => onSelectEvent(ev.id)} onKeyDown={(e) => { if (e.key === "Enter") onSelectEvent(ev.id); }} aria-label={`Ver el culto: ${ev.title}`} style={{ cursor: "pointer" }}>
-    <TarjetaInicio style={{ padding: 16 }}>
+    <TarjetaInicio style={{ padding: 20, borderRadius: 20, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)", boxShadow: "none" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: 0.4, color: esAlabanza ? "#C2620F" : "#1F8A73" }}>{esAlabanza ? "TU PRÓXIMO SERVICIO" : "TU PRÓXIMO TURNO"}</span>
-        {cuandoEs(ev.date) && <span style={{ fontSize: 12.5, fontWeight: 700, background: "var(--wf-active-bg)", color: "var(--wf-active-text)", padding: "4px 10px", borderRadius: 12 }}>{cuandoEs(ev.date)}</span>}
+        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: esAlabanza ? "#F0B86E" : "#7FD3BF" }}>{esAlabanza ? "TU PRÓXIMO SERVICIO" : "TU PRÓXIMO TURNO"}</span>
+        {cuandoEs(ev.date) && <span style={{ fontSize: 12.5, fontWeight: 700, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", padding: "4px 10px", borderRadius: 10 }}>{cuandoEs(ev.date)}</span>}
       </div>
-      <div style={{ marginTop: 8, color: "var(--wf-text)", display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ marginTop: 10, color: "var(--wf-on-brand-primary)", display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.3 }}>{fechaLarga(fechaEv, ev.hora)}</div>
-          <div style={{ fontSize: 14, color: "var(--wf-muted)", marginTop: 2 }}>{ev.title}</div>
+          <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.25, letterSpacing: "-0.025em" }}>{fechaLarga(fechaEv, ev.hora)}</div>
+          <div style={{ fontSize: 14, color: "color-mix(in srgb, var(--wf-on-brand-primary) 72%, transparent)", marginTop: 2 }}>{ev.title}</div>
         </div>
-        <ChevronRight size={22} color="var(--wf-faint)" style={{ flexShrink: 0 }} />
+        <ChevronRight size={22} color="color-mix(in srgb, var(--wf-on-brand-primary) 72%, transparent)" style={{ flexShrink: 0 }} />
       </div>
-      <div style={{ fontSize: 16, color: "var(--wf-text)", marginTop: 8 }}>Te toca: <b>{cargos.map((c) => c.nombre).join(", ")}</b></div>
+      <div style={{ fontSize: 16, color: "var(--wf-on-brand-primary)", marginTop: 12, paddingTop: 12, borderTop: "1px solid color-mix(in srgb, var(--wf-on-brand-primary) 14%, transparent)" }}>Te toca: <b>{cargos.map((c) => c.nombre).join(", ")}</b></div>
       {esAlabanza && textoEnsayo(ev) && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 15, color: "var(--wf-text)" }}>
-          <Music size={17} color="#1F8A73" style={{ flexShrink: 0 }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 15, color: "var(--wf-on-brand-primary)" }}>
+          <Music size={17} color="#7FD3BF" style={{ flexShrink: 0 }} />
           <span>Ensayo: <b>{textoEnsayo(ev)}</b></span>
         </div>
       )}
       {esAlabanza && (ev.notaAlabanza || "").trim() && (
-        <div style={{ marginTop: 12, background: "var(--wf-hover)", borderRadius: 14, padding: "12px 14px", borderLeft: "4px solid #1F8A73" }}>
-          <div style={{ fontSize: 15, color: "var(--wf-text)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{ev.notaAlabanza}</div>
-          {quienDirigeAlabanza(ev) && <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 6 }}>— {quienDirigeAlabanza(ev).n}, dirige la alabanza</div>}
+        <div style={{ marginTop: 12, background: "color-mix(in srgb, var(--wf-on-brand-primary) 10%, transparent)", borderRadius: 14, padding: "12px 14px" }}>
+          <div style={{ fontSize: 15, color: "var(--wf-on-brand-primary)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{ev.notaAlabanza}</div>
+          {quienDirigeAlabanza(ev) && <div style={{ fontSize: 13, color: "color-mix(in srgb, var(--wf-on-brand-primary) 72%, transparent)", marginTop: 6 }}>— {quienDirigeAlabanza(ev).n}, dirige la alabanza</div>}
         </div>
       )}
     </TarjetaInicio>
@@ -322,7 +322,7 @@ export function InicioView({ events, library, ministries = [], myUserId, myName,
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexShrink: 0, gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <button onClick={() => changeMonth(-1)} style={iconGhost}><ChevronLeft size={16} /></button>
-              <span style={{ fontFamily: "'Fraunces', serif", fontSize: 16, fontWeight: 600, color: "var(--wf-heading)" }}>{MONTH_NAMES_FULL[viewedMonth.month]} {viewedMonth.year}</span>
+              <span style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 16, fontWeight: 600, color: "var(--wf-heading)" }}>{MONTH_NAMES_FULL[viewedMonth.month]} {viewedMonth.year}</span>
               <button onClick={() => changeMonth(1)} style={iconGhost}><ChevronRight size={16} /></button>
               {!isViewingCurrentMonth && (
                 <button onClick={() => setViewedMonth({ year: today.getFullYear(), month: today.getMonth() })} style={{ ...ghostToggleBtn, padding: "4px 8px", fontSize: 10 }}>Hoy</button>
@@ -412,7 +412,7 @@ export function InicioView({ events, library, ministries = [], myUserId, myName,
       <div style={{ maxWidth: isCompact ? "none" : 1080, margin: "0 auto", padding: isCompact ? "14px 16px 110px" : "24px 28px 40px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: isCompact ? 23 : 26, fontWeight: 600, lineHeight: 1.2 }}>{greetingWord()}{myName ? `, ${myName.split(" ")[0]}` : ""}</div>
+            <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: isCompact ? 23 : 26, fontWeight: 600, lineHeight: 1.2 }}>{greetingWord()}{myName ? `, ${myName.split(" ")[0]}` : ""}</div>
             <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 2 }}>{fechaLarga(today)}{isCompact ? "" : ` · ${teamName}`}</div>
           </div>
         </div>
@@ -431,7 +431,7 @@ export function InicioView({ events, library, ministries = [], myUserId, myName,
               <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, letterSpacing: 0.6 }}>
                 <span className="live-dot" style={{ width: 8, height: 8, borderRadius: "50%", background: "#FF5A4E", boxShadow: "0 0 8px #FF5A4E" }} /> EN VIVO AHORA
               </span>
-              <span style={{ display: "block", fontFamily: "'Fraunces', serif", fontSize: isCompact ? 18 : 21, fontWeight: 600, lineHeight: 1.25, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{liveEvent.title}</span>
+              <span style={{ display: "block", fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: isCompact ? 18 : 21, fontWeight: 600, lineHeight: 1.25, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{liveEvent.title}</span>
               {liveEvent.location && <span style={{ display: "block", fontSize: 12, opacity: 0.85, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{liveEvent.location}</span>}
             </span>
             <span style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, background: "#fff", color: "var(--wf-brand-primary, #16324F)", borderRadius: 14, padding: "8px 12px", fontSize: 12.5, fontWeight: 700, flexShrink: 0 }}>
