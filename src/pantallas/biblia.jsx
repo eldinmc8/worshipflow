@@ -72,7 +72,7 @@ export function BibleDownloadSection() {
   const porcentaje = totalCapitulos ? Math.round(((guardados || 0) / totalCapitulos) * 100) : 0;
 
   return (
-    <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
+    <div style={{ background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <CloudDownload size={16} color="#2F5FA8" />
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>Biblia sin conexión (Reina-Valera 1960)</div>

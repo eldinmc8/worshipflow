@@ -418,7 +418,7 @@ export const miniBtnStyle = { display: "flex", alignItems: "center", gap: 4, bac
 
 export const ghostToggleBtn = { fontSize: 12, fontWeight: 700, padding: "8px 12px", borderRadius: 12, border: "1px solid var(--wf-border)", background: "var(--wf-hover)", color: "var(--wf-heading)", cursor: "pointer" };
 
-export const addBtnStyle = { display: "flex", alignItems: "center", gap: 8, width: "100%", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 12, padding: "9px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer" };
+export const addBtnStyle = { display: "flex", alignItems: "center", gap: 8, width: "100%", background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 12, padding: "9px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer" };
 
 export const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "9px 10px", fontSize: 13, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
 

@@ -868,7 +868,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
     <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: C.fondo, color: C.texto, display: "flex", flexDirection: "column", fontFamily: "'Poppins', sans-serif" }} onPointerDown={() => { if (menu) setMenu(null); if (plantillasAbiertas) setPlantillasAbiertas(false); if (panelInsertar) setPanelInsertar(null); }}>
       {/* Barra superior */}
       <div style={{ height: 54, background: C.marino, display: "flex", alignItems: "center", gap: 12, padding: "0 16px", flexShrink: 0 }}>
-        <span style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, whiteSpace: "nowrap" }}>Diseño de diapositivas</span>
+        <span style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 17, fontWeight: 600, whiteSpace: "nowrap" }}>Diseño de diapositivas</span>
         <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Nombre del grupo" aria-label="Nombre del grupo" style={{ ...estiloCampo, width: 280, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)" }} />
         <span style={{ fontSize: 12, color: "#C9D1DC" }}>{diaps.length} diapositiva{diaps.length === 1 ? "" : "s"}</span>
         <div style={{ flex: 1 }} />

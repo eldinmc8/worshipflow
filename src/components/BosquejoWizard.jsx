@@ -24,7 +24,7 @@ const etiqueta = { fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", lett
 function Pregunta({ children, ayuda }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ fontFamily: "'Fraunces', serif", fontSize: 21, fontWeight: 600, color: "var(--wf-heading)", lineHeight: 1.25 }}>{children}</div>
+      <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 21, fontWeight: 600, color: "var(--wf-heading)", lineHeight: 1.25 }}>{children}</div>
       {ayuda && <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 4 }}>{ayuda}</div>}
     </div>
   );
@@ -317,7 +317,7 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button type="button" onClick={() => irA(0)} style={{ textAlign: "left", background: "var(--wf-card)", boxShadow: sombra, border: "none", borderRadius: 14, padding: "12px 14px", cursor: "pointer", fontFamily: "inherit" }}>
             <div style={etiqueta}>TÍTULO</div>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, fontWeight: 600, color: "var(--wf-heading)" }}>{b.titulo || "Sin título"}</div>
+            <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 18, fontWeight: 600, color: "var(--wf-heading)" }}>{b.titulo || "Sin título"}</div>
           </button>
           <button type="button" onClick={() => irA(1)} style={{ textAlign: "left", background: "var(--wf-card)", boxShadow: sombra, border: "none", borderRadius: 14, padding: "12px 14px", cursor: "pointer", fontFamily: "inherit" }}>
             <div style={etiqueta}>CITA BASE</div>

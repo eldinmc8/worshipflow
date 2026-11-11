@@ -730,7 +730,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     </button>
   );
   const barraSencilla = (
-    <div data-tour="envivo-paneles" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)", flexShrink: 0, flexWrap: "wrap", rowGap: 8 }}>
+    <div data-tour="envivo-paneles" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", flexShrink: 0, flexWrap: "wrap", rowGap: 8 }}>
       {botonGrande({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1), ancho: 130 })}
       {botonGrande({ icon: ChevronRight, label: "Siguiente", sub: cambiaDeElemento ? `Pasas a: ${nombreSiguiente}` : next ? null : "Es la última", onClick: () => avanzar(1), fondo: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", tour: "envivo-siguiente", ancho: 190 })}
       {botonGrande({ icon: MonitorOff, label: blanked ? "Volver a mostrar" : "Negro", sub: blanked ? null : "Esconde todo", onClick: () => setBlanked((b) => !b), fondo: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)", tour: "envivo-negro", ancho: 140 })}
@@ -1089,7 +1089,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       {!sencillo && (
         <CintaAdaptable
           tour="envivo-paneles" dibujarGrupo={grupoCinta}
-          estilo={{ padding: "6px 8px 4px", minHeight: 76, boxSizing: "border-box", background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.06)" }}
+          estilo={{ padding: "6px 8px 4px", minHeight: 76, boxSizing: "border-box", background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)" }}
           grupos={(mmPanel === "biblia" ? [
           grupoItem("Proyección", navegacionRapida()),
           grupoItem("", <div style={{ display: "flex", alignItems: "center", padding: "0 16px", maxWidth: 440 }}>
@@ -1425,7 +1425,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           <section aria-label="Diapositivas" data-tour="envivo-diapositivas" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "0 4px calc(var(--bottom-nav-height, 80px) + 8px)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: "'Fraunces', serif", fontSize: 16, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{itemCentro ? tituloItem(itemCentro) : "Todas las diapositivas"}</div>
+                <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 16, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{itemCentro ? tituloItem(itemCentro) : "Todas las diapositivas"}</div>
                 <div style={{ fontSize: 11.5, color: "var(--wf-muted)" }}>{indicesCentro.length} diapositiva{indicesCentro.length === 1 ? "" : "s"}{itemCentro && itemAlAire?.id !== itemCentro.id ? " · no está al aire" : ""}</div>
               </div>
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>

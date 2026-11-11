@@ -38,7 +38,7 @@ function NavRow({ icon: Icon, label, onClick, right, danger }) {
   // usamos un <div> en vez de <button> — un <button> no puede contener otro <button> (HTML inválido).
   const Tag = onClick ? "button" : "div";
   return (
-    <Tag onClick={onClick} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: onClick ? "pointer" : "default", boxSizing: "border-box" }}>
+    <Tag onClick={onClick} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: onClick ? "pointer" : "default", boxSizing: "border-box" }}>
       <Icon size={18} color={danger ? "#C23B32" : "var(--wf-text-2)"} />
       <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: danger ? "#C23B32" : "var(--wf-text)" }}>{label}</span>
       {right}
@@ -165,7 +165,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
   const [cuentaAbierta, setCuentaAbierta] = useState(false);
   const [avanzadoAbierto, setAvanzadoAbierto] = useState(!!(roleOverride || nameOverride));
   const chevron = <ChevronRight size={16} color="var(--wf-faint)" />;
-  const tarjeta = { background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: "12px 16px", marginBottom: 8 };
+  const tarjeta = { background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: "12px 16px", marginBottom: 8 };
   const opcion = (activa) => ({ flex: 1, fontSize: 12.5, fontWeight: 700, padding: "9px 6px", borderRadius: 12, border: "none", cursor: "pointer", background: activa ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: activa ? "var(--wf-brand-primary)" : "var(--wf-text)" });
   const subtitulo = (icono, texto) => (
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -181,10 +181,10 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
 
   return (
     <div className="screen-enter" style={{ padding: 20, maxWidth: 640, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
-      <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, marginBottom: 18 }}>Ajustes</h2>
+      <h2 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, marginBottom: 18 }}>Ajustes</h2>
 
       {/* Mi cuenta: tocar la tarjeta abre contraseña y Google. */}
-      <button onClick={() => setCuentaAbierta((v) => !v)} className="hoverable" aria-expanded={cuentaAbierta} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 18, padding: 14, cursor: "pointer", marginBottom: 8, color: "var(--wf-text)" }}>
+      <button onClick={() => setCuentaAbierta((v) => !v)} className="hoverable" aria-expanded={cuentaAbierta} style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 18, padding: 14, cursor: "pointer", marginBottom: 8, color: "var(--wf-text)" }}>
         {perfil?.foto_url ? (
           <img src={perfil.foto_url} alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
         ) : (
@@ -343,7 +343,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
       {!isCompact && <BibleDownloadSection />}
 
       <SectionLabel>MI IGLESIA</SectionLabel>
-      <button onClick={() => setShowTeamList(true)} className="hoverable" style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 14, padding: 16, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", cursor: "pointer", textAlign: "left", color: "var(--wf-text)" }}>
+      <button onClick={() => setShowTeamList(true)} className="hoverable" style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: 16, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", cursor: "pointer", textAlign: "left", color: "var(--wf-text)" }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{teamName}</div>
           <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{usuariosReales.length} {usuariosReales.length === 1 ? "miembro" : "miembros"}</div>
@@ -372,7 +372,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
           {onGoToPlataforma && <NavRow icon={Shield} label="Consola general" onClick={onGoToPlataforma} right={chevron} />}
           <NavRow icon={Eye} label="Ver la app como otra persona" onClick={() => setAvanzadoAbierto((v) => !v)} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>{nameOverride || roleOverride || ""} {avanzadoAbierto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</span>} />
           {avanzadoAbierto && (
-        <div style={{ background: "var(--wf-card)", boxShadow: "0 3px 14px rgba(22,50,79,0.09)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
+        <div style={{ background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text-2)", marginBottom: 6 }}>Elige a quién</div>
           <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 8 }}>Para revisar que cada quien vea solo lo que le corresponde.</div>
           <select value={nameOverride || ""} onChange={(e) => setNameOverride(e.target.value || null)} style={{ ...inputStyle, marginBottom: 14 }}>

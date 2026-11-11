@@ -93,7 +93,7 @@ export default function ImportarCancionesPdf({ library = [], clasificaciones = [
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${C.borde}` }}>
           <FileUp size={20} color="var(--wf-brand-accent)" />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600 }}>Importar canciones desde PDF</div>
+            <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 19, fontWeight: 600 }}>Importar canciones desde PDF</div>
             <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>Un PDF por canción o un cancionero completo. Revisas todo antes de guardar.</div>
           </div>
           <button onClick={onCerrar} aria-label="Cerrar" style={{ background: "var(--wf-hover)", border: "none", borderRadius: 10, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--wf-text)" }}><X size={18} /></button>

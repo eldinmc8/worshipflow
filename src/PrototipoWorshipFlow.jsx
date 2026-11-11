@@ -2184,7 +2184,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   }
 
   return (
-    <div className="app-shell-height" style={{ fontFamily: "'Poppins', sans-serif", background: "var(--wf-bg)", color: "var(--wf-text)", display: "flex", flexDirection: "column", position: "relative", overflowX: "hidden" }}>
+    <div className="app-shell-height" style={{ fontFamily: "var(--wf-font-ui)", background: "var(--wf-bg)", color: "var(--wf-text)", display: "flex", flexDirection: "column", position: "relative", overflowX: "hidden" }}>
       <style>{`
         /* El @import de Google Fonts que vivía acá se movió a index.css -- esta pantalla nunca
            llegaba a la pantalla real de Proyección (PublicScreen.jsx es una entrada HTML aparte),
@@ -2252,7 +2252,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
                 <EyeOff size={20} color="var(--wf-brand-accent)" />
               </div>
             </div>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, textAlign: "center", marginBottom: 4 }}>
+            <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 17, fontWeight: 600, textAlign: "center", marginBottom: 4 }}>
               Tienes {pendingConfirmations.length === 1 ? "un cargo" : `${pendingConfirmations.length} cargos`} sin confirmar
             </div>
             <div style={{ fontSize: 12.5, color: "var(--wf-muted)", textAlign: "center", marginBottom: 16 }}>
@@ -2285,8 +2285,6 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           notch/la muesca, en vez de dejar una franja sin pintar ahí (que en modo oscuro de iOS se veía
           negra en vez de fundirse con la app). */}
       <div style={{ background: "var(--wf-brand-primary)", padding: "calc(16px + env(safe-area-inset-top)) 20px 26px", borderRadius: "0 0 28px 28px", position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(232,130,30,0.15)" }} />
-        <div style={{ position: "absolute", bottom: -40, left: 40, width: 90, height: 90, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
             {/* Fondo blanco detrás del logo (el ícono ya trae su propio fondo blanco, pero el círculo
@@ -2297,7 +2295,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--wf-card)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
               <AppLogo width={32} logoUrl={myIglesia.logoUrl} />
             </div>
-            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, color: "var(--wf-on-brand-primary)" }}>WorshipFlow</span>
+            <span style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 19, fontWeight: 600, color: "var(--wf-on-brand-primary)" }}>WorshipFlow</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {liveEvent && (

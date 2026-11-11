@@ -75,7 +75,7 @@ export default function CrearIglesia() {
       <div className="screen-enter" style={{ width: 400, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 20 }}>
           <MarkCircle size={80} />
-          <span style={{ fontFamily: "'Fraunces', serif", fontSize: 17, fontWeight: 600, color: "var(--wf-heading)", textAlign: "center" }}>Crear mi iglesia en WorshipFlow</span>
+          <span style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 17, fontWeight: 600, color: "var(--wf-heading)", textAlign: "center" }}>Crear mi iglesia en WorshipFlow</span>
           <span style={{ fontSize: 12, color: "var(--wf-muted)", textAlign: "center" }}>Quedas como administrador — luego invitas a tu equipo desde Ajustes.</span>
         </div>
 

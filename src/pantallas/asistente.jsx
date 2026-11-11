@@ -171,7 +171,7 @@ export function AsistenteChatScreen() {
     <div className="screen-enter" style={{ padding: 20, maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 6 }}>
         <div>
-          <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: 0 }}>Asistente</h2>
+          <h2 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, margin: 0 }}>Asistente</h2>
           <div style={{ fontSize: 12, color: "var(--wf-muted)", marginTop: 4 }}>Puede crear, editar, borrar o duplicar eventos, su setlist y quién queda a cargo — antes de guardar (o borrar) nada, siempre te muestra el plan para que lo confirmes.</div>
         </div>
         <button onClick={abrirReglas} style={{ ...iconGhost, width: "auto", gap: 6, padding: "6px 10px", background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 10, flexShrink: 0 }}>
@@ -224,7 +224,7 @@ export function AsistenteChatScreen() {
         {loading && <div style={{ fontSize: 12, color: "var(--wf-faint)" }}>Pensando…</div>}
 
         {pendingPlan && (
-          <div style={{ background: "var(--wf-card)", border: "1px solid color-mix(in srgb, var(--wf-brand-accent) 33%, transparent)", borderRadius: 16, padding: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)" }}>
+          <div style={{ background: "var(--wf-card)", border: "1px solid color-mix(in srgb, var(--wf-brand-accent) 33%, transparent)", borderRadius: 16, padding: 14, boxShadow: "0 1px 3px rgba(22,50,79,0.08)" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-brand-accent)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Plan propuesto — todavía no se guardó nada</div>
             <div style={{ fontSize: 13, marginBottom: 12, whiteSpace: "pre-wrap" }}>{pendingPlan.resumen}</div>
             <div style={{ display: "flex", gap: 8 }}>

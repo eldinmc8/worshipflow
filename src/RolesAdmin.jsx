@@ -7,7 +7,7 @@ import { confirmDialog } from "./lib/confirm.js";
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "9px 10px", fontSize: 13, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
 const primaryBtn = { background: "var(--wf-brand-accent)", border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 13, fontWeight: 700, color: "var(--wf-brand-primary)", cursor: "pointer" };
 const ghostBtn = { background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer" };
-const cardStyle = { background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", padding: "12px 14px", marginBottom: 8 };
+const cardStyle = { background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", padding: "12px 14px", marginBottom: 8 };
 
 // Fila de interruptor para un permiso — igual de simple que "Estado de la cuenta" en UsersAdmin, solo
 // que aquí cada permiso tiene además una línea de explicación (PERMISOS_APP.detalle) porque el nombre
@@ -175,7 +175,7 @@ export default function RolesAdmin({ onExit, textoVolver = "← Volver a la app"
       <div style={{ maxWidth: 780, margin: "0 auto" }}>
         <div className="screen-enter">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 22, color: "var(--wf-heading)", margin: 0 }}>Roles y permisos</h1>
+            <h1 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, color: "var(--wf-heading)", margin: 0 }}>Roles y permisos</h1>
             <button onClick={onExit} style={ghostBtn}>{textoVolver}</button>
           </div>
           <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>Cada rol decide qué puede hacer una persona en la app. Toca uno para cambiarlo, o crea uno nuevo.</div>
@@ -184,7 +184,7 @@ export default function RolesAdmin({ onExit, textoVolver = "← Volver a la app"
 
           <button onClick={() => (rolesPropiosOk ? setEditingRole(null) : abrirPlanes())} style={{ ...primaryBtn, marginBottom: 16 }}>{rolesPropiosOk ? "+ Crear rol" : "🔒 Crear rol · Plan Iglesia"}</button>
 
-          <div style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 3px 14px rgba(22,50,79,0.09)", overflow: "hidden" }}>
+          <div style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", overflow: "hidden" }}>
             {roles === null && <div style={{ padding: 20, color: "var(--wf-faint)", fontSize: 13 }}>Cargando…</div>}
             {roles?.map((r) => {
               return (
