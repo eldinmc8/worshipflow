@@ -27,7 +27,9 @@ export function lineasDeItems(items) {
     });
     grupos.sort((a, b) => b.y - a.y).forEach((g) => {
       g.items.sort((a, b) => a.x - b.x);
-      lineas.push({ pagina, y: g.y, alto: g.h, items: g.items, ...textoConPosiciones(g.items) });
+      const letras = g.items.reduce((n, it) => n + it.str.trim().length, 0);
+      const enNegrita = g.items.reduce((n, it) => n + (it.negrita ? it.str.trim().length : 0), 0);
+      lineas.push({ pagina, y: g.y, alto: g.h, items: g.items, negrita: letras > 0 && enNegrita / letras >= 0.6, ...textoConPosiciones(g.items) });
     });
   });
   return lineas;
@@ -98,18 +100,89 @@ function quitarRepetidosDePagina(lineas) {
   return lineas.filter((l) => !fuera.has(l.texto.trim()));
 }
 
+// ¿Dónde empieza cada canción? Cada cancionero marca sus títulos distinto, así que se prueban varias
+// señales y se usa la primera que encuentre al menos dos canciones (pedido de Eldin, 2026-11-11: "que
+// solo metan el PDF y se separen solas"):
+//   1. letra más grande que el resto · 2. numerados ("12. Título", "#12 Título", "012 - Título")
+//   3. en negrita (con la letra normal sin negrita) · 4. EN MAYÚSCULAS con espacio arriba
+//   5. una canción por página (desde 3 páginas)
+// Ninguna línea de acordes ni encabezado de parte ("Coro", "Estrofa 2") cuenta como título, y un
+// índice (muchos títulos seguidos sin letra entre ellos) se salta.
+const RE_NUMERADO = /^\s*(?:#|n[°º.]\s*)?(\d{1,4})\s*(?:[.)\-–—:]\s*|\s+(?=[A-ZÁÉÍÓÚÑ¿¡"“]))(\S.*)$/;
+const pareceLineaDeTitulo = (l) => {
+  const t = l.texto.trim();
+  // "Cuán grande es Él ....... 5" es un renglón de índice, no un título.
+  return t.length >= 2 && t.length <= 70 && !/(\.{3,}|…)\s*\d{1,4}$/.test(t) && !esLineaDeAcordes(t) && !leerEncabezado(t) && /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(t);
+};
+const esMayusculas = (t) => {
+  const letras = t.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ]/g, "");
+  return letras.length >= 3 && letras === letras.toUpperCase();
+};
+// Corridas de 3+ candidatos seguidos = índice o lista, no títulos de canciones.
+function sinIndices(inicios, lineas) {
+  const fuera = new Set();
+  for (let a = 0; a < inicios.length;) {
+    let b = a;
+    // Seguidos = renglón tras renglón en la MISMA página (el índice termina donde cambia la hoja).
+    while (b + 1 < inicios.length && inicios[b + 1] === inicios[b] + 1 && lineas[inicios[b + 1]].pagina === lineas[inicios[b]].pagina) b++;
+    if (b - a + 1 >= 3) for (let k = a; k <= b; k++) fuera.add(inicios[k]);
+    a = b + 1;
+  }
+  return inicios.filter((i) => !fuera.has(i));
+}
+// Dos títulos seguidos (título + subtítulo) cuentan como uno solo.
+const sinSeguidos = (inicios) => inicios.filter((i, n) => n === 0 || i !== inicios[n - 1] + 1);
+
+export function iniciosDeCanciones(lineas) {
+  const altoNormal = mediana(lineas.map((l) => l.alto));
+  const saltos = [];
+  for (let i = 1; i < lineas.length; i++) if (lineas[i].pagina === lineas[i - 1].pagina) saltos.push(lineas[i - 1].y - lineas[i].y);
+  const saltoNormal = mediana(saltos.filter((x) => x > 0)) || 14;
+  const espacioArriba = (i) => i === 0 || lineas[i].pagina !== lineas[i - 1].pagina || lineas[i - 1].y - lineas[i].y > saltoNormal * 1.4;
+  const indices = (prueba) => lineas.map((l, i) => (pareceLineaDeTitulo(l) && prueba(l, i) ? i : -1)).filter((i) => i >= 0);
+  const pocas = (inicios, max) => inicios.length <= Math.max(2, lineas.length * max);
+
+  const porTamano = sinSeguidos(indices((l) => l.alto >= altoNormal * 1.3));
+  const numerados = (() => {
+    const c = sinIndices(indices((l) => RE_NUMERADO.test(l.texto)), lineas);
+    const nums = c.map((i) => Number(lineas[i].texto.match(RE_NUMERADO)[1]));
+    const subenBien = nums.filter((x, n) => n > 0 && x > nums[n - 1]).length >= (nums.length - 1) * 0.7;
+    return c.length >= 2 && subenBien ? c : [];
+  })();
+  const enNegrita = (() => {
+    const c = indices((l, i) => l.negrita && !lineas[i - 1]?.negrita && !(lineas[i + 1]?.negrita && lineas[i + 2]?.negrita));
+    const negritas = lineas.filter((l) => l.negrita).length;
+    return negritas <= lineas.length * 0.35 ? c : [];
+  })();
+  const enMayusculas = (() => {
+    const c = sinIndices(indices((l, i) => esMayusculas(l.texto) && espacioArriba(i)), lineas);
+    return pocas(c, 0.2) ? c : [];
+  })();
+  const porPagina = (() => {
+    const paginas = [...new Set(lineas.map((l) => l.pagina))];
+    if (paginas.length < 3) return [];
+    const c = paginas.map((p) => lineas.findIndex((l) => l.pagina === p)).filter((i) => i >= 0 && pareceLineaDeTitulo(lineas[i]));
+    return c.length >= paginas.length * 0.8 ? c : [];
+  })();
+
+  for (const [modo, inicios] of [["tamano", porTamano], ["numerados", numerados], ["negrita", enNegrita], ["mayusculas", enMayusculas], ["pagina", porPagina]]) {
+    if (inicios.length >= 2) return { modo, inicios };
+  }
+  // Una sola canción: su título es la línea marcada (más grande, o en negrita/mayúsculas al principio).
+  if (porTamano.length === 1) return { modo: "tamano", inicios: porTamano };
+  for (const [modo, inicios] of [["negrita", enNegrita], ["mayusculas", enMayusculas], ["numerados", numerados]]) {
+    if (inicios.length === 1 && inicios[0] === 0) return { modo, inicios };
+  }
+  return { modo: "ninguno", inicios: [] };
+}
+
 export function cancionesDeLineas(lineasCrudas, nombreArchivo = "") {
   const lineas = quitarRepetidosDePagina(lineasCrudas).filter((l) => !RE_PAGINA.test(l.texto.trim()));
   if (!lineas.length) return [];
-  // Títulos: letra claramente más grande que el resto, línea corta, que no sea acordes ni "Coro".
-  const altoNormal = mediana(lineas.map((l) => l.alto));
-  const esTitulo = (l) => l.alto >= altoNormal * 1.3 && l.texto.trim().length <= 70 && !esLineaDeAcordes(l.texto) && !leerEncabezado(l.texto);
-  const inicios = lineas.map((l, i) => (esTitulo(l) ? i : -1)).filter((i) => i >= 0);
-  // Varios títulos seguidos (título + subtítulo grande) cuentan como uno solo.
-  const iniciosLimpios = inicios.filter((i, n) => n === 0 || i !== inicios[n - 1] + 1);
+  const { modo, inicios } = iniciosDeCanciones(lineas);
   const tramos = [];
-  if (iniciosLimpios.length === 0) {
-    // Sin letra más grande: si la PRIMERA línea es el título (se parece al nombre del archivo, o viene
+  if (inicios.length === 0) {
+    // Sin títulos marcados: si la PRIMERA línea es el título (se parece al nombre del archivo, o viene
     // como "Título – Autor"), se usa como título y no como letra.
     const primera = lineas[0].texto.trim();
     const base = normalizarTitulo(tituloDeArchivo(nombreArchivo));
@@ -117,12 +190,17 @@ export function cancionesDeLineas(lineasCrudas, nombreArchivo = "") {
       ((base && normalizarTitulo(primera).includes(base)) || /\s[-–—]\s/.test(primera));
     if (pareceTitulo) tramos.push({ titulo: primera, desde: 1, hasta: lineas.length });
     else tramos.push({ titulo: tituloDeArchivo(nombreArchivo), desde: 0, hasta: lineas.length });
+  } else {
+    inicios.forEach((ini, n) => {
+      let desde = ini + 1;
+      // Subtítulo grande justo debajo del título (solo cuando se separa por tamaño).
+      while (modo === "tamano" && desde < lineas.length && lineas[desde].alto >= mediana(lineas.map((l) => l.alto)) * 1.3 && pareceLineaDeTitulo(lineas[desde])) desde++;
+      let titulo = lineas[ini].texto.trim();
+      if (modo === "numerados") titulo = titulo.match(RE_NUMERADO)[2].trim();
+      if (modo === "mayusculas") titulo = titulo.charAt(0) + titulo.slice(1).toLowerCase();
+      tramos.push({ titulo, desde, hasta: n + 1 < inicios.length ? inicios[n + 1] : lineas.length });
+    });
   }
-  else iniciosLimpios.forEach((ini, n) => {
-    let desde = ini + 1;
-    while (desde < lineas.length && inicios.includes(desde)) desde++;
-    tramos.push({ titulo: lineas[ini].texto.trim(), desde, hasta: n + 1 < iniciosLimpios.length ? iniciosLimpios[n + 1] : lineas.length });
-  });
   return tramos.map((t) => armarCancion(t.titulo, lineas.slice(t.desde, t.hasta))).filter((c) => c.texto.trim());
 }
 
@@ -194,12 +272,23 @@ export async function itemsDePdf(pdfjs, datos) {
   const items = [];
   for (let n = 1; n <= pdf.numPages; n++) {
     const pagina = await pdf.getPage(n);
+    // Cargar las fuentes de la página para saber cuáles son negrita (títulos en negrita).
+    await pagina.getOperatorList().catch(() => {});
     const contenido = await pagina.getTextContent();
+    const negritas = new Map();
+    const esNegrita = (nombre) => {
+      if (!negritas.has(nombre)) {
+        let f = null;
+        try { f = pagina.commonObjs.has(nombre) ? pagina.commonObjs.get(nombre) : null; } catch { f = null; }
+        negritas.set(nombre, !!(f && (f.bold || f.black || /bold|black|heavy|semibold|demi/i.test(`${f.name || ""} ${f.loadedName || ""}`))));
+      }
+      return negritas.get(nombre);
+    };
     contenido.items.forEach((it) => {
       if (typeof it.str !== "string") return;
       const [a, b, , d, e, f] = it.transform;
       const alto = it.height || Math.hypot(b, d) || Math.abs(a) || 10;
-      items.push({ str: it.str, x: e, y: f, w: it.width, h: alto, pagina: n });
+      items.push({ str: it.str, x: e, y: f, w: it.width, h: alto, pagina: n, negrita: esNegrita(it.fontName) });
     });
   }
   return items;
