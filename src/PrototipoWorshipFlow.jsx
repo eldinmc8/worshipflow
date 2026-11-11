@@ -2646,7 +2646,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             <LayoutGrid size={20} />
           </button>
         ) : (<>
-        <div data-tour="nav" style={{ pointerEvents: "auto", display: "flex", alignItems: "center", gap: 2, background: "var(--wf-brand-primary)", borderRadius: 24, padding: 6, boxShadow: "0 8px 24px rgba(22,50,79,0.35)", maxWidth: "94vw", overflowX: "auto" }}>
+        <div data-tour="nav" style={{ pointerEvents: "auto", display: "flex", alignItems: "center", gap: 2, background: "var(--wf-brand-primary)", borderRadius: 24, padding: 6, boxShadow: "0 10px 30px rgba(22,50,79,0.28)", maxWidth: "94vw", overflowX: "auto" }}>
           {[["inicio", "Inicio", Home], ["canciones", "Canciones", Music], ["eventos", "Eventos", Calendar], ["ministerios", "Grupos", LayoutGrid], ["asistente", "Asistente", MessageCircle], ["envivo", "En vivo", Radio], ["proyeccion", "Pantalla", ImgIcon], ["ajustes", "Ajustes", Settings]]
             .filter(([val]) => !isCompact || (val !== "envivo" && val !== "proyeccion")) // Control en vivo/Proyección son de escritorio: en celular no aparecen
             .filter(([val]) => val !== "ministerios" || canSeeGrupos) // Grupos: solo admins o quien lidera al menos uno
@@ -2673,8 +2673,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
                 className="navitem"
                 style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: active ? "var(--wf-brand-accent)" : "transparent", border: "none", borderRadius: 18, padding: "8px 12px", cursor: isDisabled ? "not-allowed" : "pointer", opacity: isDisabled ? 0.35 : 1, flexShrink: 0 }}
               >
-                <Icon size={17} color={active ? "var(--wf-on-brand-accent)" : "color-mix(in srgb, var(--wf-on-brand-primary) 80%, transparent)"} />
-                <span style={{ fontSize: 9, fontWeight: 700, color: active ? "var(--wf-on-brand-accent)" : "color-mix(in srgb, var(--wf-on-brand-primary) 60%, transparent)" }}>{label}</span>
+                <Icon size={19} color={active ? "var(--wf-on-brand-accent)" : "color-mix(in srgb, var(--wf-on-brand-primary) 80%, transparent)"} />
+                <span style={{ fontSize: 10, fontWeight: active ? 700 : 600, letterSpacing: 0, color: active ? "var(--wf-on-brand-accent)" : "color-mix(in srgb, var(--wf-on-brand-primary) 60%, transparent)" }}>{label}</span>
               </button>
             );
           })}

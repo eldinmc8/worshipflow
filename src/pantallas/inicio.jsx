@@ -105,7 +105,7 @@ function AvisoActivarPush({ estado, onActivar, onCerrar }) {
 function TituloSeccion({ children, derecha }) {
   return (
     <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, margin: "16px 4px 6px" }}>
-      <span style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-text-2)" }}>{children}</span>
+      <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--wf-heading)" }}>{children}</span>
       {derecha}
     </div>
   );
@@ -177,29 +177,29 @@ export function InicioView({ events, library, ministries = [], myUserId, myName,
     {/* Toda la tarjeta lleva al culto (pedido de Eldin, 2026-10-11); el equipo va en su propia
         tarjeta aparte, abajo, con su botón "Ver equipo". */}
     <div role="button" tabIndex={0} onClick={() => onSelectEvent(ev.id)} onKeyDown={(e) => { if (e.key === "Enter") onSelectEvent(ev.id); }} aria-label={`Ver el culto: ${ev.title}`} style={{ cursor: "pointer" }}>
-    <TarjetaInicio style={{ padding: 16 }}>
+    <TarjetaInicio style={{ padding: 20, borderRadius: 20, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)", boxShadow: "none" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: 0.4, color: esAlabanza ? "#C2620F" : "#1F8A73" }}>{esAlabanza ? "TU PRÓXIMO SERVICIO" : "TU PRÓXIMO TURNO"}</span>
-        {cuandoEs(ev.date) && <span style={{ fontSize: 12.5, fontWeight: 700, background: "var(--wf-active-bg)", color: "var(--wf-active-text)", padding: "4px 10px", borderRadius: 12 }}>{cuandoEs(ev.date)}</span>}
+        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: esAlabanza ? "#F0B86E" : "#7FD3BF" }}>{esAlabanza ? "TU PRÓXIMO SERVICIO" : "TU PRÓXIMO TURNO"}</span>
+        {cuandoEs(ev.date) && <span style={{ fontSize: 12.5, fontWeight: 700, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", padding: "4px 10px", borderRadius: 10 }}>{cuandoEs(ev.date)}</span>}
       </div>
-      <div style={{ marginTop: 8, color: "var(--wf-text)", display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ marginTop: 10, color: "var(--wf-on-brand-primary)", display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.3 }}>{fechaLarga(fechaEv, ev.hora)}</div>
-          <div style={{ fontSize: 14, color: "var(--wf-muted)", marginTop: 2 }}>{ev.title}</div>
+          <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.25, letterSpacing: "-0.025em" }}>{fechaLarga(fechaEv, ev.hora)}</div>
+          <div style={{ fontSize: 14, color: "color-mix(in srgb, var(--wf-on-brand-primary) 72%, transparent)", marginTop: 2 }}>{ev.title}</div>
         </div>
-        <ChevronRight size={22} color="var(--wf-faint)" style={{ flexShrink: 0 }} />
+        <ChevronRight size={22} color="color-mix(in srgb, var(--wf-on-brand-primary) 72%, transparent)" style={{ flexShrink: 0 }} />
       </div>
-      <div style={{ fontSize: 16, color: "var(--wf-text)", marginTop: 8 }}>Te toca: <b>{cargos.map((c) => c.nombre).join(", ")}</b></div>
+      <div style={{ fontSize: 16, color: "var(--wf-on-brand-primary)", marginTop: 12, paddingTop: 12, borderTop: "1px solid color-mix(in srgb, var(--wf-on-brand-primary) 14%, transparent)" }}>Te toca: <b>{cargos.map((c) => c.nombre).join(", ")}</b></div>
       {esAlabanza && textoEnsayo(ev) && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 15, color: "var(--wf-text)" }}>
-          <Music size={17} color="#1F8A73" style={{ flexShrink: 0 }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 15, color: "var(--wf-on-brand-primary)" }}>
+          <Music size={17} color="#7FD3BF" style={{ flexShrink: 0 }} />
           <span>Ensayo: <b>{textoEnsayo(ev)}</b></span>
         </div>
       )}
       {esAlabanza && (ev.notaAlabanza || "").trim() && (
-        <div style={{ marginTop: 12, background: "var(--wf-hover)", borderRadius: 14, padding: "12px 14px", borderLeft: "4px solid #1F8A73" }}>
-          <div style={{ fontSize: 15, color: "var(--wf-text)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{ev.notaAlabanza}</div>
-          {quienDirigeAlabanza(ev) && <div style={{ fontSize: 13, color: "var(--wf-muted)", marginTop: 6 }}>— {quienDirigeAlabanza(ev).n}, dirige la alabanza</div>}
+        <div style={{ marginTop: 12, background: "color-mix(in srgb, var(--wf-on-brand-primary) 10%, transparent)", borderRadius: 14, padding: "12px 14px" }}>
+          <div style={{ fontSize: 15, color: "var(--wf-on-brand-primary)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{ev.notaAlabanza}</div>
+          {quienDirigeAlabanza(ev) && <div style={{ fontSize: 13, color: "color-mix(in srgb, var(--wf-on-brand-primary) 72%, transparent)", marginTop: 6 }}>— {quienDirigeAlabanza(ev).n}, dirige la alabanza</div>}
         </div>
       )}
     </TarjetaInicio>
