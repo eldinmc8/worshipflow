@@ -2,17 +2,25 @@
 // privacidad y reembolsos. Vive en /web/... dentro de la misma app (main.jsx la muestra según la
 // dirección), así que NO toca el inicio de sesión ni la app de las iglesias actuales. Paddle revisa
 // estas páginas (precios + términos + privacidad + reembolsos) antes de aprobar la cuenta de cobro.
+//
+// Rediseño (2026-11-11): lienzo blanco, un solo acento naranja de marca, letra Inter con tracking
+// cerrado, bandas grises para separar y pie oscuro. El logo es el ícono oficial (WorshipFlowIcon).
+// Los planes, precios y la tabla salen de lib/planes.js: no se escriben a mano aquí.
 import { useEffect, useState } from "react";
-import { Radio, Music, ListMusic, BookOpen, Users, Tv, Check, MessageCircle, Menu, X, ChevronDown, Minus } from "lucide-react";
+import { Radio, Music, ListMusic, BookOpen, Users, Tv, Check, MessageCircle, Menu, X, Minus, Plus, Smartphone, Tablet, Monitor, Cast } from "lucide-react";
 import WorshipFlowIcon from "./WorshipFlowIcon.jsx";
 import { PLANES, COMPARATIVO } from "./lib/planes.js";
 import { CORREO_SOPORTE, WHATSAPP_SOPORTE } from "./lib/soporte.js";
 
 const AZUL = "#16324F";
 const NARANJA = "#E8821E";
-const FONDO = "#F4F6FA";
+const SOBRE_NARANJA = "#16233A"; // texto encima del naranja (contraste AA)
+const TINTA = "#0E1726";
 const TEXTO = "#16233A";
 const SUAVE = "#5A6678";
+const NIEBLA = "#F3F5F9";
+const LINEA = "#E3E7EE";
+const OSCURO = "#0B1626";
 const RESPONSABLE = "Eldin Mcfarlane";
 const PAIS = "Guatemala";
 const ACTUALIZADO = "10 de noviembre de 2026";
@@ -37,87 +45,149 @@ function irA(ruta, e) {
   window.scrollTo(0, 0);
 }
 
-function Enlace({ ruta, children, style }) {
-  return <a href={ruta} onClick={(e) => irA(ruta, e)} style={{ color: "inherit", textDecoration: "none", ...style }}>{children}</a>;
+function Enlace({ ruta, children, style, className }) {
+  return <a href={ruta} className={className} onClick={(e) => irA(ruta, e)} style={{ color: "inherit", textDecoration: "none", ...style }}>{children}</a>;
 }
 
-function Boton({ href, children, secundario, onClick }) {
-  const estilo = {
-    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 22px", borderRadius: 14,
-    fontWeight: 700, fontSize: 15, textDecoration: "none", cursor: "pointer", border: "none",
-    background: secundario ? "rgba(255,255,255,0.14)" : NARANJA, color: "#fff",
-    boxShadow: secundario ? "none" : "0 6px 18px rgba(232,130,30,0.35)",
+// Botón principal (naranja) o secundario (texto). Un enlace externo abre en otra pestaña.
+function Boton({ href, ruta, children, tipo = "principal", grande, style }) {
+  const base = {
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: grande ? 50 : 44,
+    padding: grande ? "13px 22px" : "10px 16px", borderRadius: 12, fontWeight: 600, fontSize: grande ? 16 : 14,
+    textDecoration: "none", cursor: "pointer", whiteSpace: "nowrap", boxSizing: "border-box",
   };
-  return onClick
-    ? <button onClick={onClick} style={estilo}>{children}</button>
-    : <a href={href} target={href?.startsWith("http") ? "_blank" : undefined} rel="noopener" style={estilo}>{children}</a>;
+  const estilos = {
+    principal: { background: NARANJA, color: SOBRE_NARANJA },
+    oscuro: { background: TINTA, color: "#fff" },
+    suave: { background: NIEBLA, color: TINTA },
+    texto: { background: "transparent", color: TINTA, padding: grande ? "13px 8px" : "10px 6px" },
+  };
+  const s = { ...base, ...estilos[tipo], ...style };
+  if (ruta) return <Enlace ruta={ruta} style={s}>{children}</Enlace>;
+  return <a href={href} target={href?.startsWith("http") ? "_blank" : undefined} rel="noopener" style={s}>{children}</a>;
 }
 
-function Encabezado({ ruta, grande }) {
-  const [menu, setMenu] = useState(false);
+function Logo({ claro, tamano = 32 }) {
   return (
-    <header style={{ position: "relative", overflow: "hidden", background: AZUL, color: "#fff", borderRadius: "0 0 32px 32px", padding: grande ? "18px 20px 56px" : "18px 20px 26px" }}>
-      <div style={{ position: "absolute", width: 260, height: 260, borderRadius: "50%", background: "rgba(255,255,255,0.05)", top: -90, right: -70 }} />
-      <div style={{ position: "absolute", width: 160, height: 160, borderRadius: "50%", background: "rgba(232,130,30,0.12)", bottom: -60, left: -40 }} />
-      <nav style={{ position: "relative", maxWidth: 1040, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Enlace ruta="/web" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <WorshipFlowIcon size={34} />
-          <span style={{ fontFamily: "'Fraunces', serif", fontSize: 21, fontWeight: 600 }}>WorshipFlow</span>
-        </Enlace>
-        <div className="sw-nav-escritorio" style={{ display: "flex", alignItems: "center", gap: 22, fontSize: 14, fontWeight: 600 }}>
-          <Enlace ruta="/web" style={{ opacity: ruta === "/web" ? 1 : 0.75 }}>Inicio</Enlace>
-          <Enlace ruta="/web/precios" style={{ opacity: ruta === "/web/precios" ? 1 : 0.75 }}>Precios</Enlace>
-          <a href="/" style={{ color: "#fff", textDecoration: "none", opacity: 0.75 }}>Entrar</a>
-          <a href={PEDIR_CODIGO} target="_blank" rel="noopener" style={{ background: NARANJA, color: "#fff", padding: "8px 14px", borderRadius: 12, textDecoration: "none" }}>Probar gratis</a>
-        </div>
-        <button className="sw-nav-celular" onClick={() => setMenu((v) => !v)} aria-label="Menú" style={{ background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", borderRadius: 12, width: 40, height: 40, display: "none", alignItems: "center", justifyContent: "center" }}>
-          {menu ? <X size={20} /> : <Menu size={20} />}
-        </button>
-      </nav>
-      {menu && (
-        <div style={{ position: "relative", maxWidth: 1040, margin: "14px auto 0", display: "flex", flexDirection: "column", gap: 4, fontWeight: 600 }}>
-          <Enlace ruta="/web" style={{ padding: "10px 4px" }}>Inicio</Enlace>
-          <Enlace ruta="/web/precios" style={{ padding: "10px 4px" }}>Precios</Enlace>
-          <a href="/" style={{ color: "#fff", textDecoration: "none", padding: "10px 4px" }}>Entrar a la app</a>
-        </div>
-      )}
-      {grande && (
-        <div style={{ position: "relative", maxWidth: 1040, margin: "44px auto 0" }}>
-          <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: "clamp(32px, 7vw, 54px)", lineHeight: 1.08, fontWeight: 600, margin: "0 0 16px", maxWidth: 680 }}>
-            Todo el culto, <span style={{ color: NARANJA }}>en una sola app</span>
-          </h1>
-          <p style={{ fontSize: "clamp(15px, 3.6vw, 18px)", lineHeight: 1.55, opacity: 0.85, maxWidth: 560, margin: "0 0 28px" }}>
-            Proyecta letras y versículos, prepara el setlist, coordina a tu equipo y toca con acordes que avanzan solos. Hecha para iglesias, en español, desde el celular.
-          </p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Boton href={PEDIR_CODIGO}><MessageCircle size={17} /> Probar gratis</Boton>
-            <Boton secundario onClick={() => irA("/web/precios")}>Ver planes</Boton>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+      <WorshipFlowIcon size={tamano} style={{ borderRadius: tamano * 0.22 }} />
+      <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.03em", color: claro ? "#fff" : TINTA }}>WorshipFlow</span>
+    </span>
+  );
+}
+
+function BarraAviso() {
+  return (
+    <div style={{ background: OSCURO, color: "#fff", padding: "10px 16px", textAlign: "center", fontSize: 12.5, fontWeight: 500, lineHeight: 1.5 }}>
+      Cada iglesia nueva tiene 14 días del plan Iglesia completo. Sin tarjeta.{" "}
+      <Enlace ruta="/web/precios" style={{ color: NARANJA, fontWeight: 700 }}>Ver planes →</Enlace>
+    </div>
+  );
+}
+
+function Encabezado({ ruta }) {
+  const [menu, setMenu] = useState(false);
+  const enlace = (r, nombre) => (
+    <Enlace ruta={r} style={{ color: ruta === r ? TINTA : SUAVE, fontWeight: ruta === r ? 600 : 500 }}>{nombre}</Enlace>
+  );
+  return (
+    <>
+      <BarraAviso />
+      <header style={{ background: "#fff", borderBottom: `1px solid ${LINEA}`, position: "sticky", top: 0, zIndex: 20 }}>
+        <nav style={{ maxWidth: 1200, margin: "0 auto", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+          <Enlace ruta="/web" style={{ display: "flex" }}><Logo /></Enlace>
+          <div className="sw-escritorio" style={{ display: "flex", alignItems: "center", gap: 28, fontSize: 14 }}>
+            {enlace("/web", "Inicio")}
+            {enlace("/web/precios", "Precios")}
           </div>
-        </div>
-      )}
-    </header>
+          <div className="sw-escritorio" style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 14 }}>
+            <a href="/" style={{ color: TINTA, textDecoration: "none", fontWeight: 500 }}>Entrar</a>
+            <Boton href={PEDIR_CODIGO}>Probar gratis</Boton>
+          </div>
+          <button className="sw-celular" onClick={() => setMenu((v) => !v)} aria-label={menu ? "Cerrar menú" : "Abrir menú"} aria-expanded={menu}
+            style={{ background: NIEBLA, border: "none", color: TINTA, borderRadius: 12, width: 44, height: 44, display: "none", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            {menu ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </nav>
+        {menu && (
+          <div className="sw-celular" style={{ display: "none", flexDirection: "column", gap: 4, padding: "0 20px 16px", fontSize: 16, fontWeight: 600 }}>
+            <Enlace ruta="/web" style={{ padding: "12px 4px", color: TINTA }}>Inicio</Enlace>
+            <Enlace ruta="/web/precios" style={{ padding: "12px 4px", color: TINTA }}>Precios</Enlace>
+            <a href="/" style={{ color: TINTA, textDecoration: "none", padding: "12px 4px" }}>Entrar a la app</a>
+            <Boton href={PEDIR_CODIGO} grande style={{ marginTop: 6 }}><MessageCircle size={17} /> Probar gratis</Boton>
+          </div>
+        )}
+      </header>
+    </>
   );
 }
 
 function Pie() {
+  const col = (titulo, hijos) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 140 }}>
+      <span style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>{titulo}</span>
+      {hijos}
+    </div>
+  );
+  const link = { fontSize: 14, color: "#B9C2D0", textDecoration: "none" };
   return (
-    <footer style={{ maxWidth: 1040, margin: "0 auto", padding: "36px 20px 48px", color: SUAVE, fontSize: 13 }}>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 18px", marginBottom: 12 }}>
-        {PAGINAS.map((p) => <Enlace key={p.ruta} ruta={p.ruta} style={{ fontWeight: 600, color: AZUL }}>{p.nombre}</Enlace>)}
-        <a href={`mailto:${CORREO_SOPORTE}`} style={{ fontWeight: 600, color: AZUL, textDecoration: "none" }}>Contacto</a>
+    <footer style={{ background: OSCURO, color: "#fff", padding: "64px 20px 36px" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", flexDirection: "column", gap: 48 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 40, justifyContent: "space-between" }}>
+          <div style={{ flex: "1 1 260px", maxWidth: 340, display: "flex", flexDirection: "column", gap: 14 }}>
+            <Logo claro />
+            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: "#B9C2D0" }}>Todo el culto, en una sola app. Hecha para iglesias, en español.</p>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 56 }}>
+            {col("Producto", <>
+              <Enlace ruta="/web" style={link}>Inicio</Enlace>
+              <Enlace ruta="/web/precios" style={link}>Precios</Enlace>
+              <a href="/" style={link}>Entrar a la app</a>
+            </>)}
+            {col("Legal", <>
+              <Enlace ruta="/web/terminos" style={link}>Términos</Enlace>
+              <Enlace ruta="/web/privacidad" style={link}>Privacidad</Enlace>
+              <Enlace ruta="/web/reembolsos" style={link}>Reembolsos</Enlace>
+            </>)}
+            {col("Contacto", <>
+              <a href={`mailto:${CORREO_SOPORTE}`} style={link}>Correo</a>
+              <a href={whatsapp("Hola, tengo una pregunta sobre WorshipFlow.")} target="_blank" rel="noopener" style={link}>WhatsApp</a>
+            </>)}
+          </div>
+        </div>
+        <div style={{ borderTop: "1px solid #1E2A3B", paddingTop: 22, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, fontSize: 12.5, color: "#8A96A8" }}>
+          <span>© 2026 WorshipFlow · {RESPONSABLE}, {PAIS}</span>
+          <span>Precios en dólares estadounidenses (USD)</span>
+        </div>
       </div>
-      <div>© 2026 WorshipFlow · {RESPONSABLE}, {PAIS}</div>
     </footer>
   );
 }
 
+const contenedor = { maxWidth: 1200, margin: "0 auto", padding: "0 20px" };
+const eyebrow = { alignSelf: "flex-start", background: NIEBLA, color: SUAVE, fontSize: 12.5, fontWeight: 600, padding: "6px 10px", borderRadius: 6 };
+const h2 = { margin: 0, fontSize: "clamp(30px, 4.6vw, 46px)", lineHeight: 1.1, fontWeight: 700, letterSpacing: "-0.035em", color: TINTA };
+
 const FUNCIONES = [
-  { icono: Radio, color: "#C23B32", titulo: "Proyección en vivo", texto: "Letras y versículos en el proyector o la TV, con pantalla en negro, temas de fondo y videos. Se controla desde el celular." },
-  { icono: Music, color: "#1F8A73", titulo: "Modo Músico", texto: "Acordes arriba de la letra, transporte de tono, auto-avance según el tempo y tap tempo para recalibrar en vivo." },
-  { icono: ListMusic, color: "#5661B3", titulo: "Eventos y setlist", texto: "Arma el culto con canciones, versículos, slides y bloques. Crea eventos desde plantillas en segundos." },
-  { icono: BookOpen, color: "#2F5FA8", titulo: "Biblia integrada", texto: "RVR1960, NVI, TLA, DHH y NTV. Busca un pasaje y proyéctalo al instante." },
-  { icono: Users, color: "#B15EA0", titulo: "Equipos y ministerios", texto: "Roles, confirmaciones y recordatorios. Cada ministerio con su planificación y recursos." },
-  { icono: Tv, color: NARANJA, titulo: "Pantalla de escenario", texto: "Teleprompter para quien está en la plataforma: qué sigue, la letra y el reloj." },
+  { icono: Radio, titulo: "Proyección en vivo", texto: "Letras y versículos en el proyector o la TV, con pantalla en negro, temas de fondo y videos. Se controla desde el celular." },
+  { icono: Music, titulo: "Modo Músico", texto: "Acordes arriba de la letra, transporte de tono, auto-avance según el tempo y tap tempo para recalibrar en vivo." },
+  { icono: ListMusic, titulo: "Eventos y setlist", texto: "Arma el culto con canciones, versículos, slides y bloques. Crea eventos desde plantillas en segundos." },
+  { icono: BookOpen, titulo: "Biblia integrada", texto: "RVR1960, NVI, TLA, DHH y NTV. Busca un pasaje y proyéctalo al instante." },
+  { icono: Users, titulo: "Equipos y ministerios", texto: "Roles, confirmaciones y recordatorios. Cada ministerio con su planificación y recursos." },
+  { icono: Tv, titulo: "Pantalla de escenario", texto: "Teleprompter para quien está en la plataforma: qué sigue, la letra y el reloj." },
+];
+
+const DISPOSITIVOS = [
+  { icono: Smartphone, nombre: "Celular", texto: "Controla el culto desde tu mano." },
+  { icono: Tablet, nombre: "Tablet", texto: "Acordes y letra para los músicos." },
+  { icono: Monitor, nombre: "Computadora", texto: "Prepara eventos con pantalla grande." },
+  { icono: Cast, nombre: "Proyector y TV", texto: "Conecta la pantalla y proyecta." },
+];
+
+const PASOS = [
+  { titulo: "Pide tu código", texto: "Escríbenos por WhatsApp y te damos tu código de invitación para crear tu iglesia." },
+  { titulo: "Invita a tu equipo", texto: "Agrega a tus músicos, cantantes y técnicos. Cada uno ve sus roles y confirma." },
+  { titulo: "Proyecta el domingo", texto: "Arma el setlist, conecta la pantalla y controla todo desde el celular." },
 ];
 
 const PREGUNTAS = [
@@ -128,99 +198,261 @@ const PREGUNTAS = [
   ["¿Hay prueba gratis?", "Sí. Cada iglesia nueva tiene 14 días del plan Iglesia completo. Después sigue gratis en el plan Gratis si no elige un plan de pago."],
 ];
 
-function Inicio() {
+// Maqueta de la consola en vivo (ilustración, no la app real). La letra es de un himno de dominio público.
+function MaquetaEnVivo() {
+  const orden = [["Bienvenida", "Slide"], ["Santo, Santo, Santo", "Canción · D"], ["Salmo 100", "Versículo · RVR1960"], ["Canción de respuesta", "Canción · G"], ["Anuncios", "Bloque"]];
   return (
-    <>
-      <Encabezado ruta="/web" grande />
-      <main style={{ maxWidth: 1040, margin: "0 auto", padding: "40px 20px 0" }}>
-        <h2 style={tituloSeccion}>Lo que tu iglesia necesita el domingo</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
-          {FUNCIONES.map(({ icono: Icono, color, titulo, texto }) => (
-            <div key={titulo} style={tarjeta}>
-              <div style={{ width: 42, height: 42, borderRadius: 14, background: color + "1A", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
-                <Icono size={21} color={color} />
-              </div>
-              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{titulo}</div>
-              <div style={{ fontSize: 14, lineHeight: 1.55, color: SUAVE }}>{texto}</div>
+    <div aria-hidden="true" style={{ background: NIEBLA, borderRadius: 16, padding: "clamp(14px, 3vw, 28px)" }}>
+      <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${LINEA}`, overflow: "hidden", display: "flex", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 190px", borderRight: `1px solid ${NIEBLA}`, padding: "14px 0" }}>
+          <div style={{ padding: "0 14px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: TINTA }}>Culto del domingo</span>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", background: "#C23B32", borderRadius: 6, padding: "2px 6px" }}>EN VIVO</span>
+          </div>
+          {orden.map(([t, k], i) => (
+            <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", padding: "9px 14px", background: i === 1 ? "#FFF4E8" : "transparent", boxShadow: i === 1 ? `inset 3px 0 0 ${NARANJA}` : "none" }}>
+              <span style={{ fontSize: 11, color: "#8A96A8", width: 14 }}>{i + 1}</span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: TINTA, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t}</span>
+                <span style={{ display: "block", fontSize: 11, color: SUAVE }}>{k}</span>
+              </span>
             </div>
           ))}
         </div>
-
-        <div style={{ ...tarjeta, marginTop: 28, background: AZUL, color: "#fff", display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-          <div>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, fontWeight: 600, marginBottom: 4 }}>Empieza gratis</div>
-            <div style={{ opacity: 0.8, fontSize: 14 }}>14 días con todo incluido. Sin tarjeta.</div>
+        <div style={{ flex: "2 1 260px", padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: SUAVE, fontWeight: 500 }}><span>● AL AIRE</span><span>Coro 1 de 3</span></div>
+          <div style={{ aspectRatio: "16 / 9", background: OSCURO, borderRadius: 10, border: "2px solid #C23B32", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, color: "#fff", textAlign: "center", padding: 12 }}>
+            <span style={{ fontSize: "clamp(16px, 2vw, 22px)", fontWeight: 600 }}>Santo, Santo, Santo</span>
+            <span style={{ fontSize: "clamp(13px, 1.5vw, 16px)", color: "#B9C2D0" }}>Señor omnipotente</span>
           </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Boton href={PEDIR_CODIGO}><MessageCircle size={17} /> Pedir mi código</Boton>
-            <Boton secundario onClick={() => irA("/web/precios")}>Ver planes</Boton>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+            {["Anterior", "Siguiente", "Negro"].map((b, i) => (
+              <span key={b} style={{ fontSize: 12, fontWeight: 600, textAlign: "center", padding: "8px 0", borderRadius: 8, background: i === 1 ? NARANJA : NIEBLA, color: i === 1 ? SOBRE_NARANJA : TINTA }}>{b}</span>
+            ))}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function Inicio() {
+  return (
+    <>
+      <Encabezado ruta="/web" />
+      <main>
+        {/* Portada */}
+        <section style={{ ...contenedor, paddingTop: "clamp(48px, 8vw, 88px)", paddingBottom: "clamp(56px, 8vw, 96px)", display: "flex", flexWrap: "wrap", gap: 48, alignItems: "center" }}>
+          <div style={{ flex: "1 1 420px", minWidth: 0, display: "flex", flexDirection: "column", gap: 22 }}>
+            <span style={eyebrow}>Hecha para iglesias, en español</span>
+            <h1 style={{ margin: 0, fontSize: "clamp(40px, 7vw, 68px)", lineHeight: 1.02, fontWeight: 700, letterSpacing: "-0.04em", color: TINTA }}>Todo el culto, en una sola app.</h1>
+            <p style={{ margin: 0, fontSize: "clamp(17px, 2.2vw, 20px)", lineHeight: 1.5, color: SUAVE, maxWidth: 540 }}>
+              Proyecta letras y versículos, prepara el setlist, coordina a tu equipo y toca con acordes que avanzan solos. Desde el celular.
+            </p>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <Boton href={PEDIR_CODIGO} grande><MessageCircle size={18} /> Pedir mi código</Boton>
+              <Boton ruta="/web/precios" tipo="texto" grande>Ver planes →</Boton>
+            </div>
+            <span style={{ fontSize: 13, color: SUAVE }}>14 días con todo incluido · Sin tarjeta · Funciona en el navegador</span>
+          </div>
+          <div style={{ flex: "1 1 480px", minWidth: 0 }}><MaquetaEnVivo /></div>
+        </section>
+
+        {/* Dispositivos */}
+        <section style={{ background: NIEBLA, padding: "56px 0" }}>
+          <div style={{ ...contenedor, display: "flex", flexWrap: "wrap", gap: 32, alignItems: "center", justifyContent: "space-between" }}>
+            <h2 style={{ ...h2, fontSize: "clamp(26px, 3.4vw, 32px)", flex: "1 1 300px", maxWidth: 420 }}>No hay nada que instalar. Funciona en lo que ya tienes.</h2>
+            <div style={{ flex: "2 1 520px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+              {DISPOSITIVOS.map(({ icono: Icono, nombre, texto }) => (
+                <div key={nombre} style={{ background: "#fff", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Icono size={20} color={AZUL} />
+                  <span style={{ fontSize: 15, fontWeight: 600, color: TINTA, marginTop: 6 }}>{nombre}</span>
+                  <span style={{ fontSize: 13.5, color: SUAVE, lineHeight: 1.45 }}>{texto}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Funciones */}
+        <section style={{ ...contenedor, padding: "clamp(64px, 9vw, 96px) 20px", display: "flex", flexDirection: "column", gap: 40 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-end", gap: 20 }}>
+            <h2 style={{ ...h2, maxWidth: 620 }}>Lo que tu iglesia necesita el domingo</h2>
+            <p style={{ margin: 0, fontSize: 16, lineHeight: 1.55, color: SUAVE, maxWidth: 400 }}>Desde el ensayo del jueves hasta el último coro del culto, todo vive en el mismo lugar.</p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 16 }}>
+            {FUNCIONES.map(({ icono: Icono, titulo, texto }) => (
+              <div key={titulo} style={{ border: `1px solid ${LINEA}`, borderRadius: 14, padding: 26, display: "flex", flexDirection: "column", gap: 10 }}>
+                <Icono size={22} color={TINTA} strokeWidth={1.7} />
+                <h3 style={{ margin: "6px 0 0", fontSize: 19, fontWeight: 600, letterSpacing: "-0.02em", color: TINTA }}>{titulo}</h3>
+                <p style={{ margin: 0, fontSize: 15, lineHeight: 1.55, color: SUAVE }}>{texto}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Modo Músico */}
+        <section style={{ borderTop: `1px solid ${NIEBLA}` }}>
+          <div style={{ ...contenedor, padding: "clamp(64px, 9vw, 96px) 20px", display: "flex", flexWrap: "wrap", gap: 48, alignItems: "center" }}>
+            <div aria-hidden="true" style={{ flex: "1 1 460px", minWidth: 0, background: NIEBLA, borderRadius: 16, padding: "clamp(16px, 3vw, 32px)" }}>
+              <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${LINEA}`, padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: TINTA }}>Santo, Santo, Santo</span>
+                  <span style={{ display: "flex", gap: 6 }}>
+                    {["Tono: D", "72 BPM", "Auto-avance"].map((t) => <span key={t} style={{ fontSize: 12, fontWeight: 600, background: NIEBLA, borderRadius: 6, padding: "4px 8px", color: TINTA }}>{t}</span>)}
+                  </span>
+                </div>
+                <div style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 15.5, lineHeight: 1.5, display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div><div style={{ fontWeight: 700, color: "#1F8A73", whiteSpace: "pre" }}>D          G      D</div><div style={{ whiteSpace: "pre", color: TINTA }}>Santo, Santo, Santo,</div></div>
+                  <div><div style={{ fontWeight: 700, color: "#1F8A73", whiteSpace: "pre" }}>Bm      A       D</div><div style={{ whiteSpace: "pre", color: TINTA }}>Señor omnipotente</div></div>
+                </div>
+                <div style={{ height: 4, background: NIEBLA, borderRadius: 2, overflow: "hidden" }}><div style={{ width: "42%", height: 4, background: NARANJA }} /></div>
+              </div>
+            </div>
+            <div style={{ flex: "1 1 380px", minWidth: 0, display: "flex", flexDirection: "column", gap: 18 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: SUAVE }}>Modo Músico</span>
+              <h2 style={h2}>Acordes que avanzan solos.</h2>
+              <p style={{ margin: 0, fontSize: 17, lineHeight: 1.55, color: SUAVE, maxWidth: 480 }}>
+                Los músicos ven los acordes arriba de la letra, cambian el tono con un toque y la canción avanza sola al ritmo del tempo. Si la banda acelera, un tap tempo lo recalibra en vivo.
+              </p>
+              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+                {["Transporte de tono para cada voz", "Auto-avance según el tempo", "Tap tempo y modo dirigir"].map((t) => (
+                  <li key={t} style={{ display: "flex", gap: 10, fontSize: 15, color: TINTA }}><Check size={18} color={TINTA} style={{ flexShrink: 0, marginTop: 2 }} />{t}</li>
+                ))}
+              </ul>
+              <Enlace ruta="/web/precios" style={{ alignSelf: "flex-start", fontSize: 14.5, fontWeight: 700, color: "#B4610F", minHeight: 44, display: "inline-flex", alignItems: "center" }}>Incluido desde el plan Ministerio →</Enlace>
+            </div>
+          </div>
+        </section>
+
+        {/* Cómo empezar */}
+        <section style={{ background: NIEBLA, padding: "clamp(64px, 9vw, 96px) 0" }}>
+          <div style={{ ...contenedor, display: "flex", flexDirection: "column", gap: 36 }}>
+            <h2 style={{ ...h2, textAlign: "center", fontSize: "clamp(28px, 4vw, 40px)" }}>Listos para el domingo en tres pasos</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
+              {PASOS.map((p, i) => (
+                <div key={p.titulo} style={{ background: "#fff", borderRadius: 14, padding: 30, display: "flex", flexDirection: "column", gap: 12 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: SUAVE }}>0{i + 1}</span>
+                  <h3 style={{ margin: 0, fontSize: 21, fontWeight: 600, letterSpacing: "-0.02em", color: TINTA }}>{p.titulo}</h3>
+                  <p style={{ margin: 0, fontSize: 15, lineHeight: 1.55, color: SUAVE }}>{p.texto}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <LlamadoFinal titulo="Empieza gratis." texto="14 días con todo incluido. Sin tarjeta." />
       </main>
       <Pie />
     </>
   );
 }
 
+function LlamadoFinal({ titulo, texto, gris }) {
+  return (
+    <section style={{ ...contenedor, padding: "clamp(64px, 9vw, 96px) 20px" }}>
+      <div style={{ border: gris ? "none" : `1px solid ${LINEA}`, background: gris ? NIEBLA : "#fff", borderRadius: 16, padding: "clamp(32px, 5vw, 56px) clamp(24px, 4vw, 48px)", display: "flex", flexWrap: "wrap", gap: 28, alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ flex: "1 1 360px", minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+          <h2 style={{ ...h2, fontSize: "clamp(30px, 4.4vw, 44px)" }}>{titulo}</h2>
+          <p style={{ margin: 0, fontSize: 18, color: SUAVE, lineHeight: 1.5 }}>{texto}</p>
+        </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <Boton href={PEDIR_CODIGO} grande><MessageCircle size={18} /> Pedir mi código</Boton>
+          {!gris && <Boton ruta="/web/precios" tipo="texto" grande>Ver planes →</Boton>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const precioTexto = (n) => `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
+
 function Precios() {
   const [anual, setAnual] = useState(false);
-  const [abierta, setAbierta] = useState(null);
+  const [abierta, setAbierta] = useState(0);
   return (
     <>
       <Encabezado ruta="/web/precios" />
-      <main style={{ maxWidth: 1040, margin: "0 auto", padding: "32px 20px 0" }}>
-        <h1 style={{ ...tituloSeccion, fontSize: "clamp(28px, 6vw, 40px)", textAlign: "center", marginBottom: 8 }}>Planes para cada iglesia</h1>
-        <p style={{ textAlign: "center", color: SUAVE, margin: "0 0 20px" }}>Empieza gratis. Cambia de plan cuando quieras.</p>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 22 }}>
-          <div style={{ display: "flex", background: "#E6EAF1", borderRadius: 14, padding: 3 }}>
+      <main>
+        <section style={{ ...contenedor, paddingTop: "clamp(48px, 7vw, 72px)", paddingBottom: 28, display: "flex", flexDirection: "column", alignItems: "center", gap: 18, textAlign: "center" }}>
+          <h1 style={{ margin: 0, fontSize: "clamp(38px, 6vw, 60px)", lineHeight: 1.05, fontWeight: 700, letterSpacing: "-0.04em", color: TINTA }}>Planes para cada iglesia</h1>
+          <p style={{ margin: 0, fontSize: "clamp(16px, 2vw, 19px)", color: SUAVE }}>Empieza gratis. Cambia de plan cuando quieras.</p>
+          <div role="group" aria-label="Periodo de pago" style={{ display: "inline-flex", background: NIEBLA, borderRadius: 12, padding: 4, marginTop: 6 }}>
             {[false, true].map((a) => (
-              <button key={String(a)} onClick={() => setAnual(a)} style={{ border: "none", borderRadius: 12, padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", background: anual === a ? "#fff" : "transparent", color: TEXTO, boxShadow: anual === a ? "0 2px 8px rgba(22,50,79,0.12)" : "none" }}>
+              <button key={String(a)} onClick={() => setAnual(a)} aria-pressed={anual === a}
+                style={{ border: "none", borderRadius: 10, padding: "10px 18px", minHeight: 44, fontSize: 14, fontWeight: anual === a ? 700 : 500, cursor: "pointer", fontFamily: "inherit", background: anual === a ? "#fff" : "transparent", color: anual === a ? TINTA : SUAVE, boxShadow: anual === a ? "0 1px 3px rgba(14,23,38,0.12)" : "none" }}>
                 {a ? "Anual · 2 meses gratis" : "Mensual"}
               </button>
             ))}
           </div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, alignItems: "stretch" }}>
-          {PLANES.map((p) => {
-            const destacado = p.id === "ministerio";
-            return (
-              <div key={p.id} style={{ ...tarjeta, display: "flex", flexDirection: "column", boxShadow: destacado ? `0 0 0 2px ${p.color}, 0 8px 24px rgba(22,50,79,0.12)` : tarjeta.boxShadow, position: "relative" }}>
-                {destacado && <span style={{ position: "absolute", top: -11, left: 18, background: p.color, color: "#fff", fontSize: 11, fontWeight: 700, borderRadius: 10, padding: "3px 10px" }}>Recomendado</span>}
-                <div style={{ fontWeight: 700, fontSize: 17, color: p.color }}>{p.nombre}</div>
-                <div style={{ fontSize: 13, color: SUAVE, margin: "2px 0 12px" }}>{p.resumen}</div>
-                <div style={{ fontSize: 32, fontWeight: 700, marginBottom: 14 }}>
-                  {p.precio === 0 ? "$0" : `$${anual ? p.precioAnual : p.precio}`}
-                  <span style={{ fontSize: 13, fontWeight: 500, color: SUAVE }}>{p.precio === 0 ? " para siempre" : anual ? " /año" : " /mes"}</span>
-                </div>
-                <div style={{ flex: 1 }}>
-                  {p.incluye.map((t) => (
-                    <div key={t} style={{ display: "flex", gap: 7, fontSize: 13.5, marginBottom: 6, lineHeight: 1.4 }}>
-                      <Check size={15} color={p.color} style={{ flexShrink: 0, marginTop: 2 }} /> {t}
-                    </div>
-                  ))}
-                </div>
-                <a href={p.precio === 0 ? PEDIR_CODIGO : whatsapp(`Hola, quiero el plan ${p.nombre} de WorshipFlow (${anual ? `$${p.precioAnual} al año` : `$${p.precio} al mes`}).`)} target="_blank" rel="noopener"
-                  style={{ marginTop: 14, display: "block", textAlign: "center", padding: "11px 12px", borderRadius: 12, fontWeight: 700, fontSize: 14, textDecoration: "none", background: p.precio === 0 ? "#E6EAF1" : p.color, color: p.precio === 0 ? TEXTO : "#fff" }}>
-                  {p.precio === 0 ? "Empezar gratis" : "Elegir plan"}
-                </a>
-              </div>
-            );
-          })}
-        </div>
-        <p style={{ textAlign: "center", fontSize: 12.5, color: SUAVE, marginTop: 16 }}>Precios en dólares estadounidenses (USD). Ver <Enlace ruta="/web/reembolsos" style={{ color: "#2F5FA8" }}>política de reembolsos</Enlace>.</p>
+        </section>
 
-        <h2 style={{ ...tituloSeccion, marginTop: 40 }}>Compara los planes</h2>
-        <Comparativo />
-
-        <h2 style={{ ...tituloSeccion, marginTop: 40 }}>Preguntas frecuentes</h2>
-        {PREGUNTAS.map(([p, r], i) => (
-          <div key={p} style={{ ...tarjeta, padding: 0, marginBottom: 10 }}>
-            <button onClick={() => setAbierta(abierta === i ? null : i)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: "none", border: "none", padding: "16px 18px", fontSize: 15, fontWeight: 700, color: TEXTO, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
-              {p} <ChevronDown size={18} style={{ flexShrink: 0, transform: abierta === i ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
-            </button>
-            {abierta === i && <div style={{ padding: "0 18px 16px", fontSize: 14, lineHeight: 1.6, color: SUAVE }}>{r}</div>}
+        <section style={{ ...contenedor, paddingBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 16, alignItems: "stretch" }}>
+            {PLANES.map((p) => {
+              const destacado = p.id === "ministerio";
+              const gratis = p.precio === 0;
+              const mensaje = whatsapp(`Hola, quiero el plan ${p.nombre} de WorshipFlow (${anual ? `$${p.precioAnual} al año` : `$${p.precio} al mes`}).`);
+              return (
+                <div key={p.id} style={{ border: destacado ? `2px solid ${NARANJA}` : `1px solid ${LINEA}`, borderRadius: 16, padding: destacado ? 25 : 26, display: "flex", flexDirection: "column", gap: 10, background: "#fff" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minHeight: 24 }}>
+                    <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em", color: TINTA }}>{p.nombre}</span>
+                    {destacado && <span style={{ fontSize: 11, fontWeight: 700, color: SOBRE_NARANJA, background: NARANJA, borderRadius: 6, padding: "3px 8px" }}>Recomendado</span>}
+                  </div>
+                  <span style={{ fontSize: 14, color: SUAVE, lineHeight: 1.45, minHeight: 40 }}>{p.resumen}</span>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6, paddingTop: 6 }}>
+                    <span style={{ fontSize: 42, fontWeight: 700, letterSpacing: "-0.04em", lineHeight: 1, color: TINTA }}>{gratis ? "$0" : precioTexto(anual ? p.precioAnual : p.precio)}</span>
+                    <span style={{ fontSize: 14, color: SUAVE }}>{gratis ? "para siempre" : anual ? "/año" : "/mes"}</span>
+                  </div>
+                  <span style={{ fontSize: 12.5, color: SUAVE, minHeight: 18 }}>
+                    {gratis ? "Sin tarjeta" : anual ? `Equivale a ${precioTexto(Math.round((p.precioAnual / 12) * 100) / 100)} al mes` : `o ${precioTexto(p.precioAnual)} al año`}
+                  </span>
+                  <Boton href={gratis ? PEDIR_CODIGO : mensaje} tipo={destacado ? "principal" : gratis ? "suave" : "oscuro"} style={{ margin: "8px 0 6px", width: "100%" }}>
+                    {gratis ? "Empezar gratis" : "Elegir plan"}
+                  </Boton>
+                  <div style={{ borderTop: `1px solid ${NIEBLA}`, paddingTop: 16, display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
+                    {p.incluye.map((t) => (
+                      <div key={t} style={{ display: "flex", gap: 9, fontSize: 14, lineHeight: 1.45, color: TEXTO }}>
+                        <Check size={16} color={TINTA} strokeWidth={2.2} style={{ flexShrink: 0, marginTop: 2 }} /> {t}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        ))}
+          <p style={{ textAlign: "center", fontSize: 13, color: SUAVE, margin: "22px 0 0" }}>
+            Precios en dólares estadounidenses (USD). Ver <Enlace ruta="/web/reembolsos" style={{ color: TINTA, textDecoration: "underline" }}>política de reembolsos</Enlace>.
+          </p>
+        </section>
+
+        <section style={{ ...contenedor, paddingTop: "clamp(56px, 8vw, 80px)", display: "flex", flexDirection: "column", gap: 24 }}>
+          <h2 style={{ ...h2, fontSize: "clamp(28px, 4vw, 40px)" }}>Compara los planes</h2>
+          <Comparativo />
+        </section>
+
+        <section style={{ ...contenedor, paddingTop: "clamp(56px, 8vw, 80px)", display: "flex", flexWrap: "wrap", gap: 40 }}>
+          <div style={{ flex: "1 1 280px", maxWidth: 380, display: "flex", flexDirection: "column", gap: 10 }}>
+            <h2 style={{ ...h2, fontSize: "clamp(28px, 4vw, 40px)" }}>Preguntas frecuentes</h2>
+            <p style={{ margin: 0, fontSize: 16, lineHeight: 1.55, color: SUAVE }}>
+              ¿Otra duda? <a href={whatsapp("Hola, tengo una pregunta sobre los planes de WorshipFlow.")} target="_blank" rel="noopener" style={{ color: TINTA, textDecoration: "underline" }}>Escríbenos por WhatsApp</a>.
+            </p>
+          </div>
+          <div style={{ flex: "2 1 520px", minWidth: 0 }}>
+            {PREGUNTAS.map(([p, r], i) => (
+              <div key={p} style={{ borderBottom: `1px solid ${LINEA}` }}>
+                <button onClick={() => setAbierta(abierta === i ? null : i)} aria-expanded={abierta === i}
+                  style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, background: "none", border: "none", padding: "20px 0", minHeight: 44, fontSize: 17, fontWeight: 600, letterSpacing: "-0.015em", color: TINTA, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                  {p}
+                  <Plus size={20} color={SUAVE} style={{ flexShrink: 0, transform: abierta === i ? "rotate(45deg)" : "none", transition: "transform .2s" }} />
+                </button>
+                {abierta === i && <p style={{ margin: 0, padding: "0 0 20px", fontSize: 15, lineHeight: 1.6, color: SUAVE, maxWidth: 640 }}>{r}</p>}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <LlamadoFinal gris titulo="Prueba el plan Iglesia 14 días." texto="Después sigue gratis si no eliges un plan de pago. Sin tarjeta." />
       </main>
       <Pie />
     </>
@@ -228,32 +460,32 @@ function Precios() {
 }
 
 function Comparativo() {
-  const celda = { padding: "11px 10px", fontSize: 13, borderBottom: "1px solid #EEF1F6", textAlign: "center", verticalAlign: "middle" };
-  const primera = { ...celda, textAlign: "left", position: "sticky", left: 0, background: "#fff", fontWeight: 500, minWidth: 150, boxShadow: "6px 0 8px -8px rgba(22,50,79,0.25)" };
-  const valor = (v, color) => v === true ? <Check size={18} color={color} strokeWidth={2.6} aria-label="Incluido" style={{ display: "block", margin: "0 auto" }} />
-    : v === false ? <Minus size={16} color="#B8C0CC" aria-label="No incluido" style={{ display: "block", margin: "0 auto" }} />
-    : <span style={{ fontWeight: 600 }}>{v}</span>;
+  const celda = { padding: "13px 12px", fontSize: 14, borderBottom: `1px solid ${NIEBLA}`, textAlign: "center", verticalAlign: "middle", color: TEXTO };
+  const primera = { ...celda, textAlign: "left", position: "sticky", left: 0, background: "#fff", minWidth: 170, boxShadow: "6px 0 8px -8px rgba(14,23,38,0.25)" };
+  const valor = (v) => v === true ? <Check size={18} color={TINTA} strokeWidth={2.4} aria-label="Incluido" style={{ display: "block", margin: "0 auto" }} />
+    : v === false ? <Minus size={16} color="#B9C2D0" aria-label="No incluido" style={{ display: "block", margin: "0 auto" }} />
+    : <span style={{ fontWeight: 500 }}>{v}</span>;
   return (
-    <div style={{ ...tarjeta, padding: 0, overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620 }}>
+    <div style={{ border: `1px solid ${LINEA}`, borderRadius: 14, overflowX: "auto", background: "#fff" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 680 }}>
         <thead>
           <tr>
-            <th style={{ ...primera, fontWeight: 700, fontSize: 12, color: SUAVE, textTransform: "uppercase", letterSpacing: 0.4 }}>Función</th>
+            <th scope="col" style={{ ...primera, fontWeight: 600, fontSize: 12, color: SUAVE, textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: `1px solid ${LINEA}` }}>Función</th>
             {PLANES.map((p) => (
-              <th key={p.id} style={{ ...celda, color: p.color, fontWeight: 700, fontSize: 14, background: p.id === "ministerio" ? p.color + "12" : undefined }}>
-                {p.nombre}
-                <div style={{ fontSize: 12, color: TEXTO, fontWeight: 600 }}>{p.precio === 0 ? "$0" : `$${p.precio}`}</div>
+              <th key={p.id} scope="col" style={{ ...celda, borderBottom: `1px solid ${LINEA}`, background: p.id === "ministerio" ? "#FAFBFD" : undefined, boxShadow: p.id === "ministerio" ? `inset 0 2px 0 ${NARANJA}` : undefined }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: TINTA }}>{p.nombre}</div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: SUAVE, marginTop: 2 }}>{p.precio === 0 ? "$0" : `${precioTexto(p.precio)}/mes`}</div>
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {COMPARATIVO.map(({ grupo, filas }) => [
-            <tr key={grupo}><td colSpan={5} style={{ ...celda, textAlign: "left", fontWeight: 700, fontSize: 12, color: AZUL, background: "#F7F9FC", textTransform: "uppercase", letterSpacing: 0.4 }}>{grupo}</td></tr>,
+            <tr key={grupo}><td colSpan={5} style={{ ...celda, textAlign: "left", fontWeight: 700, fontSize: 12, color: TINTA, background: NIEBLA, textTransform: "uppercase", letterSpacing: "0.04em" }}>{grupo}</td></tr>,
             ...filas.map(([nombre, ...vals]) => (
               <tr key={nombre}>
                 <td style={primera}>{nombre}</td>
-                {vals.map((v, i) => <td key={i} style={{ ...celda, background: PLANES[i].id === "ministerio" ? PLANES[i].color + "0A" : undefined }}>{valor(v, PLANES[i].color)}</td>)}
+                {vals.map((v, i) => <td key={i} style={{ ...celda, background: PLANES[i].id === "ministerio" ? "#FAFBFD" : undefined }}>{valor(v)}</td>)}
               </tr>
             )),
           ])}
@@ -267,8 +499,8 @@ function Legal({ ruta, titulo, children }) {
   return (
     <>
       <Encabezado ruta={ruta} />
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: "32px 20px 0", lineHeight: 1.65, fontSize: 14.5, color: "#33415A" }}>
-        <h1 style={{ fontFamily: "'Fraunces', serif", color: AZUL, fontSize: 30, fontWeight: 600, margin: "0 0 4px" }}>{titulo}</h1>
+      <main style={{ maxWidth: 720, margin: "0 auto", padding: "clamp(40px, 6vw, 64px) 20px 72px", lineHeight: 1.7, fontSize: 15.5, color: "#33415A" }}>
+        <h1 style={{ color: TINTA, fontSize: "clamp(32px, 5vw, 44px)", fontWeight: 700, letterSpacing: "-0.035em", lineHeight: 1.1, margin: "0 0 8px" }}>{titulo}</h1>
         <p style={{ fontSize: 12.5, color: SUAVE, margin: "0 0 24px" }}>Última actualización: {ACTUALIZADO}</p>
         {children}
       </main>
@@ -276,8 +508,8 @@ function Legal({ ruta, titulo, children }) {
     </>
   );
 }
-const H = ({ children }) => <h2 style={{ color: AZUL, fontSize: 18, margin: "28px 0 8px" }}>{children}</h2>;
-const correo = <a href={`mailto:${CORREO_SOPORTE}`} style={{ color: "#2F5FA8" }}>{CORREO_SOPORTE}</a>;
+const H = ({ children }) => <h2 style={{ color: TINTA, fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", margin: "32px 0 8px" }}>{children}</h2>;
+const correo = <a href={`mailto:${CORREO_SOPORTE}`} style={{ color: TINTA, textDecoration: "underline" }}>{CORREO_SOPORTE}</a>;
 
 function Terminos() {
   return (
@@ -286,11 +518,11 @@ function Terminos() {
       <H>Cuentas</H>
       <p>Cada iglesia tiene su propio espacio, separado del de cualquier otra. Sus administradores deciden quién tiene acceso y son responsables de las cuentas de su equipo. Cuida tu contraseña: lo que se haga con tu cuenta es tu responsabilidad.</p>
       <H>Planes y pagos</H>
-      <p>WorshipFlow ofrece un plan Gratis y planes de pago (Ministerio, Crecimiento e Iglesia) con los límites y precios publicados en la página de <Enlace ruta="/web/precios" style={{ color: "#2F5FA8" }}>precios</Enlace>. Los planes de pago se cobran por adelantado, de forma mensual o anual, en dólares estadounidenses. Si un plan de pago vence o no se renueva, la iglesia pasa al plan Gratis: no se borra ningún dato, pero no se puede agregar más de lo que permite ese plan. Podemos cambiar los precios avisando con al menos 30 días de anticipación; el cambio aplica a partir de la siguiente renovación.</p>
+      <p>WorshipFlow ofrece un plan Gratis y planes de pago (Ministerio, Crecimiento e Iglesia) con los límites y precios publicados en la página de <Enlace ruta="/web/precios" style={{ color: TINTA, textDecoration: "underline" }}>precios</Enlace>. Los planes de pago se cobran por adelantado, de forma mensual o anual, en dólares estadounidenses. Si un plan de pago vence o no se renueva, la iglesia pasa al plan Gratis: no se borra ningún dato, pero no se puede agregar más de lo que permite ese plan. Podemos cambiar los precios avisando con al menos 30 días de anticipación; el cambio aplica a partir de la siguiente renovación.</p>
       <H>Prueba gratis</H>
       <p>Las iglesias nuevas pueden tener un periodo de prueba del plan Iglesia. Al terminar, pasan al plan Gratis si no eligen un plan de pago. La prueba no requiere tarjeta.</p>
       <H>Cancelación y reembolsos</H>
-      <p>Puedes cancelar cuando quieras; el plan sigue activo hasta el final del periodo pagado. Los reembolsos se rigen por nuestra <Enlace ruta="/web/reembolsos" style={{ color: "#2F5FA8" }}>política de reembolsos</Enlace>.</p>
+      <p>Puedes cancelar cuando quieras; el plan sigue activo hasta el final del periodo pagado. Los reembolsos se rigen por nuestra <Enlace ruta="/web/reembolsos" style={{ color: TINTA, textDecoration: "underline" }}>política de reembolsos</Enlace>.</p>
       <H>Uso aceptable</H>
       <p>Usa la app para organizar los cultos, canciones, equipos y la comunicación de tu iglesia. No está permitido subir contenido ilegal u ofensivo, intentar acceder a datos de otra iglesia, ni usar la app para enviar spam. Podemos suspender cuentas que incumplan estas reglas.</p>
       <H>Tu contenido y derechos de autor</H>
@@ -346,16 +578,13 @@ function Reembolsos() {
   );
 }
 
-const tarjeta = { background: "#fff", borderRadius: 18, padding: 20, boxShadow: "0 4px 18px rgba(22,50,79,0.08)" };
-const tituloSeccion = { fontFamily: "'Fraunces', serif", color: AZUL, fontSize: "clamp(24px, 5vw, 32px)", fontWeight: 600, margin: "0 0 18px" };
-
 export default function SitioWeb() {
   const [ruta, setRuta] = useState(window.location.pathname.replace(/\/$/, "") || "/web");
   useEffect(() => {
     const alCambiar = () => setRuta(window.location.pathname.replace(/\/$/, "") || "/web");
     window.addEventListener("popstate", alCambiar);
     // La página web siempre se ve clara (es la vitrina); main.jsx no le aplica el tema oscuro.
-    document.body.style.background = FONDO;
+    document.body.style.background = "#fff";
     return () => window.removeEventListener("popstate", alCambiar);
   }, []);
   useEffect(() => {
@@ -365,9 +594,10 @@ export default function SitioWeb() {
 
   const pagina = { "/web/precios": <Precios />, "/web/terminos": <Terminos />, "/web/privacidad": <Privacidad />, "/web/reembolsos": <Reembolsos /> }[ruta] || <Inicio />;
   return (
-    <div style={{ minHeight: "100vh", background: FONDO, color: TEXTO, fontFamily: "'Poppins', sans-serif", userSelect: "text", WebkitUserSelect: "text" }}>
+    <div className="sw" style={{ minHeight: "100vh", background: "#fff", color: TEXTO, fontFamily: "var(--wf-font-ui)", letterSpacing: "-0.01em", userSelect: "text", WebkitUserSelect: "text" }}>
       <style>{`
-        @media (max-width: 720px) { .sw-nav-escritorio { display: none !important; } .sw-nav-celular { display: flex !important; } }
+        .sw *, .sw *::before, .sw *::after { box-sizing: border-box; }
+        @media (max-width: 760px) { .sw-escritorio { display: none !important; } .sw-celular { display: flex !important; } }
       `}</style>
       {pagina}
     </div>
