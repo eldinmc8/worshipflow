@@ -1240,7 +1240,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // simple "ya terminé de configurar esto" que regresa a la lista, ya que el evento se fue guardando
   // solo desde el instante en que se creó (mismo patrón de autoguardado que ya usa toda la app).
   const [draftFromTemplateId, setDraftFromTemplateId] = useState(null);
-  const createEvent = ({ templateId, title, dateLabel, date, hora, location, esPlantilla }) => {
+  const createEvent = ({ templateId, title, dateLabel, date, hora, location, esPlantilla, ministryId = null }) => {
     const template = events.find((e) => e.id === templateId);
     const newEvent = {
       id: nextId(),
@@ -1252,6 +1252,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       reminders: template ? cloneRecordatorios(template.reminders) : [],
       vistas: [],
       esPlantilla: !!esPlantilla,
+      ministryId: ministryId || null,
     };
     setEventsSynced((evs) => [...evs, newEvent]);
     crearEventoCompleto(newEvent, userId).catch((e) => notifyError("No se pudo guardar el evento", e));
@@ -1435,14 +1436,18 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // decidirVisibilidadSetlist lo dejara ver todo POR DENTRO del evento, si la lista de Eventos ya lo
   // filtraba afuera antes de poder entrar.
   const esSupervisorViewer = usuariosReales.find((u) => u.id === myUserId)?.rol === "supervisor" || tienePermiso("ver_todos_eventos");
-  const realEvents = events.filter((e) => !e.esPlantilla && (puedeEditarSetlist || esSupervisorViewer || isEventAssignedToMe(e, myUserId) || (e.serviceOrder || []).some((it) => lideraBloque(it, gruposQueLideroYo))));
+  const realEvents = events.filter((e) => !e.esPlantilla && (puedeEditarSetlist || esSupervisorViewer || isEventAssignedToMe(e, myUserId) || (e.ministryId && gruposQueLideroYo.has(e.ministryId)) || (e.serviceOrder || []).some((it) => lideraBloque(it, gruposQueLideroYo))));
   const plantillas = events.filter((e) => e.esPlantilla);
   // Agregar versículos al Setlist es de administradores, con una sola excepción: quien esté asignado
   // como encargado de un bloque de Lectura bíblica/Oración EN ESTE EVENTO puede agregar su propio
   // versículo para esa lectura, aunque no sea administrador.
   // Setlist del evento abierto: además del permiso general (rol), el líder de un grupo vinculado a este
   // evento si su grupo le da "Editar el Setlist".
-  const puedeEditarSetlistEvento = puedeEditarSetlist || permisoLiderEnEvento(selectedEvent, ministries, myUserId, "editar_setlist");
+  // Evento de un ministerio (Jóvenes, Damas…): su líder lo organiza como si tuviera "Organizar eventos"
+  // (la base permite lo mismo: ver 20261117000000_eventos_por_ministerio.sql).
+  const lideroMinisterioDelEvento = !!(selectedEvent?.ministryId && gruposQueLideroYo.has(selectedEvent.ministryId));
+  const puedeGestionarEventoAbierto = puedeGestionarEventos || lideroMinisterioDelEvento;
+  const puedeEditarSetlistEvento = puedeEditarSetlist || lideroMinisterioDelEvento || permisoLiderEnEvento(selectedEvent, ministries, myUserId, "editar_setlist");
   const canAddBibleReading = () => puedeEditarSetlistEvento || !!(selectedEvent?.serviceOrder || []).find(
     (it) => isBibleReadingBlock(it) && (it.encargados || []).some((m) => m.usuarioId === myUserId)
   );
@@ -2395,6 +2400,10 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onSetColor={(color) => setMinistryColor(selectedMinistryId, color)}
           onSetPermisosLider={(permisos) => setMinistryPermisosLider(selectedMinistryId, permisos)}
           onDelete={() => deleteMinistry(ministries.find((m) => m.id === selectedMinistryId))}
+          eventos={events.filter((e) => !e.esPlantilla && e.ministryId === selectedMinistryId)}
+          puedeCrearEventos={puedeGestionarEventos || gruposQueLideroYo.has(selectedMinistryId)}
+          onCrearEvento={(datos) => { createEvent(datos); setTab("eventos"); }}
+          onAbrirEvento={(id) => { setTab("eventos"); setSelectedEventId(id); }}
         />
       )}
 
@@ -2449,7 +2458,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       )}
 
       {tab === "eventos" && !selectedEvent && (
-        <EventList events={realEvents} plantillas={plantillas} isAdminViewer={puedeGestionarEventos} liveEventId={liveEventId} liveLibre={liveLibre} onSelect={setSelectedEventId} onCreate={createEvent} canStartLive={canStartLive} onStartFree={startFreeEvent} library={library} myUserId={myUserId} />
+        <EventList events={realEvents} plantillas={plantillas} isAdminViewer={puedeGestionarEventos} liveEventId={liveEventId} liveLibre={liveLibre} onSelect={setSelectedEventId} onCreate={createEvent} canStartLive={canStartLive} onStartFree={startFreeEvent} library={library} myUserId={myUserId} ministries={ministries} gruposQueLidero={gruposQueLideroYo} />
       )}
 
       {tab === "eventos" && selectedEvent && !openSong && (
@@ -2458,7 +2467,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onDisenarNueva={(despuesDe) => abrirEditorNuevo(selectedEvent.id, typeof despuesDe === "string" ? despuesDe : null)}
           myIglesiaId={myIglesiaId}
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
-          isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={puedeGestionarEventos}
+          isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={puedeGestionarEventoAbierto}
           puedeEditarSetlist={puedeEditarSetlistEvento}
           userId={myUserId} usuariosReales={usuariosReales}
           onBack={() => window.history.back()}

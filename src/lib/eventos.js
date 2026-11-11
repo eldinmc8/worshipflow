@@ -204,6 +204,8 @@ export function eventoCompletoAFormatoEditor({ evento, items, encargados, roles,
     // Ensayo y nota de quien dirige la alabanza (Inicio del equipo de alabanza).
     ensayoFecha: evento.ensayo_fecha || null, ensayoHora: evento.ensayo_hora || null, notaAlabanza: evento.nota_alabanza || "",
     location: evento.ubicacion || "", openPositions: 0, cover: null, esPlantilla: !!evento.es_plantilla,
+    // Ministerio dueño del evento (Jóvenes, Damas...); null = evento general de la iglesia.
+    ministryId: evento.ministerio_id || null,
     serviceOrder: items.map((row) => filaAItemServicio(row, encargadosPorItem)),
     worshipRoles: roles.map((row) => filaARolAlabanza(row, miembrosPorRol)),
     reminders: (recordatorios || []).map(filaARecordatorio),
@@ -441,6 +443,7 @@ export async function crearEventoCompleto(evento, userId) {
     id: evento.id, titulo: evento.title, fecha: evento.date || null, fecha_label: evento.dateLabel || null,
     hora: evento.hora || null,
     ubicacion: evento.location || null, creado_por: userId, es_plantilla: !!evento.esPlantilla,
+    ministerio_id: evento.ministryId || null,
   }).then(({ error }) => { if (error) throw error; });
   // Registrado ANTES del await: la app navega a la pantalla del evento de inmediato tras llamar a esta
   // función, así que cualquier escritura que el admin dispare en ese mismo instante (agregar un bloque,
