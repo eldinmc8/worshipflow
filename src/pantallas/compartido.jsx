@@ -6,6 +6,7 @@ import { guardarCapituloOffline, obtenerCapituloOffline } from "../lib/bibleOffl
 import { bloquesDelCulto } from "../lib/ordenCulto.js";
 import { createPortal } from "react-dom";
 
+import { useCerrarConAtras } from "../lib/atras.js";
 // ---------- Acordes diatónicos de una tonalidad (triadas + con séptima) ----------
 export const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
@@ -388,6 +389,7 @@ export function ElegirParteDelCulto({ orden, valor, onCambiar, textoSinElegir })
 }
 
 export function ModalShell({ title, icon: Icon, color, onClose, children, alto = false }) {
+  useCerrarConAtras(true, onClose); // atrás del teléfono cierra esta ventana (ver lib/atras.js)
   // Portal a document.body (no un <div> normal en el sitio donde se usa <ModalShell>) — "position:
   // fixed" por sí solo no basta: si algún ancestro tiene un transform activo (ej. SongView, que anima
   // transform al deslizar entre canciones del Setlist), ese ancestro se vuelve el "contenedor" del

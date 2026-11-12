@@ -9,6 +9,7 @@ import { ordenarPor } from "./lib/orden.js";
 import { estadoCodigo, codigoCoincide } from "./lib/codigosInvitacion.js";
 import { ESTADOS_SALUD, estadoSalud, alertasIglesia, pasosArranque, ultimaActividad, haceCuanto, prioridadAtencion } from "./lib/saludIglesia.js";
 
+import { useCerrarConAtras } from "./lib/atras.js";
 const cardStyle = { background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", padding: "14px 16px", marginBottom: 12 };
 const ghostBtn = { background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 11px", fontSize: 12, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit" };
 const dangerBtn = { ...ghostBtn, color: "#C23B32" };
@@ -333,6 +334,7 @@ function CodigosInvitacion({ iglesias, usuarios = [] }) {
 
 // Todos los datos de un código, sin recortes.
 function DetalleCodigo({ c, iglesia, correos, enlace, copiar, onEliminar, onCerrar }) {
+  useCerrarConAtras(true, onCerrar); // atrás del teléfono cierra esta ventana (ver lib/atras.js)
   const estado = estadoCodigo(c);
   const fila = (k, v) => (
     <div style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--wf-border)", fontSize: 13 }}>

@@ -7,6 +7,7 @@ import { enlacePantalla, enlaceEscenario } from "../lib/enlacePantalla.js";
 import { obtenerCodigoPantalla, renovarCodigoPantalla } from "../lib/liveSession.js";
 import { vincularTv, direccionTv } from "../lib/conectarTv.js";
 
+import { useCerrarConAtras } from "../lib/atras.js";
 // "Pantallas y TV" (todo en una sola opción de Ajustes, 2026-11-02): conectar un Smart TV o caja con un
 // número de 6 dígitos, o abrir en celular/tablet/computadora con QR y enlace. Antes "Pantalla en otro
 // equipo" (pedido de Eldin, 2026-10-18): la proyección se puede abrir en cualquier
@@ -14,6 +15,7 @@ import { vincularTv, direccionTv } from "../lib/conectarTv.js";
 // corto de la iglesia (/p/<slug>) para copiarlo, mandarlo por WhatsApp o escanearlo con el QR.
 // tipo "escenario" (2026-11-01): lo mismo para la Pantalla de escenario (/e/<slug>), el monitor de la plataforma.
 export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCerrar, tipo: tipoInicial = "proyeccion" }) {
+  useCerrarConAtras(true, onCerrar); // atrás del teléfono cierra esta ventana (ver lib/atras.js)
   // Se puede cambiar entre las dos pantallas desde aquí mismo (Proyección · Escenario).
   const [tipo, setTipo] = useState(tipoInicial === "escenario" ? "escenario" : "proyeccion");
   const esEscenario = tipo === "escenario";

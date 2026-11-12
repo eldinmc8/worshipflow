@@ -5,6 +5,7 @@ import { cancionATexto, textoACancion, letraATexto, textoALetra, leerEncabezado,
 import { parseChordLine, buildChordRow } from "../lib/musicTheory.js";
 import { acordeEn, lineaEn } from "../lib/preferencias.js";
 
+import { useCerrarConAtras } from "../lib/atras.js";
 // "Pegar canción / Editar como texto" (pedido de Eldin, 2026-10-13). Toda la canción en un solo
 // cuadro: se pega de internet (acordes encima, tipo LaCuerda), con [acordes] adentro o solo la letra.
 // A la derecha (abajo en celular) se ve en vivo cómo queda: secciones, acordes sobre la letra y las
@@ -48,6 +49,7 @@ function LineaConAcordes({ linea }) {
 // la letra directo en el cuadro grande, sin ventana aparte) y avisa cada cambio con onCambio. Sin
 // inline: ventana completa con "Usar esto".
 export default function EditorTextoCancion({ cancion: cancionProp, nueva: nuevaProp = false, onAplicar, onCerrar, inline = false, onCambio }) {
+  useCerrarConAtras(!inline && !!onCerrar, onCerrar); // como ventana (no dentro del editor), atrás la cierra
   // La canción tal como estaba al abrir: contra ella se decide qué secciones "no cambiaron" (y por lo
   // tanto conservan sus diapositivas hechas a mano), aunque el borrador se vaya actualizando.
   const [cancion] = useState(cancionProp);

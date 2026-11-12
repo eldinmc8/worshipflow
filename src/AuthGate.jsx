@@ -16,6 +16,7 @@ import MarkCircle from "./MarkCircle.jsx";
 import { identificarUsuario } from "./lib/monitoreo.js";
 import { desfaseDeReloj, relojMal, describirDesfase } from "./lib/relojDispositivo.js";
 
+import { esPopPropio, cuandoListo } from "./lib/atras.js";
 // Puerta de acceso real: exige sesión de Supabase antes de mostrar la app. La app en sí ya es el
 // prototipo completo (Canciones, Eventos, En vivo, Ministerios...), pero ahora leyendo y guardando
 // en Supabase de verdad en vez de datos de ejemplo en memoria — ver src/lib/canciones.js y
@@ -196,6 +197,7 @@ export default function AuthGate() {
   // entradas "app-nav"; aquí solo nos importa distinguir "estamos en Usuarios" de "estamos en la app".
   useEffect(() => {
     const onPopState = (e) => {
+      if (esPopPropio()) return; // lo resolvió una ventana abierta (ver lib/atras.js)
       const screen = e.state?.screen;
       if (!screen) return;
       if (screen === "usuarios-root" || screen === "usuarios-profile") setView("usuarios");
@@ -336,7 +338,7 @@ export default function AuthGate() {
   ) : null;
   const irAPantallaAdmin = (screen, nuevaView) => {
     scrollAppRef.current = window.scrollY;
-    window.history.pushState({ screen }, "");
+    cuandoListo(() => window.history.pushState({ screen }, ""));
     setView(nuevaView);
   };
 

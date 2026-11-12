@@ -45,6 +45,8 @@ Vista de solo lectura separada del editor (pestañas V1/C/V2/V3 tipo pill, acord
 
 **Ministerios**: espacios por equipo (Alabanza, Infantil, Jóvenes...) con planificación mensual editable por semana y recursos compartidos (título + enlace). Vinculables a bloques del Setlist (ver arriba).
 
+**Botón atrás (teléfono/navegador)** — `src/lib/atras.js`: 1) si hay una ventana abierta, atrás la cierra (toda ventana nueva usa `useCerrarConAtras`; ModalShell ya lo trae); 2) si no, regresa a la pantalla anterior (cambiar de pestaña se apila, ya no salta a Inicio); 3) en la consola mientras ese equipo transmite, atrás no sale (`useBloquearAtras`). Todo oyente de `popstate` empieza con `if (esPopPropio()) return;` y todo `pushState` va dentro de `cuandoListo()`.
+
 **Ajustes**: perfil, selector de rol del dispositivo (control de acceso), equipo, modo oscuro/notificaciones, cerrar sesión.
 
 ## Modelo de datos (Supabase) — tablas principales a crear
