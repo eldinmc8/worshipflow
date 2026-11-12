@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Shield, Copy, RefreshCw, KeyRound, Power, Radio, Search, Users, Music, CalendarDays, Tv, ChevronRight, AlertTriangle, CheckCircle2, Circle, Mail, Sparkles, Link2, Bot, LayoutGrid } from "lucide-react";
+import { ArrowLeft, Shield, Copy, RefreshCw, KeyRound, Power, Radio, Search, Users, Music, CalendarDays, Tv, ChevronRight, AlertTriangle, CheckCircle2, Circle, Mail, Sparkles, Link2, Bot, LayoutGrid, Eye, Trash2, X } from "lucide-react";
+import { createPortal } from "react-dom";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { showToast } from "./lib/toast.js";
 import { confirmDialog, promptDialog } from "./lib/confirm.js";
 import { validarPassword } from "./lib/passwordSegura.js";
 import { ordenarPor } from "./lib/orden.js";
+import { estadoCodigo, codigoCoincide } from "./lib/codigosInvitacion.js";
 import { ESTADOS_SALUD, estadoSalud, alertasIglesia, pasosArranque, ultimaActividad, haceCuanto, prioridadAtencion } from "./lib/saludIglesia.js";
 
 const cardStyle = { background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", padding: "14px 16px", marginBottom: 12 };
@@ -88,7 +90,7 @@ export default function PlataformaAdmin({ onExit }) {
 
   const iglesia = abierta ? resumen.find((r) => r.id === abierta) : null;
   if (iglesia) {
-    return <PerfilIglesia r={iglesia} sinActividad={sinActividad} usuariosBasicos={usuariosBasicos.filter((u) => u.iglesia_id === iglesia.id)} onVolver={() => setAbierta(null)} onCambio={cargar} />;
+    return <PerfilIglesia r={iglesia} sinActividad={sinActividad} usuariosBasicos={usuariosBasicos.filter((u) => u.iglesia_id === iglesia.id)} onVolver={() => setAbierta(null)} onCambio={cargar} onBorrada={() => { setAbierta(null); cargar(); }} />;
   }
 
   return (
@@ -104,14 +106,14 @@ export default function PlataformaAdmin({ onExit }) {
       </div>
 
       {cargando ? <div style={{ fontSize: 13, color: "var(--wf-faint)" }}>Cargando…</div> : (
-        <ListaIglesias resumen={resumen} sinActividad={sinActividad}
+        <ListaIglesias resumen={resumen} sinActividad={sinActividad} usuariosBasicos={usuariosBasicos}
           filtro={filtro} setFiltro={setFiltro} busqueda={busqueda} setBusqueda={setBusqueda} onAbrir={setAbierta} />
       )}
     </div>
   );
 }
 
-function ListaIglesias({ resumen, sinActividad, filtro, setFiltro, busqueda, setBusqueda, onAbrir }) {
+function ListaIglesias({ resumen, sinActividad, usuariosBasicos, filtro, setFiltro, busqueda, setBusqueda, onAbrir }) {
   const ahora = Date.now();
   const conSalud = useMemo(() => resumen.map((r) => ({ r, estado: estadoSalud(r, ahora), alertas: sinActividad ? [] : alertasIglesia(r, ahora) })), [resumen, sinActividad, ahora]);
   const cuenta = (fn) => conSalud.filter(fn).length;
@@ -153,7 +155,7 @@ function ListaIglesias({ resumen, sinActividad, filtro, setFiltro, busqueda, set
         ))}
       </div>
 
-      <CodigosInvitacion iglesias={resumen} />
+      <CodigosInvitacion iglesias={resumen} usuarios={usuariosBasicos} />
 
       {/* Filtros y búsqueda */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", margin: "16px 0 12px" }}>
@@ -215,18 +217,32 @@ function ListaIglesias({ resumen, sinActividad, filtro, setFiltro, busqueda, set
 
 // Invitaciones para iglesias nuevas: puede haber VARIOS códigos pendientes al mismo tiempo (uno por
 // iglesia invitada). Cada uno sirve para una sola iglesia; generar otro ya no anula los anteriores.
-function CodigosInvitacion({ iglesias }) {
+// Pedido de Eldin (2026-11-12): ver todos los datos de un código (la nota se cortaba), borrar cualquier
+// código (pendiente, usado o vencido) y buscar por código, nota, iglesia o correo del administrador.
+// La RLS "super admin administra los códigos de invitación" (FOR ALL con soy_super_admin()) ya deja
+// borrar a la consola general.
+const ESTADO_CODIGO = {
+  disponible: { label: "Disponible", color: "#1F8A73" },
+  usado: { label: "Usado", color: "#5661B3" },
+  vencido: { label: "Vencido", color: "#8996A6" },
+};
+const fechaHora = (f) => (f ? new Date(f).toLocaleString("es-GT", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—");
+
+function CodigosInvitacion({ iglesias, usuarios = [] }) {
   const [codigos, setCodigos] = useState(null); // null = cargando
   const [verUsados, setVerUsados] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
+  const [detalle, setDetalle] = useState(null); // código que se está viendo completo
   const cargar = () => {
-    supabase.from("codigos_invitacion").select("codigo, nota, creado_at, vence_at, usado_at, iglesia_id").order("creado_at", { ascending: false })
+    supabase.from("codigos_invitacion").select("codigo, nota, creado_at, vence_at, usado_at, iglesia_id, plan_fundadora").order("creado_at", { ascending: false })
       .then(({ data, error }) => setCodigos(error ? [] : data || []));
   };
   useEffect(cargar, []);
 
   const enlaceDe = (codigo) => `${window.location.origin}/?crear-iglesia&codigo=${encodeURIComponent(codigo)}`;
   const copiar = (texto, msg) => navigator.clipboard?.writeText(texto).then(() => showToast(msg, "info")).catch(() => {});
-  const nombreIglesia = (id) => iglesias.find((i) => i.id === id)?.nombre;
+  const nombreIglesia = (id) => (id ? iglesias.find((i) => i.id === id)?.nombre || "" : "");
+  const correosAdmin = (id) => (id ? usuarios.filter((u) => u.iglesia_id === id && u.rol === "admin").map((u) => u.email).filter(Boolean) : []);
 
   const crear = async () => {
     const nota = await promptDialog("¿Para quién es esta invitación? (opcional, ej. «Iglesia Betel — pastor Juan»)", { textoConfirmar: "Crear código" });
@@ -237,18 +253,33 @@ function CodigosInvitacion({ iglesias }) {
     copiar(enlaceDe(nuevo), "Código nuevo listo — enlace copiado.");
     cargar();
   };
-  const anular = async (c) => {
-    if (!(await confirmDialog(`¿Anular el código ${c.codigo}${c.nota ? ` (${c.nota})` : ""}? Dejará de funcionar.`, { textoConfirmar: "Anular" }))) return;
-    const { error } = await supabase.from("codigos_invitacion").delete().eq("codigo", c.codigo).is("usado_at", null);
-    if (error) { showToast("No se pudo anular: " + error.message, "error"); return; }
-    cargar();
+  const eliminar = async (c) => {
+    const usado = estadoCodigo(c) === "usado";
+    if (!(await confirmDialog(usado
+      ? `¿Seguro que quieres borrar este código? (${c.codigo}) Ya lo usó ${nombreIglesia(c.iglesia_id) || "una iglesia"}: la iglesia sigue igual, solo se borra el registro del código.`
+      : `¿Seguro que quieres borrar este código? (${c.codigo}) Dejará de funcionar.`, { textoConfirmar: "Borrar", danger: true }))) return;
+    const { data, error } = await supabase.from("codigos_invitacion").delete().eq("codigo", c.codigo).select("codigo");
+    if (error) { showToast("No se pudo borrar: " + error.message, "error"); return; }
+    if (!data?.length) { showToast("No se pudo borrar el código (sin permiso o ya no existe).", "error"); cargar(); return; }
+    setCodigos((lista) => (lista || []).filter((x) => x.codigo !== c.codigo));
+    setDetalle((d) => (d?.codigo === c.codigo ? null : d));
+    showToast("Código borrado.", "info");
   };
 
   const ahora = Date.now();
-  const vencido = (c) => c.vence_at && new Date(c.vence_at).getTime() < ahora;
   const diasParaVencer = (c) => Math.max(0, Math.ceil((new Date(c.vence_at).getTime() - ahora) / 86400000));
-  const pendientes = (codigos || []).filter((c) => !c.usado_at && !vencido(c));
-  const usados = (codigos || []).filter((c) => c.usado_at || vencido(c));
+  const q = busqueda.trim();
+  const filtrados = (codigos || []).filter((c) => codigoCoincide(c, q, { nombreIglesia, correosAdmin }));
+  const pendientes = filtrados.filter((c) => estadoCodigo(c, ahora) === "disponible");
+  const usados = filtrados.filter((c) => estadoCodigo(c, ahora) !== "disponible");
+  const mostrarUsados = verUsados || !!q; // al buscar se busca en todos
+
+  const botonesFila = (c) => (
+    <>
+      <button onClick={() => setDetalle(c)} style={ghostBtn} aria-label={`Ver detalles del código ${c.codigo}`} title="Ver detalles"><Eye size={14} /></button>
+      <button onClick={() => eliminar(c)} style={dangerBtn} aria-label={`Borrar código ${c.codigo}`} title="Borrar"><Trash2 size={14} /></button>
+    </>
+  );
 
   return (
     <div style={cardStyle}>
@@ -256,8 +287,14 @@ function CodigosInvitacion({ iglesias }) {
         <div style={{ ...tituloSeccion, marginBottom: 0 }}>Invitar iglesias nuevas</div>
         <button onClick={crear} style={{ ...ghostBtn, marginLeft: "auto", background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", border: "none" }}><KeyRound size={14} /> Nuevo código</button>
       </div>
+      {(codigos || []).length > 0 && (
+        <div style={{ position: "relative", marginBottom: 8 }}>
+          <Search size={14} color="var(--wf-faint)" style={{ position: "absolute", left: 10, top: 10 }} />
+          <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por código, nombre o iglesia" aria-label="Buscar códigos" style={{ ...inputStyle, paddingLeft: 30 }} />
+        </div>
+      )}
       {codigos === null ? <div style={{ fontSize: 12.5, color: "var(--wf-faint)" }}>Cargando…</div> : pendientes.length === 0 ? (
-        <div style={{ fontSize: 12.5, color: "var(--wf-muted)" }}>No hay códigos pendientes. Crea uno para cada iglesia que quieras invitar.</div>
+        <div style={{ fontSize: 12.5, color: "var(--wf-muted)" }}>{q ? "Ningún código disponible coincide con la búsqueda." : "No hay códigos pendientes. Crea uno para cada iglesia que quieras invitar."}</div>
       ) : pendientes.map((c) => (
         <div key={c.codigo} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 0", borderTop: "1px solid var(--wf-border)" }}>
           <div style={{ flex: "1 1 180px", minWidth: 0 }}>
@@ -266,7 +303,7 @@ function CodigosInvitacion({ iglesias }) {
           </div>
           <button onClick={() => copiar(enlaceDe(c.codigo), "Enlace de invitación copiado.")} style={ghostBtn}><Link2 size={14} /> Copiar enlace</button>
           <button onClick={() => copiar(c.codigo, "Código copiado.")} style={ghostBtn} aria-label={`Copiar código ${c.codigo}`}><Copy size={14} /></button>
-          <button onClick={() => anular(c)} style={dangerBtn} aria-label={`Anular código ${c.codigo}`}><Power size={14} /></button>
+          {botonesFila(c)}
         </div>
       ))}
       <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginTop: 6 }}>
@@ -274,15 +311,61 @@ function CodigosInvitacion({ iglesias }) {
       </div>
       {usados.length > 0 && (
         <>
-          <button onClick={() => setVerUsados((v) => !v)} style={{ ...ghostBtn, marginTop: 10 }}>{verUsados ? "Ocultar" : "Ver"} códigos usados o vencidos ({usados.length})</button>
-          {verUsados && usados.map((c) => (
-            <div key={c.codigo} style={{ fontSize: 12, color: "var(--wf-muted)", padding: "6px 0", borderTop: "1px solid var(--wf-border)" }}>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{c.codigo}</span>{c.nota ? ` · ${c.nota}` : ""} · {c.usado_at ? <>usado el {fechaCorta(c.usado_at)}{nombreIglesia(c.iglesia_id) ? ` por ${nombreIglesia(c.iglesia_id)}` : ""}</> : <>venció el {fechaCorta(c.vence_at)} sin usarse</>}
+          {!q && <button onClick={() => setVerUsados((v) => !v)} style={{ ...ghostBtn, marginTop: 10 }}>{verUsados ? "Ocultar" : "Ver"} códigos usados o vencidos ({usados.length})</button>}
+          {q && <div style={{ ...tituloSeccion, marginTop: 12, marginBottom: 4 }}>Usados o vencidos</div>}
+          {mostrarUsados && usados.map((c) => (
+            <div key={c.codigo} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderTop: "1px solid var(--wf-border)" }}>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--wf-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--wf-text)" }}>{c.codigo}</span>{c.nota ? ` · ${c.nota}` : ""} · {c.usado_at ? <>usado el {fechaCorta(c.usado_at)}{nombreIglesia(c.iglesia_id) ? ` por ${nombreIglesia(c.iglesia_id)}` : ""}</> : <>venció el {fechaCorta(c.vence_at)} sin usarse</>}
+              </div>
+              {botonesFila(c)}
             </div>
           ))}
         </>
       )}
+      {detalle && (
+        <DetalleCodigo c={detalle} iglesia={nombreIglesia(detalle.iglesia_id)} correos={correosAdmin(detalle.iglesia_id)}
+          enlace={enlaceDe(detalle.codigo)} copiar={copiar} onEliminar={() => eliminar(detalle)} onCerrar={() => setDetalle(null)} />
+      )}
     </div>
+  );
+}
+
+// Todos los datos de un código, sin recortes.
+function DetalleCodigo({ c, iglesia, correos, enlace, copiar, onEliminar, onCerrar }) {
+  const estado = estadoCodigo(c);
+  const fila = (k, v) => (
+    <div style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--wf-border)", fontSize: 13 }}>
+      <span style={{ color: "var(--wf-muted)", flex: "0 0 128px" }}>{k}</span>
+      <span style={{ flex: 1, minWidth: 0, fontWeight: 600, overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>{v}</span>
+    </div>
+  );
+  return createPortal(
+    <div role="dialog" aria-modal="true" aria-label={`Detalles del código ${c.codigo}`} onClick={onCerrar}
+      style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(8,10,14,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--wf-card)", color: "var(--wf-text)", width: "min(460px, 100%)", maxHeight: "90dvh", overflowY: "auto", borderRadius: 18, padding: 20, boxShadow: "0 20px 60px rgba(0,0,0,0.3)", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <KeyRound size={18} color="var(--wf-brand-accent)" />
+          <span style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 18, fontWeight: 600, flex: 1 }}>Código de invitación</span>
+          <button onClick={onCerrar} aria-label="Cerrar" style={{ ...ghostBtn, padding: 7 }}><X size={16} /></button>
+        </div>
+        {fila("Código", <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{c.codigo}</span>)}
+        {fila("Nombre o nota", c.nota || <span style={{ color: "var(--wf-faint)", fontWeight: 500 }}>Sin nota</span>)}
+        {fila("Estado", <span style={{ color: ESTADO_CODIGO[estado].color }}>{ESTADO_CODIGO[estado].label}</span>)}
+        {fila("Creado", fechaHora(c.creado_at))}
+        {estado !== "usado" && fila(estado === "vencido" ? "Venció" : "Vence", fechaHora(c.vence_at))}
+        {c.plan_fundadora && fila("Plan", "Fundadora")}
+        {fila("Iglesia que lo usó", iglesia || (c.usado_at ? "Ya no existe (fue borrada)" : "—"))}
+        {fila("Correo del administrador", correos.length ? correos.join("\n") : "—")}
+        {fila("Canjeado", fechaHora(c.usado_at))}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+          {estado === "disponible" && <button onClick={() => copiar(enlace, "Enlace de invitación copiado.")} style={ghostBtn}><Link2 size={14} /> Copiar enlace</button>}
+          <button onClick={() => copiar(c.codigo, "Código copiado.")} style={ghostBtn}><Copy size={14} /> Copiar código</button>
+          <button onClick={onEliminar} style={{ ...dangerBtn, marginLeft: "auto" }}><Trash2 size={14} /> Borrar</button>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -341,7 +424,7 @@ function PlanIglesia({ r, onCambio }) {
   );
 }
 
-function PerfilIglesia({ r, sinActividad, usuariosBasicos, onVolver, onCambio }) {
+function PerfilIglesia({ r, sinActividad, usuariosBasicos, onVolver, onCambio, onBorrada }) {
   const [equipo, setEquipo] = useState(null);
   const [busy, setBusy] = useState(false);
   const ahora = Date.now();
@@ -406,6 +489,31 @@ function PerfilIglesia({ r, sinActividad, usuariosBasicos, onVolver, onCambio })
   };
 
   const correoAdmins = admins.map((a) => a.email).filter(Boolean).join(",");
+
+  // Borrar la iglesia con todo lo suyo (ver supabase/functions/eliminar-iglesia). Para no hacerlo por
+  // error hay que escribir el nombre exacto; el servidor lo vuelve a revisar.
+  const borrarIglesia = async () => {
+    const cuantos = [
+      r.usuarios != null && `${r.usuarios} ${r.usuarios === 1 ? "usuario" : "usuarios"}`,
+      r.eventos != null && `${r.eventos} ${r.eventos === 1 ? "evento" : "eventos"}`,
+      r.canciones != null && `${r.canciones} canciones`,
+    ].filter(Boolean).join(", ");
+    const escrito = await promptDialog(
+      `Esto borra "${r.nombre}" para siempre${cuantos ? ` (${cuantos})` : ""}: sus canciones, eventos, grupos, archivos y las cuentas de su gente. No se puede deshacer. Escribe el nombre de la iglesia para confirmar:`,
+      { titulo: "Borrar iglesia", textoConfirmar: "Borrar para siempre", danger: true, placeholder: r.nombre },
+    );
+    if (escrito == null) return;
+    if (escrito.trim() !== String(r.nombre || "").trim()) { showToast("El nombre no coincide. No se borró nada.", "error"); return; }
+    setBusy(true);
+    try {
+      const res = await callUsersFunction("eliminar-iglesia", { iglesia_id: r.id, confirmacion: escrito.trim() });
+      showToast(`"${res.nombre}" se borró${res.usuarios ? ` junto con ${res.usuarios} ${res.usuarios === 1 ? "cuenta" : "cuentas"}` : ""}.`, "info");
+      onBorrada?.();
+    } catch (e) {
+      showToast(e.message, "error");
+      setBusy(false);
+    }
+  };
 
   return (
     <div style={{ padding: 20, maxWidth: 960, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
@@ -513,6 +621,13 @@ function PerfilIglesia({ r, sinActividad, usuariosBasicos, onVolver, onCambio })
           <button disabled={busy} onClick={forzarCierre} style={ghostBtn}><Radio size={13} /> Forzar cierre de transmisión</button>
           <button disabled={busy} onClick={toggleActiva} style={r.activa ? dangerBtn : ghostBtn}><Power size={13} /> {r.activa ? "Pausar iglesia" : "Reactivar iglesia"}</button>
         </div>
+      </div>
+
+      {/* Zona de peligro: borrar la iglesia (para las de prueba). Pausar no borra nada; esto sí. */}
+      <div style={{ ...cardStyle, marginTop: 12, border: "1px solid #C23B3233" }}>
+        <div style={{ ...tituloSeccion, color: "#C23B32" }}>Zona de peligro</div>
+        <div style={{ fontSize: 12.5, color: "var(--wf-muted)", marginBottom: 10 }}>Borra la iglesia con todo lo suyo y las cuentas de su gente. Para dejar de darle acceso sin perder nada, usa "Pausar iglesia".</div>
+        <button disabled={busy} onClick={borrarIglesia} style={{ ...dangerBtn, background: "#C23B32", color: "#fff", border: "none", opacity: busy ? 0.5 : 1 }}><Trash2 size={13} /> Borrar iglesia</button>
       </div>
     </div>
   );
