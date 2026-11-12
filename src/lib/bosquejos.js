@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { finDeBloque } from "./ordenCulto.js";
+import { stripBibleSearchMarkup } from "./textoBiblia.js";
 
 // Bosquejo del predicador (pedido de Eldin, 2026-11-01). Quien está ASIGNADO a un bloque de Predicación
 // arma su bosquejo paso a paso: título del sermón → cita base → introducción/idea central → puntos con
@@ -108,33 +109,86 @@ function versiculoAItem(v, bloqueId, nuevoId, punto = null, marcas = {}) {
   };
 }
 
+// Un pasaje (Juan 8:1-11) se proyecta un versículo por diapositiva, igual que la Biblia del Setlist
+// (pedido de Eldin, 2026-11-12: "que los textos aparezcan uno por uno"). Para eso el versículo guarda el
+// texto de cada uno en `versos` (lo llena el buscador de la Biblia, o completarVersosBosquejo para los
+// bosquejos guardados antes). Sin `versos`, el pasaje sale completo como antes.
+export function versiculosSueltos(v) {
+  const versos = Array.isArray(v?.versos) ? v.versos.filter((x) => x && String(x.text || "").trim()) : [];
+  if (versos.length < 2) return v ? [v] : [];
+  return versos.map((x) => ({
+    ref: `${v.bookName} ${v.chapter}:${x.verse}`, version: v.version, text: String(x.text).trim(),
+    bookId: v.bookId, bookName: v.bookName, chapter: v.chapter, verseStart: x.verse, verseEnd: x.verse,
+  }));
+}
+
+// Bosquejos guardados antes de `versos`: trae cada capítulo una vez y llena el texto de cada versículo de
+// los pasajes. traerCapitulo(version, bookId, chapter) → [{ verse, text }] (fetchBibleChapter). Si un
+// capítulo no se puede traer (sin internet), ese pasaje queda como estaba. No modifica `b`.
+const necesitaVersos = (v) => v && !Array.isArray(v.versos) && v.bookId && v.chapter && v.version && v.verseEnd > v.verseStart;
+export async function completarVersosBosquejo(b, traerCapitulo) {
+  if (!b) return b;
+  const capitulos = new Map();
+  const completar = async (v) => {
+    if (!necesitaVersos(v)) return v;
+    const clave = `${v.version}|${v.bookId}|${v.chapter}`;
+    if (!capitulos.has(clave)) capitulos.set(clave, traerCapitulo(v.version, v.bookId, v.chapter).catch(() => null));
+    const cap = await capitulos.get(clave);
+    if (!Array.isArray(cap)) return v;
+    const versos = cap.filter((x) => x.verse >= v.verseStart && x.verse <= v.verseEnd).map((x) => ({ verse: x.verse, text: stripBibleSearchMarkup(x.text) }));
+    return versos.length === v.verseEnd - v.verseStart + 1 ? { ...v, versos } : v;
+  };
+  const lista = (vs) => Promise.all((vs || []).map(completar));
+  return {
+    ...b,
+    citaBase: await completar(b.citaBase),
+    puntos: await Promise.all((b.puntos || []).map(async (p) => ({
+      ...p,
+      versiculos: await lista(p.versiculos),
+      subpuntos: await Promise.all((p.subpuntos || []).map(async (s) => ({ ...s, versiculos: await lista(s.versiculos) }))),
+    }))),
+  };
+}
+
+// Etiquetas que antes salían debajo de cada diapositiva del bosquejo ("Punto 2", "Punto 1 · A",
+// "Conclusión"). Ya no se proyectan (pedido de Eldin, 2026-11-12: "que solo salga el contenido"); esto
+// las quita también de las diapositivas que se enviaron antes del cambio.
+const RE_ETIQUETA_BOSQUEJO = /^(Punto \d+( · [A-Z])?|Conclusión( \d+)?)$/;
+export function subtituloProyectable(item) {
+  const sub = item?.subtitle || "";
+  return item?.bosquejoDe && RE_ETIQUETA_BOSQUEJO.test(sub.trim()) ? "" : sub;
+}
+
 function textoAItem(titulo, subtitulo, bloqueId, nuevoId, punto = null, marcas = {}) {
   return { id: nuevoId(), type: "slide", title: titulo, subtitle: subtitulo || "", bg: "#1B2029", bgType: "color", isSermonPoint: true, bosquejoDe: bloqueId, ...(punto ? { bosquejoPunto: punto } : {}), ...marcas };
 }
 
 // El bosquejo → diapositivas, en el orden en que se predica:
 // título (con la cita de subtítulo) → cita base → idea central (si se pidió mostrarla) → cada punto → sus
-// versículos → cada subpunto ("Punto 1 · A") → sus versículos → las conclusiones.
+// versículos → cada subpunto → sus versículos → las conclusiones. Solo el contenido: de qué punto es cada
+// diapositiva viaja en bosquejoPunto/bosquejoSub/bosquejoConclusion (para la pantalla del predicador),
+// no como texto proyectado. Cada pasaje, un versículo por diapositiva (versiculosSueltos).
 // La nota de cada punto y las ideas de cada subpunto son solo para el predicador: nunca se proyectan.
 export function bosquejoAItems(bosquejo, bloqueId, nuevoId = () => crypto.randomUUID()) {
   if (!bosquejoListoParaEnviar(bosquejo)) return [];
   const items = [textoAItem(bosquejo.titulo.trim(), bosquejo.citaBase?.ref || "", bloqueId, nuevoId)];
-  if (bosquejo.citaBase?.text) items.push(versiculoAItem(bosquejo.citaBase, bloqueId, nuevoId));
+  const versiculos = (v, ...extra) => { if (v?.text) versiculosSueltos(v).forEach((x) => items.push(versiculoAItem(x, bloqueId, nuevoId, ...extra))); };
+  versiculos(bosquejo.citaBase);
   if (bosquejo.mostrarIdea && bosquejo.ideaCentral?.trim()) items.push(textoAItem(bosquejo.ideaCentral.trim(), "", bloqueId, nuevoId));
   (bosquejo.puntos || []).forEach((p, i) => {
     const titulo = (p.titulo || "").trim();
-    if (titulo) items.push(textoAItem(titulo, `Punto ${i + 1}`, bloqueId, nuevoId, i + 1));
-    (p.versiculos || []).forEach((v) => { if (v?.text) items.push(versiculoAItem(v, bloqueId, nuevoId, i + 1)); });
+    if (titulo) items.push(textoAItem(titulo, "", bloqueId, nuevoId, i + 1));
+    (p.versiculos || []).forEach((v) => versiculos(v, i + 1));
     (p.subpuntos || []).forEach((s, k) => {
       const marcas = { bosquejoSub: k + 1 };
       const tituloSub = (s.titulo || "").trim();
-      if (tituloSub) items.push(textoAItem(tituloSub, `Punto ${i + 1} · ${letraSubpunto(k)}`, bloqueId, nuevoId, i + 1, marcas));
-      (s.versiculos || []).forEach((v) => { if (v?.text) items.push(versiculoAItem(v, bloqueId, nuevoId, i + 1, marcas)); });
+      if (tituloSub) items.push(textoAItem(tituloSub, "", bloqueId, nuevoId, i + 1, marcas));
+      (s.versiculos || []).forEach((v) => versiculos(v, i + 1, marcas));
     });
   });
   const conclusiones = (bosquejo.conclusiones || []).map((c) => String(c || "").trim()).filter(Boolean);
   conclusiones.forEach((c, k) => {
-    items.push(textoAItem(c, conclusiones.length > 1 ? `Conclusión ${k + 1}` : "Conclusión", bloqueId, nuevoId, null, { bosquejoConclusion: k + 1 }));
+    items.push(textoAItem(c, "", bloqueId, nuevoId, null, { bosquejoConclusion: k + 1 }));
   });
   return items;
 }

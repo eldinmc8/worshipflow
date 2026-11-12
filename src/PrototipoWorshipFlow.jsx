@@ -14,7 +14,7 @@ import { saveCache, loadCache } from "./lib/offlineCache.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { palabrasPorParteSegun, expandirVersiculosLargos, reorganizarLetra } from "./lib/dividirTexto.js";
 import { insertarEnBloque } from "./lib/ordenCulto.js";
-import { esBloquePredicacion, guardarBosquejo, aplicarBosquejoAlOrden, bosquejoAItems, eliminarBosquejo, quitarBosquejoDelOrden } from "./lib/bosquejos.js";
+import { esBloquePredicacion, guardarBosquejo, aplicarBosquejoAlOrden, bosquejoAItems, eliminarBosquejo, quitarBosquejoDelOrden, completarVersosBosquejo, subtituloProyectable } from "./lib/bosquejos.js";
 import { animacionEfectiva, estiloDeParte } from "./lib/animacionCancion.js";
 import { esCuentaRegresiva, slideCuentaRegresiva, conHoraFinal, arrancarSiHaceFalta, slideCuentaAlMomento, normalizarCuenta, itemCuentaRegresiva } from "./lib/cuentaRegresiva.js";
 import { confirmDialog } from "./lib/confirm.js";
@@ -190,7 +190,7 @@ function buildSlides(serviceOrder, library) {
       // Presentación agrupada o diapositiva diseñada en el editor: cada diapositiva con su diseño.
       slides.push(...slidesDeGrupo(item));
     } else if (item.type === "slide") {
-      slides.push({ slideId: item.id, type: "slide", title: item.title, nombre: item.name || "", subtitle: item.subtitle, escalaSubtitulo: item.escalaSubtitulo, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl, imageUrl: item.imageUrl });
+      slides.push({ slideId: item.id, type: "slide", title: item.title, nombre: item.name || "", subtitle: subtituloProyectable(item), escalaSubtitulo: item.escalaSubtitulo, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl, imageUrl: item.imageUrl });
     }
   });
   return slides;
@@ -1483,9 +1483,12 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       throw err;
     }
   };
-  const enviarBosquejo = async (b) => {
+  const enviarBosquejo = async (borrador) => {
     const eventoId = selectedEventId, bloqueId = bosquejoAbierto;
     try {
+      // Pasajes guardados antes de que el bosquejo los proyectara versículo por versículo: se completa el
+      // texto de cada versículo antes de armar las diapositivas.
+      const b = await completarVersosBosquejo(borrador, fetchBibleChapter).catch(() => borrador);
       const guardado = await guardarBosquejo(eventoId, bloqueId, b, { enviado: true });
       ponerBosquejoLocal(eventoId, bloqueId, guardado);
       updateOrder((o) => aplicarBosquejoAlOrden(o, bloqueId, bosquejoAItems(b, bloqueId, nextId)));

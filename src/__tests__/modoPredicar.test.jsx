@@ -76,7 +76,10 @@ describe("subpuntos y conclusiones", () => {
   const orden = [{ id: "pred", type: "seccion", title: "Predicación" }, ...its];
 
   it("cada subpunto y cada conclusión se proyecta como su propia diapositiva", () => {
-    expect(its.map((it) => it.subtitle || it.reference || "")).toEqual(["", "Punto 1", "Punto 1 · A", "Colosenses 2:9", "Punto 1 · B", "Conclusión 1", "Conclusión 2"]);
+    // Solo el contenido se proyecta (2026-11-12): sin "Punto 1 · A" ni "Conclusión" debajo; de qué parte
+    // es cada diapositiva va en las marcas (para la pantalla y el celular del predicador).
+    expect(its.map((it) => it.subtitle || it.reference || "")).toEqual(["", "", "", "Colosenses 2:9", "", "", ""]);
+    expect(its.map((it) => [it.bosquejoPunto || null, it.bosquejoSub || null, it.bosquejoConclusion || null])).toEqual([[null, null, null], [1, null, null], [1, 1, null], [1, 1, null], [1, 2, null], [null, null, 1], [null, null, 2]]);
     expect(its.find((it) => it.title === "La distinción de su persona")).toMatchObject({ bosquejoPunto: 1, bosquejoSub: 2 });
   });
 
