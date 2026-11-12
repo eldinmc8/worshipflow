@@ -277,7 +277,10 @@ export function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", s
     }
     const text = picked.map((v) => stripBibleSearchMarkup(v.text)).join(" ");
     const ref = range.start === range.end ? `${selectedBook.name} ${selectedChapter}:${range.start}` : `${selectedBook.name} ${selectedChapter}:${range.start}-${range.end}`;
-    onAdd({ ref, version, text, bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: range.start, verseEnd: range.end });
+    // versos: el texto de cada versículo del pasaje, para que el bosquejo lo proyecte uno por uno (ver
+    // versiculosSueltos en lib/bosquejos.js). Al guardar en el Setlist no se usa (no tiene columna).
+    const versos = picked.length > 1 ? picked.map((v) => ({ verse: v.verse, text: stripBibleSearchMarkup(v.text) })) : undefined;
+    onAdd({ ref, version, text, bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: range.start, verseEnd: range.end, ...(versos ? { versos } : {}) });
   };
   const filteredBooks = books ? books.filter((b) => normalizarBusqueda(b.name).includes(normalizarBusqueda(bookFilter))) : [];
 

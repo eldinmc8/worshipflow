@@ -136,7 +136,7 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
         <BibliaSelector
           submitLabel={esCita ? "Usar esta cita" : "Agregar al punto"}
           onAdd={(v) => {
-            const versiculo = { ref: v.ref, version: v.version, text: v.text, bookId: v.bookId, bookName: v.bookName, chapter: v.chapter, verseStart: v.verseStart, verseEnd: v.verseEnd };
+            const versiculo = { ref: v.ref, version: v.version, text: v.text, bookId: v.bookId, bookName: v.bookName, chapter: v.chapter, verseStart: v.verseStart, verseEnd: v.verseEnd, ...(v.versos ? { versos: v.versos } : {}) };
             if (esCita) { cambiar({ citaBase: versiculo }); setCambiarCita(false); }
             else if (String(eligiendo).startsWith("sub:")) {
               const [, pid, sid] = String(eligiendo).split(":");

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../supabaseClient.js", () => ({ supabase: {} }));
-const { esBloquePredicacion, bosquejoAItems, aplicarBosquejoAlOrden, bosquejoListoParaEnviar, bosquejoTieneCambiosSinEnviar } = await import("../bosquejos.js");
+const { esBloquePredicacion, bosquejoAItems, aplicarBosquejoAlOrden, bosquejoListoParaEnviar, bosquejoTieneCambiosSinEnviar, versiculosSueltos, completarVersosBosquejo, subtituloProyectable } = await import("../bosquejos.js");
 
 const contador = () => { let n = 0; return () => `n${++n}`; };
 const juan316 = { ref: "Juan 3:16", version: "RVR1960", text: "Porque de tal manera amó Dios al mundo...", bookId: 43, bookName: "Juan", chapter: 3, verseStart: 16, verseEnd: 16 };
@@ -42,8 +42,9 @@ describe("bosquejoAItems", () => {
     ]);
     expect(items.every((it) => it.bosquejoDe === "B1")).toBe(true);
     expect(items[0].subtitle).toBe("Juan 3:16");
-    expect(items[2]).toMatchObject({ isSermonPoint: true, subtitle: "Punto 1" });
-    expect(items[4].subtitle).toBe("Punto 3");
+    // Solo el contenido: "Punto 1", "Punto 3" ya no se proyectan; el número viaja aparte.
+    expect(items[2]).toMatchObject({ isSermonPoint: true, subtitle: "", bosquejoPunto: 1 });
+    expect(items[4]).toMatchObject({ subtitle: "", bosquejoPunto: 3 });
     expect(new Set(items.map((it) => it.id)).size).toBe(items.length);
   });
   it("la nota del predicador nunca se proyecta", () => {
@@ -62,6 +63,54 @@ describe("bosquejoAItems", () => {
     const items = bosquejoAItems({ titulo: "Fe", citaBase: null, puntos: [] }, "B1", contador());
     expect(items).toHaveLength(1);
     expect(items[0].subtitle).toBe("");
+  });
+});
+
+// Juan 8:1-3 como lo entrega el buscador de la Biblia (con el texto de cada versículo).
+const juan8 = {
+  ref: "Juan 8:1-3", version: "RVR1960", text: "Y Jesús se fue al monte de los Olivos. Y por la mañana volvió al templo... Entonces los escribas...",
+  bookId: 43, bookName: "Juan", chapter: 8, verseStart: 1, verseEnd: 3,
+  versos: [{ verse: 1, text: "Y Jesús se fue al monte de los Olivos." }, { verse: 2, text: "Y por la mañana volvió al templo..." }, { verse: 3, text: "Entonces los escribas..." }],
+};
+
+describe("pasajes del bosquejo: un versículo por diapositiva (como la Biblia)", () => {
+  it("un pasaje se reparte en un versículo por diapositiva, con su propia cita", () => {
+    const sueltos = versiculosSueltos(juan8);
+    expect(sueltos.map((v) => v.ref)).toEqual(["Juan 8:1", "Juan 8:2", "Juan 8:3"]);
+    expect(sueltos[1]).toMatchObject({ text: "Y por la mañana volvió al templo...", verseStart: 2, verseEnd: 2, version: "RVR1960", bookId: 43, chapter: 8 });
+  });
+  it("en el bosquejo: cita base y versículos de cada punto, uno por uno y con la marca del punto", () => {
+    const items = bosquejoAItems({ titulo: "La mujer adúltera", citaBase: juan8, puntos: [{ id: "p1", titulo: "Jesús nos recibe", versiculos: [juan8] }] }, "B1", contador());
+    expect(items.map((it) => it.title || it.reference)).toEqual(["La mujer adúltera", "Juan 8:1", "Juan 8:2", "Juan 8:3", "Jesús nos recibe", "Juan 8:1", "Juan 8:2", "Juan 8:3"]);
+    expect(items.slice(5).every((it) => it.bosquejoPunto === 1 && it.type === "biblia")).toBe(true);
+    expect(items[0].subtitle).toBe("Juan 8:1-3");
+  });
+  it("un solo versículo, o un pasaje sin el texto de cada versículo, sale completo como antes", () => {
+    expect(versiculosSueltos(juan316)).toEqual([juan316]);
+    const { versos, ...sinVersos } = juan8; // eslint-disable-line no-unused-vars
+    expect(versiculosSueltos(sinVersos)).toEqual([sinVersos]);
+  });
+  it("bosquejos guardados antes: completa el texto de cada versículo trayendo el capítulo una sola vez", async () => {
+    const { versos, ...viejo } = juan8; // eslint-disable-line no-unused-vars
+    const traer = vi.fn(async () => [1, 2, 3, 4].map((n) => ({ verse: n, text: `<b>v${n}</b>` })));
+    const b = await completarVersosBosquejo({ titulo: "X", citaBase: viejo, puntos: [{ id: "p", versiculos: [viejo, juan316], subpuntos: [{ id: "s", versiculos: [viejo] }] }] }, traer);
+    expect(traer).toHaveBeenCalledTimes(1);
+    expect(traer).toHaveBeenCalledWith("RVR1960", 43, 8);
+    expect(b.citaBase.versos).toEqual([{ verse: 1, text: "v1" }, { verse: 2, text: "v2" }, { verse: 3, text: "v3" }]);
+    expect(b.puntos[0].versiculos[1]).toEqual(juan316); // un solo versículo: no hace falta
+    expect(b.puntos[0].subpuntos[0].versiculos[0].versos).toHaveLength(3);
+  });
+  it("si el capítulo no se puede traer (sin internet), el pasaje queda como estaba", async () => {
+    const { versos, ...viejo } = juan8; // eslint-disable-line no-unused-vars
+    const b = await completarVersosBosquejo({ titulo: "X", citaBase: viejo, puntos: [] }, () => Promise.reject(new Error("sin red")));
+    expect(b.citaBase).toEqual(viejo);
+  });
+  it("las etiquetas 'Punto N' / 'Conclusión' de diapositivas ya enviadas no se proyectan; otros subtítulos sí", () => {
+    expect(subtituloProyectable({ bosquejoDe: "B1", subtitle: "Punto 2" })).toBe("");
+    expect(subtituloProyectable({ bosquejoDe: "B1", subtitle: "Punto 1 · A" })).toBe("");
+    expect(subtituloProyectable({ bosquejoDe: "B1", subtitle: "Conclusión 2" })).toBe("");
+    expect(subtituloProyectable({ bosquejoDe: "B1", subtitle: "Juan 3:16" })).toBe("Juan 3:16");
+    expect(subtituloProyectable({ subtitle: "Punto 2" })).toBe("Punto 2"); // una diapositiva normal, no del bosquejo
   });
 });
 
