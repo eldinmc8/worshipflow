@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { subscribeConfirm, resolverConfirm } from "./lib/confirm.js";
 
+import { useCerrarConAtras } from "./lib/atras.js";
 // Se monta UNA sola vez en main.jsx (igual que ToastHost) para que funcione desde cualquier
 // pantalla. Reemplaza window.confirm()/window.prompt() nativos por una tarjeta con la identidad
 // visual de la app — el diálogo del navegador delataba que esto corre en
@@ -18,6 +19,8 @@ export default function ConfirmDialogHost() {
     if (dialog?.tipo === "prompt") inputRef.current?.focus();
   }, [dialog]);
 
+  // Atrás del teléfono = Cancelar (ver lib/atras.js).
+  useCerrarConAtras(!!dialog, () => { resolverConfirm(dialog?.tipo === "prompt" ? null : false); setDialog(null); });
   if (!dialog) return null;
   const esPrompt = dialog.tipo === "prompt";
 

@@ -7,6 +7,7 @@ import { guardarCancionDesdeEditor } from "../lib/canciones.js";
 import { callUsersFunction } from "../lib/supabaseClient.js";
 import { VistaLinea } from "./ImportarCancionesPdf.jsx";
 
+import { useCerrarConAtras } from "../lib/atras.js";
 // Buscar canciones en internet (pedido de Eldin, 2026-11-11): se escribe el título (o título y
 // artista), salen las canciones de LaCuerda.net, se elige una y entra con su letra y sus acordes ya
 // puestos en cada sílaba. Antes de guardar se revisa igual que al importar un PDF. La parte que
@@ -14,6 +15,7 @@ import { VistaLinea } from "./ImportarCancionesPdf.jsx";
 const normalizar = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 
 export default function BuscarCancionWeb({ library = [], clasificaciones = [], userId, onCerrar, onImportadas }) {
+  useCerrarConAtras(true, onCerrar); // atrás del teléfono cierra esta ventana (ver lib/atras.js)
   const [q, setQ] = useState("");
   const [buscado, setBuscado] = useState(""); // lo último que se buscó
   const [buscando, setBuscando] = useState(false);

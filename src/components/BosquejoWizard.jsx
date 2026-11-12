@@ -4,6 +4,7 @@ import { X, Mic2, BookOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, P
 import ModoPredicar from "./ModoPredicar.jsx";
 import { bosquejoVacio, nuevoPunto, nuevoSubpunto, letraSubpunto, bosquejoListoParaEnviar, bosquejoAItems } from "../lib/bosquejos.js";
 
+import { useCerrarConAtras } from "../lib/atras.js";
 // Asistente paso a paso para que el predicador arme su bosquejo (pedido de Eldin, 2026-11-01):
 // 1. Título del sermón · 2. Cita base (con la Biblia integrada) · 3. Introducción / idea central ·
 // 4. Puntos, cada uno con sus versículos · 5. Revisar y "Enviar a Multimedia".
@@ -100,6 +101,7 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
   useEffect(() => { contenido.current?.scrollTo?.({ top: 0 }); }, [paso]);
 
   const cerrar = async () => { await guardar(); onClose(); };
+  useCerrarConAtras(true, cerrar); // atrás guarda el borrador y cierra, igual que la ✕ (ver lib/atras.js)
 
   const enviar = async () => {
     if (!bosquejoListoParaEnviar(b) || bloqueado) return;

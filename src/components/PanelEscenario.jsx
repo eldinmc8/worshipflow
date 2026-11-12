@@ -6,6 +6,7 @@ import { enlaceEscenario } from "../lib/enlacePantalla.js";
 import { obtenerCodigoPantalla } from "../lib/liveSession.js";
 import { restanteTemporizador, textoTemporizador, nivelTemporizador, temporizadorActivo, iniciarTemporizador, pausarTemporizador, reanudarTemporizador } from "../lib/escenario.js";
 
+import { useCerrarConAtras } from "../lib/atras.js";
 // Panel "Escenario" de la consola de Multimedia (2026-11-01): mensaje corto para quienes están en la
 // plataforma (sale grande en la Pantalla de escenario, el público no lo ve), temporizador del mensaje
 // (2026-11-02) y cómo abrir esa pantalla. Solo lo tiene quien lleva la transmisión.
@@ -17,6 +18,7 @@ const DURACIONES_MIN = [20, 30, 40, 45, 60];
 const COLOR_NIVEL = { normal: "var(--wf-heading)", aviso: "#E8821E", excedido: "#C23B32" };
 
 export default function PanelEscenario({ mensaje, onMensaje, iglesiaId, slug, onCerrar, temporizador = null, onTemporizador = null, autoTemporizador = null, onAutoTemporizador = null }) {
+  useCerrarConAtras(true, onCerrar); // atrás del teléfono cierra esta ventana (ver lib/atras.js)
   const [texto, setTexto] = useState(mensaje || "");
   const [verEnlace, setVerEnlace] = useState(false);
   const [codigo, setCodigo] = useState(null); // el enlace lleva el código vigente (vence al finalizar la transmisión)

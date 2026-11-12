@@ -7,6 +7,7 @@ import { ANIMACIONES, FONDOS_DISPONIBLES, definicionDeReceta, armarLineasAnimada
 import { guardarAnimacion } from "../lib/animacionesIglesia.js";
 import { showToast } from "../lib/toast.js";
 
+import { useCerrarConAtras } from "../lib/atras.js";
 // Creador de animaciones propias (pedido de Eldin, 2026-10-18): la iglesia arma su estilo de letra animada
 // eligiendo piezas — letra, cómo entra, cómo se queda, palabras clave y fondo — con una vista previa en
 // vivo. Lo guardado aparece en "De mi iglesia" dentro del menú de Letra animada.
@@ -90,6 +91,7 @@ export function VistaPreviaReceta({ receta, nombre, frase, vuelta }) {
 }
 
 export default function EditorAnimacion({ inicial, iglesiaId, iglesiaNombre, usuarioId, onCerrar, onGuardado }) {
+  useCerrarConAtras(true, onCerrar); // atrás del teléfono cierra esta ventana (ver lib/atras.js)
   // inicial: { id?, nombre, receta, compartida } — sin id es una animación nueva.
   const [nombre, setNombre] = useState(inicial?.nombre || "");
   const [receta, setReceta] = useState(() => recetaCompleta(inicial?.receta || RECETA_VACIA));

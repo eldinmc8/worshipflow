@@ -4,6 +4,7 @@ import { X, ChevronLeft, ChevronRight, Minus, Plus, Radio, BookOpen, Timer, Navi
 import { pasosPredicar, pasoAlAire, letraSubpunto, ideasDe } from "../lib/bosquejos.js";
 import { restanteTemporizador, textoTemporizador, nivelTemporizador } from "../lib/escenario.js";
 
+import { useCerrarConAtras } from "../lib/atras.js";
 // Modo predicar (pedido de Eldin, 2026-11-06): para cuando la iglesia no tiene pantalla de escenario.
 // El predicador ve su bosquejo en su propio celular, un paso a la vez y en letra grande: título y cita,
 // idea central, cada punto con su nota privada (nunca se proyecta) y el texto completo de sus versículos.
@@ -38,6 +39,7 @@ function tituloPaso(paso, b) {
 }
 
 export default function ModoPredicar({ bosquejo, serviceOrder = [], bloqueId, enVivo = false, slideAlAire = null, onClose }) {
+  useCerrarConAtras(true, onClose); // atrás del teléfono cierra esta ventana (ver lib/atras.js)
   const b = bosquejo || {};
   const pasos = useMemo(() => pasosPredicar(b), [b]);
   const puntosVisibles = pasos.filter((p) => p.tipo === "punto");

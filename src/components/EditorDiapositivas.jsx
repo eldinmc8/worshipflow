@@ -17,6 +17,7 @@ import { useArrastreLista } from "../lib/arrastreLista.js";
 import { confirmDialog, promptDialog } from "../lib/confirm.js";
 import { notifyError, showToast } from "../lib/toast.js";
 
+import { useCerrarConAtras } from "../lib/atras.js";
 // Editor de diapositivas (pedido de Eldin, 2026-10-10) — en computadora, tipo PowerPoint:
 // a la izquierda las diapositivas del grupo (reordenar arrastrando, duplicar, copiar/pegar), al centro
 // el lienzo 16:9 (arrastrar, estirar desde las esquinas, guías al centrar, doble clic para escribir) y
@@ -342,6 +343,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
     onCerrar();
   };
   const listo = () => onGuardar(diaps, titulo.trim() || tituloInicial || "Diapositivas");
+  useCerrarConAtras(true, cerrar); // atrás = Cancelar (con la pregunta si hay cambios sin guardar)
 
   // ---- Teclado (en fase de captura: mientras el editor está abierto, las flechas no cambian la
   // diapositiva al aire de la consola de atrás) ----

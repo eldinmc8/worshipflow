@@ -7,6 +7,7 @@ import { guardarCancionDesdeEditor } from "../lib/canciones.js";
 import { subirAdjunto } from "../lib/adjuntosCancion.js";
 import { parseChordLine, buildChordRow } from "../lib/musicTheory.js";
 
+import { useCerrarConAtras } from "../lib/atras.js";
 // Importar canciones desde PDF (pedido de Eldin, 2026-10-17). Se eligen uno o varios PDF (un PDF por
 // canción o un cancionero con muchas); la app los lee, separa las canciones, pega cada acorde en su
 // sílaba y arma partes y diapositivas. Antes de guardar se revisa todo: título, autor, tono, y la
@@ -14,6 +15,7 @@ import { parseChordLine, buildChordRow } from "../lib/musicTheory.js";
 const normalizar = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 
 export default function ImportarCancionesPdf({ library = [], clasificaciones = [], iglesiaId, userId, onCerrar, onImportadas }) {
+  useCerrarConAtras(true, onCerrar); // atrás del teléfono cierra esta ventana (ver lib/atras.js)
   const inputRef = useRef(null);
   const [archivos, setArchivos] = useState([]); // [{ id, file, estado, error, canciones: [...] }]
   const [categoria, setCategoria] = useState(clasificaciones[0]?.clave || "corito");

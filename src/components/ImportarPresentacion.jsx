@@ -5,12 +5,14 @@ import { ACEPTA, tipoDeArchivo, paginasDePdf, imagenNormalizada, textoDeArchivo,
 import { subirPaginaPresentacion } from "../lib/multimedia.js";
 import { useArrastreGrid } from "../lib/arrastreGrid.js";
 
+import { useCerrarConAtras } from "../lib/atras.js";
 // Ventana para importar una presentación al orden del culto (ver lib/importarPresentacion.js):
 // 1) elegir el archivo (o arrastrarlo encima), 2) revisar — páginas en miniatura para quitar o
 // reordenar arrastrando, o el texto ya separado en diapositivas para corregir, unir o quitar —,
 // 3) "Agregar al culto": las páginas se suben al almacenamiento de la iglesia y todo entra al Setlist.
 // onImportar(items) recibe los elementos listos para el orden del culto; `destino` dice dónde entran.
 export default function ImportarPresentacion({ iglesiaId, destino, onImportar, onClose }) {
+  useCerrarConAtras(true, onClose); // atrás del teléfono cierra esta ventana (ver lib/atras.js)
   const [fase, setFase] = useState("elegir"); // elegir | procesando | revisar | subiendo
   const [nombre, setNombre] = useState("");
   const [paginas, setPaginas] = useState([]); // [{ id, blob, vista }]

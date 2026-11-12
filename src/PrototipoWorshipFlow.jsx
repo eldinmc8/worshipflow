@@ -48,6 +48,7 @@ import { EventList, EventDetail, puedeVerDiapositivasEvento } from "./pantallas/
 import { BibleBrowserBody } from "./pantallas/biblia.jsx";
 import { MultimediaControl } from "./pantallas/envivo.jsx";
 import { ProjectionPanel } from "./pantallas/proyeccion.jsx";
+import { esPopPropio, cuandoListo, useBloquearAtras } from "./lib/atras.js";
 export { ProjectionPanel } from "./pantallas/proyeccion.jsx";
 
 // El editor de diapositivas (solo escritorio) se descarga recién la primera vez que se abre.
@@ -1739,6 +1740,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // Mientras esta computadora transmite (o practica), una versión nueva de la app NO la recarga: antes
   // la consola volvía sola a la primera diapositiva en pleno culto. Se aplica al terminar (lib/swUpdate.js).
   useEffect(() => { pausarActualizacion(transmitiendoAqui || enPractica); }, [transmitiendoAqui, enPractica]);
+  // En la consola, mientras ESTE equipo transmite, atrás nunca la cierra (pedido de Eldin, 2026-11-12):
+  // primero cierra lo que esté abierto encima, y si no hay nada, avisa cómo salir. Ver lib/atras.js.
+  useBloquearAtras(tab === "envivo" && transmitiendoAqui, () => showToast("Estás transmitiendo en vivo. Para salir de la consola, toca otra pestaña.", "info"));
   const hayEnVivo = !!liveEventId || liveLibre;
   useEffect(() => {
     if (!transmitiendoAqui) return undefined;
@@ -1918,6 +1922,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const songAutoSaveToastTimeoutRef = useRef(null);
   useEffect(() => {
     const onPopState = (e) => {
+      if (esPopPropio()) return; // lo resolvió una ventana abierta (ver lib/atras.js)
       if (!e.state || e.state.screen !== "app-nav") return;
       const editingSongNow = tabRef.current === "canciones" && openSongRef.current?.mode === "edit";
       if (editingSongNow && songEditDirtyRef.current) {
@@ -1973,15 +1978,12 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     const prev = prevNavRef.current;
     const next = { screen: "app-nav", tab, selectedEventId, openSong, selectedMinistryId };
     if (isRootState(next)) {
-      // Cambiar de pestaña SIN entrar a nada (Eventos → Canciones → Ajustes, todas en su lista raíz) no
-      // debe apilarse: si no, "atrás" te haría retroceder pestaña por pestaña en vez de ir a Inicio de
-      // un solo golpe. Solo la primera vez que nos movemos de Inicio hacia otra pestaña se apila (para
-      // dejar Inicio como piso); de ahí en adelante, moverse entre raíces de pestañas reemplaza.
-      if (tab !== "inicio" && isAtHomeRootRef.current) {
-        history.pushState(next, "");
-      } else {
-        history.replaceState(next, "");
-      }
+      // Cambiar de pestaña SIN entrar a nada: antes se reemplazaba (con Inicio como piso), así que
+      // "atrás" desde cualquier pestaña — la consola incluida — saltaba directo a Inicio. Pedido de Eldin
+      // (2026-11-12): atrás regresa a la pantalla donde estabas antes. Cada cambio de pestaña se apila;
+      // volver a la misma pestaña (o salir de algo abierto a la raíz de la misma) reemplaza.
+      const mismaPestana = prev.tab === tab;
+      cuandoListo(() => (mismaPestana ? history.replaceState(next, "") : history.pushState(next, "")));
       isAtHomeRootRef.current = tab === "inicio";
     } else {
       // Moverse de UNA canción abierta a OTRA sin cambiar de evento/pestaña/ministerio (deslizar o
@@ -1993,11 +1995,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       // deslizar lateral y REEMPLAZABA la entrada de "ver" en vez de apilar un paso real, así que "atrás"
       // desde el editor se saltaba la vista de solo lectura en vez de volver a ella.
       const isLateralSongSwap = !!prev.openSong && !!openSong && prev.openSong.mode === openSong.mode && prev.tab === tab && prev.selectedEventId === selectedEventId && prev.selectedMinistryId === selectedMinistryId;
-      if (isLateralSongSwap) {
-        history.replaceState(next, "");
-      } else {
-        history.pushState(next, "");
-      }
+      cuandoListo(() => (isLateralSongSwap ? history.replaceState(next, "") : history.pushState(next, "")));
       isAtHomeRootRef.current = false;
     }
     prevNavRef.current = next;

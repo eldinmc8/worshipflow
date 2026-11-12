@@ -8,6 +8,7 @@ import RelojCuentaRegresiva, { ESTILOS_CUENTA } from "./RelojCuentaRegresiva.jsx
 import { normalizarCuenta, horaDelEvento, MINUTOS_RAPIDOS, AL_TERMINAR } from "../lib/cuentaRegresiva.js";
 import { inputStyle, primaryBtn, iconGhost } from "../pantallas/compartido.jsx";
 
+import { useCerrarConAtras } from "../lib/atras.js";
 const MORADO = "#5661B3";
 
 function Titulo({ children }) {
@@ -26,6 +27,7 @@ function Pastilla({ activo, onClick, children, title }) {
 // inicial: configuración guardada (o nada para una nueva). evento: para mostrar la hora del culto.
 // enConsola: el botón dice "Proyectar ahora" en vez de "Agregar al Setlist"/"Guardar".
 export default function CuentaRegresivaModal({ inicial = null, evento = null, enConsola = false, editando = false, onClose, onGuardar }) {
+  useCerrarConAtras(true, onClose); // atrás del teléfono cierra esta ventana (ver lib/atras.js)
   const [c, setC] = useState(() => normalizarCuenta(inicial));
   const set = (patch) => setC((x) => ({ ...x, ...patch }));
   const horaCulto = horaDelEvento(evento);

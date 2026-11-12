@@ -7,6 +7,7 @@ import { validarPassword } from "./lib/passwordSegura.js";
 import RolesAdmin from "./RolesAdmin.jsx";
 import { ordenarPor } from "./lib/orden.js";
 
+import { esPopPropio, cuandoListo } from "./lib/atras.js";
 const ROLES = [
   { value: "admin", label: "Administrador" },
   { value: "multimedia", label: "Multimedia" },
@@ -278,6 +279,7 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
   // botón/gesto "atrás" regresa a la lista de Usuarios en vez de salir de la app de un salto.
   useEffect(() => {
     const onPopState = (e) => {
+      if (esPopPropio()) return; // lo resolvió una ventana abierta (ver lib/atras.js)
       if (!["usuarios-profile", "usuarios-root", "usuarios-roles"].includes(e.state?.screen)) return;
       setSelectedUserId(e.state.screen === "usuarios-profile" ? e.state.selectedUserId : null);
       setVerRoles(e.state.screen === "usuarios-roles");
@@ -287,11 +289,11 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
   const abrirRoles = () => {
-    window.history.pushState({ screen: "usuarios-roles" }, "");
+    cuandoListo(() => window.history.pushState({ screen: "usuarios-roles" }, ""));
     setVerRoles(true);
   };
   const openUserProfile = (id) => {
-    window.history.pushState({ screen: "usuarios-profile", selectedUserId: id }, "");
+    cuandoListo(() => window.history.pushState({ screen: "usuarios-profile", selectedUserId: id }, ""));
     setSelectedUserId(id);
   };
 
