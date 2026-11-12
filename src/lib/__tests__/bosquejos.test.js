@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../supabaseClient.js", () => ({ supabase: {} }));
+import { expandirVersiculosLargos, palabrasPorParteSegun } from "../dividirTexto.js";
 const { esBloquePredicacion, bosquejoAItems, aplicarBosquejoAlOrden, bosquejoListoParaEnviar, bosquejoTieneCambiosSinEnviar, versiculosSueltos, completarVersosBosquejo, subtituloProyectable } = await import("../bosquejos.js");
 
 const contador = () => { let n = 0; return () => `n${++n}`; };
@@ -111,6 +112,24 @@ describe("pasajes del bosquejo: un versículo por diapositiva (como la Biblia)",
     expect(subtituloProyectable({ bosquejoDe: "B1", subtitle: "Conclusión 2" })).toBe("");
     expect(subtituloProyectable({ bosquejoDe: "B1", subtitle: "Juan 3:16" })).toBe("Juan 3:16");
     expect(subtituloProyectable({ subtitle: "Punto 2" })).toBe("Punto 2"); // una diapositiva normal, no del bosquejo
+  });
+});
+
+describe("bosquejo en vivo: mismo criterio que la Biblia para versículos largos", () => {
+  // Igual que buildSlides (PrototipoWorshipFlow.jsx) y la consola: los versículos del bosquejo pasan por
+  // el mismo expandirVersiculosLargos que cualquier versículo del Setlist, con el ajuste de la iglesia.
+  const largo = Array.from({ length: 60 }, (_, k) => `palabra${k}`).join(" ");
+  const pasaje = { ...juan8, versos: [{ verse: 1, text: "Corto." }, { verse: 2, text: largo }] };
+  const enVivo = (dividir) => expandirVersiculosLargos(
+    bosquejoAItems({ titulo: "T", puntos: [{ id: "p", titulo: "", versiculos: [pasaje] }] }, "B1", contador())
+      .filter((it) => it.type === "biblia").map((it) => ({ slideId: it.id, type: "biblia", reference: it.reference, text: it.text })),
+    palabrasPorParteSegun(1, dividir),
+  ).map((s) => s.reference);
+  it("con 'Dividir versículos largos' encendido, un versículo largo del bosquejo sale en partes", () => {
+    expect(enVivo(true)).toEqual(["Juan 8:1", "Juan 8:2 (1/2)", "Juan 8:2 (2/2)"]);
+  });
+  it("apagado, cada versículo completo en su diapositiva", () => {
+    expect(enVivo(false)).toEqual(["Juan 8:1", "Juan 8:2"]);
   });
 });
 
