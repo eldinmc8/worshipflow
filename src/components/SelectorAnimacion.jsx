@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, Copy, Globe2, Lock } from "lucide-react";
-import { usePlan, estilosAvanzados, tiene, abrirPlanes } from "../lib/planes.js";
+import { usePlan, estilosAvanzados, tiene, abrirPlanes, ANIMACIONES_BASICAS } from "../lib/planes.js";
 import { ANIMACIONES, GRUPOS_ANIMACION, animacionActiva, definicionDeReceta, MiniaturaAnimada, precargarFuentesAnimacion, VELOCIDADES_LETRA, velocidadLetra, FONDOS_DISPONIBLES, muestraFondo, fondoEnMovimiento, PREFIJO_MOVIMIENTO } from "./LetrasAnimadas.jsx";
 import EditorAnimacion from "./EditorAnimacion.jsx";
 import { listarAnimaciones, guardarAnimacion, borrarAnimacion } from "../lib/animacionesIglesia.js";
@@ -10,7 +10,9 @@ import { showToast } from "../lib/toast.js";
 // Menú de "Letra animada" (panel de Estilo): estilos de fábrica, los de la iglesia ("De mi iglesia",
 // creados en EditorAnimacion) y la galería de animaciones que otras iglesias compartieron.
 // Al pasar el cursor por una tarjeta se ve la animación en vivo (como las miniaturas de YouTube).
-function SelectorAnimacionInterno({ liveStyle, setLiveStyle, columnas = 3, iglesiaId, iglesiaNombre, usuarioId }) {
+// soloBasicas (plan Gratis, 2026-11-13): solo las 5 animaciones básicas de fábrica, sin "De mi iglesia" ni galería,
+// y una tarjeta con candado que abre los planes.
+function SelectorAnimacionInterno({ liveStyle, setLiveStyle, columnas = 3, iglesiaId, iglesiaNombre, usuarioId, soloBasicas = false }) {
   const actual = animacionActiva(liveStyle);
   const fondoPropio = liveStyle?.animFondo === "propio";
   const [enVista, setEnVista] = useState(null);
@@ -24,9 +26,9 @@ function SelectorAnimacionInterno({ liveStyle, setLiveStyle, columnas = 3, igles
 
   useEffect(() => { precargarFuentesAnimacion(); }, []);
   const recargar = useCallback(async () => {
-    if (!iglesiaId) { setLista(null); return; }
+    if (!iglesiaId || soloBasicas) { setLista(null); return; }
     try { setLista(await listarAnimaciones(iglesiaId)); } catch { setLista(null); }
-  }, [iglesiaId]);
+  }, [iglesiaId, soloBasicas]);
   useEffect(() => { recargar(); }, [recargar]);
 
   const usarPropia = (fila) => setLiveStyle((s) => ({ ...s, animacion: `mia:${fila.id}`, animReceta: fila.receta, animNombre: fila.nombre }));
@@ -127,7 +129,7 @@ function SelectorAnimacionInterno({ liveStyle, setLiveStyle, columnas = 3, igles
           {lista === undefined && <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Cargando…</div>}
         </div>
       )}
-      {lista === null && (
+      {lista === null && !soloBasicas && (
         <div style={{ fontSize: 11, color: "var(--wf-muted)", lineHeight: 1.45, background: "var(--wf-hover)", borderRadius: 10, padding: "8px 10px" }}>
           Crear animaciones propias se activa con una actualización de la base de datos que todavía falta aplicar.
         </div>
@@ -152,8 +154,31 @@ function SelectorAnimacionInterno({ liveStyle, setLiveStyle, columnas = 3, igles
         </div>
       )}
 
+      {/* Plan Gratis: las 5 básicas y el candado al resto */}
+      {soloBasicas && (
+        <div>
+          {tituloGrupo("Básicas")}
+          {grid(<>
+            {ANIMACIONES_BASICAS.filter((k) => ANIMACIONES[k]).map((k) => {
+              const a = ANIMACIONES[k];
+              return (
+                <button type="button" key={k} onClick={() => setLiveStyle((s) => ({ ...s, animacion: k }))} title={a.desc} style={tarjeta(actual === k)} {...eventosVista(k)}>
+                  {miniatura(k, a)}
+                  {pie(a.nombre, a.desc)}
+                </button>
+              );
+            })}
+            <button type="button" onClick={abrirPlanes} style={{ ...tarjeta(false), alignItems: "center", justifyContent: "center", minHeight: 96, borderStyle: "dashed", color: "#B15EA0", gap: 6 }}>
+              <Lock size={18} />
+              <span style={{ fontSize: 12, fontWeight: 700, textAlign: "center" }}>{Object.keys(ANIMACIONES).length - ANIMACIONES_BASICAS.length} estilos más</span>
+              <span style={{ fontSize: 10.5, color: "var(--wf-muted)", textAlign: "center" }}>Plan Ministerio</span>
+            </button>
+          </>)}
+        </div>
+      )}
+
       {/* De fábrica, por categoría */}
-      <div role="tablist" aria-label="Categorías de letra animada" style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+      {!soloBasicas && <div role="tablist" aria-label="Categorías de letra animada" style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
         {GRUPOS_ANIMACION.map((g) => {
           const n = Object.values(ANIMACIONES).filter((a) => a.grupo === g).length;
           const on = grupo === g;
@@ -164,8 +189,8 @@ function SelectorAnimacionInterno({ liveStyle, setLiveStyle, columnas = 3, igles
             </button>
           );
         })}
-      </div>
-      {[grupo].map((g) => (
+      </div>}
+      {!soloBasicas && [grupo].map((g) => (
         <div key={g}>
           {tituloGrupo(g)}
           {grid(Object.entries(ANIMACIONES).filter(([, a]) => a.grupo === g).map(([k, a]) => (
@@ -273,7 +298,7 @@ function CandadoEstilo({ texto }) {
   );
 }
 export function SelectorAnimacion(props) {
-  return estilosAvanzados(usePlan()) ? <SelectorAnimacionInterno {...props} /> : <CandadoEstilo texto="Letras animadas" />;
+  return <SelectorAnimacionInterno {...props} soloBasicas={!estilosAvanzados(usePlan())} />;
 }
 export function SelectorFondoMovimiento(props) {
   return estilosAvanzados(usePlan()) ? <SelectorFondoMovimientoInterno {...props} /> : <CandadoEstilo texto="Fondos en movimiento" />;
