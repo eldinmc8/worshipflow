@@ -12,7 +12,7 @@ import ConectarTv from './ConectarTv.jsx'
 import { leerPantallaDeUrl, leerEscenarioDeUrl } from './lib/enlacePantalla.js'
 import CrearIglesia from './CrearIglesia.jsx'
 import SitioWeb, { esRutaSitioWeb } from './SitioWeb.jsx'
-import { mostrarPortada, haySesionGuardada } from './lib/portada.js'
+import { mostrarPortada } from './lib/portada.js'
 import { manifestDePantalla } from './lib/manifestPantalla.js'
 import ToastHost from './ToastHost.jsx'
 import ConfirmDialogHost from './ConfirmDialogHost.jsx'
@@ -37,10 +37,10 @@ const isConectarTv = /^\/tv\/?$/.test(window.location.pathname)
 // hacia ella desde el resto de la app (ver CrearIglesia.jsx para el porqué).
 const isCrearIglesia = new URLSearchParams(window.location.search).has('crear-iglesia')
 // Página web pública (inicio, precios, términos, privacidad, reembolsos): /web/... — ver SitioWeb.jsx.
-// En worshipflowapp.com, "/" sin sesión también muestra la página web (ver lib/portada.js).
+// En worshipflowapp.com, "/" siempre muestra la página web; la app vive en app.worshipflowapp.com (ver lib/portada.js).
 const isSitioWeb = esRutaSitioWeb(window.location.pathname) || mostrarPortada({
   hostname: window.location.hostname, pathname: window.location.pathname, search: window.location.search,
-  hash: window.location.hash, haySesion: haySesionGuardada(),
+  hash: window.location.hash,
 })
 if (isPublicScreen || isEscenario || isConectarTv) {
   // Una pantalla de proyección/escenario nunca se recarga sola por una versión nueva (perdería la
