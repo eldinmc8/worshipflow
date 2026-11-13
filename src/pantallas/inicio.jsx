@@ -1,7 +1,7 @@
 // Inicio: lo que le toca a cada quien esta semana, estadísticas y accesos rápidos. Separada de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { parseIsoDateLocal, isUpcoming, compareByDay, todayLocal, buildMonthWeeks, MONTH_NAMES_FULL, DOW_LABELS } from "../lib/dates.js";
 import { useState, useMemo } from "react";
-import { Bell, ChevronUp, ChevronDown, ChevronRight, Music, Users, Calendar, X, ChevronLeft, Heart, Radio } from "lucide-react";
+import { Bell, ChevronUp, ChevronDown, ChevronRight, Music, Users, Calendar, X, ChevronLeft, Heart, Radio, Smartphone } from "lucide-react";
 import { misProximosServicios, cancionesParaEnsayar, companeros, indicaciones, necesitaAtencion, estaSemana, cuandoEs } from "../lib/inicio.js";
 import { acordeEn } from "../lib/preferencias.js";
 import { EVENTO_LIBRE, textoEnsayo, quienDirigeAlabanza, iconGhost, ghostToggleBtn, DEFAULT_COVERS, ModalShell } from "./compartido.jsx";
@@ -128,7 +128,7 @@ function Iniciales({ nombre, fondo = "var(--wf-hover)", color = "var(--wf-text)"
   return <span style={{ width: 36, height: 36, borderRadius: 18, background: fondo, color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{ini}</span>;
 }
 
-export function InicioView({ events, library, ministries = [], myUserId, myName, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact, canSeeCanciones, teamName, avisoPush, onActivarPush, onOcultarPush, puedeVerPendientes }) {
+export function InicioView({ events, library, ministries = [], myUserId, myName, favoritesCount, memberCount, liveEventId, liveLibre, onSelectEvent, onGoLive, onGoToTeam, onOpenSong, isCompact, canSeeCanciones, teamName, avisoPush, onActivarPush, onOcultarPush, puedeVerPendientes, onControlRemoto = null }) {
   const liveEvent = liveLibre ? EVENTO_LIBRE : events.find((e) => e.id === liveEventId);
   const [showFavorites, setShowFavorites] = useState(false);
   const [verMes, setVerMes] = useState(false);
@@ -437,6 +437,13 @@ export function InicioView({ events, library, ministries = [], myUserId, myName,
             <span style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, background: "#fff", color: "var(--wf-brand-primary, #16324F)", borderRadius: 14, padding: "8px 12px", fontSize: 12.5, fontWeight: 700, flexShrink: 0 }}>
               {isCompact ? "Ver" : "Ver evento"} <ChevronRight size={14} />
             </span>
+          </button>
+        )}
+        {/* Control remoto (2026-11-13): quien controla el en vivo mueve las diapositivas desde su celular. */}
+        {liveEvent && onControlRemoto && (
+          <button onClick={onControlRemoto} aria-label="Controlar las diapositivas desde este teléfono"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", border: "none", cursor: "pointer", borderRadius: 16, padding: "12px 14px", marginTop: -6, marginBottom: 16, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", fontSize: 14, fontWeight: 700, fontFamily: "inherit" }}>
+            <Smartphone size={17} /> Controlar diapositivas desde aquí
           </button>
         )}
 

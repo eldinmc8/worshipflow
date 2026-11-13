@@ -451,7 +451,7 @@ export default function BosquejoWizard({ inicial, tituloBloque, tituloEvento, bl
       </div>
       {predicando && (
         <ModoPredicar bosquejo={b} serviceOrder={vivo?.serviceOrder || []} bloqueId={vivo?.bloqueId} enVivo={!!vivo?.enVivo}
-          slideAlAire={vivo?.slideAlAire || null} onClose={() => setPredicando(false)} />
+          slideAlAire={vivo?.slideAlAire || null} control={vivo?.control || null} onClose={() => setPredicando(false)} />
       )}
     </div>,
     document.body
