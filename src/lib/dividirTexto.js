@@ -105,17 +105,39 @@ export function expandirVersiculosLargos(slides, palabrasPorParte = 40) {
 // Se calcula al proyectar: la canción guardada no cambia, así que cambiar el ajuste no obliga a rehacer
 // ninguna canción. Cada diapositiva nueva recuerda la original (baseLines) para que "Corregir letra"
 // en vivo siga editando la diapositiva guardada completa, nunca solo un pedazo.
+// Dos opciones (pedido de Eldin, 2026-11-12: simplificar). "una_linea" (1 línea en 1 renglón) ya no se
+// ofrece —ninguna iglesia la usaba—, pero reorganizarLetra la sigue entendiendo por si quedó guardada.
 export const FORMATOS_LETRA = [
-  { value: "dos_lineas", label: "2 líneas por diapositiva", ayuda: "Para pantallas grandes o proyectores." },
-  { value: "una_linea_dos_renglones", label: "2 renglones cortos", ayuda: "Para pantallas chicas o TVs: líneas cortas juntas, las largas partidas en dos. Letra mucho más grande." },
-  { value: "una_linea", label: "1 línea en 1 renglón", ayuda: "Lo más simple, sin contraste entre renglones." },
+  { value: "dos_lineas", label: "Pantalla grande o proyector", ayuda: "La letra sale como está escrita en cada canción." },
+  { value: "una_linea_dos_renglones", label: "Pantalla chica o TV", ayuda: "Dos renglones cortos por diapositiva, con la letra mucho más grande." },
 ];
 
 // Hasta cuántas letras cabe cómodo un renglón grande en una pantalla chica.
 export const MAX_RENGLON = 30;
 
+// Línea pegada sin saltos (caso real, IGLESIA DE CRISTO, 2026-11-12): una estrofa copiada y pegada como
+// UN solo renglón de 105 letras. En pantalla grande cada línea va completa en su renglón, así que la
+// letra se achicaba hasta casi no leerse, mientras la diapositiva de al lado salía grande. Una línea
+// así de larga se reparte en renglones parejos (solo al proyectar; la canción guardada no cambia).
+export const MAX_LINEA_GRANDE = 64;
+const RENGLON_GRANDE = 56;
+function partirLineasLargas(slides) {
+  const lista = slides || [];
+  const larga = (s) => s && s.type === "cancion" && Array.isArray(s.lines) && s.lines.some((l) => l && l.trim().length > MAX_LINEA_GRANDE);
+  if (!lista.some(larga)) return lista; // lo normal: nada que tocar
+  return lista.map((s) => {
+    if (!s || s.type !== "cancion" || !Array.isArray(s.lines)) return s;
+    if (!s.lines.some((l) => l && l.trim().length > MAX_LINEA_GRANDE)) return s;
+    const lines = s.lines.flatMap((l) => {
+      const t = String(l || "").replace(/\s+/g, " ").trim();
+      return t.length > MAX_LINEA_GRANDE ? partirEn(t, Math.ceil(t.length / RENGLON_GRANDE)) : [l];
+    });
+    return { ...s, lines, baseLines: s.baseLines || s.lines };
+  });
+}
+
 export function reorganizarLetra(slides, formato) {
-  if (!formato || formato === "dos_lineas") return slides || [];
+  if (!formato || formato === "dos_lineas") return partirLineasLargas(slides);
   const out = [];
   const lista = slides || [];
   let i = 0;
