@@ -50,6 +50,8 @@ import { BibleBrowserBody } from "./pantallas/biblia.jsx";
 import { MultimediaControl } from "./pantallas/envivo.jsx";
 import { ProjectionPanel } from "./pantallas/proyeccion.jsx";
 import { esPopPropio, cuandoListo, useBloquearAtras } from "./lib/atras.js";
+import { suscribirComandos, resolverComando, TEXTO_ACCION } from "./lib/controlRemoto.js";
+import ControlRemoto from "./components/ControlRemoto.jsx";
 export { ProjectionPanel } from "./pantallas/proyeccion.jsx";
 
 // El editor de diapositivas (solo escritorio) se descarga recién la primera vez que se abre.
@@ -444,6 +446,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // Lo que Multimedia tiene al aire ahora (slide_actual de la sesión en vivo) — lo usa el Modo predicar
   // del bosquejo para seguir solo al predicador por su bosquejo cuando no hay pantalla de escenario.
   const [slideAlAireRemoto, setSlideAlAireRemoto] = useState(null);
+  const [negroRemoto, setNegroRemoto] = useState(false); // pantalla en negro, según la sesión en vivo (para el control remoto)
   // Código secreto de las pantallas sin sesión (enlace que vence, 2026-11-02): va en el enlace/QR y en el
   // nombre del canal por el que la consola les manda lo que está al aire. La base lo cambia sola al
   // finalizar la transmisión, así que se vuelve a pedir al empezar y al terminar.
@@ -1715,6 +1718,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         }
         setLiveEventId(fila?.evento_id || null); setLiveOwnerId(fila?.liderado_por || null); setLiveLibre(!!fila?.libre);
         setSlideAlAireRemoto(fila?.slide_actual || null);
+        setNegroRemoto(!!fila?.blanked);
         adoptarEstiloGuardado(fila?.estilo_en_vivo);
       })
       .catch(() => {});
@@ -1723,6 +1727,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       setLiveOwnerId(fila.liderado_por || null);
       setLiveLibre(!!fila.libre);
       setSlideAlAireRemoto(fila.slide_actual || null);
+      setNegroRemoto(!!fila.blanked);
       // Solo si lo cambió OTRO dispositivo: quien transmite ya tiene su estilo, y adoptar su propio eco
       // volvería a disparar el envío de la sesión.
       if (fila.liderado_por !== userIdRef.current) adoptarEstiloGuardado(fila.estilo_en_vivo);
@@ -1745,6 +1750,42 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // En la consola, mientras ESTE equipo transmite, atrás nunca la cierra (pedido de Eldin, 2026-11-12):
   // primero cierra lo que esté abierto encima, y si no hay nada, avisa cómo salir. Ver lib/atras.js.
   useBloquearAtras(tab === "envivo" && transmitiendoAqui, () => showToast("Estás transmitiendo en vivo. Para salir de la consola, toca otra pestaña.", "info"));
+
+  // ---- Control remoto (pedido de Eldin, 2026-11-13; ver lib/controlRemoto.js) ----
+  // La computadora que lleva la transmisión escucha las órdenes del celular (Multimedia o el predicador)
+  // y las ejecuta igual que su teclado: avanzar usa el mismo "avanzar" de la consola (pasos al clic,
+  // partes de versículos) a través de avanceRemotoRef. Nunca inicia ni termina la transmisión.
+  const avanceRemotoRef = useRef(null);
+  const ctxRemotoRef = useRef(null);
+  ctxRemotoRef.current = { slides, activeIdx, adHoc, fijada, serviceOrder: liveEvent?.serviceOrder || [], goto, gotoPlanSlide, navIdx: adHoc ? adHocIdx : activeIdx, usuarios: usuariosReales };
+  const [avisoRemoto, setAvisoRemoto] = useState(null); // { nombre, accion, predicador, at }
+  useEffect(() => {
+    if (!llevoLaTransmision || !myIglesiaId) return undefined;
+    return suscribirComandos(myIglesiaId, (cmd) => {
+      const c = ctxRemotoRef.current;
+      const r = resolverComando(cmd, c);
+      if (r.tipo === "ignorar") return;
+      if (r.tipo === "negro") setBlanked((b) => !b);
+      else if (r.tipo === "ir") { setFijada(null); c.gotoPlanSlide(r.indice); }
+      else {
+        if (r.soltar) setFijada(null);
+        if (avanceRemotoRef.current) avanceRemotoRef.current(r.dir, { soloPasos: !!r.soloPasos });
+        else if (!r.soloPasos) c.goto(c.navIdx + r.dir);
+      }
+      setAvisoRemoto({ nombre: c.usuarios.find((u) => u.id === cmd.usuario_id)?.nombre || "Alguien", accion: cmd.accion, predicador: !!cmd.bloque_id, at: Date.now() });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [llevoLaTransmision, myIglesiaId]);
+  useEffect(() => {
+    if (!avisoRemoto) return undefined;
+    const t = setTimeout(() => setAvisoRemoto(null), 5000);
+    return () => clearTimeout(t);
+  }, [avisoRemoto]);
+  // ¿Quién puede usar el control remoto desde su celular? Multimedia/Administrador (o un rol con permiso de
+  // en vivo), cuando hay algo en vivo que lleva OTRO dispositivo.
+  const [controlRemotoAbierto, setControlRemotoAbierto] = useState(false);
+  const puedeControlRemoto = canControlLive && !!(liveEventId || liveLibre) && !llevoLaTransmision && !practica;
+  useEffect(() => { if (!puedeControlRemoto) setControlRemotoAbierto(false); }, [puedeControlRemoto]);
   const hayEnVivo = !!liveEventId || liveLibre;
   useEffect(() => {
     if (!transmitiendoAqui) return undefined;
@@ -2356,7 +2397,16 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       {!["envivo", "proyeccion"].includes(tab) && (
       <div style={{ width: "100%", maxWidth: 1100, margin: "0 auto", flex: tab === "inicio" ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column" }}>
       {tab === "inicio" && (
-        <InicioView events={realEvents} library={library} ministries={ministries} myUserId={myUserId} myName={myName} puedeVerPendientes={puedeEditarSetlist} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} canSeeCanciones={canSeeCanciones} teamName={myIglesia.nombre} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} avisoPush={avisoPush} onActivarPush={activarPushDesdeAviso} onOcultarPush={ocultarAvisoPush} />
+        <InicioView events={realEvents} library={library} ministries={ministries} myUserId={myUserId} myName={myName} puedeVerPendientes={puedeEditarSetlist} favoritesCount={favoritesCount} memberCount={usuariosReales.length} liveEventId={liveEventId} liveLibre={liveLibre} isCompact={isCompact} canSeeCanciones={canSeeCanciones} teamName={myIglesia.nombre} onSelectEvent={goToEvent} onGoLive={() => setTab("envivo")} onGoToTeam={realIsAdmin && onGoToUsuarios ? onGoToUsuarios : () => setTab("ajustes")} onOpenSong={(id) => { setTab("canciones"); setOpenSong({ id, mode: "view" }); }} avisoPush={avisoPush} onActivarPush={activarPushDesdeAviso} onOcultarPush={ocultarAvisoPush} onControlRemoto={puedeControlRemoto ? () => setControlRemotoAbierto(true) : null} />
+      )}
+      {controlRemotoAbierto && puedeControlRemoto && (
+        <ControlRemoto evento={liveEvent} slideAlAire={slideAlAireRemoto} negro={negroRemoto} library={library} onCerrar={() => setControlRemotoAbierto(false)} />
+      )}
+      {/* En la computadora que transmite: quién movió las diapositivas desde su celular. */}
+      {avisoRemoto && llevoLaTransmision && (
+        <div role="status" style={{ position: "fixed", right: 16, bottom: 16, zIndex: 9500, background: "#16324F", color: "#fff", borderRadius: 14, padding: "10px 14px", fontSize: 13, fontWeight: 600, boxShadow: "0 8px 24px rgba(0,0,0,0.25)", display: "flex", alignItems: "center", gap: 8 }}>
+          <span aria-hidden>📱</span> {avisoRemoto.nombre}{avisoRemoto.predicador ? " (predicador)" : ""} · {TEXTO_ACCION[avisoRemoto.accion]}
+        </div>
       )}
 
       {tab === "ajustes" && (
@@ -2517,7 +2567,14 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           tituloBloque={bloqueBosquejo.title} tituloEvento={selectedEvent.title}
           bloqueado={bosquejoBloqueado} soloLectura={bosquejoSoloLectura}
           onEliminar={puedeEliminarBosquejo(bloqueBosquejo) ? borrarBosquejo : null}
-          vivo={{ serviceOrder: selectedEvent.serviceOrder || [], bloqueId: bloqueBosquejo.id, enVivo: liveEventId === selectedEvent.id, slideAlAire: slideAlAireRemoto }}
+          vivo={{
+            serviceOrder: selectedEvent.serviceOrder || [], bloqueId: bloqueBosquejo.id, enVivo: liveEventId === selectedEvent.id, slideAlAire: slideAlAireRemoto,
+            // Control remoto desde el Modo Predicar: el predicador asignado manda con su bloque (la base solo
+            // le deja avanzar/retroceder); Multimedia, sin bloque. Quien lleva la transmisión no lo necesita.
+            control: liveEventId === selectedEvent.id && !llevoLaTransmision
+              ? ((bloqueBosquejo.encargados || []).some((m) => m.usuarioId === userId) ? { bloqueId: bloqueBosquejo.id } : canControlLive ? { bloqueId: null } : null)
+              : null,
+          }}
           onGuardar={guardarBorradorBosquejo} onEnviar={enviarBosquejo}
           onClose={() => setBosquejoAbierto(null)}
           BibliaSelector={BibleBrowserBody}
@@ -2596,7 +2653,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         <div style={{ width: "100%", flex: 1, minHeight: 0, display: "flex" }}>
           <MultimediaControl
             key={liveEvent.id || "libre"} eventoId={liveEvent.id || null}
-            myIglesiaId={myIglesiaId} palabrasPorParte={palabrasPorParte} iglesiaNombre={myIglesia.nombre} usuarioId={userId}
+            myIglesiaId={myIglesiaId} palabrasPorParte={palabrasPorParte} iglesiaNombre={myIglesia.nombre} usuarioId={userId} avanceRemotoRef={avanceRemotoRef}
             pasoDiseno={pasoDiseno} setPasoDiseno={setPasoDiseno}
             eventTitle={liveEvent.title} serviceOrder={liveEvent.serviceOrder || []} isFreeSession={liveLibre} library={library} slides={slides} activeIdx={activeIdx} adHocIdx={adHocIdx}
             goto={goto} gotoPlanSlide={gotoPlanSlide} blanked={blanked} setBlanked={setBlanked} current={current} next={next}

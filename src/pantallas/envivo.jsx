@@ -174,7 +174,7 @@ export function ControlesVideo({ control, estado, onAccion, url = "" }) {
 
 // ---------------- CONTROL MULTIMEDIA (EN VIVO) ----------------
 
-export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle: estiloCompleto, setLiveStyle: setEstiloCompleto, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onStartAdHocCuenta = null, onReiniciarCuenta = null, eventoInfo = null, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {}, onEditarLetraCompleta, mensajeEscenario = "", onMensajeEscenario = null, iglesiaSlug = null, temporizador = null, onTemporizador = null, autoTemporizador = null, onAutoTemporizador = null, controlVideo = null, estadoVideo = null, onControlVideo = null }) {
+export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession, library, slides, activeIdx, adHocIdx, goto, gotoPlanSlide, blanked, setBlanked, current, next, onEnd, canEnd, liveOwner, liveStyle: estiloCompleto, setLiveStyle: setEstiloCompleto, isCompact, adHoc, onExitAdHoc, onStartAdHocBible, onStartAdHocSong, onStartAdHocVideo, onStartAdHocCuenta = null, onReiniciarCuenta = null, eventoInfo = null, onOpenPublicScreen, onNavigateBibleVerse, onAddLiveSlide, onEditLiveSlide, onRemoveLiveSlide, onEditSongSlide, onAddSongSlide, onRearmarSeccion, onAgregarCancion, onReordenarOrden, onQuitarDelOrden, onInsertarItems, myIglesiaId , palabrasPorParte = 40, onAbrirEditor, onDisenarNueva, onMoverDiapositiva, onQuitarDiapositivaGrupo, onReordenarEnGrupo, enPractica = false, onAyuda, ocultos = null, onOcultar, onMostrarOcultos, fijada = null, onFijar, onSoltar, eventoId = null, iglesiaNombre = "", usuarioId = null, pasoDiseno = 0, setPasoDiseno = () => {}, onEditarLetraCompleta, mensajeEscenario = "", onMensajeEscenario = null, iglesiaSlug = null, temporizador = null, onTemporizador = null, autoTemporizador = null, onAutoTemporizador = null, controlVideo = null, estadoVideo = null, onControlVideo = null, avanceRemotoRef = null }) {
   // Riel de íconos a la izquierda (estilo Proyektor): qué panel se muestra en la columna principal.
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
@@ -369,6 +369,19 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     if (dir > 0) { if (isNavigableBible && sinMasAdelante) onNavigateBibleVerse(1); else goto(navIdx + 1); }
     else { if (isNavigableBible && sinMasAtras) onNavigateBibleVerse(-1); else goto(navIdx - 1); }
   };
+  // Control remoto (2026-11-13): las órdenes del celular usan este mismo "avanzar" (ver lib/controlRemoto.js).
+  // soloPasos: el predicador al final de su bosquejo solo puede revelar los pasos de esta diapositiva.
+  if (avanceRemotoRef) {
+    avanceRemotoRef.current = (dir, { soloPasos = false } = {}) => {
+      if (soloPasos) {
+        const pasos = current?.diseno ? pasosDeDiapositiva(current.diseno) : 0;
+        if (dir > 0 ? pasoDiseno < pasos : pasoDiseno > 0) avanzar(dir);
+        return;
+      }
+      avanzar(dir);
+    };
+  }
+  useEffect(() => () => { if (avanceRemotoRef) avanceRemotoRef.current = null; }, [avanceRemotoRef]);
   useEffect(() => {
     const onKeyDown = (e) => {
       const el = document.activeElement;

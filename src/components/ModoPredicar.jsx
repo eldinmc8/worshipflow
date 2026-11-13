@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, ChevronLeft, ChevronRight, Minus, Plus, Radio, BookOpen, Timer, Navigation } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Minus, Plus, Radio, BookOpen, Timer, Navigation, Monitor } from "lucide-react";
+import { mandarComando } from "../lib/controlRemoto.js";
 import { pasosPredicar, pasoAlAire, letraSubpunto, ideasDe } from "../lib/bosquejos.js";
 import { restanteTemporizador, textoTemporizador, nivelTemporizador } from "../lib/escenario.js";
 
@@ -38,7 +39,9 @@ function tituloPaso(paso, b) {
   return (b.puntos[paso.i]?.titulo || "").trim() || `Punto ${paso.i + 1}`;
 }
 
-export default function ModoPredicar({ bosquejo, serviceOrder = [], bloqueId, enVivo = false, slideAlAire = null, onClose }) {
+// control (2026-11-13): { bloqueId } si quien predica puede pasar SUS diapositivas desde aquí (control
+// remoto, ver lib/controlRemoto.js); { bloqueId: null } para Multimedia; null = sin control.
+export default function ModoPredicar({ bosquejo, serviceOrder = [], bloqueId, enVivo = false, slideAlAire = null, control = null, onClose }) {
   useCerrarConAtras(true, onClose); // atrás del teléfono cierra esta ventana (ver lib/atras.js)
   const b = bosquejo || {};
   const pasos = useMemo(() => pasosPredicar(b), [b]);
@@ -46,6 +49,16 @@ export default function ModoPredicar({ bosquejo, serviceOrder = [], bloqueId, en
   const alAire = enVivo ? pasoAlAire(pasos, serviceOrder, bloqueId, slideAlAire, b) : -1;
   const [indice, setIndice] = useState(() => (alAire >= 0 ? alAire : 0));
   const [siguiendo, setSiguiendo] = useState(true);
+  const [mandando, setMandando] = useState(null);
+  const [errorControl, setErrorControl] = useState(null);
+  const mandarPantalla = async (accion) => {
+    setMandando(accion); setErrorControl(null); setSiguiendo(true);
+    try {
+      await mandarComando({ accion, bloqueId: control?.bloqueId || null });
+      if (navigator.vibrate) navigator.vibrate(15);
+    } catch (e) { setErrorControl(e.message); }
+    setMandando(null);
+  };
   const [tamano, setTamano] = useState(leerTamano);
   const [ahora, setAhora] = useState(() => Date.now());
   const contenido = useRef(null);
@@ -203,6 +216,24 @@ export default function ModoPredicar({ bosquejo, serviceOrder = [], bloqueId, en
         }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>{cuerpo}</div>
       </div>
+
+      {/* Control remoto: pasar las diapositivas de su bosquejo en la pantalla grande */}
+      {enVivo && control && (
+        <div style={{ padding: "8px 14px 0", background: "rgba(255,255,255,0.03)" }}>
+          {alAire >= 0 ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: GRIS, display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}><Monitor size={14} /> Pantalla</span>
+              <button type="button" onClick={() => mandarPantalla("anterior")} disabled={!!mandando} aria-label="Diapositiva anterior en la pantalla"
+                style={{ ...botonBarra, flex: 1, padding: "11px 10px", background: "rgba(232,130,30,0.16)", color: "#F6B26B" }}><ChevronLeft size={17} /> Anterior</button>
+              <button type="button" onClick={() => mandarPantalla("siguiente")} disabled={!!mandando} aria-label="Diapositiva siguiente en la pantalla"
+                style={{ ...botonBarra, flex: 1, padding: "11px 10px", background: "rgba(232,130,30,0.16)", color: "#F6B26B" }}>Siguiente <ChevronRight size={17} /></button>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: GRIS, display: "flex", alignItems: "center", gap: 6 }}><Monitor size={14} /> Cuando tu bosquejo esté al aire podrás pasar sus diapositivas desde aquí.</div>
+          )}
+          {errorControl && <div role="alert" style={{ fontSize: 12, color: "#FF8A80", marginTop: 6 }}>{errorControl}</div>}
+        </div>
+      )}
 
       {/* Barra de abajo */}
       <div style={{ display: "flex", gap: 8, padding: "10px 14px calc(12px + env(safe-area-inset-bottom))", background: "rgba(255,255,255,0.03)" }}>
