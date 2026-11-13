@@ -52,6 +52,7 @@ import { ProjectionPanel } from "./pantallas/proyeccion.jsx";
 import { esPopPropio, cuandoListo, useBloquearAtras } from "./lib/atras.js";
 import { suscribirComandos, resolverComando, TEXTO_ACCION } from "./lib/controlRemoto.js";
 import ControlRemoto from "./components/ControlRemoto.jsx";
+import { idEquipo, esteEquipoLleva } from "./lib/equipo.js";
 export { ProjectionPanel } from "./pantallas/proyeccion.jsx";
 
 // El editor de diapositivas (solo escritorio) se descarga recién la primera vez que se abre.
@@ -452,6 +453,17 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // finalizar la transmisión, así que se vuelve a pedir al empezar y al terminar.
   const [codigoPantalla, setCodigoPantalla] = useState(null);
   const [liveOwnerId, setLiveOwnerId] = useState(null); // usuario que inició la transmisión; solo esa persona puede finalizarla
+  // Qué EQUIPO lleva la transmisión (ver lib/equipo.js): la misma persona puede tener la app abierta en
+  // la computadora que transmite y en su celular; solo la computadora transmite.
+  const [equipoEnVivo, setEquipoEnVivo] = useState(null);
+  const inicioPropioRef = useRef(0); // cuándo ESTE equipo inició/tomó la transmisión (ver ponerEquipoDeSesion)
+  const ponerEquipoDeSesion = (fila) => {
+    const equipo = fila?.slide_actual?.equipo || null;
+    // Recién iniciada aquí: un eco atrasado de la sesión anterior no le quita la transmisión a este equipo.
+    if (equipo !== idEquipo() && Date.now() - inicioPropioRef.current < 5000) return;
+    setEquipoEnVivo(equipo);
+  };
+  const esteEquipo = esteEquipoLleva({ userId, liveOwnerId, equipoEnVivo, isCompact });
   // Estado de Modo Músico líder/seguidor de la sesión en vivo (ver columnas musico_* en sesiones_en_vivo
   // y el useEffect de subscribeLiveSession más abajo, que lo llena junto con liveEventId/liveOwnerId).
   const [musicoState, setMusicoState] = useState(null);
@@ -1095,7 +1107,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const empezarPractica = (eventId) => {
     const ev = events.find((e) => e.id === eventId);
     if (!ev) return;
-    if (userId === liveOwnerId && (liveEventId || liveLibre)) {
+    if (esteEquipo && (liveEventId || liveLibre)) {
       showToast("Estás transmitiendo en vivo desde esta computadora. Finaliza el culto antes de practicar.");
       return;
     }
@@ -1111,6 +1123,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const startEvent = async (eventId) => {
     if (!(await confirmReplaceLive(eventId))) return;
     setPractica(null);
+    inicioPropioRef.current = Date.now(); setEquipoEnVivo(idEquipo());
     setLiveEventId(eventId); setLiveLibre(false); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0); resetMusicoLive(); setTab("envivo");
     startPresentation(); // abre/enfoca la pantalla de proyección de una vez, sin paso manual extra
   };
@@ -1120,10 +1133,12 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const startFreeEvent = async () => {
     if (!(await confirmReplaceLive(null))) return;
     setPractica(null);
+    inicioPropioRef.current = Date.now(); setEquipoEnVivo(idEquipo());
     setLiveEventId(null); setLiveLibre(true); setLiveOwnerId(userId); setActiveIdx(0); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); resetMusicoLive(); setTab("envivo");
     startPresentation();
   };
   const endEvent = () => {
+    setEquipoEnVivo(null);
     setLiveEventId(null); setLiveLibre(false); setLiveOwnerId(null); setBlanked(false); setFijada(null); setAdHoc(null); setAdHocIdx(0); setLibreServiceOrder([]); setTab("eventos");
     // También por el canal local: si no hay internet, la pantalla de esta computadora igual se apaga.
     filaAlAireRef.current = null;
@@ -1546,7 +1561,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // aire (slide_actual.escenario) — ver lib/escenario.js y PantallaEscenario.jsx. ----
   const [mensajeEscenario, setMensajeEscenario] = useState("");
   const [inicioVivo, setInicioVivo] = useState(null);
-  const llevoLaTransmision = !practica && !!(liveEventId || liveLibre) && userId === liveOwnerId;
+  const llevoLaTransmision = !practica && !!(liveEventId || liveLibre) && esteEquipo;
   // Temporizador del mensaje (2026-11-02): lo maneja Multimedia desde el panel Escenario; se ve grande en
   // la pantalla de escenario. Puede arrancar solo al empezar la predicación (autoTemporizador).
   const [temporizador, setTemporizador] = useState(null);
@@ -1630,7 +1645,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   }, [myIglesiaId, codigoPantalla, idVideoAlAire, practica]);
 
   useEffect(() => {
-    if (practica || (!liveEventId && !liveLibre) || userId !== liveOwnerId) return;
+    if (practica || (!liveEventId && !liveLibre) || !esteEquipo) return;
     // Recién recargada: no manda nada hasta estar de vuelta en la diapositiva que estaba al aire (así la
     // proyección no muestra la primera ni un instante).
     if (retomarSlideRef.current) {
@@ -1639,7 +1654,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     }
     const alAireBase = (fijada || current) || null;
     const alAire = alAireBase && controlVideo && esVideoSolo(alAireBase) ? { ...alAireBase, video: controlVideo } : alAireBase;
-    const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: alAire ? (escenario ? { ...alAire, escenario } : alAire) : null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null, libre: liveLibre };
+    const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: alAire ? { ...alAire, ...(escenario ? { escenario } : {}), equipo: idEquipo() } : null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null, libre: liveLibre };
     // Se manda por las dos vías a la vez: BroadcastChannel llega al instante si la pantalla de
     // proyección está en la MISMA computadora (caso típico: TV por HDMI como segunda pantalla) — así el
     // cambio de diapositiva no depende del internet del lugar, igual que un presentador local. Supabase
@@ -1656,7 +1671,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       .then(() => { sincroPendienteRef.current = false; })
       .catch((e) => { if (esFalloDeConexion(e) || e?.sinSesion) sincroPendienteRef.current = true; else notifyError("No se pudo actualizar la proyección", e); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId, practica, fijada, escenarioClave, codigoPantalla, controlVideo]);
+  }, [current, blanked, liveStyle, liveEventId, liveLibre, liveOwnerId, adHoc, userId, myIglesiaId, practica, fijada, escenarioClave, codigoPantalla, controlVideo, esteEquipo]);
   // Código vigente de las pantallas: al abrir la app y cada vez que empieza una transmisión (al terminar
   // lo pide endEvent, DESPUÉS de cerrar la sesión, para no quedarse con el código que acaba de vencer).
   const codigoPedidoRef = useRef(false);
@@ -1710,7 +1725,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         }
         // Si la consola se recargó en pleno culto (F5, el navegador se cerró…) y la transmisión era de
         // esta persona, vuelve a la diapositiva que estaba al aire en vez de a la primera (2026-11-09).
-        if (fila?.liderado_por && fila.liderado_por === userIdRef.current && fila.evento_id && fila.slide_actual?.slideId) {
+        // Solo en el equipo que transmitía (no en el celular de la misma persona).
+        if (fila?.liderado_por && fila.liderado_por === userIdRef.current && fila.evento_id && fila.slide_actual?.slideId && (!fila.slide_actual.equipo || fila.slide_actual.equipo === idEquipo())) {
           const id = fila.slide_actual.slideId;
           retomarSlideRef.current = id;
           // Por si el evento no termina de cargar (sin internet, borrado): no frena la consola para siempre.
@@ -1719,6 +1735,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         setLiveEventId(fila?.evento_id || null); setLiveOwnerId(fila?.liderado_por || null); setLiveLibre(!!fila?.libre);
         setSlideAlAireRemoto(fila?.slide_actual || null);
         setNegroRemoto(!!fila?.blanked);
+        ponerEquipoDeSesion(fila);
         adoptarEstiloGuardado(fila?.estilo_en_vivo);
       })
       .catch(() => {});
@@ -1728,6 +1745,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       setLiveLibre(!!fila.libre);
       setSlideAlAireRemoto(fila.slide_actual || null);
       setNegroRemoto(!!fila.blanked);
+      ponerEquipoDeSesion(fila);
       // Solo si lo cambió OTRO dispositivo: quien transmite ya tiene su estilo, y adoptar su propio eco
       // volvería a disparar el envío de la sesión.
       if (fila.liderado_por !== userIdRef.current) adoptarEstiloGuardado(fila.estilo_en_vivo);
@@ -1743,7 +1761,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   //   ningún otro dispositivo la dé por abandonada.
   // - Los demás: si la fila en la base lleva 2 horas sin cambios (ej. la compu de Multimedia se apagó sin
   //   finalizar), la cierran. Solo Multimedia/admin puede escribir (RLS): para el resto falla en silencio.
-  const transmitiendoAqui = (!!liveEventId || liveLibre) && !practica && !!userId && userId === liveOwnerId;
+  const transmitiendoAqui = (!!liveEventId || liveLibre) && !practica && esteEquipo;
   // Mientras esta computadora transmite (o practica), una versión nueva de la app NO la recarga: antes
   // la consola volvía sola a la primera diapositiva en pleno culto. Se aplica al terminar (lib/swUpdate.js).
   useEffect(() => { pausarActualizacion(transmitiendoAqui || enPractica); }, [transmitiendoAqui, enPractica]);
@@ -2281,7 +2299,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           <WifiOff size={13} />
           {usingCachedData
             ? "Sin conexión — mostrando la última versión guardada en este dispositivo. Los cambios no se guardarán hasta que vuelva el internet."
-            : (liveEventId || liveLibre) && userId === liveOwnerId
+            : (liveEventId || liveLibre) && esteEquipo
               ? "Sin internet — la proyección en esta computadora sigue funcionando. Se sincroniza sola cuando vuelva la señal."
               : "Sin conexión a internet — sigue usando la app con normalidad, se sincronizará sola apenas vuelva la señal."}
         </div>
