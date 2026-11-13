@@ -38,14 +38,16 @@ export default function CuentaRegresivaModal({ inicial = null, evento = null, en
   const boton = enConsola ? "Proyectar ahora" : editando ? "Guardar cambios" : "Agregar al Setlist";
 
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60 }} onClick={onClose}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 8, boxSizing: "border-box" }} onClick={onClose}>
+      {/* El alto máximo es el 100% del fondo (que sí mide la ventana real), no 100dvh: en navegadores viejos
+          dvh no existe y con letra "Grande" (zoom) mide de más, y el botón de abajo quedaba fuera de la pantalla. */}
       <div role="dialog" aria-label="Cuenta regresiva" onClick={(e) => e.stopPropagation()}
-        style={{ background: "var(--wf-card)", borderRadius: 18, boxShadow: "0 18px 50px rgba(0,0,0,.35)", width: "min(760px, calc(100vw - 16px))", maxHeight: "calc(100dvh - 16px)", display: "flex", flexDirection: "column", overflow: "hidden", boxSizing: "border-box" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px 10px" }}>
+        style={{ background: "var(--wf-card)", borderRadius: 18, boxShadow: "0 18px 50px rgba(0,0,0,.35)", width: "min(760px, 100%)", maxHeight: "100%", display: "flex", flexDirection: "column", overflow: "hidden", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px 10px", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Timer size={17} color={MORADO} /><span style={{ fontWeight: 700, fontSize: 15 }}>Cuenta regresiva</span></div>
           <button type="button" onClick={onClose} style={iconGhost} aria-label="Cerrar"><X size={16} /></button>
         </div>
-        <div style={{ overflowY: "auto", padding: "0 16px 16px" }}>
+        <div style={{ overflowY: "auto", padding: "0 16px 16px", flex: "1 1 auto", minHeight: 0 }}>
           {/* Vista previa (oscura, como se verá en la proyección) */}
           <div style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", borderRadius: 14, overflow: "hidden", background: "#000" }}>
             <RelojCuentaRegresiva cuenta={c} muestra={muestra} />
@@ -115,7 +117,7 @@ export default function CuentaRegresivaModal({ inicial = null, evento = null, en
             <Pastilla activo={c.fondo === "estilo"} onClick={() => set({ fondo: "estilo" })} title="El mismo fondo de la letra (tema, imagen o video de Estilo)">El fondo de Estilo (imagen o video)</Pastilla>
           </div>
         </div>
-        <div style={{ padding: "10px 16px 14px", borderTop: "1px solid var(--wf-border)" }}>
+        <div style={{ padding: "10px 16px 14px", borderTop: "1px solid var(--wf-border)", flexShrink: 0 }}>
           <button type="button" onClick={() => onGuardar(normalizarCuenta(c))} style={primaryBtn}>{boton}</button>
         </div>
       </div>
