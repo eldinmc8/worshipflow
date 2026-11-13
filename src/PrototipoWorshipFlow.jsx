@@ -1775,7 +1775,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // partes de versículos) a través de avanceRemotoRef. Nunca inicia ni termina la transmisión.
   const avanceRemotoRef = useRef(null);
   const ctxRemotoRef = useRef(null);
-  ctxRemotoRef.current = { slides, activeIdx, adHoc, fijada, serviceOrder: liveEvent?.serviceOrder || [], goto, gotoPlanSlide, navIdx: adHoc ? adHocIdx : activeIdx, usuarios: usuariosReales };
+  ctxRemotoRef.current = { slides, activeIdx, adHoc, fijada, serviceOrder: liveEvent?.serviceOrder || [], goto, gotoPlanSlide, startAdHocBible, navIdx: adHoc ? adHocIdx : activeIdx, usuarios: usuariosReales };
   const [avisoRemoto, setAvisoRemoto] = useState(null); // { nombre, accion, predicador, at }
   useEffect(() => {
     if (!llevoLaTransmision || !myIglesiaId) return undefined;
@@ -1785,6 +1785,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       if (r.tipo === "ignorar") return;
       if (r.tipo === "negro") setBlanked((b) => !b);
       else if (r.tipo === "ir") { setFijada(null); c.gotoPlanSlide(r.indice); }
+      else if (r.tipo === "biblia") { setFijada(null); c.startAdHocBible(r.versiculo); }
       else {
         if (r.soltar) setFijada(null);
         if (avanceRemotoRef.current) avanceRemotoRef.current(r.dir, { soloPasos: !!r.soloPasos });

@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import legacy from '@vitejs/plugin-legacy'
 import { VitePWA } from 'vite-plugin-pwa'
 import versionCelular from './src/versionCelular.json'
 
@@ -20,6 +21,10 @@ process.env.VITE_VERSION_APP ||= (process.env.VERCEL_GIT_COMMIT_SHA || 'local').
 export default defineConfig({
   plugins: [
     react(),
+    // Navegadores viejos de Smart TV (2026-11-13: en un televisor Hisense, worshipflow.../tv quedaba en
+    // blanco — su navegador no entiende el JavaScript moderno y no llegaba a pintar nada). Esto publica
+    // además una copia de la app traducida para esos navegadores; los modernos siguen bajando la de siempre.
+    legacy({ targets: ['chrome >= 49', 'safari >= 10', 'firefox >= 52', 'opera >= 36', 'samsung >= 5', 'ios >= 10'] }),
     publicarVersionCelular,
     VitePWA({
       // 'prompt' (no 'autoUpdate'): que una versión nueva se recargue SOLA sin avisar puede pasar en
@@ -38,7 +43,7 @@ export default defineConfig({
       // solo se usan al importar desde la computadora: fuera del precache, para que cada celular no los
       // descargue con cada actualización. Se bajan de internet la vez que alguien importa algo.
       injectManifest: {
-        globIgnores: ['**/pdf-*.js', '**/pdf.worker*', '**/mammoth*.js'],
+        globIgnores: ['**/pdf-*.js', '**/pdf.worker*', '**/mammoth*.js', '**/*-legacy-*.js', '**/*-legacy.js'],
       },
       // El script que este plugin inyecta solo cuando injectRegister queda en su valor por defecto
       // ('auto') es un registro "pelado" -- ni chequea updates activamente ni recarga la página cuando

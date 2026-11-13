@@ -6,6 +6,7 @@ App de presentación y gestión para iglesias (competidor de OnStage/ProPresente
 - React + Vite + Supabase + Vercel (mismo stack que Omega App)
 - Mobile-first siempre
 - PWA instalable
+- `@vitejs/plugin-legacy`: se publica además una copia para navegadores viejos de Smart TV (página `/tv`); no quitarlo
 
 ## Identidad visual
 - **Colores de marca** (tomados del logo real de la iglesia "Jesús El Buen Pastor"):
@@ -41,7 +42,7 @@ Vista de solo lectura separada del editor (pestañas V1/C/V2/V3 tipo pill, acord
 - Solo un evento puede estar "en vivo" a la vez (sesión en vivo única por iglesia).
 - Multimedia ve letra plana (sin acordes) + riel de todas las diapositivas + botón "pantalla en negro" + panel de Estilo (temas de fondo + tipografía, aplicado en vivo sin interrumpir).
 - Proyección es de solo lectura, ancla a una URL fija (no al evento) — siempre muestra lo que esté marcado "en vivo" en ese momento.
-- **Control remoto desde el celular** (`src/lib/controlRemoto.js`, tabla `comandos_en_vivo`): el celular manda órdenes (siguiente, anterior, negro, ir a una parte) y la computadora que transmite las ejecuta con su mismo "avanzar". Multimedia: pantalla "Controlar diapositivas desde aquí" en Inicio. Predicador: botones "Pantalla" en el Modo Predicar, solo dentro de su bosquejo mientras está al aire (la RLS lo revisa con `wf_puedo_mandar_comando`). Nunca inicia ni termina la transmisión.
+- **Control remoto desde el celular** (`src/lib/controlRemoto.js`, tabla `comandos_en_vivo`): el celular manda órdenes (siguiente, anterior, negro, ir a una parte, proyectar un versículo de la Biblia) y la computadora que transmite las ejecuta con su mismo "avanzar". La computadora las recibe por Realtime y, de respaldo, revisando la tabla cada 1.5 s (`suscribirComandos`). Multimedia: pantalla "Controlar diapositivas desde aquí" en Inicio. Predicador: botones "Pantalla" en el Modo Predicar, solo dentro de su bosquejo mientras está al aire (la RLS lo revisa con `wf_puedo_mandar_comando`). Nunca inicia ni termina la transmisión.
 - Modo Músico: acordes + letra con auto-avance calculado por tempo (BPM) × compases de cada sección, con botón de "tap tempo" para recalibrar en vivo, y control manual siempre disponible como override.
 
 **Ministerios**: espacios por equipo (Alabanza, Infantil, Jóvenes...) con planificación mensual editable por semana y recursos compartidos (título + enlace). Vinculables a bloques del Setlist (ver arriba).
