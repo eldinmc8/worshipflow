@@ -27,7 +27,7 @@ const LINEA = "#E3E7EE";
 const OSCURO = "#0B1626";
 const RESPONSABLE = "Eldin Mcfarlane";
 const PAIS = "Guatemala";
-const ACTUALIZADO = "10 de noviembre de 2026";
+const ACTUALIZADO = "13 de noviembre de 2026";
 
 const PAGINAS = [
   { ruta: "/web", nombre: "Inicio" },
@@ -197,6 +197,7 @@ const PASOS = [
 const PREGUNTAS = [
   ["¿Necesito instalar algo?", "No. WorshipFlow funciona en el navegador del celular, tablet o computadora, y se puede instalar como app desde el mismo navegador."],
   ["¿Qué cuenta como miembro?", "Cada persona de tu equipo con su propia cuenta. La congregación, las pantallas y las TV conectadas no cuentan."],
+  ["¿Puedo cancelar cuando quiera?", "Sí. Cancelas cuando quieras y no se te vuelve a cobrar. Además, tienes 14 días después de cualquier pago para pedir el reembolso completo."],
   ["¿Puedo cambiar de plan?", "Sí, cuando quieras. Si bajas de plan no se borra nada: lo que pase del límite queda guardado, solo no se puede agregar más."],
   ["¿Cómo pago?", "Por ahora con transferencia o PayPal: escríbenos por WhatsApp y activamos tu plan. Pronto también con tarjeta directo en la app."],
   ["¿Hay prueba gratis?", "Sí. Cada iglesia nueva tiene 14 días del plan Iglesia completo. Después sigue gratis en el plan Gratis si no elige un plan de pago."],
@@ -486,7 +487,11 @@ function Comparativo() {
         </thead>
         <tbody>
           {COMPARATIVO.map(({ grupo, filas }) => [
-            <tr key={grupo}><td colSpan={5} style={{ ...celda, textAlign: "left", fontWeight: 700, fontSize: 12, color: TINTA, background: NIEBLA, textTransform: "uppercase", letterSpacing: "0.04em" }}>{grupo}</td></tr>,
+            // El subtítulo va en una celda fija (como la columna de funciones) para que no se corra al deslizar.
+            <tr key={grupo}>
+              <th scope="colgroup" style={{ ...primera, fontWeight: 700, fontSize: 12, color: TINTA, background: NIEBLA, textTransform: "uppercase", letterSpacing: "0.04em", boxShadow: "none" }}>{grupo}</th>
+              <td colSpan={PLANES.length} style={{ ...celda, background: NIEBLA }} />
+            </tr>,
             ...filas.map(([nombre, ...vals]) => (
               <tr key={nombre}>
                 <td style={primera}>{nombre}</td>
@@ -523,11 +528,12 @@ function Terminos() {
       <H>Cuentas</H>
       <p>Cada iglesia tiene su propio espacio, separado del de cualquier otra. Sus administradores deciden quién tiene acceso y son responsables de las cuentas de su equipo. Cuida tu contraseña: lo que se haga con tu cuenta es tu responsabilidad.</p>
       <H>Planes y pagos</H>
-      <p>WorshipFlow ofrece un plan Gratis y planes de pago (Ministerio, Crecimiento e Iglesia) con los límites y precios publicados en la página de <Enlace ruta="/web/precios" style={{ color: TINTA, textDecoration: "underline" }}>precios</Enlace>. Los planes de pago se cobran por adelantado, de forma mensual o anual, en dólares estadounidenses. Si un plan de pago vence o no se renueva, la iglesia pasa al plan Gratis: no se borra ningún dato, pero no se puede agregar más de lo que permite ese plan. Podemos cambiar los precios avisando con al menos 30 días de anticipación; el cambio aplica a partir de la siguiente renovación.</p>
+      <p>Nuestro proceso de compra lo realiza nuestro revendedor en línea, <strong>Paddle.com</strong>. Paddle.com es el comerciante registrado (Merchant of Record) de todos nuestros pedidos: cobra los pagos, emite los recibos, calcula y entrega los impuestos que correspondan, y atiende las consultas sobre cobros y las devoluciones. Al comprar un plan también aceptas los <a href="https://www.paddle.com/legal/checkout-buyer-terms" target="_blank" rel="noopener" style={{ color: TINTA, textDecoration: "underline" }}>términos para compradores de Paddle</a>.</p>
+      <p>WorshipFlow ofrece un plan Gratis y planes de pago (Ministerio, Crecimiento e Iglesia) con los límites y precios publicados en la página de <Enlace ruta="/web/precios" style={{ color: TINTA, textDecoration: "underline" }}>precios</Enlace>. Los planes de pago son suscripciones que se cobran por adelantado y se renuevan solas, de forma mensual o anual, en dólares estadounidenses, hasta que las canceles. Si un plan de pago vence o no se renueva, la iglesia pasa al plan Gratis: no se borra ningún dato, pero no se puede agregar más de lo que permite ese plan. Podemos cambiar los precios avisando con al menos 30 días de anticipación; el cambio aplica a partir de la siguiente renovación.</p>
       <H>Prueba gratis</H>
       <p>Las iglesias nuevas pueden tener un periodo de prueba del plan Iglesia. Al terminar, pasan al plan Gratis si no eligen un plan de pago. La prueba no requiere tarjeta.</p>
       <H>Cancelación y reembolsos</H>
-      <p>Puedes cancelar cuando quieras; el plan sigue activo hasta el final del periodo pagado. Los reembolsos se rigen por nuestra <Enlace ruta="/web/reembolsos" style={{ color: TINTA, textDecoration: "underline" }}>política de reembolsos</Enlace>.</p>
+      <p>Puedes cancelar cuando quieras desde la app, desde el enlace del recibo de Paddle o escribiéndonos; el plan sigue activo hasta el final del periodo pagado y no se te vuelve a cobrar. Puedes pedir el reembolso completo de cualquier pago dentro de los 14 días siguientes, como explica nuestra <Enlace ruta="/web/reembolsos" style={{ color: TINTA, textDecoration: "underline" }}>política de reembolsos</Enlace>.</p>
       <H>Uso aceptable</H>
       <p>Usa la app para organizar los cultos, canciones, equipos y la comunicación de tu iglesia. No está permitido subir contenido ilegal u ofensivo, intentar acceder a datos de otra iglesia, ni usar la app para enviar spam. Podemos suspender cuentas que incumplan estas reglas.</p>
       <H>Tu contenido y derechos de autor</H>
@@ -551,12 +557,12 @@ function Privacidad() {
         <li><strong>Cuenta:</strong> nombre, correo electrónico y, si entras con Google, tu foto de perfil.</li>
         <li><strong>Contenido de tu iglesia:</strong> canciones, eventos, asignaciones, ministerios y mensajes que tu equipo crea en la app.</li>
         <li><strong>Notificaciones:</strong> si las activas, la información técnica necesaria para enviarte avisos.</li>
-        <li><strong>Pagos:</strong> si tu iglesia paga un plan, el nombre de la iglesia, el plan y las fechas. Los datos de tarjeta los procesa directamente el proveedor de pagos; nosotros nunca los vemos ni los guardamos.</li>
+        <li><strong>Pagos:</strong> si tu iglesia paga un plan, el nombre de la iglesia, el plan y las fechas. Los pagos los procesa Paddle.com, nuestro revendedor y comerciante registrado: Paddle recibe los datos de pago y facturación según su propia política de privacidad, y nosotros nunca vemos ni guardamos los datos de tu tarjeta.</li>
       </ul>
       <H>Cómo los usamos</H>
       <p>Solo para hacer funcionar la app dentro de tu iglesia: mostrar tus asignaciones, mandarte recordatorios, permitir que tu equipo coordine los cultos, dar soporte y administrar tu plan. No usamos tus datos para publicidad y nunca los vendemos.</p>
       <H>Con quién los compartimos</H>
-      <p>Con los proveedores que hacen funcionar el servicio: Supabase (base de datos e inicio de sesión), Vercel (alojamiento de la app), Anthropic (el asistente con IA, solo con lo que escribes en él) y el proveedor de pagos cuando corresponda. Cada iglesia solo ve sus propios datos.</p>
+      <p>Con los proveedores que hacen funcionar el servicio: Supabase (base de datos e inicio de sesión), Vercel (alojamiento de la app), Anthropic (el asistente con IA, solo con lo que escribes en él) y Paddle.com (cobros y facturación) cuando tu iglesia paga un plan. Cada iglesia solo ve sus propios datos.</p>
       <H>Inicio de sesión con Google</H>
       <p>Solo pedimos tu nombre, correo y foto. No accedemos a tu Gmail, Drive ni a ningún otro dato de tu cuenta de Google.</p>
       <H>Cuánto tiempo los guardamos</H>
@@ -570,15 +576,13 @@ function Privacidad() {
 function Reembolsos() {
   return (
     <Legal ruta="/web/reembolsos" titulo="Política de reembolsos">
-      <p>Queremos que tu iglesia esté contenta con WorshipFlow. Por eso:</p>
-      <H>Primer pago: 14 días de garantía</H>
-      <p>Si no estás conforme, te devolvemos el 100% de tu primer pago de cualquier plan, mensual o anual, si lo pides dentro de los 14 días siguientes al pago.</p>
-      <H>Renovaciones</H>
-      <p>Las renovaciones mensuales no son reembolsables, pero puedes cancelar cuando quieras y no se te volverá a cobrar; el plan sigue activo hasta el final del periodo pagado. En los planes anuales, si cancelas dentro de los 14 días siguientes a la renovación, te devolvemos el monto de la renovación.</p>
-      <H>Cobros por error</H>
-      <p>Si se te cobró dos veces o por un plan que no pediste, te devolvemos el monto completo.</p>
+      <p>Queremos que tu iglesia esté contenta con WorshipFlow. Los pagos los procesa nuestro revendedor, Paddle.com, que es el comerciante registrado (Merchant of Record) de todos nuestros pedidos y quien hace las devoluciones.</p>
+      <H>14 días de garantía en cualquier pago</H>
+      <p>Si no estás conforme, puedes pedir el reembolso completo (100%) de cualquier pago, sea el primero o una renovación, mensual o anual, dentro de los 14 días siguientes a ese pago. No tienes que darnos una razón.</p>
+      <H>Cancelar</H>
+      <p>Puedes cancelar tu suscripción cuando quieras y no se te volverá a cobrar. El plan sigue activo hasta el final del periodo pagado; después la iglesia pasa al plan Gratis sin perder sus datos.</p>
       <H>Cómo pedir un reembolso</H>
-      <p>Escríbenos a {correo} o por WhatsApp con el nombre de tu iglesia y la fecha del pago. Respondemos en un máximo de 5 días hábiles, y el reembolso se hace por el mismo medio con el que pagaste.</p>
+      <p>Escríbenos a {correo} o por WhatsApp con el nombre de tu iglesia y la fecha del pago, o pídelo directamente a Paddle desde el enlace de tu recibo (también en <a href="https://paddle.net" target="_blank" rel="noopener" style={{ color: TINTA, textDecoration: "underline" }}>paddle.net</a>). El reembolso se hace al mismo medio con el que pagaste.</p>
     </Legal>
   );
 }
