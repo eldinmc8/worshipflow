@@ -11,6 +11,10 @@ import { Radio, Music, ListMusic, BookOpen, Users, Tv, Check, MessageCircle, Men
 import WorshipFlowIcon from "./WorshipFlowIcon.jsx";
 import { PLANES, COMPARATIVO } from "./lib/planes.js";
 import { CORREO_SOPORTE, WHATSAPP_SOPORTE } from "./lib/soporte.js";
+import { direccionApp } from "./lib/portada.js";
+
+// "Abrir la app web" / "Entrar": en worshipflowapp.com lleva a app.worshipflowapp.com; en la dirección vieja, a "/".
+const URL_APP = direccionApp(typeof window !== "undefined" ? window.location.hostname : "");
 
 const AZUL = "#16324F";
 const NARANJA = "#E8821E";
@@ -50,7 +54,7 @@ function Enlace({ ruta, children, style, className }) {
 }
 
 // Botón principal (naranja) o secundario (texto). Un enlace externo abre en otra pestaña.
-function Boton({ href, ruta, children, tipo = "principal", grande, style }) {
+function Boton({ href, ruta, children, tipo = "principal", grande, style, mismaPestana }) {
   const base = {
     display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: grande ? 50 : 44,
     padding: grande ? "13px 22px" : "10px 16px", borderRadius: 12, fontWeight: 600, fontSize: grande ? 16 : 14,
@@ -64,7 +68,7 @@ function Boton({ href, ruta, children, tipo = "principal", grande, style }) {
   };
   const s = { ...base, ...estilos[tipo], ...style };
   if (ruta) return <Enlace ruta={ruta} style={s}>{children}</Enlace>;
-  return <a href={href} target={href?.startsWith("http") ? "_blank" : undefined} rel="noopener" style={s}>{children}</a>;
+  return <a href={href} target={href?.startsWith("http") && !mismaPestana ? "_blank" : undefined} rel="noopener" style={s}>{children}</a>;
 }
 
 function Logo({ claro, tamano = 32 }) {
@@ -101,7 +105,7 @@ function Encabezado({ ruta }) {
             {enlace("/web/precios", "Precios")}
           </div>
           <div className="sw-escritorio" style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 14 }}>
-            <a href="/" style={{ color: TINTA, textDecoration: "none", fontWeight: 500 }}>Entrar</a>
+            <a href={URL_APP} style={{ color: TINTA, textDecoration: "none", fontWeight: 500 }}>Abrir la app web</a>
             <Boton href={PEDIR_CODIGO}>Probar gratis</Boton>
           </div>
           <button className="sw-celular" onClick={() => setMenu((v) => !v)} aria-label={menu ? "Cerrar menú" : "Abrir menú"} aria-expanded={menu}
@@ -113,7 +117,7 @@ function Encabezado({ ruta }) {
           <div className="sw-celular" style={{ display: "none", flexDirection: "column", gap: 4, padding: "0 20px 16px", fontSize: 16, fontWeight: 600 }}>
             <Enlace ruta="/web" style={{ padding: "12px 4px", color: TINTA }}>Inicio</Enlace>
             <Enlace ruta="/web/precios" style={{ padding: "12px 4px", color: TINTA }}>Precios</Enlace>
-            <a href="/" style={{ color: TINTA, textDecoration: "none", padding: "12px 4px" }}>Entrar a la app</a>
+            <a href={URL_APP} style={{ color: TINTA, textDecoration: "none", padding: "12px 4px" }}>Abrir la app web</a>
             <Boton href={PEDIR_CODIGO} grande style={{ marginTop: 6 }}><MessageCircle size={17} /> Probar gratis</Boton>
           </div>
         )}
@@ -142,7 +146,7 @@ function Pie() {
             {col("Producto", <>
               <Enlace ruta="/web" style={link}>Inicio</Enlace>
               <Enlace ruta="/web/precios" style={link}>Precios</Enlace>
-              <a href="/" style={link}>Entrar a la app</a>
+              <a href={URL_APP} style={link}>Abrir la app web</a>
             </>)}
             {col("Legal", <>
               <Enlace ruta="/web/terminos" style={link}>Términos</Enlace>
@@ -251,6 +255,7 @@ function Inicio() {
             </p>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
               <Boton href={PEDIR_CODIGO} grande><MessageCircle size={18} /> Pedir mi código</Boton>
+              <Boton href={URL_APP} mismaPestana tipo="oscuro" grande>Abrir la app web</Boton>
               <Boton ruta="/web/precios" tipo="texto" grande>Ver planes →</Boton>
             </div>
             <span style={{ fontSize: 13, color: SUAVE }}>14 días con todo incluido · Sin tarjeta · Funciona en el navegador</span>
