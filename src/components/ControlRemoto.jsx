@@ -1,14 +1,19 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, ChevronLeft, ChevronRight, MonitorOff, Monitor, Smartphone, Loader2 } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, MonitorOff, Monitor, Smartphone, Loader2, BookOpen, ArrowLeft } from "lucide-react";
 import { mandarComando, itemDeDiapositiva } from "../lib/controlRemoto.js";
 import { resumenDiapositiva } from "../lib/escenario.js";
 import { serviceItemLabel } from "../pantallas/compartido.jsx";
+import { BibleBrowserBody } from "../pantallas/biblia.jsx";
 import { useCerrarConAtras } from "../lib/atras.js";
+
+// Si a los ESPERA_MS de una orden no cambió nada al aire, se avisa (la orden sí salió del celular).
+export const ESPERA_MS = 4000;
 
 // Control remoto de Multimedia desde el celular (pedido de Eldin, 2026-11-13). Muestra lo que está al
 // aire (de la sesión en vivo) y manda órdenes a la computadora que transmite: Anterior, Siguiente,
-// Pantalla en negro, o ir directo a una parte del culto. No puede iniciar ni terminar la transmisión.
+// Pantalla en negro, ir directo a una parte del culto, o buscar un versículo de la Biblia y proyectarlo.
+// No puede iniciar ni terminar la transmisión.
 // La vista previa del aire es oscura (regla de oro: lo que se proyecta, estilo escenario).
 export default function ControlRemoto({ evento, slideAlAire, negro = false, library = [], onCerrar }) {
   useCerrarConAtras(true, onCerrar);
@@ -18,15 +23,35 @@ export default function ControlRemoto({ evento, slideAlAire, negro = false, libr
   const alAire = resumenDiapositiva(slideAlAire);
   const itemAlAire = itemDeDiapositiva(evento?.serviceOrder, slideAlAire);
 
-  const mandar = async (accion, itemId = null) => {
+  const [biblia, setBiblia] = useState(false); // buscador de versículos abierto
+  useCerrarConAtras(biblia, () => setBiblia(false));
+
+  // ¿La computadora obedeció? Se nota porque cambia lo que está al aire. Si pasa un rato sin ningún
+  // cambio, se dice qué revisar — antes el celular no decía nada y parecía que el botón no servía.
+  const [sinRespuesta, setSinRespuesta] = useState(false);
+  const firma = `${slideAlAire?.slideId || ""}|${slideAlAire?.reference || ""}|${(slideAlAire?.text || "").length}|${negro ? 1 : 0}`;
+  const esperaRef = useRef(null);
+  useEffect(() => { clearTimeout(esperaRef.current); setSinRespuesta(false); }, [firma]);
+  useEffect(() => () => clearTimeout(esperaRef.current), []);
+
+  const mandar = async (accion, { itemId = null, datos = null } = {}) => {
     setEnviando(itemId ? `ir:${itemId}` : accion); setError(null);
+    let ok = true;
     try {
-      await mandarComando({ accion, itemId });
+      await mandarComando({ accion, itemId, datos });
       if (navigator.vibrate) navigator.vibrate(15);
+      clearTimeout(esperaRef.current);
+      esperaRef.current = setTimeout(() => setSinRespuesta(true), ESPERA_MS);
     } catch (e) {
+      ok = false;
       setError(e.message);
     }
     setEnviando(null);
+    return ok;
+  };
+  const proyectarVersiculo = async (v) => {
+    const ok = await mandar("biblia", { datos: { ref: v.ref, version: v.version, text: v.text, bookId: v.bookId, bookName: v.bookName, chapter: v.chapter, verseStart: v.verseStart, verseEnd: v.verseEnd } });
+    if (ok) setBiblia(false);
   };
 
   const grande = { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, border: "none", borderRadius: 18, padding: "22px 10px", fontSize: 17, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" };
@@ -42,7 +67,14 @@ export default function ControlRemoto({ evento, slideAlAire, negro = false, libr
         <button onClick={onCerrar} aria-label="Cerrar control remoto" style={{ background: "var(--wf-hover)", border: "none", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--wf-text)" }}><X size={18} /></button>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+      {biblia && (
+        <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+          <button onClick={() => setBiblia(false)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: "var(--wf-text)", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer", padding: "4px 0 12px" }}><ArrowLeft size={18} /> Volver al control</button>
+          {error && <div role="alert" style={{ fontSize: 13, color: "#C23B32", background: "#C23B3214", borderRadius: 10, padding: "8px 10px", marginBottom: 10 }}>{error}</div>}
+          <BibleBrowserBody onAdd={proyectarVersiculo} submitLabel={enviando ? "Enviando…" : "Proyectar"} />
+        </div>
+      )}
+      <div style={{ flex: 1, overflowY: "auto", padding: 16, display: biblia ? "none" : "flex", flexDirection: "column", gap: 14 }}>
         {/* Lo que está al aire */}
         <div>
           <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.6, color: "#C23B32", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
@@ -60,6 +92,12 @@ export default function ControlRemoto({ evento, slideAlAire, negro = false, libr
 
         {error && <div role="alert" style={{ fontSize: 13, color: "#C23B32", background: "#C23B3214", borderRadius: 10, padding: "8px 10px" }}>{error}</div>}
 
+        {sinRespuesta && !error && (
+          <div role="status" style={{ fontSize: 13, color: "var(--wf-text)", background: "color-mix(in srgb, var(--wf-brand-accent) 14%, transparent)", borderRadius: 10, padding: "8px 10px", lineHeight: 1.4 }}>
+            No se vio ningún cambio en la pantalla. Si ya estabas en la primera o la última diapositiva, es normal. Si no, revisa que la computadora que transmite tenga internet y la consola En vivo abierta; si sigue igual, recarga la página en esa computadora.
+          </div>
+        )}
+
         {/* Anterior / Siguiente */}
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={() => mandar("anterior")} disabled={!!enviando} aria-label="Diapositiva anterior" style={{ ...grande, background: "var(--wf-card)", color: "var(--wf-text)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)" }}>
@@ -74,6 +112,11 @@ export default function ControlRemoto({ evento, slideAlAire, negro = false, libr
           {negro ? <><Monitor size={18} /> Volver a mostrar</> : <><MonitorOff size={18} /> Pantalla en negro</>}
         </button>
 
+        <button onClick={() => { setError(null); setBiblia(true); }} disabled={!!enviando}
+          style={{ ...grande, flex: "none", padding: "14px 10px", fontSize: 15, background: "var(--wf-card)", color: "#2F5FA8", boxShadow: "0 1px 3px rgba(22,50,79,0.08)" }}>
+          <BookOpen size={18} /> Versículo de la Biblia
+        </button>
+
         {/* Ir a una parte del culto */}
         {orden.length > 0 && (
           <div>
@@ -82,7 +125,7 @@ export default function ControlRemoto({ evento, slideAlAire, negro = false, libr
               {orden.map((it, i) => {
                 const activo = itemAlAire?.id === it.id;
                 return (
-                  <button key={it.id} onClick={() => mandar("ir_item", it.id)} disabled={!!enviando}
+                  <button key={it.id} onClick={() => mandar("ir_item", { itemId: it.id })} disabled={!!enviando}
                     style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", border: "none", borderTop: i ? "1px solid var(--wf-divider)" : "none", background: activo ? "color-mix(in srgb, var(--wf-brand-accent) 12%, transparent)" : "transparent", padding: "12px 14px", cursor: "pointer", color: "var(--wf-text)", fontFamily: "inherit", fontSize: 14, fontWeight: activo ? 700 : 500 }}>
                     <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{serviceItemLabel(it, library)}</span>
                     {activo && <span style={{ fontSize: 10.5, fontWeight: 800, color: "#C23B32" }}>AL AIRE</span>}

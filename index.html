@@ -35,6 +35,17 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Si la app no llega a abrir (navegador muy viejo de un televisor, sin internet), que no quede una
+         página en blanco sin explicación (2026-11-13). Escrito en JavaScript antiguo a propósito. -->
+    <script>
+      setTimeout(function () {
+        var raiz = document.getElementById("root");
+        if (!raiz || raiz.childNodes.length) return;
+        raiz.innerHTML = '<div style="font-family:sans-serif;padding:8vh 6vw;font-size:22px;line-height:1.5;color:#16324F">' +
+          '<b>WorshipFlow no pudo abrir en este navegador.</b><br>Revisa el internet y vuelve a cargar la página. ' +
+          'Si es un televisor y sigue igual, su navegador es muy antiguo: conecta una computadora o un celular por HDMI o duplicando la pantalla.</div>';
+      }, 20000);
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
