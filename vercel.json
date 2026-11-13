@@ -28,5 +28,17 @@
       "source": "/web/:pagina",
       "destination": "/index.html"
     }
+  ],
+  "redirects": [
+    {
+      "source": "/terminos.html",
+      "destination": "/web/terminos",
+      "permanent": true
+    },
+    {
+      "source": "/privacidad.html",
+      "destination": "/web/privacidad",
+      "permanent": true
+    }
   ]
 }
