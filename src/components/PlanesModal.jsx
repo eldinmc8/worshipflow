@@ -1,11 +1,15 @@
 // Ventana "Tu plan": plan actual, uso (miembros / canciones / ministerios) y los 3 planes para elegir.
-// Mientras no esté conectada la pasarela de pagos, "Quiero este plan" abre WhatsApp con el pedido
-// y el super administrador activa el plan desde la consola (pagos por transferencia).
+// "Pagar con tarjeta" (2026-11-13) lleva a worshipflowapp.com/web/pagar (Paddle) — solo administradores de la
+// iglesia, y mientras se prueba con el sandbox solo el super admin. Si la iglesia ya tiene una suscripción, no se
+// abre otro pago (crearía una segunda suscripción): el cambio de plan se pide por WhatsApp.
+// "Quiero este plan" (WhatsApp) sigue para pagos por transferencia: el super admin activa el plan desde la consola.
 import { useEffect, useState } from "react";
 import { Crown, Check } from "lucide-react";
 import { ModalShell } from "../pantallas/compartido.jsx";
 import { PLANES, planPorId, usePlan, recargarPlan, diasRestantes, onAbrirPlanes } from "../lib/planes.js";
 import { WHATSAPP_SOPORTE } from "../lib/soporte.js";
+import { supabase } from "../lib/supabaseClient.js";
+import { pagosConfigurados, PAGOS_SOLO_SUPER_ADMIN, enlacePago } from "../lib/paddle.js";
 
 function Medidor({ label, usados, limite }) {
   const pct = limite == null ? 0 : Math.min(100, Math.round((usados / Math.max(limite, 1)) * 100));
@@ -29,6 +33,13 @@ export function PlanesModal({ onClose, teamName }) {
   const plan = usePlan();
   const [anual, setAnual] = useState(false);
   useEffect(() => { recargarPlan(); }, []);
+  const [correo, setCorreo] = useState("");
+  const [superAdmin, setSuperAdmin] = useState(false);
+  useEffect(() => {
+    supabase.auth.getUser?.().then(({ data }) => setCorreo(data?.user?.email || "")).catch(() => {});
+    if (PAGOS_SOLO_SUPER_ADMIN) supabase.rpc?.("soy_super_admin").then(({ data }) => setSuperAdmin(!!data)).catch(() => {});
+  }, []);
+  const puedePagar = pagosConfigurados() && !!plan?.soy_admin && !!plan?.iglesia_id && !plan?.tiene_suscripcion && (!PAGOS_SOLO_SUPER_ADMIN || superAdmin);
   const actual = planPorId(plan?.plan);
   const dias = diasRestantes(plan?.vence);
   const enPrueba = !!plan?.en_prueba;
@@ -85,13 +96,25 @@ export function PlanesModal({ onClose, teamName }) {
               {esActual ? (
                 <div style={{ marginTop: 10, fontSize: 12, fontWeight: 700, color: p.color, textAlign: "center" }}>Tu plan actual</div>
               ) : p.precio > 0 ? (
-                <button onClick={() => pedir(p)} style={{ marginTop: 10, width: "100%", border: "none", borderRadius: 12, padding: "9px 10px", fontSize: 13, fontWeight: 700, cursor: "pointer", background: p.color, color: "#fff" }}>
-                  Quiero este plan
-                </button>
+                <>
+                  {puedePagar && (
+                    <a href={enlacePago({ plan: p.id, anual, iglesiaId: plan.iglesia_id, correo })} style={{ display: "block", textAlign: "center", textDecoration: "none", marginTop: 10, width: "100%", boxSizing: "border-box", borderRadius: 12, padding: "9px 10px", fontSize: 13, fontWeight: 700, background: p.color, color: "#fff" }}>
+                      Pagar con tarjeta
+                    </a>
+                  )}
+                  <button onClick={() => pedir(p)} style={{ marginTop: puedePagar ? 6 : 10, width: "100%", border: "none", borderRadius: 12, padding: "9px 10px", fontSize: 13, fontWeight: 700, cursor: "pointer", background: puedePagar ? "transparent" : p.color, color: puedePagar ? p.color : "#fff" }}>
+                    {puedePagar ? "Prefiero pagar por transferencia" : "Quiero este plan"}
+                  </button>
+                </>
               ) : null}
             </div>
           );
         })}
+        {plan?.tiene_suscripcion && (
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", textAlign: "center", margin: "4px 0 8px" }}>
+            Tu iglesia paga con tarjeta. Para cancelar, usa el enlace del recibo de Paddle; para cambiar de plan, escríbenos por WhatsApp.
+          </div>
+        )}
         <div style={{ fontSize: 11, color: "var(--wf-faint)", textAlign: "center", margin: "4px 0 8px" }}>
           Bajar de plan nunca borra nada: lo que pase del límite queda guardado, solo no se puede agregar más.
         </div>

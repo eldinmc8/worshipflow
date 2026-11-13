@@ -12,6 +12,7 @@ import WorshipFlowIcon from "./WorshipFlowIcon.jsx";
 import { PLANES, COMPARATIVO } from "./lib/planes.js";
 import { CORREO_SOPORTE, WHATSAPP_SOPORTE } from "./lib/soporte.js";
 import { direccionApp } from "./lib/portada.js";
+import { PADDLE_TOKEN, pagosConfigurados, leerPedidoPago, cargarPaddle } from "./lib/paddle.js";
 
 // "Abrir la app web" / "Entrar": en worshipflowapp.com lleva a app.worshipflowapp.com; en la dirección vieja, a "/".
 const URL_APP = direccionApp(typeof window !== "undefined" ? window.location.hostname : "");
@@ -35,9 +36,10 @@ const PAGINAS = [
   { ruta: "/web/terminos", nombre: "Términos" },
   { ruta: "/web/privacidad", nombre: "Privacidad" },
   { ruta: "/web/reembolsos", nombre: "Reembolsos" },
+  { ruta: "/web/pagar", nombre: "Pagar" },
 ];
 
-export const esRutaSitioWeb = (path) => /^\/web(\/(precios|terminos|privacidad|reembolsos))?\/?$/.test(path);
+export const esRutaSitioWeb = (path) => /^\/web(\/(precios|terminos|privacidad|reembolsos|pagar))?\/?$/.test(path);
 
 const whatsapp = (texto) => `https://wa.me/${WHATSAPP_SOPORTE}?text=${encodeURIComponent(texto)}`;
 const PEDIR_CODIGO = whatsapp("Hola, quiero probar WorshipFlow en mi iglesia. ¿Me pueden dar un código de invitación?");
@@ -54,7 +56,7 @@ function Enlace({ ruta, children, style, className }) {
 }
 
 // Botón principal (naranja) o secundario (texto). Un enlace externo abre en otra pestaña.
-function Boton({ href, ruta, children, tipo = "principal", grande, style, mismaPestana }) {
+function Boton({ href, ruta, children, tipo = "principal", grande, style, mismaPestana, onClick }) {
   const base = {
     display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: grande ? 50 : 44,
     padding: grande ? "13px 22px" : "10px 16px", borderRadius: 12, fontWeight: 600, fontSize: grande ? 16 : 14,
@@ -68,6 +70,7 @@ function Boton({ href, ruta, children, tipo = "principal", grande, style, mismaP
   };
   const s = { ...base, ...estilos[tipo], ...style };
   if (ruta) return <Enlace ruta={ruta} style={s}>{children}</Enlace>;
+  if (onClick) return <button type="button" onClick={onClick} style={{ ...s, border: "none", fontFamily: "inherit" }}>{children}</button>;
   return <a href={href} target={href?.startsWith("http") && !mismaPestana ? "_blank" : undefined} rel="noopener" style={s}>{children}</a>;
 }
 
@@ -573,6 +576,67 @@ function Privacidad() {
   );
 }
 
+// Página de pago (2026-11-13): aquí se abre Paddle Checkout. Llega desde la app con ?plan=&periodo=&iglesia=&correo=.
+// Paddle solo deja cobrar desde un dominio aprobado y público, por eso el pago vive aquí y no en app.worshipflowapp.com.
+function Pagar() {
+  const [pedido] = useState(() => leerPedidoPago(window.location.search));
+  const [estado, setEstado] = useState(pedido && pagosConfigurados() ? "cargando" : "invalido"); // cargando · abierto · cerrado · listo · error · invalido
+  const [error, setError] = useState("");
+  const plan = pedido ? PLANES.find((p) => p.id === pedido.plan) : null;
+
+  const abrir = () => {
+    if (!pedido) return;
+    setError("");
+    cargarPaddle().then((Paddle) => {
+      if (!Paddle.Initialized) {
+        Paddle.Initialize({
+          token: PADDLE_TOKEN,
+          eventCallback: (ev) => {
+            if (ev?.name === "checkout.completed") setEstado("listo");
+            else if (ev?.name === "checkout.closed") setEstado((e) => (e === "listo" ? e : "cerrado"));
+          },
+        });
+      }
+      Paddle.Checkout.open({
+        items: [{ priceId: pedido.precio, quantity: 1 }],
+        ...(pedido.correo ? { customer: { email: pedido.correo } } : {}),
+        customData: { iglesia_id: pedido.iglesia },
+        settings: { displayMode: "overlay", locale: "es", theme: "light", allowLogout: !pedido.correo },
+      });
+      setEstado("abierto");
+    }).catch((e) => { setError(e.message || "No se pudo abrir el pago."); setEstado("error"); });
+  };
+  useEffect(() => { if (estado === "cargando") abrir(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const precio = plan ? (pedido.periodo === "anual" ? `$${plan.precioAnual} al año` : `$${plan.precio} al mes`) : "";
+  return (
+    <Legal ruta="/web/pagar" titulo={estado === "listo" ? "¡Gracias!" : "Pagar tu plan"}>
+      {estado === "invalido" ? (
+        <>
+          <p>Este enlace de pago no es válido o los pagos todavía no están activos. Para elegir un plan, entra a la app y ve a <strong>Ajustes → Tu plan</strong>, o escríbenos por WhatsApp.</p>
+          <p><Boton href={URL_APP} mismaPestana tipo="oscuro">Abrir la app web</Boton></p>
+        </>
+      ) : estado === "listo" ? (
+        <>
+          <p>Recibimos tu pago del plan <strong>{plan.nombre}</strong> ({precio}). En unos segundos tu iglesia ya tiene el plan activo; si la app ya estaba abierta, ciérrala y vuelve a abrirla.</p>
+          <p>Paddle te mandó el recibo por correo. Desde ese correo también puedes cancelar o pedir un reembolso.</p>
+          <p><Boton href={URL_APP} mismaPestana>Volver a WorshipFlow</Boton></p>
+        </>
+      ) : (
+        <>
+          <p>Plan <strong>{plan.nombre}</strong> · {precio}. El pago lo procesa <strong>Paddle.com</strong>, nuestro revendedor oficial, de forma segura.</p>
+          {error && <p style={{ color: "#C23B32" }}>{error}</p>}
+          <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Boton onClick={abrir}>{estado === "cerrado" || estado === "error" ? "Volver a abrir el pago" : "Abrir el pago"}</Boton>
+            <Boton href={URL_APP} mismaPestana tipo="texto">Volver a la app</Boton>
+          </p>
+          <p style={{ fontSize: 13, color: SUAVE }}>Puedes cancelar cuando quieras y tienes 14 días para pedir el reembolso completo de cualquier pago. Ver <Enlace ruta="/web/reembolsos" style={{ color: TINTA, textDecoration: "underline" }}>política de reembolsos</Enlace>.</p>
+        </>
+      )}
+    </Legal>
+  );
+}
+
 function Reembolsos() {
   return (
     <Legal ruta="/web/reembolsos" titulo="Política de reembolsos">
@@ -601,7 +665,7 @@ export default function SitioWeb() {
     document.title = p && p.ruta !== "/web" ? `${p.nombre} · WorshipFlow` : "WorshipFlow — Todo el culto en una sola app";
   }, [ruta]);
 
-  const pagina = { "/web/precios": <Precios />, "/web/terminos": <Terminos />, "/web/privacidad": <Privacidad />, "/web/reembolsos": <Reembolsos /> }[ruta] || <Inicio />;
+  const pagina = { "/web/pagar": <Pagar />, "/web/precios": <Precios />, "/web/terminos": <Terminos />, "/web/privacidad": <Privacidad />, "/web/reembolsos": <Reembolsos /> }[ruta] || <Inicio />;
   return (
     <div className="sw" style={{ minHeight: "100vh", background: "#fff", color: TEXTO, fontFamily: "var(--wf-font-ui)", letterSpacing: "-0.01em", userSelect: "text", WebkitUserSelect: "text" }}>
       <style>{`

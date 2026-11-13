@@ -41,3 +41,13 @@ describe("tabla de comparación", () => {
     expect(subtitulo.style.left).toBe("0px");
   });
 });
+
+// Página de pago: sin token configurado o con un enlace inválido, no abre nada y manda a la app.
+describe("página de pago", () => {
+  it("con un enlace inválido muestra el aviso y el botón a la app", () => {
+    const { container } = abrir("/web/pagar?plan=gratis");
+    expect(container.textContent).toMatch(/no es válido o los pagos todavía no están activos/);
+    // En las pruebas la dirección es localhost, así que "la app" es "/" (en worshipflowapp.com es app.worshipflowapp.com).
+    expect(screen.getAllByText("Abrir la app web").some((el) => el.closest("a")?.getAttribute("href") === "/")).toBe(true);
+  });
+});
