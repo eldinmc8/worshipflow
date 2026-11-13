@@ -122,3 +122,24 @@ describe("ajuste de la iglesia: dividir versículos largos", () => {
     expect(partesDeVersiculo(LARGO, palabrasPorParteSegun(1, true))).toHaveLength(2);
   });
 });
+
+describe("línea pegada sin saltos en pantalla grande (IGLESIA DE CRISTO, 2026-11-12)", () => {
+  const pegada = "¿Vives ya salvado por Jesús? ¿su amor conoces ya? ¡Habla, pues, anuncia que en la luz de Cristo vives ya!";
+  const normal = ["Cristo está buscando obreros hoy, quieran ir con El.", "¿Quién dirá: \"Señor, contigo voy, yo quiero serte fiel?\""];
+  const slide = (id, lines) => ({ slideId: id, type: "cancion", songId: "s", blockKey: "V1", slideIndexInBlock: 0, lines });
+  it("la reparte en renglones parejos y deja igual las diapositivas bien escritas", async () => {
+    const { reorganizarLetra, MAX_LINEA_GRANDE } = await import("../dividirTexto.js");
+    const [a, b] = reorganizarLetra([slide("i-V1-0", [pegada]), slide("i-V1-1", normal)], "dos_lineas");
+    expect(a.lines.length).toBe(2);
+    expect(a.lines.join(" ")).toBe(pegada);
+    a.lines.forEach((l) => expect(l.length).toBeLessThanOrEqual(MAX_LINEA_GRANDE));
+    expect(a.slideId).toBe("i-V1-0"); // misma diapositiva: editar, mover y borrar siguen igual
+    expect(a.baseLines).toEqual([pegada]); // "Corregir letra" edita la línea guardada, no los pedazos
+    expect(b.lines).toEqual(normal);
+    expect(b).not.toHaveProperty("baseLines");
+  });
+  it("ya solo se ofrecen dos formatos", async () => {
+    const { FORMATOS_LETRA } = await import("../dividirTexto.js");
+    expect(FORMATOS_LETRA.map((f) => f.value)).toEqual(["dos_lineas", "una_linea_dos_renglones"]);
+  });
+});

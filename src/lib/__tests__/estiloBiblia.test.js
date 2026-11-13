@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { estiloDeBiblia, estiloParaDiapositiva, setterDeBiblia, sinEfectosDeCanciones } from "../estiloBiblia.js";
+import { estiloDeBiblia, estiloParaDiapositiva, setterDeBiblia, setterDeCanciones, sinEfectosDeCanciones } from "../estiloBiblia.js";
 
 const canciones = { theme: "custom", customBgType: "video", customVideo: "fondo.mp4", font: "moderna", fontScale: 1.2, textColor: "#FFF", animacion: "aurora", animFondo: "estilo", animPorCancion: true, animReceta: { x: 1 }, fondoPorCancion: true, fondosCanciones: { s1: { theme: "noche" } }, bibliaTextColor: "#FFD" };
 
@@ -36,5 +36,20 @@ describe("estilo propio de la Biblia", () => {
   it("sinEfectosDeCanciones tolera vacío", () => {
     expect(sinEfectosDeCanciones(null)).toEqual({});
     expect(estiloParaDiapositiva(null, { type: "biblia" })).toBeNull();
+  });
+  it("cambiar el fondo de las canciones ya no arrastra a la Biblia, aunque nunca se le haya elegido nada", () => {
+    let estado = canciones;
+    const setCanciones = setterDeCanciones((f) => { estado = typeof f === "function" ? f(estado) : f; });
+    // Solo la letra animada: a la Biblia no le toca, así que no hace falta guardarle nada.
+    setCanciones((s) => ({ ...s, animacion: "fuego", animFondo: "propio" }));
+    expect(estado).not.toHaveProperty("biblia");
+    setCanciones((s) => ({ ...s, theme: "azul" }));
+    expect(estado.theme).toBe("azul");
+    expect(estiloDeBiblia(estado).theme).toBe("custom"); // la Biblia se quedó con el fondo que tenía
+    expect(estiloDeBiblia(estado).customVideo).toBe("fondo.mp4");
+    // Y lo que ya tenía la Biblia no se pisa con cambios posteriores de las canciones.
+    setCanciones((s) => ({ ...s, font: "clasica", fontScale: 2 }));
+    expect(estado.biblia.font).toBe("moderna");
+    expect(estado.biblia.fontScale).toBe(1.2);
   });
 });

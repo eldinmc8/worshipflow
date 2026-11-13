@@ -90,7 +90,6 @@ export function PantallaProyeccionModal({ iglesiaId, onClose }) {
                 );
               })}
             </div>
-            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Se aplica al proyectar — las canciones de la biblioteca no cambian.</div>
           </Field>
           <Field label="Versículos largos">
             <button

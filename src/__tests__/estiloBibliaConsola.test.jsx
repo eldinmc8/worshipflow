@@ -46,4 +46,30 @@ describe("Estilo para Canciones o Biblia en la consola", () => {
     expect(screen.queryByText("LETRA ANIMADA")).toBeNull();
     expect(screen.getByText("VERSÍCULOS")).toBeTruthy();
   });
+  it("con una canción al aire, el fondo elegido para la Biblia se guarda y se ve en una muestra", () => {
+    let estilo = null;
+    render(<Consola alAire={cancion} onEstilo={(s) => { estilo = s; }} />);
+    fireEvent.click(screen.getByTitle("Estilo"));
+    expect(screen.queryByTestId("muestra-estilo")).toBeNull(); // editando lo mismo que está al aire
+    fireEvent.click(screen.getByRole("radio", { name: /Biblia/ }));
+    expect(screen.getByTestId("muestra-estilo").textContent).toMatch(/ASÍ SE VERÁ LA BIBLIA/);
+    fireEvent.click(screen.getAllByRole("button").find((b) => /Azul noche/i.test(b.textContent || "")));
+    expect(estilo.biblia.theme).toBe("azul");
+    expect(estilo.theme).toBe("stage");
+  });
+  it("cambiar el fondo de las canciones no le cambia el fondo a la Biblia", () => {
+    let estilo = null;
+    render(<Consola alAire={cancion} onEstilo={(s) => { estilo = s; }} />);
+    fireEvent.click(screen.getByTitle("Estilo"));
+    fireEvent.click(screen.getAllByRole("button").find((b) => (b.textContent || "").trim() === "Cálido"));
+    expect(estilo.theme).toBe("calido");
+    expect(estilo.biblia.theme).toBe("stage");
+  });
+  it("lo elegido a mano en 'Estilo para' no se cambia solo al pasar de versículo a canción", () => {
+    const { rerender } = render(<Consola alAire={versiculo} onEstilo={() => {}} />);
+    fireEvent.click(screen.getByTitle("Estilo"));
+    fireEvent.click(screen.getByRole("radio", { name: /Biblia/ }));
+    rerender(<Consola alAire={cancion} onEstilo={() => {}} />);
+    expect(screen.getByRole("radio", { name: /Biblia/ }).getAttribute("aria-checked")).toBe("true");
+  });
 });

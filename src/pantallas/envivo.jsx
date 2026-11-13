@@ -34,7 +34,7 @@ import { MediaPicker, SlideModal, AvisoEnlaceVideo, VideoModal } from "./ventana
 import { avisoDeEnlace, tipoDeVideo } from "../lib/videoEnlace.js";
 import { posicionActual, textoTiempo } from "../lib/videoControl.js";
 import { useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
-import { estiloDeBiblia, setterDeBiblia } from "../lib/estiloBiblia.js";
+import { estiloDeBiblia, setterDeBiblia, setterDeCanciones } from "../lib/estiloBiblia.js";
 import { ProjectionPanel } from "./proyeccion.jsx";
 
 // ---------- Color por sección para el grid de diapositivas del panel Multimedia (estilo "grid de shows" tipo FreeShow) ----------
@@ -187,11 +187,34 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   // dejar listo el otro. De aquí para abajo, liveStyle/setLiveStyle son SIEMPRE el estilo que se edita;
   // las vistas previas usan el completo (estiloCompleto) y cada diapositiva toma el suyo.
   const tipoEstiloAlAire = (fijada || current)?.type === "biblia" ? "biblia" : "canciones";
-  const [destinoEstilo, setDestinoEstilo] = useState(tipoEstiloAlAire);
-  useEffect(() => { setDestinoEstilo(tipoEstiloAlAire); }, [tipoEstiloAlAire]);
+  // Lo que se elige a mano se respeta mientras la pestaña Estilo siga abierta (2026-11-12): antes, al
+  // pasar de un versículo a una canción (o al revés) el selector se cambiaba solo y lo siguiente que se
+  // tocaba caía en el otro sin que nadie lo notara. Al salir de Estilo vuelve a seguir a lo que está al aire.
+  const [destinoManual, setDestinoManual] = useState(null);
+  useEffect(() => { if (mmPanel !== "estilo") setDestinoManual(null); }, [mmPanel]);
+  const destinoEstilo = destinoManual || tipoEstiloAlAire;
+  const setDestinoEstilo = setDestinoManual;
   const editandoBiblia = destinoEstilo === "biblia";
   const liveStyle = useMemo(() => (editandoBiblia ? estiloDeBiblia(estiloCompleto) : estiloCompleto), [editandoBiblia, estiloCompleto]);
-  const setLiveStyle = useMemo(() => (editandoBiblia ? setterDeBiblia(setEstiloCompleto) : setEstiloCompleto), [editandoBiblia, setEstiloCompleto]);
+  const setLiveStyle = useMemo(() => (editandoBiblia ? setterDeBiblia(setEstiloCompleto) : setterDeCanciones(setEstiloCompleto)), [editandoBiblia, setEstiloCompleto]);
+  // Muestra de lo que se está editando cuando NO es lo que está al aire (2026-11-12): con una canción al
+  // aire, elegir un fondo para la Biblia no se veía en ningún lado y parecía que no hacía nada. Usa un
+  // versículo (o una canción) del culto si hay; si no, uno de ejemplo. Nunca sale a la proyección.
+  const muestraEstilo = () => {
+    if (mmPanel !== "estilo" || destinoEstilo === tipoEstiloAlAire) return null;
+    const slide = editandoBiblia
+      ? slides.find((x) => x?.type === "biblia") || { slideId: "muestra-biblia", type: "biblia", reference: "Juan 3:16", version: "RVR1960", text: "Porque de tal manera amó Dios al mundo, que ha dado a su Hijo unigénito, para que todo aquel que en él cree, no se pierda, mas tenga vida eterna." }
+      : slides.find((x) => x?.type === "cancion") || { slideId: "muestra-cancion", type: "cancion", songId: "muestra", songTitle: "Ejemplo", blockLabel: "Coro", blockKey: "C", lines: ["Cuán grande es Él", "Mi corazón entona la canción"] };
+    const color = editandoBiblia ? "#2F5FA8" : "#1F8A73";
+    return (
+      <div data-testid="muestra-estilo" style={{ flexShrink: 0 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: 0.4, margin: "8px 0 4px" }}>{editandoBiblia ? "ASÍ SE VERÁ LA BIBLIA" : "ASÍ SE VERÁN LAS CANCIONES"} <span style={{ fontWeight: 600, color: "var(--wf-faint)", letterSpacing: 0 }}>· muestra, no está al aire</span></div>
+        <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 12, overflow: "hidden", border: `2px dashed ${color}`, boxSizing: "border-box" }}>
+          <ProjectionPanel slide={slide} blanked={false} split={false} liveStyle={estiloCompleto} thumbnail />
+        </div>
+      </div>
+    );
+  };
   const selectorDestinoEstilo = (compacto = false) => (
     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: compacto ? 0 : 12 }}>
       {!compacto && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)" }}>ESTILO PARA</span>}
@@ -982,6 +1005,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)" }}>
               <ProjectionPanel slide={current} blanked={blanked} split={false} liveStyle={estiloCompleto} thumbnail />
             </div>
+            {muestraEstilo()}
             {botonReiniciarCuenta}
             {controlesVideo}
           </div>
@@ -1453,6 +1477,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)", border: "2px solid #C23B32", flexShrink: 0 }}>
             <ProjectionPanel slide={alAire} blanked={blanked} split={false} liveStyle={estiloCompleto} thumbnail />
           </div>
+          {muestraEstilo()}
           {botonReiniciarCuenta}
             {controlesVideo}
           {fijada && (
