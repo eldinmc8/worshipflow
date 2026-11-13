@@ -2593,6 +2593,10 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             control: liveEventId === selectedEvent.id && !llevoLaTransmision
               ? ((bloqueBosquejo.encargados || []).some((m) => m.usuarioId === userId) ? { bloqueId: bloqueBosquejo.id } : canControlLive ? { bloqueId: null } : null)
               : null,
+            // Si no hay botones de Pantalla, se dice por qué (2026-11-13: no salían y no se sabía la razón).
+            sinControl: liveEventId !== selectedEvent.id ? null
+              : llevoLaTransmision ? "Este equipo es el que transmite: aquí se pasan las diapositivas desde la consola En vivo. Para usar el celular como control, la transmisión tiene que estar iniciada desde la computadora."
+              : "Para pasar tus diapositivas desde aquí, pide que te asignen como encargado del bloque de Predicación.",
           }}
           onGuardar={guardarBorradorBosquejo} onEnviar={enviarBosquejo}
           onClose={() => setBosquejoAbierto(null)}

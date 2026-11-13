@@ -41,7 +41,7 @@ function tituloPaso(paso, b) {
 
 // control (2026-11-13): { bloqueId } si quien predica puede pasar SUS diapositivas desde aquí (control
 // remoto, ver lib/controlRemoto.js); { bloqueId: null } para Multimedia; null = sin control.
-export default function ModoPredicar({ bosquejo, serviceOrder = [], bloqueId, enVivo = false, slideAlAire = null, control = null, onClose }) {
+export default function ModoPredicar({ bosquejo, serviceOrder = [], bloqueId, enVivo = false, slideAlAire = null, control = null, sinControl = null, onClose }) {
   useCerrarConAtras(true, onClose); // atrás del teléfono cierra esta ventana (ver lib/atras.js)
   const b = bosquejo || {};
   const pasos = useMemo(() => pasosPredicar(b), [b]);
@@ -233,6 +233,10 @@ export default function ModoPredicar({ bosquejo, serviceOrder = [], bloqueId, en
           )}
           {errorControl && <div role="alert" style={{ fontSize: 12, color: "#FF8A80", marginTop: 6 }}>{errorControl}</div>}
         </div>
+      )}
+
+      {enVivo && !control && sinControl && (
+        <div role="note" style={{ padding: "8px 14px 0", fontSize: 12, color: GRIS, display: "flex", alignItems: "flex-start", gap: 6, background: "rgba(255,255,255,0.03)" }}><Monitor size={14} style={{ flexShrink: 0, marginTop: 1 }} /> {sinControl}</div>
       )}
 
       {/* Barra de abajo */}
