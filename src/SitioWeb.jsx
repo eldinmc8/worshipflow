@@ -101,7 +101,7 @@ function Encabezado({ ruta }) {
             {enlace("/web/precios", "Precios")}
           </div>
           <div className="sw-escritorio" style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 14 }}>
-            <a href="/" style={{ color: TINTA, textDecoration: "none", fontWeight: 500 }}>Entrar</a>
+            <a href="/?entrar" style={{ color: TINTA, textDecoration: "none", fontWeight: 500 }}>Entrar</a>
             <Boton href={PEDIR_CODIGO}>Probar gratis</Boton>
           </div>
           <button className="sw-celular" onClick={() => setMenu((v) => !v)} aria-label={menu ? "Cerrar menú" : "Abrir menú"} aria-expanded={menu}
@@ -113,7 +113,7 @@ function Encabezado({ ruta }) {
           <div className="sw-celular" style={{ display: "none", flexDirection: "column", gap: 4, padding: "0 20px 16px", fontSize: 16, fontWeight: 600 }}>
             <Enlace ruta="/web" style={{ padding: "12px 4px", color: TINTA }}>Inicio</Enlace>
             <Enlace ruta="/web/precios" style={{ padding: "12px 4px", color: TINTA }}>Precios</Enlace>
-            <a href="/" style={{ color: TINTA, textDecoration: "none", padding: "12px 4px" }}>Entrar a la app</a>
+            <a href="/?entrar" style={{ color: TINTA, textDecoration: "none", padding: "12px 4px" }}>Entrar a la app</a>
             <Boton href={PEDIR_CODIGO} grande style={{ marginTop: 6 }}><MessageCircle size={17} /> Probar gratis</Boton>
           </div>
         )}
@@ -142,7 +142,7 @@ function Pie() {
             {col("Producto", <>
               <Enlace ruta="/web" style={link}>Inicio</Enlace>
               <Enlace ruta="/web/precios" style={link}>Precios</Enlace>
-              <a href="/" style={link}>Entrar a la app</a>
+              <a href="/?entrar" style={link}>Entrar a la app</a>
             </>)}
             {col("Legal", <>
               <Enlace ruta="/web/terminos" style={link}>Términos</Enlace>
