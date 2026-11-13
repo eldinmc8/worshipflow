@@ -49,3 +49,20 @@ export function setterDeBiblia(setLiveStyle) {
     return { ...st, biblia: sinEfectosDeCanciones(nuevo) };
   });
 }
+
+// Para el panel de Estilo en modo Canciones (pedido de Eldin, 2026-11-12: "quiero que sus fondos sean
+// independientes, pero al parecer siguen ligados"). Mientras la Biblia no tenía nada propio seguía al
+// estilo de las canciones, así que cambiar el fondo de las canciones le cambiaba el fondo también a los
+// versículos. Ahora, la primera vez que un cambio de las canciones le tocaría a la Biblia, la Biblia se
+// queda con lo que tenía hasta ese momento como estilo propio: nada cambia de golpe y desde ahí cada uno
+// va por su lado.
+export function setterDeCanciones(setLiveStyle) {
+  return (cambio) => setLiveStyle((st) => {
+    const nuevo = typeof cambio === "function" ? cambio(st) : cambio;
+    if (!st || !nuevo || typeof nuevo !== "object") return nuevo;
+    if (nuevo.biblia && typeof nuevo.biblia === "object") return nuevo;
+    const antes = estiloDeBiblia(st);
+    if (JSON.stringify(antes) === JSON.stringify(estiloDeBiblia(nuevo))) return nuevo;
+    return { ...nuevo, biblia: antes };
+  });
+}

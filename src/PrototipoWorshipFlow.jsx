@@ -14,6 +14,7 @@ import { saveCache, loadCache } from "./lib/offlineCache.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { palabrasPorParteSegun, expandirVersiculosLargos, reorganizarLetra } from "./lib/dividirTexto.js";
 import { insertarEnBloque } from "./lib/ordenCulto.js";
+import { estiloDeBiblia } from "./lib/estiloBiblia.js";
 import { esBloquePredicacion, guardarBosquejo, aplicarBosquejoAlOrden, bosquejoAItems, eliminarBosquejo, quitarBosquejoDelOrden, completarVersosBosquejo, subtituloProyectable } from "./lib/bosquejos.js";
 import { animacionEfectiva, estiloDeParte } from "./lib/animacionCancion.js";
 import { esCuentaRegresiva, slideCuentaRegresiva, conHoraFinal, arrancarSiHaceFalta, slideCuentaAlMomento, normalizarCuenta, itemCuentaRegresiva } from "./lib/cuentaRegresiva.js";
@@ -491,7 +492,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // Versículos largos → 2 o 3 diapositivas (ver dividirTexto.js). Con la letra en vivo más grande,
   // caben menos palabras por diapositiva y divide antes.
   // Dividir versículos largos: ajuste de cada iglesia (Ajustes → Pantalla de proyección).
-  const palabrasPorParte = palabrasPorParteSegun(liveStyle.fontScale, !!myIglesia.dividirVersiculos);
+  // El tamaño que cuenta es el de la Biblia, que tiene su propio estilo (ver lib/estiloBiblia.js).
+  const palabrasPorParte = palabrasPorParteSegun(estiloDeBiblia(liveStyle).fontScale, !!myIglesia.dividirVersiculos);
   // Cómo se reparte la letra de canciones en pantalla — ajuste de cada iglesia (Identidad de la iglesia).
   const formatoLetra = myIglesia.formatoLetra || "dos_lineas";
   // Ocultos en la consola (pedido de Eldin, 2026-10-11): la ✕ de la consola ya NO borra del setlist —
