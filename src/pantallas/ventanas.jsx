@@ -13,6 +13,7 @@ import { confirmDialog } from "../lib/confirm.js";
 import { notifyError, showToast, esFalloDeConexion } from "../lib/toast.js";
 import { ModalShell, Field, primaryBtn, inputStyle, addBtnStyle } from "./compartido.jsx";
 import { avisoDeEnlace } from "../lib/videoEnlace.js";
+import { colorPropioDe, fondoFijo, tipoDeFondo, COLORES_LISOS } from "../lib/fondoDiapositiva.js";
 
 // +502 4054 4813, sin "+" ni espacios para wa.me
 
@@ -300,12 +301,14 @@ export function ChangePasswordModal({ onClose }) {
 // "subir = FileReader.readAsDataURL" (guardaba el archivo entero como texto base64 dentro del propio
 // registro, pesadísimo y sin forma de reutilizarlo). Ahora sube a Supabase Storage (lib/multimedia.js)
 // y la galería de abajo deja elegir cualquier archivo ya subido antes por esta iglesia, sin resubirlo.
-export function MediaPicker({ iglesiaId, tipo, value, onChange, color = "#B15EA0" }) {
+// galeriaAbierta: la biblioteca se ve de una vez, sin tener que tocar "Biblioteca" (2026-11-14: estaba
+// muy escondida). grande: miniaturas anchas (16:9) para los paneles con espacio.
+export function MediaPicker({ iglesiaId, tipo, value, onChange, color = "#B15EA0", galeriaAbierta = false, grande = false }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
-  const [showGallery, setShowGallery] = useState(false);
+  const [showGallery, setShowGallery] = useState(galeriaAbierta);
   const fileInputRef = useRef(null);
 
   const cargar = () => {
@@ -353,20 +356,20 @@ export function MediaPicker({ iglesiaId, tipo, value, onChange, color = "#B15EA0
               ? <span style={{ width: 16, height: 16, borderRadius: 8, backgroundImage: `url(${value})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />
               : <Play size={13} color={color} />
           ) : tipo === "imagen" ? <ImgIcon size={13} color="var(--wf-faint)" /> : <Play size={13} color="var(--wf-faint)" />}
-          <span>{uploading ? "Subiendo…" : value ? "Cambiar — tocar para subir otro" : `Subir ${tipo === "imagen" ? "imagen" : "video"} nuevo`}</span>
+          <span>{uploading ? "Subiendo…" : `Subir ${tipo === "imagen" ? (value ? "otra imagen" : "una imagen") : (value ? "otro video" : "un video")} desde este equipo`}</span>
         </button>
-        <button type="button" onClick={() => setShowGallery((s) => !s)} className="hoverable" title="Elegir de lo ya subido antes" style={{ ...addBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}>
-          <LayoutGrid size={13} color={color} /> Biblioteca
+        <button type="button" onClick={() => setShowGallery((s) => !s)} aria-expanded={showGallery} className="hoverable" title="Elegir de lo ya subido antes" style={{ ...addBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap", ...(showGallery ? { borderColor: color } : {}) }}>
+          <LayoutGrid size={13} color={color} /> {showGallery ? "Ocultar biblioteca" : "Biblioteca"}
         </button>
       </div>
       <input ref={fileInputRef} type="file" accept={tipo === "imagen" ? "image/*" : "video/*"} style={{ display: "none" }} onChange={(e) => { subir(e.target.files?.[0]); e.target.value = ""; }} />
       {error && <div style={{ fontSize: 11, color: "#C23B32", marginTop: 6 }}>{error}</div>}
       {showGallery && (
-        <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 8, maxHeight: 220, overflowY: "auto", background: "var(--wf-hover)", borderRadius: 12, padding: 8 }}>
+        <div data-testid="biblioteca-fondos" style={{ marginTop: 10, display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${grande ? 118 : 72}px, 1fr))`, gap: 8, maxHeight: grande ? 300 : 220, overflowY: "auto", background: "var(--wf-hover)", borderRadius: 12, padding: 8 }}>
           {loading && <div style={{ fontSize: 11, color: "var(--wf-faint)", gridColumn: "1/-1" }}>Cargando…</div>}
-          {!loading && items.length === 0 && <div style={{ fontSize: 11, color: "var(--wf-faint)", gridColumn: "1/-1" }}>Todavía no hay {tipo === "imagen" ? "imágenes" : "videos"} guardados — sube el primero arriba.</div>}
+          {!loading && items.length === 0 && <div style={{ fontSize: 11, color: "var(--wf-faint)", gridColumn: "1/-1" }}>{tipo === "imagen" ? "Todavía no hay imágenes guardadas: sube la primera con el botón de arriba." : "Todavía no hay videos guardados: sube el primero con el botón de arriba."}</div>}
           {items.map((item) => (
-            <div key={item.ruta} onClick={() => onChange(item.url)} title={item.nombre} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", cursor: "pointer", background: "#000", border: value === item.url ? `2px solid ${color}` : "1px solid var(--wf-border)" }}>
+            <div key={item.ruta} onClick={() => onChange(item.url)} title={item.nombre} role="button" aria-pressed={value === item.url} style={{ position: "relative", aspectRatio: grande ? "16/9" : "1", borderRadius: 10, overflow: "hidden", cursor: "pointer", background: "#000", border: value === item.url ? `3px solid ${color}` : "1px solid var(--wf-border)", boxSizing: "border-box" }}>
               {tipo === "imagen" ? (
                 <div style={{ width: "100%", height: "100%", backgroundImage: `url(${item.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
               ) : (
@@ -425,11 +428,24 @@ export function VideoModal({ onClose, onAdd, iglesiaId, inicial = null, destino 
 
 const etiquetaCampo = { display: "block", fontSize: 11.5, fontWeight: 800, color: "var(--wf-text)", marginBottom: 6, letterSpacing: 0.2 };
 
-export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositiva de texto", submitLabel = "Agregar al culto", iglesiaId }) {
-  const bgOptions = ["#1B2029", "#2A1F33", "#1F2A2C", "#332420"];
-  const bgType = draft.bgType || "color";
+// vistaPrevia(draft): la consola pasa una mini pantalla con el estilo en vivo, para ver el fondo ANTES
+// de agregar (2026-11-14: el texto rápido salía con el fondo de las canciones y no se notaba hasta
+// proyectarlo). Fondo: "El de Estilo" (el de siempre), un color liso propio, una imagen o un video.
+export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositiva de texto", submitLabel = "Agregar al culto", iglesiaId, vistaPrevia = null }) {
+  const tipo = tipoDeFondo(draft);
+  const liso = colorPropioDe(draft);
+  const elegirTipo = (t) => {
+    if (t === "estilo") setDraft({ ...draft, bgType: "color", bg: "#1B2029" });
+    else if (t === "liso") setDraft({ ...draft, bgType: "color", bg: fondoFijo(liso || COLORES_LISOS[1]) });
+    else setDraft({ ...draft, bgType: t });
+  };
   return (
     <ModalShell title={title} icon={ImgIcon} color="#B15EA0" onClose={onClose}>
+      {vistaPrevia && (
+        <div data-testid="vista-previa-diapositiva" style={{ width: "100%", aspectRatio: "16/9", borderRadius: 12, overflow: "hidden", marginBottom: 12, boxShadow: "0 1px 3px rgba(22,50,79,0.08)" }}>
+          {vistaPrevia(draft)}
+        </div>
+      )}
       {/* Textarea, no input: para un texto largo se puede tocar Enter y armar el salto de línea a mano
           (dónde se corta cada línea en la proyección), en vez de dejarlo todo al ajuste automático. */}
       {/* Contenido (lo que se proyecta) separado del NOMBRE (cómo aparece en la lista y en la miniatura)
@@ -445,27 +461,33 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
           <input type="range" min={0.4} max={0.9} step={0.05} value={draft.escalaSubtitulo ?? 0.65} onChange={(e) => setDraft({ ...draft, escalaSubtitulo: parseFloat(e.target.value) })} style={{ width: "100%", accentColor: "var(--wf-brand-accent)" }} />
         </div>
       )}
-      <label style={{ ...etiquetaCampo, marginTop: 14 }}>Nombre de la diapositiva · no se proyecta</label>
-      <input placeholder={`Ej. "Anuncio de ayuno" — así sale en el orden del culto y en la miniatura`} value={draft.name || ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={inputStyle} />
-      <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 5 }}>Si lo dejas vacío, se usa el contenido como nombre.</div>
-      <div style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700, margin: "14px 0 8px" }}>FONDO</div>
-      <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 10, width: "fit-content" }}>
-        {[["color", "Color"], ["imagen", "Imagen"], ["video", "Video"]].map(([val, label]) => (
-          <button key={val} onClick={() => setDraft({ ...draft, bgType: val })} style={{ fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: bgType === val ? "var(--wf-brand-accent)" : "transparent", color: bgType === val ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{label}</button>
+      <label style={{ ...etiquetaCampo, marginTop: 14 }}>Fondo</label>
+      <div role="radiogroup" aria-label="Fondo de la diapositiva" style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 10 }}>
+        {[["estilo", "El de Estilo"], ["liso", "Color liso"], ["imagen", "Imagen"], ["video", "Video"]].map(([val, label]) => (
+          <button key={val} type="button" role="radio" aria-checked={tipo === val} onClick={() => elegirTipo(val)} style={{ flex: 1, fontSize: 11.5, fontWeight: 700, padding: "6px 4px", borderRadius: 10, border: "none", cursor: "pointer", whiteSpace: "nowrap", background: tipo === val ? "var(--wf-brand-accent)" : "transparent", color: tipo === val ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{label}</button>
         ))}
       </div>
-      {bgType === "color" && (
-        <div style={{ display: "flex", gap: 8 }}>
-          {bgOptions.map((c) => (<button key={c} onClick={() => setDraft({ ...draft, bg: c })} style={{ width: 34, height: 34, borderRadius: 12, background: c, border: draft.bg === c ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", cursor: "pointer" }} />))}
+      {tipo === "estilo" && (
+        <div style={{ fontSize: 11.5, color: "var(--wf-muted)", lineHeight: 1.4 }}>Sale con el fondo que esté puesto en <b>Estilo</b> en ese momento (el mismo de las canciones). Si no combina con este texto, elige un color liso o una imagen.</div>
+      )}
+      {tipo === "liso" && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {COLORES_LISOS.map((c) => (
+            <button key={c} type="button" onClick={() => setDraft({ ...draft, bgType: "color", bg: fondoFijo(c) })} title={c} aria-label={`Color ${c}`} aria-pressed={liso?.toLowerCase() === c.toLowerCase()}
+              style={{ width: 34, height: 34, borderRadius: 12, background: c, border: liso?.toLowerCase() === c.toLowerCase() ? "3px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0, boxSizing: "border-box" }} />
+          ))}
+          <label title="Elegir otro color" style={{ width: 34, height: 34, borderRadius: 12, border: "1px solid var(--wf-border)", cursor: "pointer", position: "relative", overflow: "hidden", background: "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)", display: "flex", boxSizing: "border-box" }}>
+            <input type="color" aria-label="Otro color" value={liso || "#0B0F17"} onChange={(e) => setDraft({ ...draft, bgType: "color", bg: fondoFijo(e.target.value) })} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+          </label>
         </div>
       )}
-      {bgType === "imagen" && (
+      {tipo === "imagen" && (
         <div>
-          <MediaPicker iglesiaId={iglesiaId} tipo="imagen" value={draft.imageUrl} onChange={(url) => setDraft({ ...draft, imageUrl: url })} />
-          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Se estira para cubrir toda la pantalla. Si dejas el título vacío, se proyecta a pantalla completa sin texto encima.</div>
+          <MediaPicker iglesiaId={iglesiaId} tipo="imagen" value={draft.imageUrl} onChange={(url) => setDraft({ ...draft, bgType: "imagen", imageUrl: url })} galeriaAbierta />
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Se estira para cubrir toda la pantalla. Si dejas el contenido vacío, se proyecta a pantalla completa sin texto encima.</div>
         </div>
       )}
-      {bgType === "video" && (
+      {tipo === "video" && (
         <div>
           {/* El filtro !startsWith("http") es solo para no mostrar un video base64 viejo (de antes de
               este cambio) hecho ilegible dentro de este campo de texto -- uno nuevo (subido o elegido de
@@ -476,6 +498,9 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
           <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Con el contenido vacío se proyecta como video, a pantalla completa y <b>con sonido</b>. Con texto encima queda de fondo, sin sonido y en bucle.</div>
         </div>
       )}
+      <label style={{ ...etiquetaCampo, marginTop: 14 }}>Nombre de la diapositiva · no se proyecta</label>
+      <input placeholder={`Ej. "Anuncio de ayuno" — así sale en el orden del culto y en la miniatura`} value={draft.name || ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={inputStyle} />
+      <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 5 }}>Si lo dejas vacío, se usa el contenido como nombre.</div>
       <button onClick={onAdd} style={{ ...primaryBtn, marginTop: 14 }}>{submitLabel}</button>
     </ModalShell>
   );

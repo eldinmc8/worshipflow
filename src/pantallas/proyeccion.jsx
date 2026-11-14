@@ -10,6 +10,7 @@ import { efectoPantallaDe } from "../lib/animacionCancion.js";
 import RelojCuentaRegresiva from "../components/RelojCuentaRegresiva.jsx";
 import VideoProyectado from "../components/VideoProyectado.jsx";
 import { esVideoSolo } from "../lib/videoEnlace.js";
+import { colorPropioDe } from "../lib/fondoDiapositiva.js";
 import { LIVE_FONTS, LIVE_THEMES, LIVE_SOMBRAS, LIVE_ALINEACIONES, LIVE_POSICIONES, TYPE_META } from "./compartido.jsx";
 
 // ---------- Estilo en vivo de la proyección: fondo y tipografía, ajustables por multimedia mientras transmite ----------
@@ -69,15 +70,17 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
   const animDef = definicionAnimacion(estiloAnim);
   const animKey = animDef?.clave || null;
   const anim = animDef?.def || null;
-  const slideTraeFondo = slide?.type === "slide" && ((slide.bgType === "video" && slide.videoUrl) || (slide.bgType === "imagen" && slide.imageUrl));
+  // Color liso propio de una diapositiva de texto (ver lib/fondoDiapositiva.js): tapa el fondo de Estilo.
+  const colorPropio = slide?.type === "slide" ? colorPropioDe(slide) : null;
+  const slideTraeFondo = slide?.type === "slide" && ((slide.bgType === "video" && slide.videoUrl) || (slide.bgType === "imagen" && slide.imageUrl) || !!colorPropio);
   const fondoAnimado = anim && liveStyle?.animFondo !== "propio" && !fondoCancion && !slideTraeFondo ? anim.fondo : null;
   const customBgEsVideo = !fondoAnimado && fondo?.theme === "custom" && (fondo.customBgType || "imagen") === "video";
   const customBgEsImagen = !fondoAnimado && fondo?.theme === "custom" && (fondo.customBgType || "imagen") === "imagen";
-  const globalVideoBg = !slideVideoBg && customBgEsVideo && fondo.customVideo;
+  const globalVideoBg = !slideVideoBg && !colorPropio && customBgEsVideo && fondo.customVideo;
   const videoSrc = slideVideoBg ? slide.videoUrl : globalVideoBg ? fondo.customVideo : null;
   const videoSolo = !!slideVideoBg && esVideoSolo(slide);
   const slideImageBg = !videoSrc && slide?.type === "slide" && slide.bgType === "imagen" && slide.imageUrl;
-  const globalImageBg = !videoSrc && !slideImageBg && customBgEsImagen && fondo.customImage;
+  const globalImageBg = !videoSrc && !slideImageBg && !colorPropio && customBgEsImagen && fondo.customImage;
   const imageSrc = slideImageBg || globalImageBg || null;
   // Bug real (no de hoy, ya existía): al tocar la pestaña "Imagen" o "Video (movimiento)" del fondo
   // global, liveStyle.theme pasa a "custom" DE UNA -- antes incluso de subir o elegir algo -- pero
@@ -90,8 +93,8 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
   const theme = videoSrc || imageSrc ? null : (LIVE_THEMES[fondo?.theme || "stage"] || LIVE_THEMES.stage);
   // Fondo en movimiento elegido en Estilo (theme "mov:<fondo>", 2026-11-06): el mismo lienzo animado que
   // usan las letras animadas, para todo (letra normal, versículos y diapositivas).
-  const fondoMov = !fondoAnimado && !videoSrc && !imageSrc ? fondoEnMovimiento(fondo?.theme) : null;
-  const bg = (fondoAnimado || fondoMov) && !videoSrc && !imageSrc ? "#000" : videoSrc ? "#000" : imageSrc ? `center / cover no-repeat url(${imageSrc})` : theme.bg;
+  const fondoMov = !fondoAnimado && !videoSrc && !imageSrc && !colorPropio ? fondoEnMovimiento(fondo?.theme) : null;
+  const bg = (fondoAnimado || fondoMov) && !videoSrc && !imageSrc ? "#000" : videoSrc ? "#000" : imageSrc ? `center / cover no-repeat url(${imageSrc})` : colorPropio || theme.bg;
   // El tamaño de letra "deseado" viene del slider (liveStyle.fontScale) multiplicando una proporción del
   // alto del contenedor (ver AutoFitText) en vez de un px fijo — así se ve igual de grande en la
   // mini-preview y en la pantalla real, y ese mismo % sigue aplicando de una diapositiva a la siguiente
@@ -222,7 +225,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
         <RelojCuentaRegresiva cuenta={slide.cuenta} quieto={!!thumbnail} sinFondo />
       ) : (
         <>
-          {!videoSrc && !fondoAnimado && !fondoMov && <div className="spotlight-glow" style={{ position: "absolute", width: thumbnail ? 140 : 420, height: thumbnail ? 140 : 420, borderRadius: "50%", background: `radial-gradient(circle, ${TYPE_META[slide.type].color}22 0%, transparent 70%)` }} />}
+          {!videoSrc && !fondoAnimado && !fondoMov && !colorPropio && <div className="spotlight-glow" style={{ position: "absolute", width: thumbnail ? 140 : 420, height: thumbnail ? 140 : 420, borderRadius: "50%", background: `radial-gradient(circle, ${TYPE_META[slide.type].color}22 0%, transparent 70%)` }} />}
           {slide.type === "cancion" && (
             <>
               {thumbnail && <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "var(--wf-brand-accent)", marginBottom: 6, zIndex: 1 }}>{slide.blockLabel.toUpperCase()}</div>}
