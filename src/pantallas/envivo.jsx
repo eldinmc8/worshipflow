@@ -198,6 +198,21 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   const editandoBiblia = destinoEstilo === "biblia";
   const liveStyle = useMemo(() => (editandoBiblia ? estiloDeBiblia(estiloCompleto) : estiloCompleto), [editandoBiblia, estiloCompleto]);
   const setLiveStyle = useMemo(() => (editandoBiblia ? setterDeBiblia(setEstiloCompleto) : setterDeCanciones(setEstiloCompleto)), [editandoBiblia, setEstiloCompleto]);
+  // Colores de la letra de la Biblia desde la pestaña Biblia (pedido de Eldin, 2026-11-14): siempre el
+  // estilo de la Biblia, sin importar qué diga "Estilo para".
+  const estiloBiblia = useMemo(() => estiloDeBiblia(estiloCompleto), [estiloCompleto]);
+  const setEstiloBiblia = useMemo(() => setterDeBiblia(setEstiloCompleto), [setEstiloCompleto]);
+  const coloresBiblia = (paleta, valor, clave, nombre) => (
+    <div role="group" aria-label={nombre} style={{ display: "flex", alignItems: "center", gap: 5, padding: "0 4px" }}>
+      {Object.values(paleta).map((c) => (
+        <button key={c.value} onClick={() => setEstiloBiblia((st) => ({ ...st, [clave]: c.value }))} title={c.label} aria-label={`${nombre}: ${c.label}`} aria-pressed={valor.toLowerCase() === c.value.toLowerCase()}
+          style={{ width: 24, height: 24, borderRadius: "50%", background: c.value, border: valor.toLowerCase() === c.value.toLowerCase() ? "3px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0, boxSizing: "border-box", flexShrink: 0 }} />
+      ))}
+      <label title="Elegir otro color" style={{ width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--wf-border)", cursor: "pointer", position: "relative", overflow: "hidden", display: "flex", flexShrink: 0, boxSizing: "border-box", background: Object.values(paleta).some((c) => c.value.toLowerCase() === valor.toLowerCase()) ? "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)" : valor }}>
+        <input type="color" aria-label={`${nombre}: otro color`} value={valor} onChange={(e) => setEstiloBiblia((st) => ({ ...st, [clave]: e.target.value }))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+      </label>
+    </div>
+  );
   // Muestra de lo que se está editando cuando NO es lo que está al aire (2026-11-12): con una canción al
   // aire, elegir un fondo para la Biblia no se veía en ningún lado y parecía que no hacía nada. Usa un
   // versículo (o una canción) del culto si hay; si no, uno de ejemplo. Nunca sale a la proyección.
@@ -1178,6 +1193,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           estilo={{ padding: "6px 8px 4px", minHeight: 76, boxSizing: "border-box", background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)" }}
           grupos={(mmPanel === "biblia" ? [
           grupoItem("Proyección", navegacionRapida()),
+          { ...grupoItem("Color del versículo", coloresBiblia(LIVE_TEXT_COLORS, estiloBiblia.bibliaTextColor || estiloBiblia.textColor || "#FFFFFF", "bibliaTextColor", "Color del versículo"), false, "biblia-color-texto"), mantenerAbierto: true },
+          { ...grupoItem("Color de la cita", coloresBiblia(LIVE_REFERENCE_COLORS, estiloBiblia.bibliaReferenciaColor || "#6E9BD1", "bibliaReferenciaColor", "Color de la cita"), false, "biblia-color-cita"), mantenerAbierto: true },
           grupoItem("", <div style={{ display: "flex", alignItems: "center", padding: "0 16px", maxWidth: 440 }}>
               <span style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.5 }}>Busca un libro, una cita (ej. stgo 4:1) o palabras del versículo, aunque no estén exactas. Toca el versículo para proyectarlo. Los versículos largos aparecen en partes (1/2, 2/2): toca la que quieras o avanza con la flecha →.</span>
             </div>, false, "ayuda-biblia"),
