@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { levantarBaseDePrueba, actuarComo } from "./pgliteHarness.js";
 
-// Prueba la migración 20261115000000_planes_suscripcion.sql: Gratis (5 miembros, 50 canciones,
+// Prueba la migración 20261115000000_planes_suscripcion.sql: Gratis (5 miembros, 20 canciones desde 2026-11-13,
 // 1 ministerio, sin plantillas, asistente 5/día), Ministerio (20 miembros, 3 ministerios, 30/día),
 // Iglesia (ilimitado, 100/día), prueba de 14 días para iglesias nuevas, y plan vencido = Gratis.
 const IG = "11111111-1111-1111-1111-1111111111e1";
@@ -70,22 +70,35 @@ describe("planes de suscripción", () => {
     await sql("insert into public.eventos (titulo, fecha, iglesia_id) values ('Culto', current_date, $1)", [IG]);
   });
 
-  it("Gratis: hasta 50 canciones", async () => {
+  // Límites de canciones desde 2026-11-13 (migración 20261121000000): gratis 20 · ministerio 75 · crecimiento 200.
+  it("Gratis: hasta 20 canciones", async () => {
     await comoServidor();
     const ya = Number((await sql("select count(*) as c from public.canciones where iglesia_id = $1", [IG])).rows[0].c);
-    for (let i = ya; i < 50; i++) await sql("insert into public.canciones (titulo, iglesia_id) values ($1, $2)", [`C${i}`, IG]);
-    await expect(sql("insert into public.canciones (titulo, iglesia_id) values ('Una más', $1)", [IG])).rejects.toThrow(/50 canciones/);
+    for (let i = ya; i < 20; i++) await sql("insert into public.canciones (titulo, iglesia_id) values ($1, $2)", [`C${i}`, IG]);
+    await expect(sql("insert into public.canciones (titulo, iglesia_id) values ('Una más', $1)", [IG])).rejects.toThrow(/20 canciones/);
   });
 
-  it("Ministerio: sube a 20 miembros, canciones ilimitadas, plantillas y Modo Músico", async () => {
+  it("Ministerio: sube a 20 miembros, más canciones, plantillas y Modo Músico", async () => {
     await ponerPlan("ministerio");
     await agregarMiembro();
     await sql("insert into public.canciones (titulo, iglesia_id) values ('Una más', $1)", [IG]);
     await sql("insert into public.eventos (titulo, fecha, es_plantilla, iglesia_id) values ('Plantilla', current_date, true, $1)", [IG]);
     await actuarComo(db, ADMIN);
     const p = (await sql("select public.mi_plan() as p")).rows[0].p;
-    expect(p.limites).toMatchObject({ miembros: 20, modo_musico: true, ministerios: 3 });
+    expect(p.limites).toMatchObject({ miembros: 20, modo_musico: true, ministerios: 3, canciones: 75 });
     expect(p.uso.miembros).toBe(6);
+  });
+
+  it("Ministerio: tope de 75 canciones; al bajar a Gratis conserva las suyas pero no agrega", async () => {
+    await comoServidor();
+    const ya = Number((await sql("select count(*) as c from public.canciones where iglesia_id = $1", [IG])).rows[0].c);
+    for (let i = ya; i < 75; i++) await sql("insert into public.canciones (titulo, iglesia_id) values ($1, $2)", [`M${i}`, IG]);
+    await expect(sql("insert into public.canciones (titulo, iglesia_id) values ('La 76', $1)", [IG])).rejects.toThrow(/75 canciones/);
+    await ponerPlan("gratis");
+    await comoServidor();
+    expect(Number((await sql("select count(*) as c from public.canciones where iglesia_id = $1", [IG])).rows[0].c)).toBe(75);
+    await expect(sql("insert into public.canciones (titulo, iglesia_id) values ('Otra', $1)", [IG])).rejects.toThrow(/20 canciones/);
+    await ponerPlan("ministerio");
   });
 
   it("un plan vencido cuenta como Gratis, sin borrar nada", async () => {
@@ -143,6 +156,13 @@ describe("planes de suscripción", () => {
     await actuarComo(db, ADMIN);
     const p = (await sql("select public.mi_plan() as p")).rows[0].p;
     expect(p.plan).toBe("crecimiento");
-    expect(p.limites).toMatchObject({ miembros: 50, ministerios: 6, modo_musico: true, plantillas: true });
+    expect(p.limites).toMatchObject({ miembros: 50, ministerios: 6, modo_musico: true, plantillas: true, canciones: 200 });
+  });
+
+  it("Iglesia: canciones ilimitadas", async () => {
+    await actuarComo(db, ELDIN);
+    await sql("select public.cambiar_plan_iglesia($1, 'iglesia', null, null)", [IG]);
+    await actuarComo(db, ADMIN);
+    expect((await sql("select public.mi_plan() as p")).rows[0].p.limites.canciones).toBeNull();
   });
 });
