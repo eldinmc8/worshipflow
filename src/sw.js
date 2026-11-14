@@ -13,7 +13,13 @@ precacheAndRoute(self.__WB_MANIFEST);
 // ---- Sin internet (pedido de Eldin, 2026-10-17) ----
 // 1) Abrir o recargar CUALQUIER pantalla de la app sin señal (incluida la de proyección,
 //    ?screen=publico&igl=...): se sirve la app guardada en vez de la página de "sin conexión".
-registerRoute(new NavigationRoute(createHandlerBoundToURL("index.html")));
+// EXCEPTO la página web pública (2026-11-14): /web/... y la portada de worshipflowapp.com ("/" sin
+// parámetros, ver lib/portada.js) siempre se piden a internet. Antes también salían de la app guardada,
+// y quien ya tenía la app en el navegador seguía viendo la página VIEJA hasta tocar "Actualizar".
+// La página web no necesita funcionar sin señal; la app y la proyección sí, y esas siguen igual.
+const ES_DOMINIO_PAGINA = ["worshipflowapp.com", "www.worshipflowapp.com"].includes(self.location.hostname);
+const PAGINA_WEB = [/^\/web(\/|\?|$)/, ...(ES_DOMINIO_PAGINA ? [/^\/$/] : [])];
+registerRoute(new NavigationRoute(createHandlerBoundToURL("index.html"), { denylist: PAGINA_WEB }));
 // 2) Las letras tipográficas (Google Fonts): sin esto, una proyección recargada sin internet salía con
 //    una letra genérica. Se guardan la primera vez que se usan.
 registerRoute(
