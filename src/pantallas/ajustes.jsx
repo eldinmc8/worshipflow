@@ -9,7 +9,7 @@ import { confirmDialog } from "../lib/confirm.js";
 import { estaSuscritoPush, suscribirPush, desuscribirPush, esRechazoDeNotificaciones } from "../lib/notificaciones.js";
 import { isUpcoming, formatFullDate } from "../lib/dates.js";
 import { usePreferencias, TAMANOS_LETRA, setTamanoLetra, NOTACIONES, setNotacion, acordeEn } from "../lib/preferencias.js";
-import { ChevronRight, ChevronLeft, KeyRound, Check, Calendar, Bell, Moon, Type, Music, Download, Radio, Tv, Users, Palette, Shield, Sparkles, MessageCircle, Send, LogOut, Speaker, Clock, Crown } from "lucide-react";
+import { ChevronRight, ChevronLeft, KeyRound, Check, Calendar, Bell, Moon, Type, Music, Download, Radio, Tv, Users, Palette, Shield, Sparkles, MessageCircle, Send, LogOut, Speaker, Clock, Crown, WifiOff } from "lucide-react";
 import PantallaOtroEquipo from "../components/PantallaOtroEquipo.jsx";
 import { SalidaAudioModal, useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
 import { BibleDownloadSection } from "./biblia.jsx";
@@ -231,7 +231,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
   const nombreTamano = (TAMANOS_LETRA.find((t) => t.value === tamanoLetra) || {}).label || "";
   const nombreNotacion = ((NOTACIONES.find((n) => n.value === notacion) || {}).label || "").replace(/\s+/g, " ");
   const textoPlan = plan ? (plan.en_prueba ? `${planPorId(plan.plan).nombre} · Prueba, ${diasRestantes(plan.vence)} días` : planPorId(plan.plan).nombre) : "";
-  const TITULOS = { cuenta: "Mi cuenta", fechas: "Mis próximas fechas", avisos: "Notificaciones", apariencia: "Apariencia", dispositivo: "Este dispositivo", proyeccion: "Proyección y pantallas", identidad: "Identidad y horario", ayuda: "Ayuda y contacto", avanzado: "Avanzado" };
+  const TITULOS = { cuenta: "Mi cuenta", fechas: "Mis próximas fechas", avisos: "Notificaciones", apariencia: "Apariencia", dispositivo: "Este dispositivo", proyeccion: "Proyección y pantallas", sinconexion: "Usar sin conexión", identidad: "Identidad y horario", ayuda: "Ayuda y contacto", avanzado: "Avanzado" };
 
   if (seccion) {
     return (
@@ -399,11 +399,11 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
                 </>
           )}
           {/* Solo tiene sentido en la computadora que proyecta. */}
-          {!isCompact && <PrepararSinConexion />}
           {!isCompact && <BibleDownloadSection />}
 
           </>
         )}
+        {seccion === "sinconexion" && <PrepararSinConexion />}
         {seccion === "proyeccion" && (
           <>
           <NavRow icon={Tv} label="Pantallas y TV" onClick={() => setShowOtroEquipoAjustes("proyeccion")} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Proyección · Escenario {chevron}</span>} />
@@ -495,6 +495,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
         <FilaAjuste icon={Bell} color="#E8821E" label="Notificaciones" sub={estadoAvisos} onClick={() => setSeccion("avisos")} />
         <FilaAjuste icon={Moon} color="#5661B3" label="Apariencia" sub={[nombreTema, `Letra ${nombreTamano.toLowerCase()}`, nombreNotacion].filter(Boolean).join(" · ")} onClick={() => setSeccion("apariencia")} />
         <FilaAjuste icon={Download} color="#1F8A73" label="Este dispositivo" sub={install.installed ? "App instalada" : "Instalar la app"} onClick={() => setSeccion("dispositivo")} />
+        {!isCompact && <FilaAjuste icon={WifiOff} color="#16324F" label="Usar sin conexión" sub="Guardar todo para el culto sin internet" onClick={() => setSeccion("sinconexion")} />}
         <FilaAjuste icon={Calendar} color="#2F5FA8" label="Mis próximas fechas" sub={misEventos.length ? `${misEventos.length} ${misEventos.length === 1 ? "fecha" : "fechas"}` : "Nada asignado por ahora"} onClick={() => setSeccion("fechas")} />
       </GrupoAjustes>
 
