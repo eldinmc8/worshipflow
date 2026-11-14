@@ -15,7 +15,8 @@ import { letraATexto } from "../lib/textoCancion.js";
 import { letraEfectiva } from "../lib/letraEnVivo.js";
 import { pasosDeDiapositiva } from "../lib/animaciones.js";
 import { useArrastreLista } from "../lib/arrastreLista.js";
-import { anclaDeBloque } from "../lib/ordenCulto.js";
+import { anclaDeBloque, bloquesDelCulto, finDeBloque } from "../lib/ordenCulto.js";
+import { fondoParaRecordar } from "../lib/fondoDiapositiva.js";
 import { tituloBase } from "../lib/diapositivas.js";
 import { useArrastreGrid } from "../lib/arrastreGrid.js";
 import { esPaginaPresentacion } from "../lib/importarPresentacion.js";
@@ -265,7 +266,10 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   // si se ven todas las diapositivas juntas, y si la cinta de Estilo muestra sus opciones extra.
   const [itemVisto, setItemVisto] = useState(null);
   const [verTodas, setVerTodas] = useState(false);
-  const [estiloMas, setEstiloMas] = useState(false);
+  // Panel flotante de la pestaña Estilo (2026-11-14: antes todo vivía en un solo cuadro "Sombra y más" y
+  // la imagen de fondo quedaba hasta abajo): null | "imagen" | "video" | "movimiento" | "letra".
+  const [panelEstilo, setPanelEstilo] = useState(null);
+  const alternarPanelEstilo = (k) => { setAnimMenu(false); setPanelEstilo((p) => (p === k ? null : k)); };
   // Menú flotante de "Letra animada" en la cinta de Estilo (computadora).
   const [animMenu, setAnimMenu] = useState(false);
   // "Pantalla en otro equipo": enlace corto + QR para abrir la proyección en un TV/tablet/otra computadora.
@@ -433,6 +437,15 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   const puedeDisenar = !isCompact && !adHoc && !!onAbrirEditor;
   const abrirEditor = (s) => { const r = refDiap(s); onAbrirEditor(r.itemId, r.indice); };
   const [menuDiap, setMenuDiap] = useState(null); // { x, y, s, sub: null | "mover" | "copiar" }
+  // "Mover a otra parte del culto" desde una fila del orden (2026-11-14): { x, y, id }.
+  const [menuMover, setMenuMover] = useState(null);
+  useEffect(() => {
+    if (!menuMover) return;
+    const cerrar = () => setMenuMover(null);
+    window.addEventListener("pointerdown", cerrar);
+    window.addEventListener("scroll", cerrar, true);
+    return () => { window.removeEventListener("pointerdown", cerrar); window.removeEventListener("scroll", cerrar, true); };
+  }, [menuMover]);
   useEffect(() => {
     if (!menuDiap) return;
     const cerrar = () => setMenuDiap(null);
@@ -498,6 +511,22 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     if (itemVisto === it.id) setItemVisto(null);
     onQuitarDelOrden(it.id);
   };
+  // Mover un elemento al final de otra parte del culto (aunque esté vacía), sin arrastrar.
+  const partesDelCulto = bloquesDelCulto(serviceOrder);
+  const parteDe = (itemId) => {
+    let parte = null;
+    for (const x of serviceOrder) { if (x.type === "seccion") parte = x.id; if (x.id === itemId) return parte; }
+    return null;
+  };
+  const moverAParte = (itemId, parteId) => {
+    const desde = serviceOrder.findIndex((x) => x.id === itemId);
+    const fin = finDeBloque(serviceOrder, parteId);
+    if (desde === -1 || fin === -1) return;
+    const hacia = fin - (desde < fin ? 1 : 0);
+    if (hacia !== desde) onReordenarOrden(desde, hacia);
+    if (ocultos?.has(parteId)) onMostrarOcultos?.([parteId]);
+    showToast(`"${tituloItem(serviceOrder[desde])}" ahora está en "${partesDelCulto.find((b) => b.id === parteId)?.titulo || "Bloque"}".`, "info");
+  };
   // La canción nueva entra justo DESPUÉS de lo que se está viendo al centro (o de lo que está al aire);
   // si no hay nada, al final. Luego se puede arrastrar a donde se quiera.
   // Si en "+ Agregar" se eligió una parte del culto, entra al final de ese bloque.
@@ -541,6 +570,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   useEffect(() => { setItemVisto(null); }, [idAlAire]);
   const itemCentro = verTodas ? null : (itemVisto && serviceOrder.find((it) => it.id === itemVisto)) || itemAlAire;
   const indicesCentro = slides.map((_, i) => i).filter((i) => !itemCentro || perteneceA(slides[i], itemCentro.id));
+  // Diapositiva de texto (o de imagen) que se está viendo al centro: lleva el botón "Texto y fondo".
+  const textoCentro = itemCentro?.type === "slide" ? slides.find((x) => perteneceA(x, itemCentro.id) && !x.diseno && !x.cuenta && !esPaginaPresentacion(x) && !(x.totalGrupo > 1)) || null : null;
   // Lo que viene después de lo que está al aire, cuando al avanzar se cambia de elemento (otro canto,
   // la despedida...) — para avisarlo: "Al avanzar pasas a: ¡Gloria a Dios!".
   const itemSiguiente = adHoc ? null : itemDeDiapositiva(next);
@@ -602,12 +633,22 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   );
   // ---- "+ Agregar" de la consola (pedido de Eldin, 2026-10-11): el mismo botón naranja y la misma
   // hoja del Setlist, para que alguien nuevo vea de una vez cómo meter algo al culto en vivo. ----
-  const nuevaDiapositivaTexto = () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); };
+  // El texto rápido empieza con el fondo del último que se hizo en esta computadora (2026-11-14): si la
+  // iglesia usa siempre un color liso o una imagen para los avisos, no hay que elegirlo cada vez.
+  const nuevaDiapositivaTexto = () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "", ...(loadCache("texto_rapido_fondo") || {}) }); setShowAddSlide(true); };
+  // "Imagen": la misma ventana, ya en Imagen y con la biblioteca abierta.
+  const nuevaDiapositivaImagen = () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "imagen", videoUrl: "", imageUrl: "" }); setShowAddSlide("imagen"); };
+  // Mini pantalla dentro de la ventana de la diapositiva: cómo se va a ver con el estilo de ahora.
+  const vistaPreviaDiapositiva = (d) => {
+    const soloFondo = (d.bgType === "imagen" && d.imageUrl) || (d.bgType === "video" && d.videoUrl);
+    return <ProjectionPanel slide={{ slideId: "vista-previa", type: "slide", title: d.title || (soloFondo ? "" : "Tu texto aquí"), subtitle: d.subtitle || "", escalaSubtitulo: d.escalaSubtitulo, bg: d.bg, bgType: d.bgType, videoUrl: d.videoUrl, imageUrl: d.imageUrl }} blanked={false} split={false} liveStyle={estiloCompleto} thumbnail />;
+  };
   const opcionesAgregarConsola = [
     { clave: "proyectar", Icon: Radio, color: "var(--wf-brand-accent)", titulo: "Proyectar desde biblioteca", detalle: "Busca una canción y sale en pantalla de una vez", accion: () => setShowAdHocSong("proyectar") },
     { clave: "cancion", Icon: Music, color: "#1F8A73", titulo: "Canción", detalle: "De la biblioteca — queda en el orden del culto", accion: () => setShowAdHocSong(true) },
     { clave: "biblia", Icon: BookOpen, color: "#2F5FA8", titulo: "Versículo", detalle: "Búscalo en la Biblia y proyéctalo al momento", accion: () => setMmPanel("biblia") },
     { clave: "texto", Icon: Type, color: "#B15EA0", titulo: "Texto rápido", detalle: "Un aviso o el título de la prédica, en segundos", accion: nuevaDiapositivaTexto },
+    { clave: "imagen", Icon: ImgIcon, color: "#B15EA0", titulo: "Imagen", detalle: "De tu biblioteca de imágenes o una nueva, a pantalla completa", accion: nuevaDiapositivaImagen },
     !isCompact && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(anclaParaAgregar()?.id || null) },
     { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
     { clave: "video", Icon: Play, color: "#C23B32", titulo: "Video de YouTube", detalle: "Queda en el orden del culto. Al tocarlo se reproduce con sonido y lo controlas desde aquí", accion: () => setShowVideoOrden(true) },
@@ -873,7 +914,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             </div>
             {customBgType === "imagen" ? (
               <div style={{ marginBottom: 12 }}>
-                <MediaPicker iglesiaId={myIglesiaId} tipo="imagen" value={liveStyle.customImage} onChange={(url) => !fondoPropioOk ? abrirPlanes() : setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", customImage: url }))} />
+                <MediaPicker iglesiaId={myIglesiaId} tipo="imagen" galeriaAbierta value={liveStyle.customImage} onChange={(url) => !fondoPropioOk ? abrirPlanes() : setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", customImage: url }))} />
               </div>
             ) : (
               <div style={{ marginBottom: 12 }}>
@@ -967,7 +1008,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ fontSize: 11, color: "var(--wf-muted)", fontWeight: 700 }}>TODAS LAS SLIDES</span>
             <button
-              onClick={() => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); }}
+              onClick={() => nuevaDiapositivaTexto()}
               title="Agregar una diapositiva (ej. el título de la predica o un anuncio) — queda aquí para poder volver a proyectarla"
               style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#2F5FA8", background: "#EAF0FA", border: "none", borderRadius: 18, padding: "4px 10px", cursor: "pointer" }}
             ><Plus size={13} /> Agregar diapositiva</button>
@@ -1060,7 +1101,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               {/* A diferencia de Canción/Video (que se proyectan una vez y no quedan en ningún lado),
                   "Diapositiva" usa el mismo "Agregar diapositiva" de la pestaña Transmisión — queda fija
                   aquí mismo (ver DIAPOSITIVAS abajo) para poder volver a mandarla a proyección. */}
-              <button onClick={() => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); }} style={{ ...ctrlBtn, justifyContent: "center", gridColumn: "1 / -1" }}><Type size={13} /> Diapositiva</button>
+              <button onClick={() => nuevaDiapositivaTexto()} style={{ ...ctrlBtn, justifyContent: "center", gridColumn: "1 / -1" }}><Type size={13} /> Diapositiva</button>
             </div>
           </div>
 
@@ -1108,6 +1149,14 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             style={{ padding: "10px 14px 9px", border: "none", background: "transparent", cursor: "pointer", fontSize: 14, fontWeight: mmPanel === key ? 700 : 500, color: mmPanel === key ? "var(--wf-heading)" : "var(--wf-muted)", borderBottom: `2px solid ${mmPanel === key ? "var(--wf-brand-accent)" : "transparent"}`, flexShrink: 0 }}
           >{label}</button>
         ))}
+        {/* "Estilo para" vive aquí, en el espacio libre junto a las pestañas (2026-11-14), para que en la
+            cinta quepan más controles a la vista. */}
+        {!sencillo && mmPanel === "estilo" && (
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginLeft: 14, flexShrink: 0 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", whiteSpace: "nowrap" }}>ESTILO PARA</span>
+            {selectorDestinoEstilo(true)}
+          </div>
+        )}
         <div style={{ flex: 1 }} />
         {!sencillo && <div style={{ marginRight: 10, padding: "3px 0" }}>{botonAgregarConsola({ tour: "envivo-agregar" })}</div>}
         <button
@@ -1134,8 +1183,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             </div>, false, "ayuda-biblia"),
         ] : mmPanel === "estilo" ? [
           grupoItem("Proyección", navegacionRapida()),
-          grupoItem("Estilo para", <div style={{ display: "flex", alignItems: "center", padding: "0 4px" }}>{selectorDestinoEstilo(true)}</div>, false, "destino-estilo"),
-          !editandoBiblia && grupoItem("Letra animada", botonCinta({ icon: Sparkles, label: (() => { const n = nombreAnimacion(liveStyle) || "Animación"; return n.length > 12 ? n.slice(0, 11) + "…" : n; })(), onClick: () => { setEstiloMas(false); setAnimMenu((v) => !v); }, activo: !!animacionActiva(liveStyle) || animMenu, title: "Letras animadas: elegir un estilo con movimiento", ancho: 76 })),
+          !editandoBiblia && grupoItem("Letra animada", botonCinta({ icon: Sparkles, label: (() => { const n = nombreAnimacion(liveStyle) || "Animación"; return n.length > 12 ? n.slice(0, 11) + "…" : n; })(), onClick: () => { setPanelEstilo(null); setAnimMenu((v) => !v); }, activo: !!animacionActiva(liveStyle) || animMenu, title: "Letras animadas: elegir un estilo con movimiento", ancho: 76 })),
           grupoItem(editandoCancion ? `Fondo de "${cancionObjetivo.titulo.length > 22 ? cancionObjetivo.titulo.slice(0, 21) + "…" : cancionObjetivo.titulo}"` : editandoBiblia ? "Fondo de la Biblia" : "Fondo", <>
               {Object.entries(LIVE_THEMES).map(([key, t]) => (
                 <button key={key} onClick={() => aplicarFondo({ theme: key })} title={t.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 5px", borderRadius: 10, cursor: "pointer", background: "var(--wf-card)", border: fondoEditado.theme === key && !(animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") ? "2px solid #B15EA0" : "1px solid var(--wf-border)" }}>
@@ -1143,9 +1191,9 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                   <span style={{ fontSize: 9.5, fontWeight: 600, color: "var(--wf-text)", whiteSpace: "nowrap" }}>{t.label}</span>
                 </button>
               ))}
-              {botonCinta({ icon: ImgIcon, label: "Imagen", onClick: () => { if (!fondoPropioOk) return abrirPlanes(); aplicarFondo({ theme: "custom", customBgType: "imagen" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen", ancho: 62 })}
-              {botonCinta({ icon: Play, label: "Video", onClick: () => { if (!fondoPropioOk) return abrirPlanes(); aplicarFondo({ theme: "custom", customBgType: "video" }); setEstiloMas(true); }, activo: fondoEditado.theme === "custom" && fondoEditadoTipo === "video", ancho: 62 })}
-              {botonCinta({ icon: Sparkles, label: "En movimiento", title: "Fondos animados (arcos de luz, aura, vitral, nubes…)", onClick: () => { setAnimMenu(false); setEstiloMas(true); }, activo: !!fondoEnMovimiento(fondoEditado.theme), ancho: 78 })}
+              {botonCinta({ icon: ImgIcon, label: "Imagen", title: "Imagen de fondo: tu biblioteca de imágenes o subir una nueva", onClick: () => { if (!fondoPropioOk) return abrirPlanes(); alternarPanelEstilo("imagen"); }, activo: panelEstilo === "imagen" || (fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen"), ancho: 62 })}
+              {botonCinta({ icon: Play, label: "Video", title: "Video de fondo: tu biblioteca de videos, subir uno o pegar un enlace", onClick: () => { if (!fondoPropioOk) return abrirPlanes(); alternarPanelEstilo("video"); }, activo: panelEstilo === "video" || (fondoEditado.theme === "custom" && fondoEditadoTipo === "video"), ancho: 62 })}
+              {botonCinta({ icon: Sparkles, label: "En movimiento", title: "Fondos animados (arcos de luz, aura, vitral, nubes…)", onClick: () => alternarPanelEstilo("movimiento"), activo: panelEstilo === "movimiento" || !!fondoEnMovimiento(fondoEditado.theme), ancho: 78 })}
             </>, false, "fondo"),
           !editandoBiblia && grupoItem("Fondo por canción", (
               <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
@@ -1215,7 +1263,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                 <span style={{ fontSize: 11, fontWeight: 700, width: 34, textAlign: "right" }}>{Math.round(fontScale * 100)}%</span>
               </div>
             )),
-          grupoItem("Ajustes de la letra", botonCinta({ icon: estiloMas ? ChevronUp : SlidersHorizontal, label: estiloMas ? "Cerrar" : "Sombra y más", title: "Sombra, alineación, interlineado e imagen o video de fondo", onClick: () => { setAnimMenu(false); setEstiloMas((v) => !v); }, activo: estiloMas, ancho: 84 }), true),
+          grupoItem("Ajustes de la letra", botonCinta({ icon: panelEstilo === "letra" ? ChevronUp : SlidersHorizontal, label: panelEstilo === "letra" ? "Cerrar" : "Sombra y más", title: "Sombra, posición, alineación, interlineado y espacio entre letras", onClick: () => alternarPanelEstilo("letra"), activo: panelEstilo === "letra", ancho: 84 }), true),
         ] : mmPanel === "insertar" ? [
           grupoItem("Proyección", navegacionRapida()),
           grupoItem("Del culto", <>
@@ -1225,7 +1273,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           grupoItem("Presentación", botonCinta({ icon: FileUp, label: "Importar", onClick: () => setShowImportar(true), title: "Importar un PDF, imágenes de Canva, o un Word con el bosquejo", ancho: 64 })),
           grupoItem("De último momento", <>
               {onDisenarNueva && botonCinta({ icon: PenTool, label: "Diseñar", title: "Diseñar una diapositiva desde cero (con plantillas)", onClick: () => onDisenarNueva(anclaParaAgregar()?.id || null) })}
-              {botonCinta({ icon: Type, label: "Diapositiva", onClick: () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "" }); setShowAddSlide(true); } })}
+              {botonCinta({ icon: Type, label: "Texto", title: "Texto rápido: un aviso o el título de la prédica", onClick: nuevaDiapositivaTexto })}
+              {botonCinta({ icon: ImgIcon, label: "Imagen", title: "Una imagen a pantalla completa: de tu biblioteca o una nueva", onClick: nuevaDiapositivaImagen })}
               {botonCinta({ icon: Play, label: "Video", title: "Agregar un video de YouTube al orden del culto", onClick: () => setShowVideoOrden(true) })}
               {onStartAdHocCuenta && botonCinta({ icon: Timer, label: "Reloj", title: "Cuenta regresiva", onClick: () => setShowCuenta(true) })}
             </>, true),
@@ -1288,18 +1337,67 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           </div>
         </div>
       )}
-      {mmPanel === "estilo" && estiloMas && (
+      {/* Fondo: imagen, video o en movimiento, cada uno a un clic desde la cinta y con la biblioteca ya
+          abierta (pedido de Eldin, 2026-11-14: "insertar imágenes y ver la biblioteca está muy escondido"). */}
+      {mmPanel === "estilo" && panelEstilo && panelEstilo !== "letra" && (
         <div style={{ position: "relative", height: 0, zIndex: 35 }}>
-          <div onClick={() => setEstiloMas(false)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />
-          <div style={{ position: "absolute", top: 6, right: 16, zIndex: 1, width: "min(640px, calc(100vw - 32px))", maxHeight: "min(420px, 60vh)", overflowY: "auto", display: "flex", gap: 20, flexWrap: "wrap", padding: "12px 14px 14px", background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 12px 36px rgba(22,50,79,0.25)", boxSizing: "border-box" }}>
-          <button onClick={() => setEstiloMas(false)} title="Cerrar" aria-label="Cerrar" style={{ ...iconGhost, position: "absolute", top: 8, right: 8 }}><X size={15} /></button>
-          <div style={{ flex: "1 1 100%", minWidth: 0, paddingBottom: 12, borderBottom: "1px solid var(--wf-divider)" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6, paddingRight: 28 }}>FONDOS EN MOVIMIENTO</div>
-            <SelectorFondoMovimiento valor={fondoEditado.theme} columnas={6} onElegir={(t) => { avisarFondoPropioAnimada(); aplicarFondo({ theme: t }); }} />
+          <div onClick={() => setPanelEstilo(null)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />
+          <div role="dialog" aria-label="Fondo de la proyección" style={{ position: "absolute", top: 6, left: 16, zIndex: 1, width: "min(760px, calc(100vw - 32px))", maxHeight: "min(540px, 70vh)", overflowY: "auto", padding: "12px 14px 14px", background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 12px 36px rgba(22,50,79,0.25)", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-heading)" }}>{editandoCancion ? `Fondo de "${cancionObjetivo.titulo}"` : editandoBiblia ? "Fondo de la Biblia" : "Fondo de la proyección"}</span>
+              <div role="tablist" aria-label="Tipo de fondo" style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 10, padding: 2, gap: 2 }}>
+                {[["imagen", "Imagen", ImgIcon], ["video", "Video", Play], ["movimiento", "En movimiento", Sparkles]].map(([k, l, Icono]) => {
+                  const activo = panelEstilo === k;
+                  return (
+                    <button key={k} role="tab" aria-selected={activo} onClick={() => { if (k !== "movimiento" && !fondoPropioOk) return abrirPlanes(); setPanelEstilo(k); }}
+                      style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", whiteSpace: "nowrap", color: "var(--wf-text)", background: activo ? "var(--wf-card)" : "transparent", boxShadow: activo ? "0 1px 3px rgba(22,50,79,0.15)" : "none" }}>
+                      <Icono size={13} /> {l}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ flex: 1 }} />
+              <button onClick={() => setPanelEstilo(null)} title="Cerrar" aria-label="Cerrar" style={iconGhost}><X size={15} /></button>
+            </div>
+            {panelEstilo === "movimiento" && (
+              <SelectorFondoMovimiento valor={fondoEditado.theme} columnas={6} onElegir={(t) => { avisarFondoPropioAnimada(); aplicarFondo({ theme: t }); }} />
+            )}
+            {panelEstilo === "imagen" && (<>
+              <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 8 }}>Toca una imagen y queda de fondo al instante. Para quitarla, elige otro fondo en la cinta de arriba.</div>
+              <MediaPicker key="imagen" iglesiaId={myIglesiaId} tipo="imagen" galeriaAbierta grande
+                value={fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen" ? fondoEditado.customImage : ""}
+                onChange={(url) => { if (!fondoPropioOk) return abrirPlanes(); avisarFondoPropioAnimada(); aplicarFondo({ theme: "custom", customBgType: "imagen", customImage: url }); }} />
+            </>)}
+            {panelEstilo === "video" && (<>
+              <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 8 }}>Toca un video y queda de fondo, en bucle y sin sonido. También puedes pegar el enlace de un .mp4.</div>
+              <input
+                placeholder="Pega un enlace https://... (mp4 de fondo con movimiento)"
+                value={fondoEditado.customVideo && !fondoEditado.customVideo.startsWith("http") ? "" : fondoEditado.customVideo || ""}
+                onChange={(e) => !fondoPropioOk ? abrirPlanes() : aplicarFondo({ theme: "custom", customBgType: "video", customVideo: e.target.value })}
+                style={{ ...inputStyle, marginBottom: 8 }}
+              />
+              <MediaPicker key="video" iglesiaId={myIglesiaId} tipo="video" galeriaAbierta grande
+                value={fondoEditado.theme === "custom" && fondoEditadoTipo === "video" ? fondoEditado.customVideo : ""}
+                onChange={(url) => { if (!fondoPropioOk) return abrirPlanes(); avisarFondoPropioAnimada(); aplicarFondo({ theme: "custom", customBgType: "video", customVideo: url }); }} />
+            </>)}
+            {panelEstilo !== "movimiento" && (
+              <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--wf-divider)", fontSize: 12, color: "var(--wf-text)" }}>
+                <span style={{ whiteSpace: "nowrap" }}>Oscurecer para que la letra se lea</span>
+                <input type="range" min={0} max={0.85} step={0.05} value={liveStyle.oscurecer ?? 0.45} aria-label="Oscurecer imagen o video" onChange={(e) => setLiveStyle((st) => ({ ...st, oscurecer: parseFloat(e.target.value) }))} style={{ flex: 1, accentColor: "var(--wf-brand-accent)", cursor: "pointer" }} />
+                <b style={{ fontSize: 11, width: 34, textAlign: "right" }}>{Math.round((liveStyle.oscurecer ?? 0.45) * 100)}%</b>
+              </label>
+            )}
           </div>
+        </div>
+      )}
+      {mmPanel === "estilo" && panelEstilo === "letra" && (
+        <div style={{ position: "relative", height: 0, zIndex: 35 }}>
+          <div onClick={() => setPanelEstilo(null)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />
+          <div role="dialog" aria-label="Ajustes de la letra" style={{ position: "absolute", top: 6, right: 16, zIndex: 1, width: "min(640px, calc(100vw - 32px))", maxHeight: "min(420px, 60vh)", overflowY: "auto", display: "flex", gap: 20, flexWrap: "wrap", padding: "12px 14px 14px", background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 12px 36px rgba(22,50,79,0.25)", boxSizing: "border-box" }}>
+          <button onClick={() => setPanelEstilo(null)} title="Cerrar" aria-label="Cerrar" style={{ ...iconGhost, position: "absolute", top: 8, right: 8 }}><X size={15} /></button>
           {/* Ajustes finos de la letra (ver LIVE_SOMBRAS y compañía): para canciones, versículos y
               diapositivas, en vivo y guardados para la próxima transmisión como el resto del estilo. */}
-          <div style={{ flex: "1 1 100%", minWidth: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "10px 18px", paddingBottom: 12, borderBottom: "1px solid var(--wf-divider)" }}>
+          <div style={{ flex: "1 1 100%", minWidth: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "10px 18px" }}>
             <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", justifyContent: "space-between", paddingRight: 28 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)" }}>LETRA</span>
               <button
@@ -1338,22 +1436,6 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               </div>
             ))}
           </div>
-          <div style={{ flex: "1 1 340px", minWidth: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>{fondoEditadoTipo === "imagen" ? "IMAGEN DE FONDO" : "VIDEO DE FONDO"}{editandoCancion ? ` · SOLO "${cancionObjetivo.titulo.toUpperCase()}"` : ""}</div>
-            {fondoEditadoTipo === "imagen" ? (
-              <MediaPicker iglesiaId={myIglesiaId} tipo="imagen" value={fondoEditado.customImage} onChange={(url) => !fondoPropioOk ? abrirPlanes() : aplicarFondo({ theme: "custom", customBgType: "imagen", customImage: url })} />
-            ) : (
-              <>
-                <input
-                  placeholder="o pega un enlace https://... (mp4 de fondo con movimiento)"
-                  value={fondoEditado.customVideo && !fondoEditado.customVideo.startsWith("http") ? "" : fondoEditado.customVideo || ""}
-                  onChange={(e) => !fondoPropioOk ? abrirPlanes() : aplicarFondo({ theme: "custom", customBgType: "video", customVideo: e.target.value })}
-                  style={{ ...inputStyle, marginBottom: 8 }}
-                />
-                <MediaPicker iglesiaId={myIglesiaId} tipo="video" value={fondoEditado.customVideo} onChange={(url) => !fondoPropioOk ? abrirPlanes() : aplicarFondo({ theme: "custom", customBgType: "video", customVideo: url })} />
-              </>
-            )}
-          </div>
           {editandoBiblia && (
           <div style={{ flex: "0 1 300px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>VERSÍCULOS</div>
@@ -1374,7 +1456,6 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           </div>
         </div>
       )}
-
 
       <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 12, padding: "10px 12px 12px" }}>
         {/* Orden del culto, dividido por bloques igual que el Setlist */}
@@ -1397,20 +1478,38 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                 style={{ ...iconGhost, padding: 2, color: "var(--wf-faint)", flexShrink: 0 }}
               >{onOcultar ? <EyeOff size={13} /> : <X size={12} />}</button>
             );
+            // El cursor de "mano que agarra" es blanco y sobre las filas claras no se veía (reportado por
+            // Eldin, 2026-11-14): aquí la flecha/mano de siempre, y la de agarrar solo mientras se arrastra.
+            const cursorFila = (normal) => (arrastreOrden.indiceArrastrado === idx ? "grabbing" : normal);
             if (estaOculto(it)) return null;
             if (it.type === "seccion") {
               const cuantos = visiblesDeBloque(it.id).length;
-              // Un bloque sin nada que proyectar (Orden y limpieza, Multimedia...) no se muestra en la consola.
-              if (cuantos === 0) return null;
+              const vacio = (bloquesOrden.find((b) => b.id === it.id)?.items || []).length === 0;
+              // Con todo lo suyo oculto, el bloque tampoco se ve.
+              if (cuantos === 0 && !vacio) return null;
+              // Una parte del culto vacía SÍ se ve, apagada (2026-11-14): antes se escondía y no había
+              // dónde soltar algo que se quería pasar a "Predicación" si no se había puesto ahí desde el inicio.
               return (
-                <div key={it.id} {...filaArrastre} className="orden-fila" style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 9px", borderRadius: 10, background: "rgba(124,140,216,0.16)", border: "1px solid #5661B3", marginTop: idx === 0 ? 0 : 4, ...arrastreOrden.estiloFila(idx) }}>
-                  <ListMusic size={13} color="#5661B3" />
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 700, color: "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.title || "Bloque"}</span>
+                <div key={it.id} {...filaArrastre} className="orden-fila" title={vacio ? "Esta parte del culto está vacía: arrastra algo aquí debajo o toca + para agregarle" : undefined}
+                  style={{ display: "flex", alignItems: "center", gap: 7, padding: vacio ? "4px 9px" : "6px 9px", borderRadius: 10, background: vacio ? "transparent" : "rgba(124,140,216,0.16)", border: vacio ? "1px dashed var(--wf-border)" : "1px solid #5661B3", marginTop: idx === 0 ? 0 : 4, ...arrastreOrden.estiloFila(idx), cursor: cursorFila("default") }}>
+                  <ListMusic size={13} color={vacio ? "var(--wf-faint)" : "#5661B3"} />
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: vacio ? 600 : 700, color: vacio ? "var(--wf-muted)" : "var(--wf-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.title || "Bloque"}</span>
                   {cuantos > 0 && <span style={{ fontSize: 10.5, color: "#5661B3", fontWeight: 700 }}>{cuantos}</span>}
+                  {vacio && <span style={{ fontSize: 10, color: "var(--wf-faint)" }}>vacío</span>}
+                  {vacio && (
+                    <button onClick={(e) => { e.stopPropagation(); setDestinoConsola(it.id); setShowAgregarConsola(true); }} title={`Agregar algo a "${it.title || "Bloque"}"`} aria-label={`Agregar a ${it.title || "Bloque"}`} style={{ ...iconGhost, padding: 2, color: "var(--wf-brand-accent)", flexShrink: 0 }}><Plus size={14} /></button>
+                  )}
                   {quitar}
                 </div>
               );
             }
+            const mover = partesDelCulto.length > 0 && (
+              <button
+                className="orden-quitar" onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setMenuMover({ x: r.left, y: r.bottom + 4, id: it.id }); }}
+                title="Mover a otra parte del culto" aria-label="Mover a otra parte del culto"
+                style={{ ...iconGhost, padding: 2, color: "var(--wf-faint)", flexShrink: 0 }}
+              ><ArrowRightLeft size={13} /></button>
+            );
             const alAire = itemAlAire?.id === it.id;
             const visto = !verTodas && itemCentro?.id === it.id;
             const dentroDeBloque = serviceOrder.slice(0, idx).some((x) => x.type === "seccion");
@@ -1429,12 +1528,13 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                   if (i !== -1) gotoPlanSlide(i);
                 }}
                 title={alAire ? "Ya está al aire · Arrastra para cambiar el orden" : "Clic: proyectar · Arrastra para cambiar el orden"}
-                style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: dentroDeBloque ? 12 : 0, padding: "7px 9px", borderRadius: 10, textAlign: "left", cursor: "pointer", fontSize: 12.5, color: "var(--wf-text)", fontWeight: alAire || visto ? 700 : 500, background: alAire ? "var(--wf-active-bg)" : visto ? "var(--wf-hover)" : "var(--wf-card)", border: visto ? "1px solid var(--wf-border)" : "1px solid transparent", ...arrastreOrden.estiloFila(idx) }}
+                style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: dentroDeBloque ? 12 : 0, padding: "7px 9px", borderRadius: 10, textAlign: "left", fontSize: 12.5, color: "var(--wf-text)", fontWeight: alAire || visto ? 700 : 500, background: alAire ? "var(--wf-active-bg)" : visto ? "var(--wf-hover)" : "var(--wf-card)", border: visto ? "1px solid var(--wf-border)" : "1px solid transparent", ...arrastreOrden.estiloFila(idx), cursor: cursorFila("pointer") }}
               >
                 <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: TYPE_META[it.type]?.color || "#5B6472" }} />
                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tituloItem(it)}{it.diapositivas?.length > 1 && <span style={{ fontWeight: 500, color: "var(--wf-muted)" }}> · {it.diapositivas.length}</span>}</span>
                 {fondoPorCancion && it.type === "cancion" && liveStyle.fondosCanciones?.[it.songId] && <span title="Tiene su propio fondo" style={{ display: "flex", flexShrink: 0 }}><ImgIcon size={11} color="#B15EA0" /></span>}
                 {alAire && <span style={{ fontSize: 9, fontWeight: 800, color: "#C23B32" }}>●</span>}
+                {mover}
                 {quitar}
               </div>
             );
@@ -1466,6 +1566,9 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                 <div style={{ fontSize: 11.5, color: "var(--wf-muted)" }}>{indicesCentro.length} diapositiva{indicesCentro.length === 1 ? "" : "s"}{itemCentro && itemAlAire?.id !== itemCentro.id ? " · no está al aire" : ""}</div>
               </div>
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                {textoCentro && (
+                  <button onClick={() => startEditingSlide(textoCentro)} title="Cambiar el texto o el fondo de esta diapositiva (color liso, imagen de la biblioteca o video)" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "var(--wf-brand-primary)", background: "var(--wf-brand-accent)", border: "none", borderRadius: 18, padding: "5px 10px", cursor: "pointer" }}><ImgIcon size={12} /> Texto y fondo</button>
+                )}
                 {itemCentro?.type === "cancion" && onEditarLetraCompleta && (
                   <button onClick={() => abrirLetraCompleta(itemCentro.songId)} title="Corregir toda la letra de esta canción de una vez" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 18, padding: "5px 10px", cursor: "pointer" }}><Pencil size={12} /> Editar letra</button>
                 )}
@@ -1556,6 +1659,25 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           </div>
         );
       })()}
+      {menuMover && (() => {
+        const actual = parteDe(menuMover.id);
+        const x = Math.min(menuMover.x, window.innerWidth - 250);
+        const y = Math.min(menuMover.y, window.innerHeight - Math.min(340, 60 + partesDelCulto.length * 34));
+        return (
+          <div onPointerDown={(e) => e.stopPropagation()} role="menu" aria-label="Mover a otra parte del culto" style={{ position: "fixed", left: x, top: y, zIndex: 3000, background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: 4, width: 240, maxHeight: 340, overflowY: "auto", boxShadow: "0 12px 30px rgba(0,0,0,0.35)" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4, padding: "6px 10px 4px" }}>MOVER A…</div>
+            {partesDelCulto.map((b) => (
+              <button key={b.id} role="menuitem" disabled={b.id === actual} onClick={() => { const id = menuMover.id; setMenuMover(null); moverAParte(id, b.id); }}
+                className={b.id === actual ? undefined : "hoverable"}
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "transparent", border: "none", borderRadius: 7, padding: "7px 10px", cursor: b.id === actual ? "default" : "pointer", color: b.id === actual ? "var(--wf-faint)" : "var(--wf-text)", fontSize: 12.5, textAlign: "left", fontFamily: "inherit" }}>
+                <ListMusic size={13} color="#5661B3" style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.titulo}</span>
+                <span style={{ fontSize: 10.5, color: "var(--wf-faint)", flexShrink: 0 }}>{b.id === actual ? "aquí está" : b.cuantos === 0 ? "vacío" : b.cuantos}</span>
+              </button>
+            ))}
+          </div>
+        );
+      })()}
       {/* Agregar una canción = queda en el orden del culto (ya no "improvisada"), después de lo que se
           está viendo; luego se arrastra a donde se quiera. */}
       {/* Dos funciones separadas (pedido de Eldin, 2026-10-21: "no le gusta que haya un montón de botones
@@ -1630,10 +1752,14 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       )}
       {showAddSlide && (
         <SlideModal
-          iglesiaId={myIglesiaId}
+          iglesiaId={myIglesiaId} title={showAddSlide === "imagen" ? "Imagen" : "Texto rápido"} vistaPrevia={vistaPreviaDiapositiva}
           draft={newSlideDraft} setDraft={setNewSlideDraft}
           onClose={() => setShowAddSlide(false)}
-          onAdd={() => { if (!newSlideDraft.title && !(newSlideDraft.bgType === "video" && newSlideDraft.videoUrl) && !(newSlideDraft.bgType === "imagen" && newSlideDraft.imageUrl)) return; onAddLiveSlide(newSlideDraft, anclaParaAgregar()?.id); setShowAddSlide(false); }}
+          onAdd={() => {
+            if (!newSlideDraft.title && !(newSlideDraft.bgType === "video" && newSlideDraft.videoUrl) && !(newSlideDraft.bgType === "imagen" && newSlideDraft.imageUrl)) { showToast(newSlideDraft.bgType === "imagen" ? "Elige una imagen o escribe un texto." : "Escribe el texto que se va a proyectar.", "info"); return; }
+            if (showAddSlide !== "imagen") saveCache("texto_rapido_fondo", fondoParaRecordar(newSlideDraft));
+            onAddLiveSlide(newSlideDraft, anclaParaAgregar()?.id); setShowAddSlide(false);
+          }}
         />
       )}
       {editingSlide && editingSlide.type === "biblia" && (
@@ -1645,7 +1771,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         </ModalShell>
       )}
       {editingSlide && editingSlide.type === "slide" && (
-        <SlideModal iglesiaId={myIglesiaId} title="Editar diapositiva" submitLabel="Guardar cambios" draft={editDraft} setDraft={setEditDraft} onClose={() => setEditingSlide(null)} onAdd={saveSlideEdit} />
+        <SlideModal iglesiaId={myIglesiaId} title="Editar diapositiva" submitLabel="Guardar cambios" vistaPrevia={vistaPreviaDiapositiva} draft={editDraft} setDraft={setEditDraft} onClose={() => setEditingSlide(null)} onAdd={saveSlideEdit} />
       )}
       {editingSlide && editingSlide.type === "cancion" && (
         <ModalShell title={editingSlide.nueva ? "Nueva diapositiva" : "Corregir letra"} icon={editingSlide.nueva ? Plus : Music} color="var(--wf-brand-accent)" onClose={() => setEditingSlide(null)}>

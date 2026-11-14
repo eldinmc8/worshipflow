@@ -148,7 +148,7 @@ export function diapositivasDeItem(item) {
   }
   const fondo = item.bgType === "video" && item.videoUrl ? { tipo: "video", url: item.videoUrl, color: "#000000", ajuste: "cover" }
     : item.imageUrl ? { tipo: "imagen", url: item.imageUrl, color: "#000000", ajuste: "cover" }
-    : { tipo: "color", color: /^#[0-9a-f]{3,8}$/i.test(item.bg || "") ? item.bg : "#1B2029", url: "", ajuste: "cover" };
+    : { tipo: "color", color: colorPropioDe(item) || (/^#[0-9a-f]{3,8}$/i.test(item.bg || "") ? item.bg : "#1B2029"), url: "", ajuste: "cover" };
   const capas = [];
   if ((item.title || "").trim()) capas.push(nuevaCapaTexto({ texto: item.title, y: item.subtitle ? 28 : 34, h: item.subtitle ? 26 : 32, tamano: 104, fuente: "fraunces" }));
   if ((item.subtitle || "").trim()) capas.push(nuevaCapaTexto({ texto: item.subtitle, y: 56, h: 18, tamano: 56, negrita: false, color: "#E8ECF2" }));
@@ -157,6 +157,8 @@ export function diapositivasDeItem(item) {
 
 // Nombre base de un elemento ("Bienvenida (2/5)" → "Bienvenida").
 export const tituloBase = (t) => String(t || "").replace(/\s*\(\d+\/\d+\)\s*$/, "").trim();
+
+import { colorPropioDe } from "./fondoDiapositiva.js";
 
 // Un elemento "slide" con estas diapositivas. Guarda también la primera imagen en imageUrl/bg
 // "presentacion" para que una versión vieja de la app (antes de actualizarse) al menos muestre algo.
