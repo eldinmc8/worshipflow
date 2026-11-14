@@ -53,7 +53,11 @@ export default function ImportarCancionesPdf({ library = [], clasificaciones = [
     return sig;
   }) })));
 
+  // Marcar o desmarcar muchas de un solo (un cancionero trae cientos: no se marcan una por una).
+  const marcarTodas = (cual) => setArchivos((a) => a.map((x) => ({ ...x, canciones: x.canciones.map((c) => ({ ...c, incluir: cual(c) })) })));
+
   const todas = archivos.flatMap((a) => a.canciones.map((c) => ({ ...c, archivo: a })));
+  const repetidas = todas.filter((c) => c.existe).length;
   const elegidas = todas.filter((c) => c.incluir && c.titulo.trim());
   const leyendo = archivos.some((a) => a.estado === "leyendo");
 
@@ -131,6 +135,20 @@ export default function ImportarCancionesPdf({ library = [], clasificaciones = [
                   <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                     <input type="checkbox" checked={adjuntarOriginal} onChange={(e) => setAdjuntarOriginal(e.target.checked)} /> Adjuntar el PDF original a cada canción
                   </label>
+                </div>
+              )}
+
+              {todas.length > 1 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 14 }}>
+                  <button onClick={() => marcarTodas(() => true)} style={{ ...boton, padding: "7px 12px", fontSize: 12.5, background: "var(--wf-hover)", color: "var(--wf-text)" }}>Marcar todas</button>
+                  {repetidas > 0 && repetidas < todas.length && <button onClick={() => marcarTodas((c) => !c.existe)} style={{ ...boton, padding: "7px 12px", fontSize: 12.5, background: "var(--wf-hover)", color: "var(--wf-text)" }}>Solo las nuevas</button>}
+                  <button onClick={() => marcarTodas(() => false)} style={{ ...boton, padding: "7px 12px", fontSize: 12.5, background: "var(--wf-hover)", color: "var(--wf-text)" }}>Desmarcar todas</button>
+                </div>
+              )}
+              {repetidas > 0 && (
+                <div style={{ display: "flex", gap: 8, fontSize: 13, color: "#8A6500", background: "#B5850018", borderRadius: 10, padding: "8px 10px", marginBottom: 14 }}>
+                  <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>{repetidas === todas.length ? "Todas estas canciones ya están en tu biblioteca" : `${repetidas} de estas canciones ya están en tu biblioteca`}, por eso no vienen marcadas. Si las marcas, se guardan otra vez y quedan repetidas.</span>
                 </div>
               )}
 
