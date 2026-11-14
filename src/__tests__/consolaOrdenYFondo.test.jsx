@@ -55,11 +55,26 @@ describe("Fondo e imágenes a la mano", () => {
     render(<Consola onEstilo={(s) => { estilo = s; }} />);
     modoCompleto();
     fireEvent.click(screen.getByText("Estilo"));
-    fireEvent.click(enLaCinta(/^Imagen de fondo/));
-    const panel = screen.getByRole("dialog", { name: "Fondo de la proyección" });
+    // Estilo ya no usa cuadros flotantes: la biblioteca se abre dentro del mismo panel, bajo la fila de fondos.
+    fireEvent.click(screen.getByTitle(/^Imagen de fondo/));
+    const panel = screen.getByRole("region", { name: "Biblioteca de fondos" });
     expect(within(panel).getByTestId("biblioteca-fondos")).toBeTruthy();
-    expect(within(panel).getByLabelText("Oscurecer imagen o video")).toBeTruthy();
+    expect(screen.getByLabelText("Oscurecer la imagen o el video")).toBeTruthy();
     expect(estilo.theme).toBe("stage");
+  });
+  it("Estilo tiene el interlineado a la vista, con − y + (antes estaba dentro de 'Sombra y más')", () => {
+    let estilo = null;
+    render(<Consola onEstilo={(s) => { estilo = s; }} />);
+    modoCompleto();
+    fireEvent.click(screen.getByText("Estilo"));
+    expect(screen.getByLabelText("Interlineado")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Más interlineado"));
+    expect(estilo.interlineado).toBeCloseTo(1.4);
+    fireEvent.click(screen.getByLabelText("Menos interlineado"));
+    fireEvent.click(screen.getByLabelText("Menos interlineado"));
+    expect(estilo.interlineado).toBeCloseTo(1.3);
+    expect(screen.getByRole("group", { name: "Alineación" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Sombra de la letra" })).toBeTruthy();
   });
   it("el texto rápido puede llevar un color liso propio y el siguiente empieza igual", () => {
     const onAgregar = vi.fn();
