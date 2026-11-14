@@ -241,6 +241,14 @@ img, svg {
   from { opacity: 0; transform: translateY(18px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* Transiciones entre diapositivas (ver lib/transiciones.js): entrada de lo nuevo, solo con opacidad y
+   movimiento para que también corra en los navegadores viejos de Smart TV. */
+@keyframes wfTransFundido { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wfTransDeslizar { from { opacity: 0; transform: translateY(6%); } to { opacity: 1; transform: translateY(0); } }
+@keyframes wfTransZoom { from { opacity: 0; transform: scale(0.88); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .wf-trans { animation: none !important; opacity: 1 !important; transform: none !important; }
+}
 @media (prefers-reduced-motion: reduce) {
   [style*="wfLyricFadeIn"], [style*="wfLyricSlideIn"] { animation: none !important; opacity: 1 !important; transform: none !important; }
 }

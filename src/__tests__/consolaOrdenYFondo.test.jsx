@@ -77,6 +77,27 @@ describe("Fondo e imágenes a la mano", () => {
     expect(screen.getByRole("group", { name: "Alineación" })).toBeTruthy();
     expect(screen.getByRole("group", { name: "Sombra de la letra" })).toBeTruthy();
   });
+  it("Transición: una para todo el culto en Estilo, y otra distinta para un elemento", () => {
+    let estilo = null;
+    render(<Consola onEstilo={(s) => { estilo = s; }} />);
+    fireEvent.click(screen.getByText("Estilo"));
+    const grupo = screen.getByRole("radiogroup", { name: "Transición" });
+    expect(within(grupo).getByRole("radio", { name: "Ninguna" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.queryByRole("radiogroup", { name: "Velocidad" })).toBeNull(); // sin transición no hay velocidad que elegir
+    fireEvent.click(within(grupo).getByRole("radio", { name: "Fundido" }));
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Velocidad" })).getByRole("radio", { name: "Lenta" }));
+    expect(estilo).toMatchObject({ transicion: "fundido", transicionVel: "lenta" });
+    expect(estilo.biblia?.transicion).toBeUndefined(); // es del culto, no del estilo de la Biblia
+    // En Transmisión, el elemento que se ve al centro puede llevar la suya.
+    fireEvent.click(screen.getByText("Transmisión"));
+    const propia = screen.getByLabelText("Transición de Aviso de ayuno");
+    expect(propia.value).toBe(""); // la del culto
+    fireEvent.change(propia, { target: { value: "zoom" } });
+    expect(estilo.transicionesItems).toEqual({ t1: "zoom" });
+    fireEvent.change(screen.getByLabelText("Transición de Aviso de ayuno"), { target: { value: "" } });
+    expect(estilo.transicionesItems).toEqual({});
+    expect(estilo.transicion).toBe("fundido");
+  });
   it("el texto rápido puede llevar un color liso propio y el siguiente empieza igual", () => {
     const onAgregar = vi.fn();
     render(<Consola onAgregar={onAgregar} />);

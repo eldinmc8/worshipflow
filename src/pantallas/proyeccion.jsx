@@ -1,6 +1,7 @@
 // Lo que se ve en la pantalla de proyección (la usan la consola, las mini-vistas y la pantalla pública). Separada de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { useState } from "react";
 import { estiloParaDiapositiva } from "../lib/estiloBiblia.js";
+import { animacionDeTransicion } from "../lib/transiciones.js";
 import { definicionAnimacion, armarLineasAnimadas, velocidadLetra, FondoAnimado, claseAnimacion, EfectoPantalla, fondoEnMovimiento } from "../components/LetrasAnimadas.jsx";
 import DiapositivaDisenada from "../components/DiapositivaDisenada.jsx";
 import { esPaginaPresentacion } from "../lib/importarPresentacion.js";
@@ -36,7 +37,9 @@ export function colorLegibleAnimada(color) {
 // tan arriba se suba el slider, el texto nunca se corta ni se sale de la pantalla.
 
 // onEstadoVideo: solo la pantalla de proyección real — reporta a la consola cómo va el video (ver VideoProyectado).
-export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloCompleto, compactHeight, thumbnail, onEstadoVideo = null }) {
+// transicion: si lo nuevo entra con la transición elegida (ver lib/transiciones.js). Por defecto solo en
+// la pantalla real; la consola la enciende también en su vista "Al aire" (no en las miniaturas).
+export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloCompleto, compactHeight, thumbnail, onEstadoVideo = null, transicion = !thumbnail }) {
   // Versículos con su propio estilo (sin letra animada); el resto con el de las canciones. Ver lib/estiloBiblia.js.
   const liveStyle = estiloParaDiapositiva(estiloCompleto, slide);
   const font = LIVE_FONTS[liveStyle?.font || "elegante"];
@@ -162,6 +165,10 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
           return undefined; // "cita" y "franja": no tocan el estilo de línea (ver más abajo)
         })
       : undefined;
+  // Transición de entrada: se vuelve a montar (key) cada vez que cambia la diapositiva. La letra animada
+  // ya trae su propia entrada (y sus mezclas de color no aguantan un contenedor aparte): ahí no se usa.
+  const animTrans = transicion && !blanked && slide && !animarLetra ? animacionDeTransicion(estiloCompleto, slide) : null;
+  const claveTrans = slide ? String(slide.slideId ?? `${slide.reference || ""}|${slide.parte ?? ""}|${slide.title || ""}`) : "";
   const estiloRaiz = { flex: thumbnail ? "none" : compactHeight ? "none" : split ? 1.3 : 1, width: thumbnail ? "100%" : "auto", height: thumbnail ? "100%" : compactHeight || "auto", minHeight: thumbnail ? "auto" : compactHeight || "auto", background: bg, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", position: "relative", padding: thumbnail ? 10 : 32, minWidth: thumbnail ? 0 : 320, overflow: "hidden" };
   // Página de una presentación importada (PDF, Canva...): se proyecta TAL CUAL, completa (sin recortar),
   // sobre negro, sin oscurecer ni letra encima — ya trae su propio diseño. "Pantalla en negro" sí la
@@ -187,7 +194,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
     return (
       <div style={{ ...estiloRaiz, background: "#000", padding: 0 }}>
         {blanked ? <div style={{ color: "#2A3140" }}><Mic2 size={thumbnail ? 20 : 40} /></div>
-          : <img src={slide.imageUrl} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />}
+          : <img key={claveTrans} className={animTrans ? "wf-trans" : undefined} src={slide.imageUrl} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", animation: animTrans || undefined }} />}
       </div>
     );
   }
@@ -224,7 +231,9 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
       ) : slide.cuenta ? (
         <RelojCuentaRegresiva cuenta={slide.cuenta} quieto={!!thumbnail} sinFondo />
       ) : (
-        <>
+        // Con transición, el contenido va en una capa propia del mismo tamaño y con el mismo acomodo que
+        // la raíz (así nada se mueve de lugar) y esa capa es la que entra animada.
+        <CapaTransicion animacion={animTrans} clave={claveTrans} relleno={thumbnail ? 10 : 32}>
           {!videoSrc && !fondoAnimado && !fondoMov && !colorPropio && <div className="spotlight-glow" style={{ position: "absolute", width: thumbnail ? 140 : 420, height: thumbnail ? 140 : 420, borderRadius: "50%", background: `radial-gradient(circle, ${TYPE_META[slide.type].color}22 0%, transparent 70%)` }} />}
           {slide.type === "cancion" && (
             <>
@@ -338,8 +347,17 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
               {slide.subtitle && slide.title && posicion.flex === "center" && <div style={{ flex: 0.55, minHeight: 0 }} />}
             </div>
           )}
-        </>
+        </CapaTransicion>
       )}
+    </div>
+  );
+}
+
+function CapaTransicion({ animacion, clave, relleno, children }) {
+  if (!animacion) return <>{children}</>;
+  return (
+    <div key={clave} className="wf-trans" style={{ position: "absolute", inset: 0, padding: relleno, boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", zIndex: 1, animation: animacion }}>
+      {children}
     </div>
   );
 }

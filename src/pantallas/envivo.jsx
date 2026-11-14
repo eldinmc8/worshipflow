@@ -37,6 +37,7 @@ import { posicionActual, textoTiempo } from "../lib/videoControl.js";
 import { useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
 import { estiloDeBiblia, setterDeBiblia, setterDeCanciones, sinEfectosDeCanciones } from "../lib/estiloBiblia.js";
 import { ProjectionPanel } from "./proyeccion.jsx";
+import { TRANSICIONES, VELOCIDADES_TRANSICION, transicionDelCulto, transicionDeItem, conTransicionDeItem } from "../lib/transiciones.js";
 
 // ---------- Color por sección para el grid de diapositivas del panel Multimedia (estilo "grid de shows" tipo FreeShow) ----------
 const sectionColorFor = (s) => {
@@ -654,6 +655,14 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       </div>
     </div>
   );
+  const grupoTransicion = (nombre, opciones, valor, onElegir) => (
+    <div role="radiogroup" aria-label={nombre} style={{ display: "flex", flexWrap: "wrap", background: "var(--wf-hover)", borderRadius: 13, padding: 3, gap: 3 }}>
+      {Object.entries(opciones).map(([k, o]) => (
+        <button key={k} role="radio" aria-checked={valor === k} onClick={() => onElegir(k)}
+          style={{ minHeight: 38, fontSize: 13, fontWeight: 700, border: "none", borderRadius: 10, padding: "6px 16px", cursor: "pointer", whiteSpace: "nowrap", color: "var(--wf-text)", background: valor === k ? "var(--wf-card)" : "transparent", boxShadow: valor === k ? "0 1px 3px rgba(22,50,79,0.18)" : "none", fontFamily: "inherit" }}>{o.label}</button>
+      ))}
+    </div>
+  );
   const fichaFondo = ({ clave, etiqueta, muestra, fondo, activo, onClick, title }) => (
     <button key={clave} onClick={onClick} title={title || etiqueta} aria-pressed={activo}
       style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: 5, borderRadius: 12, cursor: "pointer", background: "var(--wf-card)", border: activo ? "2px solid var(--wf-brand-accent)" : "2px solid var(--wf-border)", fontFamily: "inherit" }}>
@@ -822,6 +831,21 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               </select>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Transición: es del culto entero (Canciones, textos y Biblia), no de "Estás cambiando". */}
+      <div style={cajaEstilo}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+          <span style={tituloEstilo}>TRANSICIÓN DE TODO EL CULTO</span>
+          <span style={{ fontSize: 12, color: "var(--wf-muted)" }}>Cómo entra cada diapositiva. Pruébala con Siguiente.</span>
+        </div>
+        <div style={{ display: "flex", gap: "10px 22px", flexWrap: "wrap" }}>
+          {grupoTransicion("Transición", TRANSICIONES, transicionDelCulto(estiloCompleto), (k) => setEstiloCompleto((st) => ({ ...st, transicion: k })))}
+          {transicionDelCulto(estiloCompleto) !== "ninguna" && grupoTransicion("Velocidad", VELOCIDADES_TRANSICION, VELOCIDADES_TRANSICION[estiloCompleto?.transicionVel] ? estiloCompleto.transicionVel : "normal", (k) => setEstiloCompleto((st) => ({ ...st, transicionVel: k })))}
+        </div>
+        <div style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.45 }}>
+          ¿Una distinta para un canto o un aviso? En Transmisión, tócalo en el orden del culto y elige en <b>Transición</b>, arriba de sus diapositivas. La letra animada usa su propio movimiento.
         </div>
       </div>
 
@@ -1428,6 +1452,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                 <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: TYPE_META[it.type]?.color || "#5B6472" }} />
                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tituloItem(it)}{it.diapositivas?.length > 1 && <span style={{ fontWeight: 500, color: "var(--wf-muted)" }}> · {it.diapositivas.length}</span>}</span>
                 {fondoPorCancion && it.type === "cancion" && liveStyle.fondosCanciones?.[it.songId] && <span title="Tiene su propio fondo" style={{ display: "flex", flexShrink: 0 }}><ImgIcon size={11} color="#B15EA0" /></span>}
+                {transicionDeItem(estiloCompleto, it.id) && <span title={`Transición propia: ${TRANSICIONES[transicionDeItem(estiloCompleto, it.id)].label}`} style={{ display: "flex", flexShrink: 0 }}><Sparkles size={11} color="#E8821E" /></span>}
                 {alAire && <span style={{ fontSize: 9, fontWeight: 800, color: "#C23B32" }}>●</span>}
                 {mover}
                 {quitar}
@@ -1473,6 +1498,17 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                 {itemCentro?.type === "cancion" && onEditarLetraCompleta && (
                   <button onClick={() => abrirLetraCompleta(itemCentro.songId)} title="Corregir toda la letra de esta canción de una vez" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 18, padding: "5px 10px", cursor: "pointer" }}><Pencil size={12} /> Editar letra</button>
                 )}
+                {itemCentro && (
+                  <select
+                    aria-label={`Transición de ${tituloItem(itemCentro)}`} title="Transición de este elemento: la del culto, o una distinta solo para él"
+                    value={transicionDeItem(estiloCompleto, itemCentro.id) || ""}
+                    onChange={(e) => setEstiloCompleto((st) => conTransicionDeItem(st, itemCentro.id, e.target.value || null))}
+                    style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)", background: transicionDeItem(estiloCompleto, itemCentro.id) ? "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)" : "var(--wf-hover)", border: "none", borderRadius: 18, padding: "5px 8px", cursor: "pointer", fontFamily: "inherit", maxWidth: 210 }}
+                  >
+                    <option value="">Transición: la del culto ({TRANSICIONES[transicionDelCulto(estiloCompleto)].label})</option>
+                    {Object.entries(TRANSICIONES).map(([k, t]) => <option key={k} value={k}>Transición: {t.label}</option>)}
+                  </select>
+                )}
                 <button onClick={() => { setVerTodas((v) => !v); setItemVisto(null); }} style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 18, padding: "5px 10px", cursor: "pointer" }}>{verTodas ? "Ver por elemento" : "Ver todas"}</button>
               </div>
             </div>
@@ -1492,7 +1528,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             {alAire && <span style={{ fontSize: 11, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{blanked ? "Pantalla en negro" : alAire.type === "cancion" ? `${alAire.songTitle} · ${alAire.blockLabel}` : alAire.type === "biblia" ? alAire.reference : alAire.nombre || alAire.title}</span>}
           </div>
           <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)", border: "2px solid #C23B32", flexShrink: 0 }}>
-            <ProjectionPanel slide={alAire} blanked={blanked} split={false} liveStyle={estiloCompleto} thumbnail />
+            <ProjectionPanel slide={alAire} blanked={blanked} split={false} liveStyle={estiloCompleto} thumbnail transicion />
           </div>
           {muestraEstilo()}
           {botonReiniciarCuenta}
