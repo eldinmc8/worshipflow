@@ -84,3 +84,20 @@ describe("Fondo e imágenes a la mano", () => {
     expect(screen.getByRole("radiogroup", { name: "Fondo de la diapositiva" })).toBeTruthy();
   });
 });
+
+describe("Colores de la Biblia desde la pestaña Biblia", () => {
+  it("cambia el color del versículo y el de la cita solo en el estilo de la Biblia", () => {
+    let estilo = null;
+    render(<Consola onEstilo={(s) => { estilo = s; }} />);
+    modoCompleto();
+    fireEvent.click(screen.getByText("Biblia"));
+    const abrirMas = () => { if (screen.queryByLabelText("Color del versículo: Amarillo suave")) return; const mas = screen.queryByText("Más opciones"); if (mas) fireEvent.click(mas); };
+    abrirMas();
+    fireEvent.click(screen.getByLabelText("Color del versículo: Amarillo suave"));
+    abrirMas();
+    fireEvent.click(screen.getByLabelText("Color de la cita: Naranja"));
+    expect(estilo.biblia.bibliaTextColor).toBe("#F5D67B");
+    expect(estilo.biblia.bibliaReferenciaColor).toBe("#E8821E");
+    expect(estilo.textColor).toBeUndefined(); // las canciones no se tocan
+  });
+});
