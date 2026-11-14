@@ -3,7 +3,7 @@ import ConPlan from "../components/ConPlan.jsx";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
 import { Pause, Square, Volume2, VolumeX, Speaker } from "lucide-react";
-import { Music, Search, Image as ImgIcon, ChevronLeft, ChevronRight, MonitorOff, Radio, BookOpen, Type, PenTool, FileUp, Plus, Pencil, MoreHorizontal, Trash2, GraduationCap, Pin, MessageSquare, AlertTriangle, PinOff, ListMusic, Palette, Play, SkipBack, SkipForward, X, SlidersHorizontal, Sparkles, ChevronUp, Tv, EyeOff, Eye, ArrowRightLeft, CopyPlus, Ungroup, Timer, RotateCcw } from "lucide-react";
+import { Music, Search, Image as ImgIcon, ChevronLeft, ChevronRight, MonitorOff, Radio, BookOpen, Type, PenTool, FileUp, Plus, Pencil, MoreHorizontal, Trash2, GraduationCap, Pin, MessageSquare, AlertTriangle, PinOff, ListMusic, Palette, Play, SkipBack, SkipForward, X, Sparkles, Tv, EyeOff, Eye, ArrowRightLeft, CopyPlus, Ungroup, Timer, RotateCcw } from "lucide-react";
 import { acordeEn } from "../lib/preferencias.js";
 import { loadCache, saveCache } from "../lib/offlineCache.js";
 import { escucharProyeccion } from "../lib/liveSession.js";
@@ -35,8 +35,9 @@ import { MediaPicker, SlideModal, AvisoEnlaceVideo, VideoModal } from "./ventana
 import { avisoDeEnlace, tipoDeVideo } from "../lib/videoEnlace.js";
 import { posicionActual, textoTiempo } from "../lib/videoControl.js";
 import { useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
-import { estiloDeBiblia, setterDeBiblia, setterDeCanciones } from "../lib/estiloBiblia.js";
+import { estiloDeBiblia, setterDeBiblia, setterDeCanciones, sinEfectosDeCanciones } from "../lib/estiloBiblia.js";
 import { ProjectionPanel } from "./proyeccion.jsx";
+import { TRANSICIONES, VELOCIDADES_TRANSICION, transicionDelCulto, transicionDeItem, conTransicionDeItem } from "../lib/transiciones.js";
 
 // ---------- Color por sección para el grid de diapositivas del panel Multimedia (estilo "grid de shows" tipo FreeShow) ----------
 const sectionColorFor = (s) => {
@@ -231,37 +232,25 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       </div>
     );
   };
-  const selectorDestinoEstilo = (compacto = false) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: compacto ? 0 : 12 }}>
-      {!compacto && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)" }}>ESTILO PARA</span>}
-      <div role="radiogroup" aria-label="Estilo para" style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 10, padding: 2 }}>
-        {[["canciones", "Canciones", Music, "#1F8A73"], ["biblia", "Biblia", BookOpen, "#2F5FA8"]].map(([k, l, Icono, color]) => {
-          const activo = destinoEstilo === k;
-          return (
-            <button key={k} role="radio" aria-checked={activo} onClick={() => setDestinoEstilo(k)}
-              title={k === "biblia" ? "Fondo y letra de los versículos (sin letra animada)" : "Fondo, letra animada y letra de las canciones"}
-              style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, border: "none", borderRadius: 8, padding: compacto ? "5px 9px" : "6px 11px", cursor: "pointer", whiteSpace: "nowrap", color: activo ? "#fff" : "var(--wf-text-2)", background: activo ? color : "transparent" }}>
-              <Icono size={13} /> {l}
-            </button>
-          );
-        })}
-      </div>
-      {!compacto && editandoBiblia && <span style={{ fontSize: 11, color: "var(--wf-faint)" }}>Solo los versículos. La letra animada es solo para canciones.</span>}
+  const selectorDestinoEstilo = () => (
+    <div role="radiogroup" aria-label="Estás cambiando" style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 13, padding: 3, gap: 3 }}>
+      {[["canciones", "Canciones y textos", Music, "#1F8A73"], ["biblia", "Biblia", BookOpen, "#2F5FA8"]].map(([k, l, Icono, color]) => {
+        const activo = destinoEstilo === k;
+        return (
+          <button key={k} role="radio" aria-checked={activo} onClick={() => setDestinoEstilo(k)}
+            title={k === "biblia" ? "Fondo y letra de los versículos (sin letra animada)" : "Fondo, letra animada y letra de las canciones y los textos"}
+            style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 38, fontSize: 13, fontWeight: 700, border: "none", borderRadius: 10, padding: "6px 14px", cursor: "pointer", whiteSpace: "nowrap", color: activo ? "#fff" : "var(--wf-text-2)", background: activo ? color : "transparent", fontFamily: "inherit" }}>
+            <Icono size={15} /> {l}
+          </button>
+        );
+      })}
     </div>
   );
   // La Biblia se monta la primera vez que se abre y ya no se desmonta (solo se esconde) mientras dure la consola.
   const [bibliaAbierta, setBibliaAbierta] = useState(false);
   useEffect(() => { if (mmPanel === "biblia") setBibliaAbierta(true); }, [mmPanel]);
-  // ---- Consola fácil (pedido de Eldin, 2026-10-11: "que alguien que nunca la haya usado la pueda usar
-  // en 5 minutos") ----
-  // Modo sencillo (escritorio): sin cinta de pestañas — solo una barra de botones grandes (Anterior,
-  // Siguiente, Negro, + Agregar, Biblia) sobre orden | diapositivas | al aire. Estilo, Insertar y lo
-  // demás quedan en "Modo completo". Se recuerda por computadora; empieza en sencillo.
-  const [sencillo, setSencillo] = useState(() => { const v = loadCache("consola_sencilla"); return v === null ? true : !!v; });
-  useEffect(() => { saveCache("consola_sencilla", sencillo); }, [sencillo]);
-  // El modo sencillo es solo de escritorio (no tiene pestaña Estilo). En celular/tablet el riel sí la
-  // tiene: antes este efecto la cerraba al instante y el botón Estilo no hacía nada (2026-11-09).
-  useEffect(() => { if (!isCompact && sencillo && (mmPanel === "estilo" || mmPanel === "insertar")) setMmPanel("transmision"); }, [isCompact, sencillo, mmPanel]);
+  // La "Vista sencilla" ya no existe (2026-11-14): las pestañas se ven siempre y lo esencial (Anterior,
+  // Siguiente, Negro, Fijar) vive en la barra de mando de abajo — ver barraDeMando.
   // ¿Hay una pantalla de proyección abierta? (ver escucharProyeccion). null = todavía no se sabe: los
   // primeros segundos no se avisa nada, la ventana de proyección tarda en abrir.
   const [hayProyeccion, setHayProyeccion] = useState(null);
@@ -281,12 +270,10 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   // si se ven todas las diapositivas juntas, y si la cinta de Estilo muestra sus opciones extra.
   const [itemVisto, setItemVisto] = useState(null);
   const [verTodas, setVerTodas] = useState(false);
-  // Panel flotante de la pestaña Estilo (2026-11-14: antes todo vivía en un solo cuadro "Sombra y más" y
-  // la imagen de fondo quedaba hasta abajo): null | "imagen" | "video" | "movimiento" | "letra".
+  // Lo que está desplegado dentro de la pestaña Estilo (una cosa a la vez): la biblioteca de
+  // "imagen" | "video" | "movimiento" de fondo, o las letras "animada"s. null = nada.
   const [panelEstilo, setPanelEstilo] = useState(null);
-  const alternarPanelEstilo = (k) => { setAnimMenu(false); setPanelEstilo((p) => (p === k ? null : k)); };
-  // Menú flotante de "Letra animada" en la cinta de Estilo (computadora).
-  const [animMenu, setAnimMenu] = useState(false);
+  const alternarPanelEstilo = (k) => setPanelEstilo((p) => (p === k ? null : k));
   // "Pantalla en otro equipo": enlace corto + QR para abrir la proyección en un TV/tablet/otra computadora.
   const [showOtroEquipo, setShowOtroEquipo] = useState(false);
   // Celular/tablet o navegador sin segunda pantalla (2026-11-08): "Proyección" abre "Pantallas y TV"
@@ -362,9 +349,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     }
     setEditingSlide(null); setEditDraft(null);
   };
-  const customBgType = liveStyle.customBgType || "imagen";
   const font = LIVE_FONTS[liveStyle.font || "elegante"];
-  const fontScale = liveStyle.fontScale ?? 1;
   const navIdx = adHoc ? adHocIdx : activeIdx;
 
   // Flechas del teclado para cambiar de diapositiva sin soltar el mouse — como en PowerPoint. Arriba/
@@ -627,15 +612,278 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       <span style={{ fontSize: 10, color: "var(--wf-faint)", textAlign: "center", whiteSpace: "nowrap" }}>{titulo}</span>
     </div>
   );
-  // Anterior / Siguiente / Negro en TODAS las pestañas de la cinta (pedido de Eldin, 2026-10-08): las
-  // diapositivas se manejan igual estando en Biblia, Estilo o Insertar, sin volver a Transmisión.
-  const navegacionRapida = () => (<>
-    {botonCinta({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1), ancho: 54 })}
-    {botonCinta({ icon: ChevronRight, label: "Siguiente", onClick: () => avanzar(1), acento: true, ancho: 58 })}
-    {botonCinta({ icon: MonitorOff, label: "Negro", onClick: () => setBlanked((b) => !b), activo: blanked, ancho: 50 })}
-  </>);
   // Grupo de la cinta como dato (CintaAdaptable decide si va a la vista o en "Más opciones").
   const grupoItem = (titulo, contenido, _ultimo, clave) => ({ clave: clave || titulo, titulo, contenido });
+  // ===== Pestaña Estilo con TODO a la vista (rediseño de la consola, pedido de Eldin 2026-11-14: "me
+  // costó encontrar funciones básicas como interlineado, está escondido; los fondos son complicados").
+  // Un solo panel para computadora y celular, sin cuadros flotantes ni "Sombra y más": interlineado,
+  // tamaño, color, sombra, posición y alineación siempre visibles. Lo único que se despliega (dentro
+  // del mismo panel) son las bibliotecas: imágenes, videos, fondos en movimiento y letras animadas.
+  const tituloEstilo = { fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.5 };
+  const pasoBtn = { width: 40, height: 40, flexShrink: 0, borderRadius: 12, border: "1px solid var(--wf-border)", background: "var(--wf-card)", color: "var(--wf-text)", fontSize: 20, fontWeight: 700, lineHeight: 1, cursor: "pointer", fontFamily: "inherit" };
+  const cajaEstilo = { background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", padding: isCompact ? 12 : 16, display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box" };
+  // Un ajuste con número: − y + grandes a los lados (un toque = un paso) y la barra en medio.
+  const ajusteConPasos = (c) => {
+    const valor = liveStyle[c.clave] ?? c.defecto;
+    const poner = (v) => setLiveStyle((st) => ({ ...st, [c.clave]: Math.min(c.max, Math.max(c.min, Math.round(v * 100) / 100)) }));
+    return (
+      <div key={c.clave} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+        <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+          <span style={tituloEstilo}>{c.label.toUpperCase()}</span>
+          <b style={{ fontSize: 12.5, color: "var(--wf-text)" }}>{c.mostrar(valor)}</b>
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <button onClick={() => poner(valor - c.paso)} disabled={valor <= c.min} aria-label={`Menos ${c.label.toLowerCase()}`} style={{ ...pasoBtn, opacity: valor <= c.min ? 0.4 : 1 }}>−</button>
+          <input type="range" min={c.min} max={c.max} step={c.paso} value={valor} aria-label={c.label} onChange={(e) => poner(parseFloat(e.target.value))} style={{ flex: 1, minWidth: 0, accentColor: "var(--wf-brand-accent)", cursor: "pointer" }} />
+          <button onClick={() => poner(valor + c.paso)} disabled={valor >= c.max} aria-label={`Más ${c.label.toLowerCase()}`} style={{ ...pasoBtn, opacity: valor >= c.max ? 0.4 : 1 }}>+</button>
+        </div>
+      </div>
+    );
+  };
+  // Un ajuste de elegir una entre pocas (sombra, posición, alineación): botones a la vista.
+  const ajusteDeOpciones = (c) => (
+    <div key={c.clave} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+      <span style={tituloEstilo}>{c.label.toUpperCase()}</span>
+      <div role="group" aria-label={c.label} style={{ display: "flex", flexWrap: "wrap", background: "var(--wf-hover)", borderRadius: 12, padding: 3, gap: 3 }}>
+        {Object.entries(c.opciones).map(([k, o]) => {
+          const activo = (liveStyle[c.clave] || c.defecto) === k;
+          return (
+            <button key={k} onClick={() => setLiveStyle((st) => ({ ...st, [c.clave]: k }))} aria-pressed={activo}
+              style={{ flex: "1 1 auto", minHeight: 34, fontSize: 12, fontWeight: 600, border: "none", borderRadius: 9, padding: "4px 8px", cursor: "pointer", whiteSpace: "nowrap", color: "var(--wf-text)", background: activo ? "var(--wf-card)" : "transparent", boxShadow: activo ? "0 1px 3px rgba(22,50,79,0.15)" : "none", fontFamily: "inherit" }}>{o.label}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
+  const grupoTransicion = (nombre, opciones, valor, onElegir) => (
+    <div role="radiogroup" aria-label={nombre} style={{ display: "flex", flexWrap: "wrap", background: "var(--wf-hover)", borderRadius: 13, padding: 3, gap: 3 }}>
+      {Object.entries(opciones).map(([k, o]) => (
+        <button key={k} role="radio" aria-checked={valor === k} onClick={() => onElegir(k)}
+          style={{ minHeight: 38, fontSize: 13, fontWeight: 700, border: "none", borderRadius: 10, padding: "6px 16px", cursor: "pointer", whiteSpace: "nowrap", color: "var(--wf-text)", background: valor === k ? "var(--wf-card)" : "transparent", boxShadow: valor === k ? "0 1px 3px rgba(22,50,79,0.18)" : "none", fontFamily: "inherit" }}>{o.label}</button>
+      ))}
+    </div>
+  );
+  const fichaFondo = ({ clave, etiqueta, muestra, fondo, activo, onClick, title }) => (
+    <button key={clave} onClick={onClick} title={title || etiqueta} aria-pressed={activo}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: 5, borderRadius: 12, cursor: "pointer", background: "var(--wf-card)", border: activo ? "2px solid var(--wf-brand-accent)" : "2px solid var(--wf-border)", fontFamily: "inherit" }}>
+      <span style={{ width: 62, height: 35, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", background: fondo || "var(--wf-hover)", color: "var(--wf-text)" }}>{muestra}</span>
+      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--wf-text)", whiteSpace: "nowrap" }}>{etiqueta}</span>
+    </button>
+  );
+  // "Usar este mismo estilo en…": para no armar dos veces lo mismo (fondo y letra) en Canciones y Biblia.
+  const copiarEstiloAlOtro = async () => {
+    const ok = await confirmDialog(
+      editandoBiblia ? "Las canciones y los textos van a usar el mismo fondo y la misma letra que tienen ahora los versículos. La letra animada no se toca." : "Los versículos van a usar el mismo fondo y la misma letra que tienen ahora las canciones (sin la letra animada).",
+      { titulo: editandoBiblia ? "¿Usar este estilo en las canciones?" : "¿Usar este estilo en la Biblia?", textoConfirmar: "Sí, usar el mismo" },
+    );
+    if (!ok) return;
+    setEstiloCompleto((st) => (editandoBiblia ? { ...st, ...estiloDeBiblia(st), biblia: estiloDeBiblia(st) } : { ...st, biblia: sinEfectosDeCanciones(st) }));
+    showToast(editandoBiblia ? "Listo: las canciones ahora usan el estilo de la Biblia." : "Listo: la Biblia ahora usa el estilo de las canciones.", "info");
+  };
+  const temaConAnimacion = animacionActiva(liveStyle) && liveStyle.animFondo !== "propio";
+  const panelEstiloCompleto = () => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, paddingBottom: 12 }}>
+      {/* 1. Qué estoy cambiando */}
+      <div style={cajaEstilo}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={tituloEstilo}>ESTÁS CAMBIANDO</span>
+          {selectorDestinoEstilo()}
+          <div style={{ flex: 1 }} />
+          <button onClick={copiarEstiloAlOtro} className="hoverable" title="Copia el fondo y la letra, para no armarlo dos veces"
+            style={{ minHeight: 38, fontSize: 12, fontWeight: 600, color: "var(--wf-text)", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit" }}>
+            {editandoBiblia ? "Usar este mismo estilo en Canciones" : "Usar este mismo estilo en Biblia"}
+          </button>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.45 }}>
+          {destinoEstilo === tipoEstiloAlAire
+            ? "Es lo que está al aire ahora: cada cambio se ve al instante en la pantalla."
+            : editandoBiblia ? "Ahora no hay un versículo al aire: lo ves en la muestra, y sale así cuando proyectes uno." : "Ahora hay un versículo al aire: lo ves en la muestra, y sale así en la próxima canción o texto."}
+          {editandoBiblia && " La letra animada es solo para canciones."}
+        </div>
+      </div>
+
+      {/* 2. Fondo: colores, imagen, video y en movimiento en la misma fila */}
+      <div style={cajaEstilo}>
+        <span style={tituloEstilo}>{editandoCancion ? `FONDO DE "${cancionObjetivo.titulo.toUpperCase()}"` : editandoBiblia ? "FONDO DE LA BIBLIA" : "FONDO"}</span>
+        <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+          {Object.entries(LIVE_THEMES).map(([key, t]) => fichaFondo({ clave: key, etiqueta: t.label, fondo: t.bg, activo: fondoEditado.theme === key && !temaConAnimacion, onClick: () => { avisarFondoPropioAnimada(); aplicarFondo({ theme: key }); } }))}
+          {fichaFondo({ clave: "imagen", etiqueta: "Imagen", muestra: <ImgIcon size={18} />, title: "Imagen de fondo: tu biblioteca de imágenes o subir una nueva", activo: panelEstilo === "imagen" || (fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen"), onClick: () => { if (!fondoPropioOk) return abrirPlanes(); alternarPanelEstilo("imagen"); } })}
+          {fichaFondo({ clave: "video", etiqueta: "Video", muestra: <Play size={18} />, title: "Video de fondo: tu biblioteca de videos, subir uno o pegar un enlace", activo: panelEstilo === "video" || (fondoEditado.theme === "custom" && fondoEditadoTipo === "video"), onClick: () => { if (!fondoPropioOk) return abrirPlanes(); alternarPanelEstilo("video"); } })}
+          {fichaFondo({ clave: "movimiento", etiqueta: "En movimiento", muestra: <Sparkles size={18} />, title: "Fondos animados (arcos de luz, aura, vitral, nubes…)", activo: panelEstilo === "movimiento" || !!fondoEnMovimiento(fondoEditado.theme), onClick: () => alternarPanelEstilo("movimiento") })}
+        </div>
+        {["imagen", "video", "movimiento"].includes(panelEstilo) && (
+          <div role="region" aria-label="Biblioteca de fondos" style={{ border: "1px solid var(--wf-border)", borderRadius: 14, padding: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <span style={{ flex: 1, fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.45 }}>
+                {panelEstilo === "imagen" ? "Toca una imagen y queda de fondo al instante." : panelEstilo === "video" ? "Toca un video y queda de fondo, en bucle y sin sonido. También puedes pegar el enlace de un .mp4." : "Toca un fondo en movimiento y queda puesto al instante."}
+              </span>
+              <button onClick={() => setPanelEstilo(null)} style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 10, padding: "7px 12px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>Cerrar</button>
+            </div>
+            {panelEstilo === "movimiento" && (
+              <SelectorFondoMovimiento valor={fondoEditado.theme} columnas={isCompact ? 3 : 6} onElegir={(t) => { avisarFondoPropioAnimada(); aplicarFondo({ theme: t }); }} />
+            )}
+            {panelEstilo === "imagen" && (
+              <MediaPicker key="imagen" iglesiaId={myIglesiaId} tipo="imagen" galeriaAbierta grande={!isCompact}
+                value={fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen" ? fondoEditado.customImage : ""}
+                onChange={(url) => { if (!fondoPropioOk) return abrirPlanes(); avisarFondoPropioAnimada(); aplicarFondo({ theme: "custom", customBgType: "imagen", customImage: url }); }} />
+            )}
+            {panelEstilo === "video" && (<>
+              {/* El filtro !startsWith("http") es solo para no mostrar un video base64 viejo hecho
+                  ilegible acá -- uno nuevo siempre es una URL https:// real. */}
+              <input
+                placeholder="Pega un enlace https://... (mp4 de fondo con movimiento)"
+                value={fondoEditado.customVideo && !fondoEditado.customVideo.startsWith("http") ? "" : fondoEditado.customVideo || ""}
+                onChange={(e) => !fondoPropioOk ? abrirPlanes() : aplicarFondo({ theme: "custom", customBgType: "video", customVideo: e.target.value })}
+                style={{ ...inputStyle, marginBottom: 8 }}
+              />
+              <MediaPicker key="video" iglesiaId={myIglesiaId} tipo="video" galeriaAbierta grande={!isCompact}
+                value={fondoEditado.theme === "custom" && fondoEditadoTipo === "video" ? fondoEditado.customVideo : ""}
+                onChange={(url) => { if (!fondoPropioOk) return abrirPlanes(); avisarFondoPropioAnimada(); aplicarFondo({ theme: "custom", customBgType: "video", customVideo: url }); }} />
+            </>)}
+          </div>
+        )}
+        {(fondoEditado.theme === "custom" || panelEstilo === "imagen" || panelEstilo === "video") && ajusteConPasos({ clave: "oscurecer", label: "Oscurecer la imagen o el video", min: 0, max: 0.85, paso: 0.05, defecto: 0.45, mostrar: (v) => `${Math.round(v * 100)}%` })}
+        {!editandoBiblia && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minHeight: 34 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+              <input
+                type="checkbox" checked={fondoPorCancion}
+                onChange={(e) => { const on = e.target.checked; setLiveStyle((st) => ({ ...st, fondoPorCancion: on })); setFondoDestino(on ? "cancion" : "todo"); }}
+                style={{ accentColor: "var(--wf-brand-accent)", cursor: "pointer", width: 16, height: 16 }}
+              />
+              Cada canción con su fondo
+            </label>
+            {fondoPorCancion && (<>
+              <div style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 10, padding: 3, gap: 3 }}>
+                {[["todo", "Todo"], ["cancion", cancionObjetivo ? `Solo "${cancionObjetivo.titulo.length > 22 ? cancionObjetivo.titulo.slice(0, 21) + "…" : cancionObjetivo.titulo}"` : "Solo una canción"]].map(([k, l]) => {
+                  const activo = (editandoCancion ? "cancion" : "todo") === k;
+                  const sinCancion = k === "cancion" && !cancionObjetivo;
+                  return (
+                    <button
+                      key={k} onClick={() => setFondoDestino(k)} disabled={sinCancion} aria-pressed={activo}
+                      title={k === "cancion" ? (cancionObjetivo ? `Cambiar solo el fondo de "${cancionObjetivo.titulo}"` : "Elige una canción en el orden del culto") : "Cambiar el fondo general (diapositivas y canciones sin fondo propio)"}
+                      style={{ fontSize: 12, fontWeight: 600, border: "none", borderRadius: 8, padding: "6px 10px", cursor: sinCancion ? "not-allowed" : "pointer", opacity: sinCancion ? 0.45 : 1, whiteSpace: "nowrap", background: activo ? "var(--wf-card)" : "transparent", boxShadow: activo ? "0 1px 3px rgba(22,50,79,0.15)" : "none", color: "var(--wf-text)", fontFamily: "inherit" }}
+                    >{l}</button>
+                  );
+                })}
+              </div>
+              {fondoCancionObjetivo && (
+                <button onClick={quitarFondoCancion} style={{ fontSize: 12, fontWeight: 600, color: "#C23B32", background: "transparent", border: "none", cursor: "pointer", padding: "6px 4px", fontFamily: "inherit" }}>Quitarle su fondo</button>
+              )}
+            </>)}
+          </div>
+        )}
+      </div>
+
+      {/* 3. Letra: todo lo que antes vivía en "Sombra y más", a la vista */}
+      <div style={cajaEstilo}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={tituloEstilo}>LETRA</span>
+          <button
+            onClick={() => setLiveStyle((st) => { const { interlineado: _i, espaciado: _e, sombra: _s, oscurecer: _o, posicion: _p, alineacion: _a, ...resto } = st; return resto; })}
+            className="hoverable" title="Vuelve interlineado, espacio, sombra, posición y alineación a como venían"
+            style={{ fontSize: 12, fontWeight: 600, color: "var(--wf-muted)", background: "transparent", border: "none", borderRadius: 8, padding: "4px 8px", cursor: "pointer", fontFamily: "inherit" }}
+          >Restablecer</button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: "16px 22px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+            <span style={tituloEstilo}>TIPOGRAFÍA</span>
+            {/* El propio <select> y cada <option> llevan la fuente real, así cada opción se ve con su letra. */}
+            <select
+              aria-label="Tipografía" value={liveStyle.font || "elegante"}
+              onChange={(e) => setLiveStyle((st) => ({ ...st, font: e.target.value }))}
+              style={{ ...inputStyle, height: 40, padding: "6px 10px", fontSize: 14, fontFamily: font.family, fontWeight: font.weight, fontStyle: font.italic ? "italic" : "normal", textTransform: font.transform }}
+            >
+              {Object.entries(LIVE_FONTS).map(([key, f]) => (
+                <option key={key} value={key} style={{ fontFamily: f.family, fontWeight: f.weight, fontStyle: f.italic ? "italic" : "normal", textTransform: f.transform }}>{f.label}</option>
+              ))}
+            </select>
+          </div>
+          {ajusteConPasos({ clave: "fontScale", label: "Tamaño de letra", min: 0.6, max: 1.8, paso: 0.05, defecto: 1, mostrar: (v) => `${Math.round(v * 100)}%` })}
+          {ajusteConPasos({ clave: "interlineado", label: "Interlineado", min: 0.9, max: 2.2, paso: 0.05, defecto: 1.35, mostrar: (v) => v.toFixed(2) })}
+          {ajusteConPasos({ clave: "espaciado", label: "Espacio entre letras", min: -0.05, max: 0.3, paso: 0.01, defecto: 0, mostrar: (v) => (v === 0 ? "Normal" : `${v > 0 ? "+" : ""}${Math.round(v * 100)}`) })}
+          {!editandoBiblia && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+              <span style={tituloEstilo}>COLOR DE LETRA</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", minHeight: 40 }}>
+                {Object.entries(LIVE_TEXT_COLORS).map(([key, c]) => (
+                  <button key={key} onClick={() => setLiveStyle((st) => ({ ...st, textColor: c.value }))} title={c.label} aria-label={`Letra ${c.label}`} aria-pressed={(liveStyle.textColor || "#FFFFFF") === c.value}
+                    style={{ width: 30, height: 30, borderRadius: "50%", background: c.value, border: (liveStyle.textColor || "#FFFFFF") === c.value ? "3px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0, boxSizing: "border-box", flexShrink: 0 }} />
+                ))}
+                <label title="Elegir otro color" style={{ width: 30, height: 30, borderRadius: "50%", border: "1px solid var(--wf-border)", cursor: "pointer", position: "relative", overflow: "hidden", display: "flex", flexShrink: 0, boxSizing: "border-box", background: "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)" }}>
+                  <input type="color" aria-label="Letra: otro color" value={liveStyle.textColor || "#FFFFFF"} onChange={(e) => setLiveStyle((st) => ({ ...st, textColor: e.target.value }))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+                </label>
+              </div>
+            </div>
+          )}
+          {ajusteDeOpciones({ clave: "alineacion", label: "Alineación", opciones: LIVE_ALINEACIONES, defecto: "centro" })}
+          {ajusteDeOpciones({ clave: "posicion", label: "Posición", opciones: LIVE_POSICIONES, defecto: "centro" })}
+          {ajusteDeOpciones({ clave: "sombra", label: "Sombra de la letra", opciones: LIVE_SOMBRAS, defecto: "ninguna" })}
+          {!editandoBiblia && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+              <span style={tituloEstilo}>DISEÑO DE LAS LETRAS</span>
+              <select
+                aria-label="Diseño de la letra" value={liveStyle.lineStyle || "tradicional"}
+                onChange={(e) => setLiveStyle((st) => ({ ...st, lineStyle: e.target.value }))}
+                style={{ ...inputStyle, height: 40, padding: "6px 10px", fontSize: 13 }}
+              >
+                {Object.entries(LINE_STYLES).map(([key, ls]) => <option key={key} value={key}>{ls.label}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Transición: es del culto entero (Canciones, textos y Biblia), no de "Estás cambiando". */}
+      <div style={cajaEstilo}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+          <span style={tituloEstilo}>TRANSICIÓN DE TODO EL CULTO</span>
+          <span style={{ fontSize: 12, color: "var(--wf-muted)" }}>Cómo entra cada diapositiva. Pruébala con Siguiente.</span>
+        </div>
+        <div style={{ display: "flex", gap: "10px 22px", flexWrap: "wrap" }}>
+          {grupoTransicion("Transición", TRANSICIONES, transicionDelCulto(estiloCompleto), (k) => setEstiloCompleto((st) => ({ ...st, transicion: k })))}
+          {transicionDelCulto(estiloCompleto) !== "ninguna" && grupoTransicion("Velocidad", VELOCIDADES_TRANSICION, VELOCIDADES_TRANSICION[estiloCompleto?.transicionVel] ? estiloCompleto.transicionVel : "normal", (k) => setEstiloCompleto((st) => ({ ...st, transicionVel: k })))}
+        </div>
+        <div style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.45 }}>
+          ¿Una distinta para un canto o un aviso? En Transmisión, tócalo en el orden del culto y elige en <b>Transición</b>, arriba de sus diapositivas. La letra animada usa su propio movimiento.
+        </div>
+      </div>
+
+      {/* 4. Solo Biblia: colores del versículo y de la cita */}
+      {editandoBiblia && (
+        <div style={cajaEstilo}>
+          <span style={tituloEstilo}>VERSÍCULOS</span>
+          <div style={{ display: "flex", gap: "12px 28px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 12, color: "var(--wf-muted)" }}>Color del texto del versículo</span>
+              {coloresBiblia(LIVE_TEXT_COLORS, estiloBiblia.bibliaTextColor || estiloBiblia.textColor || "#FFFFFF", "bibliaTextColor", "Color del versículo")}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 12, color: "var(--wf-muted)" }}>Color de la cita (ej. "Mateo 5:25")</span>
+              {coloresBiblia(LIVE_REFERENCE_COLORS, estiloBiblia.bibliaReferenciaColor || "#6E9BD1", "bibliaReferenciaColor", "Color de la cita")}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Solo canciones: letra animada */}
+      {!editandoBiblia && (
+        <div style={cajaEstilo}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={tituloEstilo}>LETRA ANIMADA</span>
+            <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: "var(--wf-text)" }}>{animacionActiva(liveStyle) ? nombreAnimacion(liveStyle) || "Puesta" : "Ninguna"}</span>
+            <button onClick={() => alternarPanelEstilo("animada")} aria-expanded={panelEstilo === "animada"}
+              style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 38, fontSize: 12.5, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 12, padding: "6px 14px", cursor: "pointer", fontFamily: "inherit" }}>
+              <Sparkles size={14} /> {panelEstilo === "animada" ? "Cerrar" : "Elegir un estilo con movimiento"}
+            </button>
+          </div>
+          {panelEstilo === "animada" && (
+            <SelectorAnimacion liveStyle={liveStyle} setLiveStyle={setLiveStyle} columnas={isCompact ? 2 : 5} iglesiaId={myIglesiaId} iglesiaNombre={iglesiaNombre} usuarioId={usuarioId} />
+          )}
+        </div>
+      )}
+    </div>
+  );
   // Botones de la cinta al estilo Office: sin relleno (solo se marcan al pasar el mouse), ícono arriba
   // y texto chico abajo — solo "Siguiente" (acento) y lo que está encendido (activo) llevan color.
   const botonCinta = ({ icon: Icon, label, onClick, activo, acento, title, tour, ancho = 58 }) => (
@@ -810,10 +1058,10 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     </>
   );
   const tecla = { display: "inline-block", minWidth: 16, padding: "0 6px", borderRadius: 6, border: "1px solid var(--wf-border)", borderBottomWidth: 2, background: "var(--wf-card)", color: "var(--wf-text)", fontWeight: 700, fontSize: 11, lineHeight: "18px", textAlign: "center" };
-  // Botones grandes del modo sencillo (escritorio).
-  const botonGrande = ({ icon: Icon, label, sub, onClick, fondo = "var(--wf-hover)", color = "var(--wf-text)", tour, ancho = 120, titulo }) => (
+  // Botones grandes de la barra de mando (escritorio).
+  const botonGrande = ({ icon: Icon, label, sub, onClick, fondo = "var(--wf-hover)", color = "var(--wf-text)", tour, ancho = 120, titulo, crece = false }) => (
     <button onClick={onClick} data-tour={tour} title={titulo || label} className="hoverable"
-      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minWidth: ancho, height: 52, padding: "0 16px", border: "none", borderRadius: 14, cursor: "pointer", background: fondo, color, fontFamily: "inherit", flexShrink: 0, boxShadow: "0 2px 8px rgba(22,50,79,0.10)" }}>
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minWidth: ancho, height: 56, padding: "0 16px", border: "none", borderRadius: 14, cursor: "pointer", background: fondo, color, fontFamily: "inherit", flexShrink: 0, boxShadow: "0 2px 8px rgba(22,50,79,0.10)", ...(crece ? { flex: "1 1 170px", maxWidth: 300 } : {}) }}>
       <Icon size={22} strokeWidth={2} />
       <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.1, minWidth: 0 }}>
         <span style={{ fontSize: 15, fontWeight: 800 }}>{label}</span>
@@ -821,17 +1069,21 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       </span>
     </button>
   );
-  const barraSencilla = (
-    <div data-tour="envivo-paneles" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", flexShrink: 0, flexWrap: "wrap", rowGap: 8 }}>
+  // Barra de mando (rediseño 2026-11-14): Anterior, Siguiente, Negro y Fijar SIEMPRE abajo, en el mismo
+  // lugar, en cualquier pestaña. Reemplaza al interruptor "Vista sencilla / Más herramientas": lo
+  // esencial ya no se esconde y lo demás está en las pestañas. A la derecha queda libre la esquina del
+  // botón redondo del menú de la app (ver navEncogida en PrototipoWorshipFlow).
+  const barraDeMando = (
+    <div data-tour="envivo-mando" role="toolbar" aria-label="Mando de la proyección" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 76px 12px 16px", background: "var(--wf-card)", boxShadow: "0 -1px 3px rgba(22,50,79,0.10)", flexShrink: 0, position: "relative", zIndex: 5 }}>
       {botonGrande({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1), ancho: 130 })}
-      {botonGrande({ icon: ChevronRight, label: "Siguiente", sub: cambiaDeElemento ? `Pasas a: ${nombreSiguiente}` : next ? null : "Es la última", onClick: () => avanzar(1), fondo: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", tour: "envivo-siguiente", ancho: 190 })}
+      {botonGrande({ icon: ChevronRight, label: "Siguiente", sub: cambiaDeElemento ? `Pasas a: ${nombreSiguiente}` : next ? null : "Es la última", onClick: () => avanzar(1), fondo: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", tour: "envivo-siguiente", ancho: 170, crece: true })}
       {botonGrande({ icon: MonitorOff, label: blanked ? "Volver a mostrar" : "Negro", sub: blanked ? null : "Esconde todo", onClick: () => setBlanked((b) => !b), fondo: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)", tour: "envivo-negro", ancho: 140 })}
       {onFijar && botonGrande({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", sub: fijada ? "Volver a transmitir" : "Congela la pantalla", onClick: () => (fijada ? onSoltar() : onFijar()), fondo: fijada ? "#7B3FA0" : "var(--wf-hover)", color: fijada ? "#fff" : "var(--wf-text)", tour: "envivo-fijar", ancho: 140, titulo: "Deja la pantalla quieta en lo que se ve ahora, para moverte por la consola sin que se proyecte (tecla F)" })}
       <div style={{ width: 1, alignSelf: "stretch", background: "var(--wf-divider)", margin: "4px 4px" }} />
-      {botonGrande({ icon: Plus, label: "Agregar", sub: "Canción, texto, video…", onClick: () => { setDestinoConsola(null); setShowAgregarConsola(true); }, tour: "envivo-agregar", ancho: 140 })}
-      {botonGrande({ icon: BookOpen, label: mmPanel === "biblia" ? "Volver" : "Biblia", sub: mmPanel === "biblia" ? "a las diapositivas" : "Buscar un versículo", onClick: () => setMmPanel((p) => (p === "biblia" ? "transmision" : "biblia")), fondo: mmPanel === "biblia" ? "#2F5FA8" : "var(--wf-hover)", color: mmPanel === "biblia" ? "#fff" : "var(--wf-text)", tour: "envivo-biblia", ancho: 140 })}
+      {botonGrande({ icon: SkipBack, label: "Inicio", onClick: () => goto(0), ancho: 0, titulo: "Ir a la primera diapositiva" })}
+      {botonGrande({ icon: SkipForward, label: "Final", onClick: () => goto(Infinity), ancho: 0, titulo: "Ir a la última diapositiva" })}
       <div style={{ flex: 1 }} />
-      <div style={{ fontSize: 11.5, color: "var(--wf-muted)", lineHeight: 1.9, textAlign: "right", flexShrink: 0 }}>
+      <div className="wf-mando-teclas" style={{ fontSize: 11.5, color: "var(--wf-muted)", lineHeight: 1.9, textAlign: "right", flexShrink: 0 }}>
         <span style={tecla}>→</span> o <span style={tecla}>Espacio</span> avanza · <span style={tecla}>←</span> regresa<br /><span style={tecla}>B</span> negro · <span style={tecla}>F</span> fijar
       </div>
     </div>
@@ -903,118 +1155,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
 
         {mmPanel === "estilo" && (
           <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>
-            {selectorDestinoEstilo()}
-            {!editandoBiblia && (<>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>LETRA ANIMADA</div>
-            <div style={{ marginBottom: 16 }}>
-              <SelectorAnimacion liveStyle={liveStyle} setLiveStyle={setLiveStyle} columnas={2} iglesiaId={myIglesiaId} iglesiaNombre={iglesiaNombre} usuarioId={usuarioId} />
-            </div>
-            </>)}
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>FONDO DE LA PROYECCIÓN</div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
-              {Object.entries(LIVE_THEMES).map(([key, t]) => (
-                <button key={key} onClick={() => { avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: key, ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: 12, border: liveStyle.theme === key && !(animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", background: "var(--wf-card)" }}>
-                  <span style={{ width: 16, height: 16, borderRadius: 8, background: t.bg }} />
-                  <span style={{ fontSize: 11, fontWeight: 600 }}>{t.label}</span>
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", margin: "4px 0 6px" }}>FONDOS EN MOVIMIENTO</div>
-            <div style={{ marginBottom: 12 }}>
-              <SelectorFondoMovimiento valor={fondoEditado.theme} columnas={3} onElegir={(t) => { avisarFondoPropioAnimada(); aplicarFondo({ theme: t }); }} />
-            </div>
-            <div style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 8, width: "fit-content" }}>
-              <button onClick={() => { if (!fondoPropioOk) return abrirPlanes(); avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "imagen" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "imagen" ? "#fff" : "var(--wf-muted)" }}><ImgIcon size={12} /> Imagen</button>
-              <button onClick={() => { if (!fondoPropioOk) return abrirPlanes(); avisarFondoPropioAnimada(); setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", ...(animacionActiva(s) ? { animFondo: "propio" } : {}) })); }} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 10, border: "none", cursor: "pointer", background: liveStyle.theme === "custom" && customBgType === "video" ? "#B15EA0" : "transparent", color: liveStyle.theme === "custom" && customBgType === "video" ? "#fff" : "var(--wf-muted)" }}><Play size={12} /> Video (movimiento)</button>
-            </div>
-            {customBgType === "imagen" ? (
-              <div style={{ marginBottom: 12 }}>
-                <MediaPicker iglesiaId={myIglesiaId} tipo="imagen" galeriaAbierta value={liveStyle.customImage} onChange={(url) => !fondoPropioOk ? abrirPlanes() : setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "imagen", customImage: url }))} />
-              </div>
-            ) : (
-              <div style={{ marginBottom: 12 }}>
-                {/* El filtro !startsWith("http") es solo para no mostrar un video base64 viejo (de antes
-                    de este cambio) hecho ilegible acá -- uno nuevo siempre es una URL https:// real. */}
-                <input
-                  placeholder="o pega un enlace https://... (mp4 de fondo con movimiento)"
-                  value={liveStyle.customVideo && !liveStyle.customVideo.startsWith("http") ? "" : liveStyle.customVideo || ""}
-                  onChange={(e) => !fondoPropioOk ? abrirPlanes() : setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", customVideo: e.target.value }))}
-                  style={{ ...inputStyle, marginBottom: 8 }}
-                />
-                <MediaPicker iglesiaId={myIglesiaId} tipo="video" value={liveStyle.customVideo} onChange={(url) => !fondoPropioOk ? abrirPlanes() : setLiveStyle((s) => ({ ...s, theme: "custom", customBgType: "video", customVideo: url }))} />
-                {liveStyle.customVideo && (
-                  <div style={{ fontSize: 11, color: "#1F8A73", marginTop: 6 }}>Video de fondo configurado ✓ — se reproduce en bucle detrás de toda la letra/versículos.</div>
-                )}
-              </div>
-            )}
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>TIPOGRAFÍA</div>
-            {/* Desplegable en vez de fila de botones -- con 20 fuentes ya no cabían cómodas en una
-                fila (pedido de Eldin, 2026-10-05). El propio <select> y cada <option> llevan la
-                fuente real como estilo, así que al abrirlo cada opción ya se ve con su propia letra. */}
-            <select
-              value={liveStyle.font || "elegante"}
-              onChange={(e) => setLiveStyle((s) => ({ ...s, font: e.target.value }))}
-              style={{ ...inputStyle, marginBottom: 16, fontFamily: font.family, fontWeight: font.weight, fontStyle: font.italic ? "italic" : "normal", textTransform: font.transform }}
-            >
-              {Object.entries(LIVE_FONTS).map(([key, f]) => (
-                <option key={key} value={key} style={{ fontFamily: f.family, fontWeight: f.weight, fontStyle: f.italic ? "italic" : "normal", textTransform: f.transform }}>{f.label}</option>
-              ))}
-            </select>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>COLOR DE LETRA</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
-              {Object.entries(LIVE_TEXT_COLORS).map(([key, c]) => (
-                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, textColor: c.value }))} title={c.label} style={{ width: 28, height: 28, borderRadius: "50%", background: c.value, border: (liveStyle.textColor || "#FFFFFF") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
-              ))}
-              <label title="Elegir otro color" style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--wf-border)", cursor: "pointer", padding: 0, position: "relative", overflow: "hidden", background: !Object.values(LIVE_TEXT_COLORS).some((c) => c.value === (liveStyle.textColor || "#FFFFFF")) ? (liveStyle.textColor || "#FFFFFF") : "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)", display: "flex" }}>
-                <input type="color" value={liveStyle.textColor || "#FFFFFF"} onChange={(e) => setLiveStyle((s) => ({ ...s, textColor: e.target.value }))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
-              </label>
-            </div>
-            {/* Diseño de transmisión para canciones: cambia solo cómo se destaca la 2a línea de cada
-                diapositiva (la que cierra la frase), no el contenido ni el tamaño. Primeros 3 de una
-                lista más larga -- Eldin ya vio las otras 7+ opciones sugeridas y decidió empezar por
-                estas. */}
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>DISEÑO DE LAS LETRAS</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
-              {Object.entries(LINE_STYLES).map(([key, s]) => (
-                <button key={key} onClick={() => setLiveStyle((st) => ({ ...st, lineStyle: key }))} style={{ padding: "6px 11px", borderRadius: 12, border: (liveStyle.lineStyle || "tradicional") === key ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", background: "var(--wf-card)", color: "var(--wf-text)", fontSize: 12, fontWeight: 600 }}>{s.label}</button>
-              ))}
-            </div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>TAMAÑO DE LETRA</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-faint)" }}>A</span>
-              <input
-                type="range" min={0.6} max={1.8} step={0.05}
-                value={fontScale}
-                onChange={(e) => setLiveStyle((s) => ({ ...s, fontScale: parseFloat(e.target.value) }))}
-                style={{ flex: 1, accentColor: "var(--wf-brand-accent)", cursor: "pointer" }}
-              />
-              <span style={{ fontSize: 19, fontWeight: 700, color: "var(--wf-faint)" }}>A</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)", width: 34, textAlign: "right" }}>{Math.round(fontScale * 100)}%</span>
-            </div>
-            {editandoBiblia && (<>
-            {/* Versículos: antes el texto usaba el mismo COLOR DE LETRA que canciones/slides (sigue
-                siendo el valor por defecto si no se toca nada acá) y la cita ("Mateo 5:25") tenía un
-                color fijo en el código -- ahora los dos son configurables por separado. */}
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", margin: "16px 0 6px" }}>VERSÍCULOS</div>
-            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 6 }}>Color del texto del versículo</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-              {Object.entries(LIVE_TEXT_COLORS).map(([key, c]) => (
-                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, bibliaTextColor: c.value }))} title={c.label} style={{ width: 24, height: 24, borderRadius: "50%", background: c.value, border: (liveStyle.bibliaTextColor || liveStyle.textColor || "#FFFFFF") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
-              ))}
-              <label title="Elegir otro color" style={{ width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--wf-border)", cursor: "pointer", padding: 0, position: "relative", overflow: "hidden", background: liveStyle.bibliaTextColor || liveStyle.textColor || "#FFFFFF", display: "flex" }}>
-                <input type="color" value={liveStyle.bibliaTextColor || liveStyle.textColor || "#FFFFFF"} onChange={(e) => setLiveStyle((s) => ({ ...s, bibliaTextColor: e.target.value }))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
-              </label>
-            </div>
-            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 6 }}>Color de la cita (ej. "Mateo 5:25")</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              {Object.entries(LIVE_REFERENCE_COLORS).map(([key, c]) => (
-                <button key={key} onClick={() => setLiveStyle((s) => ({ ...s, bibliaReferenciaColor: c.value }))} title={c.label} style={{ width: 24, height: 24, borderRadius: "50%", background: c.value, border: (liveStyle.bibliaReferenciaColor || "#6E9BD1") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
-              ))}
-              <label title="Elegir otro color" style={{ width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--wf-border)", cursor: "pointer", padding: 0, position: "relative", overflow: "hidden", background: liveStyle.bibliaReferenciaColor || "#6E9BD1", display: "flex" }}>
-                <input type="color" value={liveStyle.bibliaReferenciaColor || "#6E9BD1"} onChange={(e) => setLiveStyle((s) => ({ ...s, bibliaReferenciaColor: e.target.value }))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
-              </label>
-            </div>
-            </>)}
+            {panelEstiloCompleto()}
           </div>
         )}
 
@@ -1158,27 +1299,18 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           <Radio size={13} color="#C23B32" style={{ flexShrink: 0 }} />
           <span style={{ fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{eventTitle}</span>
         </div>
-        {!sencillo && [["transmision", "Transmisión"], ["biblia", "Biblia"], ["estilo", "Estilo"], ["insertar", "Insertar"]].map(([key, label]) => (
+        {[["transmision", "Transmisión"], ["biblia", "Biblia"], ["estilo", "Estilo"], ["insertar", "Insertar"]].map(([key, label]) => (
           <button
             key={key} onClick={() => setMmPanel(key)}
             style={{ padding: "10px 14px 9px", border: "none", background: "transparent", cursor: "pointer", fontSize: 14, fontWeight: mmPanel === key ? 700 : 500, color: mmPanel === key ? "var(--wf-heading)" : "var(--wf-muted)", borderBottom: `2px solid ${mmPanel === key ? "var(--wf-brand-accent)" : "transparent"}`, flexShrink: 0 }}
           >{label}</button>
         ))}
-        {/* "Estilo para" vive aquí, en el espacio libre junto a las pestañas (2026-11-14), para que en la
-            cinta quepan más controles a la vista. */}
-        {!sencillo && mmPanel === "estilo" && (
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginLeft: 14, flexShrink: 0 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", whiteSpace: "nowrap" }}>ESTILO PARA</span>
-            {selectorDestinoEstilo(true)}
-          </div>
-        )}
         <div style={{ flex: 1 }} />
-        {!sencillo && <div style={{ marginRight: 10, padding: "3px 0" }}>{botonAgregarConsola({ tour: "envivo-agregar" })}</div>}
-        <button
-          data-tour="envivo-modo" onClick={() => setSencillo((v) => !v)} className="hoverable"
-          title={sencillo ? "Ver todas las herramientas: Estilo, Insertar, secciones de la canción…" : "Volver a la vista sencilla, solo con lo esencial"}
-          style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 16, padding: "5px 11px", cursor: "pointer", marginRight: 8, flexShrink: 0, fontFamily: "inherit" }}
-        >{sencillo ? <><SlidersHorizontal size={13} /> Más herramientas</> : <><Sparkles size={13} /> Vista sencilla</>}</button>
+        {/* Pantallas, a la mano y siempre en el mismo lugar (antes en la cinta de Transmisión). */}
+        <button data-tour="envivo-proyeccion" onClick={abrirProyeccion} className="hoverable" title="Abrir o reabrir la pantalla de proyección" style={{ display: "flex", alignItems: "center", gap: 6, height: 32, fontSize: 12, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 16, padding: "0 12px", cursor: "pointer", marginRight: 6, flexShrink: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}><Radio size={14} /> Proyección</button>
+        <button onClick={() => setShowOtroEquipo(true)} className="hoverable" title="Conectar un Smart TV con número, o abrir en celular/tablet con QR" style={{ display: "flex", alignItems: "center", gap: 6, height: 32, fontSize: 12, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 16, padding: "0 12px", cursor: "pointer", marginRight: 6, flexShrink: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}><Tv size={14} /> Pantallas y TV</button>
+        {onMensajeEscenario && <button onClick={() => setShowEscenario(true)} className="hoverable" title="Pantalla de escenario: mensajes, temporizador del mensaje y enlace del monitor" style={{ display: "flex", alignItems: "center", gap: 6, height: 32, fontSize: 12, fontWeight: 700, color: "var(--wf-text)", background: mensajeEscenario || temporizadorActivo(temporizador) ? "#E8821E" : "var(--wf-hover)", border: "none", borderRadius: 16, padding: "0 12px", cursor: "pointer", marginRight: 6, flexShrink: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}><MessageSquare size={14} /> Escenario</button>}
+        <div style={{ width: 1, height: 22, background: "var(--wf-divider)", margin: "0 8px 0 2px", flexShrink: 0 }} />
         {onAyuda && (
           <button data-tour="envivo-ayuda" onClick={onAyuda} title="¿Cómo se usa? Ver la guía otra vez" aria-label="Ayuda" className="hoverable"
             style={{ width: 28, height: 28, borderRadius: 14, border: "none", background: "var(--wf-hover)", color: "var(--wf-text)", cursor: "pointer", fontSize: 14, fontWeight: 800, marginRight: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>?</button>
@@ -1186,103 +1318,20 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         {botonFinalizar}
       </nav>
       {franjasDeEstado}
-      {sencillo && barraSencilla}
-      {!sencillo && (
+      {/* La cinta ya no repite Anterior/Siguiente/Negro (viven en la barra de mando de abajo) y en
+          Estilo no hay cinta: el panel del centro lo tiene todo. */}
+      {mmPanel !== "estilo" && (
         <CintaAdaptable
           tour="envivo-paneles" dibujarGrupo={grupoCinta}
           estilo={{ padding: "6px 8px 4px", minHeight: 76, boxSizing: "border-box", background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)" }}
           grupos={(mmPanel === "biblia" ? [
-          grupoItem("Proyección", navegacionRapida()),
           { ...grupoItem("Color del versículo", coloresBiblia(LIVE_TEXT_COLORS, estiloBiblia.bibliaTextColor || estiloBiblia.textColor || "#FFFFFF", "bibliaTextColor", "Color del versículo"), false, "biblia-color-texto"), mantenerAbierto: true },
           { ...grupoItem("Color de la cita", coloresBiblia(LIVE_REFERENCE_COLORS, estiloBiblia.bibliaReferenciaColor || "#6E9BD1", "bibliaReferenciaColor", "Color de la cita"), false, "biblia-color-cita"), mantenerAbierto: true },
           grupoItem("", <div style={{ display: "flex", alignItems: "center", padding: "0 16px", maxWidth: 440 }}>
               <span style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.5 }}>Busca un libro, una cita (ej. stgo 4:1) o palabras del versículo, aunque no estén exactas. Toca el versículo para proyectarlo. Los versículos largos aparecen en partes (1/2, 2/2): toca la que quieras o avanza con la flecha →.</span>
             </div>, false, "ayuda-biblia"),
         ] : mmPanel === "estilo" ? [
-          grupoItem("Proyección", navegacionRapida()),
-          !editandoBiblia && grupoItem("Letra animada", botonCinta({ icon: Sparkles, label: (() => { const n = nombreAnimacion(liveStyle) || "Animación"; return n.length > 12 ? n.slice(0, 11) + "…" : n; })(), onClick: () => { setPanelEstilo(null); setAnimMenu((v) => !v); }, activo: !!animacionActiva(liveStyle) || animMenu, title: "Letras animadas: elegir un estilo con movimiento", ancho: 76 })),
-          grupoItem(editandoCancion ? `Fondo de "${cancionObjetivo.titulo.length > 22 ? cancionObjetivo.titulo.slice(0, 21) + "…" : cancionObjetivo.titulo}"` : editandoBiblia ? "Fondo de la Biblia" : "Fondo", <>
-              {Object.entries(LIVE_THEMES).map(([key, t]) => (
-                <button key={key} onClick={() => aplicarFondo({ theme: key })} title={t.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 5px", borderRadius: 10, cursor: "pointer", background: "var(--wf-card)", border: fondoEditado.theme === key && !(animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") ? "2px solid #B15EA0" : "1px solid var(--wf-border)" }}>
-                  <span style={{ width: 34, height: 20, borderRadius: 5, background: t.bg }} />
-                  <span style={{ fontSize: 9.5, fontWeight: 600, color: "var(--wf-text)", whiteSpace: "nowrap" }}>{t.label}</span>
-                </button>
-              ))}
-              {botonCinta({ icon: ImgIcon, label: "Imagen", title: "Imagen de fondo: tu biblioteca de imágenes o subir una nueva", onClick: () => { if (!fondoPropioOk) return abrirPlanes(); alternarPanelEstilo("imagen"); }, activo: panelEstilo === "imagen" || (fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen"), ancho: 62 })}
-              {botonCinta({ icon: Play, label: "Video", title: "Video de fondo: tu biblioteca de videos, subir uno o pegar un enlace", onClick: () => { if (!fondoPropioOk) return abrirPlanes(); alternarPanelEstilo("video"); }, activo: panelEstilo === "video" || (fondoEditado.theme === "custom" && fondoEditadoTipo === "video"), ancho: 62 })}
-              {botonCinta({ icon: Sparkles, label: "En movimiento", title: "Fondos animados (arcos de luz, aura, vitral, nubes…)", onClick: () => alternarPanelEstilo("movimiento"), activo: panelEstilo === "movimiento" || !!fondoEnMovimiento(fondoEditado.theme), ancho: 78 })}
-            </>, false, "fondo"),
-          !editandoBiblia && grupoItem("Fondo por canción", (
-              <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
-                  <input
-                    type="checkbox" checked={fondoPorCancion}
-                    onChange={(e) => { const on = e.target.checked; setLiveStyle((st) => ({ ...st, fondoPorCancion: on })); setFondoDestino(on ? "cancion" : "todo"); }}
-                    style={{ accentColor: "var(--wf-brand-accent)", cursor: "pointer" }}
-                  />
-                  Cada canción con su fondo
-                </label>
-                {fondoPorCancion && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <div style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 8, padding: 2 }}>
-                      {[["todo", "Todo"], ["cancion", "Esta canción"]].map(([k, l]) => (
-                        <button
-                          key={k} onClick={() => setFondoDestino(k)} disabled={k === "cancion" && !cancionObjetivo}
-                          title={k === "cancion" ? (cancionObjetivo ? `Cambiar solo el fondo de "${cancionObjetivo.titulo}"` : "Elige una canción en el orden del culto") : "Cambiar el fondo general (Biblia, diapositivas y canciones sin fondo propio)"}
-                          style={{ fontSize: 11, fontWeight: 600, border: "none", borderRadius: 6, padding: "3px 8px", cursor: k === "cancion" && !cancionObjetivo ? "not-allowed" : "pointer", opacity: k === "cancion" && !cancionObjetivo ? 0.45 : 1, whiteSpace: "nowrap",
-                            background: (editandoCancion ? "cancion" : "todo") === k ? "var(--wf-card)" : "transparent", boxShadow: (editandoCancion ? "cancion" : "todo") === k ? "0 1px 3px rgba(22,50,79,0.15)" : "none", color: "var(--wf-text)" }}
-                        >{l}</button>
-                      ))}
-                    </div>
-                    {fondoCancionObjetivo && (
-                      <button onClick={quitarFondoCancion} title="Esta canción vuelve a usar el fondo general" style={{ ...iconGhost, color: "#C23B32" }}><X size={13} /></button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )),
-          grupoItem("Texto", <>
-              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                <select
-                  aria-label="Tipografía" value={liveStyle.font || "elegante"}
-                  onChange={(e) => setLiveStyle((st) => ({ ...st, font: e.target.value }))}
-                  style={{ ...inputStyle, width: 160, padding: "5px 8px", fontSize: 12, fontFamily: font.family, fontWeight: font.weight, fontStyle: font.italic ? "italic" : "normal", textTransform: font.transform }}
-                >
-                  {Object.entries(LIVE_FONTS).map(([key, f]) => (
-                    <option key={key} value={key} style={{ fontFamily: f.family, fontWeight: f.weight, fontStyle: f.italic ? "italic" : "normal", textTransform: f.transform }}>{f.label}</option>
-                  ))}
-                </select>
-                <div style={{ display: "flex", gap: 4 }}>
-                  {Object.entries(LIVE_TEXT_COLORS).map(([key, c]) => (
-                    <button key={key} onClick={() => setLiveStyle((st) => ({ ...st, textColor: c.value }))} title={c.label} aria-label={`Letra ${c.label}`} style={{ width: 18, height: 18, borderRadius: "50%", background: c.value, border: (liveStyle.textColor || "#FFFFFF") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
-                  ))}
-                </div>
-              </div>
-            </>),
-          grupoItem("Diseño de la letra", (
-              <select
-                aria-label="Diseño de la letra" value={liveStyle.lineStyle || "tradicional"}
-                onChange={(e) => setLiveStyle((st) => ({ ...st, lineStyle: e.target.value }))}
-                style={{ ...inputStyle, width: 190, padding: "6px 8px", fontSize: 12 }}
-              >
-                {Object.entries(LINE_STYLES).map(([key, ls]) => <option key={key} value={key}>{ls.label}</option>)}
-              </select>
-            )),
-          grupoItem("Tamaño de letra", (
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-faint)" }}>A</span>
-                <input
-                  type="range" min={0.6} max={1.8} step={0.05} value={fontScale} aria-label="Tamaño de letra"
-                  onChange={(e) => setLiveStyle((st) => ({ ...st, fontScale: parseFloat(e.target.value) }))}
-                  style={{ width: 120, accentColor: "var(--wf-brand-accent)", cursor: "pointer" }}
-                />
-                <span style={{ fontSize: 17, fontWeight: 700, color: "var(--wf-faint)" }}>A</span>
-                <span style={{ fontSize: 11, fontWeight: 700, width: 34, textAlign: "right" }}>{Math.round(fontScale * 100)}%</span>
-              </div>
-            )),
-          grupoItem("Ajustes de la letra", botonCinta({ icon: panelEstilo === "letra" ? ChevronUp : SlidersHorizontal, label: panelEstilo === "letra" ? "Cerrar" : "Sombra y más", title: "Sombra, posición, alineación, interlineado y espacio entre letras", onClick: () => alternarPanelEstilo("letra"), activo: panelEstilo === "letra", ancho: 84 }), true),
         ] : mmPanel === "insertar" ? [
-          grupoItem("Proyección", navegacionRapida()),
           grupoItem("Del culto", <>
               {botonCinta({ icon: Music, label: "Canción", onClick: () => setShowAdHocSong(true) })}
               {botonCinta({ icon: BookOpen, label: "Versículo", onClick: () => setMmPanel("biblia") })}
@@ -1296,19 +1345,6 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               {onStartAdHocCuenta && botonCinta({ icon: Timer, label: "Reloj", title: "Cuenta regresiva", onClick: () => setShowCuenta(true) })}
             </>, true),
         ] : [
-          grupoItem("Navegación", <>
-              {botonCinta({ icon: SkipBack, label: "Inicio", onClick: () => goto(0) })}
-              {botonCinta({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1) })}
-              {botonCinta({ icon: ChevronRight, label: "Siguiente", onClick: () => avanzar(1), acento: true, tour: "envivo-siguiente" })}
-              {botonCinta({ icon: SkipForward, label: "Final", onClick: () => goto(Infinity) })}
-            </>),
-          grupoItem("Pantalla", <>
-              {botonCinta({ icon: MonitorOff, label: "Negro", onClick: () => setBlanked((b) => !b), activo: blanked, tour: "envivo-negro" })}
-              {onFijar && botonCinta({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", onClick: () => (fijada ? onSoltar() : onFijar()), activo: !!fijada, title: "Congelar la pantalla para moverte sin proyectar (tecla F)" })}
-              {botonCinta({ icon: Radio, label: "Proyección", onClick: abrirProyeccion, title: "Reabrir la pantalla de proyección", tour: "envivo-proyeccion" })}
-              {onMensajeEscenario && botonCinta({ icon: MessageSquare, label: "Escenario", onClick: () => setShowEscenario(true), activo: !!mensajeEscenario || temporizadorActivo(temporizador), title: "Pantalla de escenario: mensajes, temporizador del mensaje y enlace del monitor" })}
-              {botonCinta({ icon: Tv, label: "Pantallas y TV", onClick: () => setShowOtroEquipo(true), title: "Conectar un Smart TV con número, o abrir en celular/tablet con QR", ancho: 76 })}
-            </>),
           grupoItem("Proyectar", botonCinta({ icon: Music, label: "Desde biblioteca", onClick: () => setShowAdHocSong("proyectar"), title: "Buscar una canción de la biblioteca y ponerla en pantalla de una vez", ancho: 96 })),
           grupoItem("Secciones de la canción", currentSongSections.length > 0 ? (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxWidth: 560, alignContent: "center" }}>
@@ -1320,9 +1356,6 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         ]).filter(Boolean)}
         />
       )}
-      {/* "Más opciones" de Estilo: menú flotante encima de las diapositivas, como los desplegables
-          de Office — antes empujaba todo hacia abajo y se comía media pantalla (pedido de Eldin,
-          2026-10-08). Se cierra con la X, con "Menos" o con un clic afuera. */}
       {letraCompleta && (
         <ModalShell title={`Letra de "${letraCompleta.titulo}"`} icon={Pencil} color="#1F8A73" onClose={() => setLetraCompleta(null)}>
           <div style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.5, marginBottom: 8 }}>
@@ -1342,137 +1375,6 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       {showOtroEquipo && <PantallaOtroEquipo iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipo(false)} />}
       {showEscenario && onMensajeEscenario && <PanelEscenario mensaje={mensajeEscenario} onMensaje={onMensajeEscenario} iglesiaId={myIglesiaId} slug={iglesiaSlug} onCerrar={() => setShowEscenario(false)}
         temporizador={temporizador} onTemporizador={onTemporizador} autoTemporizador={autoTemporizador} onAutoTemporizador={onAutoTemporizador} />}
-      {mmPanel === "estilo" && animMenu && !editandoBiblia && (
-        <div style={{ position: "relative", height: 0, zIndex: 36 }}>
-          <div onClick={() => setAnimMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />
-          <div style={{ position: "absolute", top: 6, left: 16, zIndex: 1, width: "min(760px, calc(100vw - 32px))", maxHeight: "min(560px, 70vh)", overflowY: "auto", padding: "12px 14px 14px", background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 12px 36px rgba(22,50,79,0.25)", boxSizing: "border-box" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-heading)" }}>Letra animada</span>
-              <button onClick={() => setAnimMenu(false)} title="Cerrar" aria-label="Cerrar" style={iconGhost}><X size={15} /></button>
-            </div>
-            <SelectorAnimacion liveStyle={liveStyle} setLiveStyle={setLiveStyle} columnas={5} iglesiaId={myIglesiaId} iglesiaNombre={iglesiaNombre} usuarioId={usuarioId} />
-          </div>
-        </div>
-      )}
-      {/* Fondo: imagen, video o en movimiento, cada uno a un clic desde la cinta y con la biblioteca ya
-          abierta (pedido de Eldin, 2026-11-14: "insertar imágenes y ver la biblioteca está muy escondido"). */}
-      {mmPanel === "estilo" && panelEstilo && panelEstilo !== "letra" && (
-        <div style={{ position: "relative", height: 0, zIndex: 35 }}>
-          <div onClick={() => setPanelEstilo(null)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />
-          <div role="dialog" aria-label="Fondo de la proyección" style={{ position: "absolute", top: 6, left: 16, zIndex: 1, width: "min(760px, calc(100vw - 32px))", maxHeight: "min(540px, 70vh)", overflowY: "auto", padding: "12px 14px 14px", background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 12px 36px rgba(22,50,79,0.25)", boxSizing: "border-box" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-heading)" }}>{editandoCancion ? `Fondo de "${cancionObjetivo.titulo}"` : editandoBiblia ? "Fondo de la Biblia" : "Fondo de la proyección"}</span>
-              <div role="tablist" aria-label="Tipo de fondo" style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 10, padding: 2, gap: 2 }}>
-                {[["imagen", "Imagen", ImgIcon], ["video", "Video", Play], ["movimiento", "En movimiento", Sparkles]].map(([k, l, Icono]) => {
-                  const activo = panelEstilo === k;
-                  return (
-                    <button key={k} role="tab" aria-selected={activo} onClick={() => { if (k !== "movimiento" && !fondoPropioOk) return abrirPlanes(); setPanelEstilo(k); }}
-                      style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", whiteSpace: "nowrap", color: "var(--wf-text)", background: activo ? "var(--wf-card)" : "transparent", boxShadow: activo ? "0 1px 3px rgba(22,50,79,0.15)" : "none" }}>
-                      <Icono size={13} /> {l}
-                    </button>
-                  );
-                })}
-              </div>
-              <div style={{ flex: 1 }} />
-              <button onClick={() => setPanelEstilo(null)} title="Cerrar" aria-label="Cerrar" style={iconGhost}><X size={15} /></button>
-            </div>
-            {panelEstilo === "movimiento" && (
-              <SelectorFondoMovimiento valor={fondoEditado.theme} columnas={6} onElegir={(t) => { avisarFondoPropioAnimada(); aplicarFondo({ theme: t }); }} />
-            )}
-            {panelEstilo === "imagen" && (<>
-              <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 8 }}>Toca una imagen y queda de fondo al instante. Para quitarla, elige otro fondo en la cinta de arriba.</div>
-              <MediaPicker key="imagen" iglesiaId={myIglesiaId} tipo="imagen" galeriaAbierta grande
-                value={fondoEditado.theme === "custom" && fondoEditadoTipo === "imagen" ? fondoEditado.customImage : ""}
-                onChange={(url) => { if (!fondoPropioOk) return abrirPlanes(); avisarFondoPropioAnimada(); aplicarFondo({ theme: "custom", customBgType: "imagen", customImage: url }); }} />
-            </>)}
-            {panelEstilo === "video" && (<>
-              <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 8 }}>Toca un video y queda de fondo, en bucle y sin sonido. También puedes pegar el enlace de un .mp4.</div>
-              <input
-                placeholder="Pega un enlace https://... (mp4 de fondo con movimiento)"
-                value={fondoEditado.customVideo && !fondoEditado.customVideo.startsWith("http") ? "" : fondoEditado.customVideo || ""}
-                onChange={(e) => !fondoPropioOk ? abrirPlanes() : aplicarFondo({ theme: "custom", customBgType: "video", customVideo: e.target.value })}
-                style={{ ...inputStyle, marginBottom: 8 }}
-              />
-              <MediaPicker key="video" iglesiaId={myIglesiaId} tipo="video" galeriaAbierta grande
-                value={fondoEditado.theme === "custom" && fondoEditadoTipo === "video" ? fondoEditado.customVideo : ""}
-                onChange={(url) => { if (!fondoPropioOk) return abrirPlanes(); avisarFondoPropioAnimada(); aplicarFondo({ theme: "custom", customBgType: "video", customVideo: url }); }} />
-            </>)}
-            {panelEstilo !== "movimiento" && (
-              <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--wf-divider)", fontSize: 12, color: "var(--wf-text)" }}>
-                <span style={{ whiteSpace: "nowrap" }}>Oscurecer para que la letra se lea</span>
-                <input type="range" min={0} max={0.85} step={0.05} value={liveStyle.oscurecer ?? 0.45} aria-label="Oscurecer imagen o video" onChange={(e) => setLiveStyle((st) => ({ ...st, oscurecer: parseFloat(e.target.value) }))} style={{ flex: 1, accentColor: "var(--wf-brand-accent)", cursor: "pointer" }} />
-                <b style={{ fontSize: 11, width: 34, textAlign: "right" }}>{Math.round((liveStyle.oscurecer ?? 0.45) * 100)}%</b>
-              </label>
-            )}
-          </div>
-        </div>
-      )}
-      {mmPanel === "estilo" && panelEstilo === "letra" && (
-        <div style={{ position: "relative", height: 0, zIndex: 35 }}>
-          <div onClick={() => setPanelEstilo(null)} style={{ position: "fixed", inset: 0, zIndex: 0 }} />
-          <div role="dialog" aria-label="Ajustes de la letra" style={{ position: "absolute", top: 6, right: 16, zIndex: 1, width: "min(640px, calc(100vw - 32px))", maxHeight: "min(420px, 60vh)", overflowY: "auto", display: "flex", gap: 20, flexWrap: "wrap", padding: "12px 14px 14px", background: "var(--wf-card)", borderRadius: 14, boxShadow: "0 12px 36px rgba(22,50,79,0.25)", boxSizing: "border-box" }}>
-          <button onClick={() => setPanelEstilo(null)} title="Cerrar" aria-label="Cerrar" style={{ ...iconGhost, position: "absolute", top: 8, right: 8 }}><X size={15} /></button>
-          {/* Ajustes finos de la letra (ver LIVE_SOMBRAS y compañía): para canciones, versículos y
-              diapositivas, en vivo y guardados para la próxima transmisión como el resto del estilo. */}
-          <div style={{ flex: "1 1 100%", minWidth: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "10px 18px" }}>
-            <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", justifyContent: "space-between", paddingRight: 28 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)" }}>LETRA</span>
-              <button
-                onClick={() => setLiveStyle((st) => { const { interlineado, espaciado, sombra, oscurecer, posicion, alineacion, ...resto } = st; return resto; })}
-                className="hoverable" style={{ fontSize: 11, fontWeight: 600, color: "var(--wf-muted)", background: "transparent", border: "none", borderRadius: 8, padding: "2px 6px", cursor: "pointer" }}
-              >Restablecer</button>
-            </div>
-            {[
-              { clave: "interlineado", label: "Interlineado", min: 0.9, max: 2.2, paso: 0.05, defecto: 1.35, mostrar: (v) => v.toFixed(2) },
-              { clave: "espaciado", label: "Espacio entre letras", min: -0.05, max: 0.3, paso: 0.01, defecto: 0, mostrar: (v) => (v === 0 ? "Normal" : `${v > 0 ? "+" : ""}${Math.round(v * 100)}`) },
-              { clave: "oscurecer", label: "Oscurecer imagen o video", min: 0, max: 0.85, paso: 0.05, defecto: 0.45, mostrar: (v) => `${Math.round(v * 100)}%` },
-            ].map((c) => {
-              const valor = liveStyle[c.clave] ?? c.defecto;
-              return (
-                <label key={c.clave} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                  <span style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--wf-text)" }}>{c.label}<b style={{ fontSize: 11 }}>{c.mostrar(valor)}</b></span>
-                  <input type="range" min={c.min} max={c.max} step={c.paso} value={valor} onChange={(e) => setLiveStyle((st) => ({ ...st, [c.clave]: parseFloat(e.target.value) }))} style={{ accentColor: "var(--wf-brand-accent)", cursor: "pointer" }} />
-                </label>
-              );
-            })}
-            {[
-              { clave: "sombra", label: "Sombra de la letra", opciones: LIVE_SOMBRAS, defecto: "ninguna" },
-              { clave: "posicion", label: "Posición", opciones: LIVE_POSICIONES, defecto: "centro" },
-              { clave: "alineacion", label: "Alineación", opciones: LIVE_ALINEACIONES, defecto: "centro" },
-            ].map((c) => (
-              <div key={c.clave} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <span style={{ fontSize: 11.5, color: "var(--wf-text)" }}>{c.label}</span>
-                <div style={{ display: "flex", background: "var(--wf-hover)", borderRadius: 8, padding: 2, gap: 2 }}>
-                  {Object.entries(c.opciones).map(([k, o]) => {
-                    const activo = (liveStyle[c.clave] || c.defecto) === k;
-                    return (
-                      <button key={k} onClick={() => setLiveStyle((st) => ({ ...st, [c.clave]: k }))} style={{ flex: 1, fontSize: 11, fontWeight: 600, border: "none", borderRadius: 6, padding: "4px 4px", cursor: "pointer", whiteSpace: "nowrap", color: "var(--wf-text)", background: activo ? "var(--wf-card)" : "transparent", boxShadow: activo ? "0 1px 3px rgba(22,50,79,0.15)" : "none" }}>{o.label}</button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-          {editandoBiblia && (
-          <div style={{ flex: "0 1 300px" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>VERSÍCULOS</div>
-            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 4 }}>Color del texto</div>
-            <div style={{ display: "flex", gap: 5, marginBottom: 10, flexWrap: "wrap" }}>
-              {Object.entries(LIVE_TEXT_COLORS).map(([key, c]) => (
-                <button key={key} onClick={() => setLiveStyle((st) => ({ ...st, bibliaTextColor: c.value }))} title={c.label} aria-label={`Versículo ${c.label}`} style={{ width: 22, height: 22, borderRadius: "50%", background: c.value, border: (liveStyle.bibliaTextColor || liveStyle.textColor || "#FFFFFF") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
-              ))}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginBottom: 4 }}>Color de la cita</div>
-            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-              {Object.entries(LIVE_REFERENCE_COLORS).map(([key, c]) => (
-                <button key={key} onClick={() => setLiveStyle((st) => ({ ...st, bibliaReferenciaColor: c.value }))} title={c.label} aria-label={`Cita ${c.label}`} style={{ width: 22, height: 22, borderRadius: "50%", background: c.value, border: (liveStyle.bibliaReferenciaColor || "#6E9BD1") === c.value ? "2px solid #B15EA0" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0 }} />
-              ))}
-            </div>
-          </div>
-          )}
-          </div>
-        </div>
-      )}
 
       <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 12, padding: "10px 12px 12px" }}>
         {/* Orden del culto, dividido por bloques igual que el Setlist */}
@@ -1480,8 +1382,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, padding: "0 4px" }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.5 }}>ORDEN DEL CULTO</span>
           </div>
-          {!sencillo && <div style={{ padding: "0 2px 4px" }}>{botonAgregarConsola({ ancho: true })}</div>}
-          {sencillo && serviceOrder.length > 0 && <div style={{ fontSize: 11, color: "var(--wf-faint)", padding: "0 4px 2px" }}>Toca cualquiera para proyectarlo.</div>}
+          <div style={{ padding: "0 2px 4px" }}>{botonAgregarConsola({ ancho: true, tour: "envivo-agregar" })}</div>
+          {serviceOrder.length > 0 && <div style={{ fontSize: 11, color: "var(--wf-faint)", padding: "0 4px 2px" }}>Toca cualquiera para proyectarlo.</div>}
           {serviceOrder.length === 0 && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "8px 4px" }}>Todavía no hay nada en el orden de este culto.</div>}
           {/* Una fila por elemento, en el orden real del Setlist (los bloques son filas más), para poder
               arrastrar con el mismo gesto del Setlist — ver arrastreOrden. */}
@@ -1550,6 +1452,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                 <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: TYPE_META[it.type]?.color || "#5B6472" }} />
                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tituloItem(it)}{it.diapositivas?.length > 1 && <span style={{ fontWeight: 500, color: "var(--wf-muted)" }}> · {it.diapositivas.length}</span>}</span>
                 {fondoPorCancion && it.type === "cancion" && liveStyle.fondosCanciones?.[it.songId] && <span title="Tiene su propio fondo" style={{ display: "flex", flexShrink: 0 }}><ImgIcon size={11} color="#B15EA0" /></span>}
+                {transicionDeItem(estiloCompleto, it.id) && <span title={`Transición propia: ${TRANSICIONES[transicionDeItem(estiloCompleto, it.id)].label}`} style={{ display: "flex", flexShrink: 0 }}><Sparkles size={11} color="#E8821E" /></span>}
                 {alAire && <span style={{ fontSize: 9, fontWeight: 800, color: "#C23B32" }}>●</span>}
                 {mover}
                 {quitar}
@@ -1575,8 +1478,14 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             />
           </div>
         )}
-        {mmPanel !== "biblia" && (
-          <section aria-label="Diapositivas" data-tour="envivo-diapositivas" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "0 4px calc(var(--bottom-nav-height, 80px) + 8px)" }}>
+        {/* Estilo ocupa el centro (2026-11-14): todo a la vista, con "Al aire" siempre a la derecha. */}
+        {mmPanel === "estilo" && (
+          <section aria-label="Estilo" data-tour="envivo-estilo" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "0 4px 8px" }}>
+            {panelEstiloCompleto()}
+          </section>
+        )}
+        {mmPanel !== "biblia" && mmPanel !== "estilo" && (
+          <section aria-label="Diapositivas" data-tour="envivo-diapositivas" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "0 4px 8px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 16, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{itemCentro ? tituloItem(itemCentro) : "Todas las diapositivas"}</div>
@@ -1588,6 +1497,17 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                 )}
                 {itemCentro?.type === "cancion" && onEditarLetraCompleta && (
                   <button onClick={() => abrirLetraCompleta(itemCentro.songId)} title="Corregir toda la letra de esta canción de una vez" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 18, padding: "5px 10px", cursor: "pointer" }}><Pencil size={12} /> Editar letra</button>
+                )}
+                {itemCentro && (
+                  <select
+                    aria-label={`Transición de ${tituloItem(itemCentro)}`} title="Transición de este elemento: la del culto, o una distinta solo para él"
+                    value={transicionDeItem(estiloCompleto, itemCentro.id) || ""}
+                    onChange={(e) => setEstiloCompleto((st) => conTransicionDeItem(st, itemCentro.id, e.target.value || null))}
+                    style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)", background: transicionDeItem(estiloCompleto, itemCentro.id) ? "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)" : "var(--wf-hover)", border: "none", borderRadius: 18, padding: "5px 8px", cursor: "pointer", fontFamily: "inherit", maxWidth: 210 }}
+                  >
+                    <option value="">Transición: la del culto ({TRANSICIONES[transicionDelCulto(estiloCompleto)].label})</option>
+                    {Object.entries(TRANSICIONES).map(([k, t]) => <option key={k} value={k}>Transición: {t.label}</option>)}
+                  </select>
                 )}
                 <button onClick={() => { setVerTodas((v) => !v); setItemVisto(null); }} style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 18, padding: "5px 10px", cursor: "pointer" }}>{verTodas ? "Ver por elemento" : "Ver todas"}</button>
               </div>
@@ -1608,7 +1528,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             {alAire && <span style={{ fontSize: 11, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{blanked ? "Pantalla en negro" : alAire.type === "cancion" ? `${alAire.songTitle} · ${alAire.blockLabel}` : alAire.type === "biblia" ? alAire.reference : alAire.nombre || alAire.title}</span>}
           </div>
           <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)", border: "2px solid #C23B32", flexShrink: 0 }}>
-            <ProjectionPanel slide={alAire} blanked={blanked} split={false} liveStyle={estiloCompleto} thumbnail />
+            <ProjectionPanel slide={alAire} blanked={blanked} split={false} liveStyle={estiloCompleto} thumbnail transicion />
           </div>
           {muestraEstilo()}
           {botonReiniciarCuenta}
@@ -1635,6 +1555,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               izquierda (pedido de Eldin, 2026-10-11): aquí abajo ya no se repite. */}
         </aside>
       </div>
+      {barraDeMando}
       </>
       )}
       {/* Clic derecho sobre una diapositiva (escritorio): editar diseño, mover/copiar a otro grupo,

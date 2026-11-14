@@ -25,7 +25,8 @@ function Consola({ onReordenar = () => {}, onAgregar = () => {}, onEstilo = () =
   onEstilo(liveStyle);
   return <MultimediaControl eventTitle="Culto" serviceOrder={orden} library={[]} slides={[aviso]} activeIdx={0} adHocIdx={0} goto={() => {}} gotoPlanSlide={() => {}} blanked={false} setBlanked={() => {}} current={aviso} next={null} onEnd={() => {}} canEnd liveOwner="yo" liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={false} myIglesiaId="igl" onOpenPublicScreen={() => {}} onReordenarOrden={onReordenar} onAddLiveSlide={onAgregar} onEditLiveSlide={() => {}} onOcultar={() => {}} />;
 }
-const modoCompleto = () => fireEvent.click(screen.getByText("Más herramientas"));
+// Ya no hay "Vista sencilla / Más herramientas": las pestañas se ven siempre.
+const modoCompleto = () => {};
 // jsdom no mide anchos: la cinta manda casi todo a "Más opciones", así que se abre antes de buscar un botón.
 const enLaCinta = (titulo) => { const mas = screen.queryByText("Más opciones"); if (mas) fireEvent.click(mas); return screen.getByTitle(titulo); };
 
@@ -55,11 +56,47 @@ describe("Fondo e imágenes a la mano", () => {
     render(<Consola onEstilo={(s) => { estilo = s; }} />);
     modoCompleto();
     fireEvent.click(screen.getByText("Estilo"));
-    fireEvent.click(enLaCinta(/^Imagen de fondo/));
-    const panel = screen.getByRole("dialog", { name: "Fondo de la proyección" });
+    // Estilo ya no usa cuadros flotantes: la biblioteca se abre dentro del mismo panel, bajo la fila de fondos.
+    fireEvent.click(screen.getByTitle(/^Imagen de fondo/));
+    const panel = screen.getByRole("region", { name: "Biblioteca de fondos" });
     expect(within(panel).getByTestId("biblioteca-fondos")).toBeTruthy();
-    expect(within(panel).getByLabelText("Oscurecer imagen o video")).toBeTruthy();
+    expect(screen.getByLabelText("Oscurecer la imagen o el video")).toBeTruthy();
     expect(estilo.theme).toBe("stage");
+  });
+  it("Estilo tiene el interlineado a la vista, con − y + (antes estaba dentro de 'Sombra y más')", () => {
+    let estilo = null;
+    render(<Consola onEstilo={(s) => { estilo = s; }} />);
+    modoCompleto();
+    fireEvent.click(screen.getByText("Estilo"));
+    expect(screen.getByLabelText("Interlineado")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Más interlineado"));
+    expect(estilo.interlineado).toBeCloseTo(1.4);
+    fireEvent.click(screen.getByLabelText("Menos interlineado"));
+    fireEvent.click(screen.getByLabelText("Menos interlineado"));
+    expect(estilo.interlineado).toBeCloseTo(1.3);
+    expect(screen.getByRole("group", { name: "Alineación" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Sombra de la letra" })).toBeTruthy();
+  });
+  it("Transición: una para todo el culto en Estilo, y otra distinta para un elemento", () => {
+    let estilo = null;
+    render(<Consola onEstilo={(s) => { estilo = s; }} />);
+    fireEvent.click(screen.getByText("Estilo"));
+    const grupo = screen.getByRole("radiogroup", { name: "Transición" });
+    expect(within(grupo).getByRole("radio", { name: "Ninguna" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.queryByRole("radiogroup", { name: "Velocidad" })).toBeNull(); // sin transición no hay velocidad que elegir
+    fireEvent.click(within(grupo).getByRole("radio", { name: "Fundido" }));
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Velocidad" })).getByRole("radio", { name: "Lenta" }));
+    expect(estilo).toMatchObject({ transicion: "fundido", transicionVel: "lenta" });
+    expect(estilo.biblia?.transicion).toBeUndefined(); // es del culto, no del estilo de la Biblia
+    // En Transmisión, el elemento que se ve al centro puede llevar la suya.
+    fireEvent.click(screen.getByText("Transmisión"));
+    const propia = screen.getByLabelText("Transición de Aviso de ayuno");
+    expect(propia.value).toBe(""); // la del culto
+    fireEvent.change(propia, { target: { value: "zoom" } });
+    expect(estilo.transicionesItems).toEqual({ t1: "zoom" });
+    fireEvent.change(screen.getByLabelText("Transición de Aviso de ayuno"), { target: { value: "" } });
+    expect(estilo.transicionesItems).toEqual({});
+    expect(estilo.transicion).toBe("fundido");
   });
   it("el texto rápido puede llevar un color liso propio y el siguiente empieza igual", () => {
     const onAgregar = vi.fn();
@@ -91,10 +128,11 @@ describe("Colores de la Biblia desde la pestaña Biblia", () => {
     render(<Consola onEstilo={(s) => { estilo = s; }} />);
     modoCompleto();
     fireEvent.click(screen.getByText("Biblia"));
-    const abrirMas = () => { if (screen.queryByLabelText("Color del versículo: Amarillo suave")) return; const mas = screen.queryByText("Más opciones"); if (mas) fireEvent.click(mas); };
-    abrirMas();
+    // jsdom no mide anchos: lo que no "cabe" en la cinta queda en "Más opciones".
+    const abrirMas = (etiqueta) => { if (screen.queryByLabelText(etiqueta)) return; const mas = screen.queryByText("Más opciones"); if (mas) fireEvent.click(mas); };
+    abrirMas("Color del versículo: Amarillo suave");
     fireEvent.click(screen.getByLabelText("Color del versículo: Amarillo suave"));
-    abrirMas();
+    abrirMas("Color de la cita: Naranja");
     fireEvent.click(screen.getByLabelText("Color de la cita: Naranja"));
     expect(estilo.biblia.bibliaTextColor).toBe("#F5D67B");
     expect(estilo.biblia.bibliaReferenciaColor).toBe("#E8821E");
