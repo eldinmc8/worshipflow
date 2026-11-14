@@ -1,3 +1,5 @@
+// Va primero: en navegadores viejos pone un ResizeObserver de respaldo antes de que cargue lo demás.
+import './lib/resizeObserverRespaldo.js'
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
