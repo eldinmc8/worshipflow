@@ -19,7 +19,7 @@ const BIBLE_QUICK = [
 // Versión que se descarga para uso sin conexión — solo esta, para no golpear la API gratuita
 // bolls.life con las 5 versiones completas (serían miles de pedidos). Reina-Valera 1960 es la que
 // aparece primero en BIBLE_VERSIONS (la más usada en iglesias como esta).
-const BIBLE_OFFLINE_VERSION = "RV1960";
+export const BIBLE_OFFLINE_VERSION = "RV1960";
 
 // "Descargar Biblia" en Ajustes: guarda capítulo por capítulo en este dispositivo (ver
 // bibleOfflineStore.js) para que el buscador de Biblia en vivo y "siguiente versículo" (ver
