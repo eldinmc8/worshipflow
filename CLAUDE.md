@@ -53,6 +53,7 @@ Vista de solo lectura separada del editor (pestañas V1/C/V2/V3 tipo pill, acord
 **Botón atrás (teléfono/navegador)** — `src/lib/atras.js`: 1) si hay una ventana abierta, atrás la cierra (toda ventana nueva usa `useCerrarConAtras`; ModalShell ya lo trae); 2) si no, regresa a la pantalla anterior (cambiar de pestaña se apila, ya no salta a Inicio); 3) en la consola mientras ese equipo transmite, atrás no sale (`useBloquearAtras`). Todo oyente de `popstate` empieza con `if (esPopPropio()) return;` y todo `pushState` va dentro de `cuandoListo()`.
 
 **Ajustes**: perfil, selector de rol del dispositivo (control de acceso), equipo, modo oscuro/notificaciones, cerrar sesión.
+**Preparar para usar sin conexión** (Ajustes → Proyección, solo computadora; `src/components/PrepararSinConexion.jsx` + `src/lib/prepararSinConexion.js`, 2026-11-14): con Wi-Fi guarda canciones, eventos próximos, imágenes de fondo (caché `wf-imagenes` del service worker) y la Biblia, y muestra una lista de lo que quedó listo. Los videos de fondo NO se guardan (se avisa) y una pantalla en otro dispositivo sigue necesitando internet; la proyección al TV por HDMI en la misma computadora funciona sin internet.
 
 ## Modelo de datos (Supabase) — tablas principales a crear
 - `canciones`, `secciones_cancion` (acordes), `diapositivas_letra` (lo que se proyecta), `estructura_cancion`

@@ -13,6 +13,7 @@ import { ChevronRight, ChevronLeft, KeyRound, Check, Calendar, Bell, Moon, Type,
 import PantallaOtroEquipo from "../components/PantallaOtroEquipo.jsx";
 import { SalidaAudioModal, useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
 import { BibleDownloadSection } from "./biblia.jsx";
+import PrepararSinConexion from "../components/PrepararSinConexion.jsx";
 import { IdentidadIglesiaModal, PantallaProyeccionModal, ChangePasswordModal, ZonaHorariaModal } from "./ventanas.jsx";
 import { etiquetaZona } from "../lib/zonasHorarias.js";
 import { inputStyle, ModalShell } from "./compartido.jsx";
@@ -398,6 +399,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
                 </>
           )}
           {/* Solo tiene sentido en la computadora que proyecta. */}
+          {!isCompact && <PrepararSinConexion />}
           {!isCompact && <BibleDownloadSection />}
 
           </>
