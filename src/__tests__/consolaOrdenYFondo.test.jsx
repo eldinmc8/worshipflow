@@ -25,7 +25,8 @@ function Consola({ onReordenar = () => {}, onAgregar = () => {}, onEstilo = () =
   onEstilo(liveStyle);
   return <MultimediaControl eventTitle="Culto" serviceOrder={orden} library={[]} slides={[aviso]} activeIdx={0} adHocIdx={0} goto={() => {}} gotoPlanSlide={() => {}} blanked={false} setBlanked={() => {}} current={aviso} next={null} onEnd={() => {}} canEnd liveOwner="yo" liveStyle={liveStyle} setLiveStyle={setLiveStyle} isCompact={false} myIglesiaId="igl" onOpenPublicScreen={() => {}} onReordenarOrden={onReordenar} onAddLiveSlide={onAgregar} onEditLiveSlide={() => {}} onOcultar={() => {}} />;
 }
-const modoCompleto = () => fireEvent.click(screen.getByText("Más herramientas"));
+// Ya no hay "Vista sencilla / Más herramientas": las pestañas se ven siempre.
+const modoCompleto = () => {};
 // jsdom no mide anchos: la cinta manda casi todo a "Más opciones", así que se abre antes de buscar un botón.
 const enLaCinta = (titulo) => { const mas = screen.queryByText("Más opciones"); if (mas) fireEvent.click(mas); return screen.getByTitle(titulo); };
 
@@ -106,10 +107,11 @@ describe("Colores de la Biblia desde la pestaña Biblia", () => {
     render(<Consola onEstilo={(s) => { estilo = s; }} />);
     modoCompleto();
     fireEvent.click(screen.getByText("Biblia"));
-    const abrirMas = () => { if (screen.queryByLabelText("Color del versículo: Amarillo suave")) return; const mas = screen.queryByText("Más opciones"); if (mas) fireEvent.click(mas); };
-    abrirMas();
+    // jsdom no mide anchos: lo que no "cabe" en la cinta queda en "Más opciones".
+    const abrirMas = (etiqueta) => { if (screen.queryByLabelText(etiqueta)) return; const mas = screen.queryByText("Más opciones"); if (mas) fireEvent.click(mas); };
+    abrirMas("Color del versículo: Amarillo suave");
     fireEvent.click(screen.getByLabelText("Color del versículo: Amarillo suave"));
-    abrirMas();
+    abrirMas("Color de la cita: Naranja");
     fireEvent.click(screen.getByLabelText("Color de la cita: Naranja"));
     expect(estilo.biblia.bibliaTextColor).toBe("#F5D67B");
     expect(estilo.biblia.bibliaReferenciaColor).toBe("#E8821E");

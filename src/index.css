@@ -482,3 +482,7 @@ img, svg {
 
 /* Ajustes (rediseño, idea A): línea fina entre filas de un mismo grupo. */
 .fila-ajuste + .fila-ajuste { border-top: 1px solid var(--wf-divider) !important; }
+
+/* Barra de mando de la consola En vivo: en pantallas angostas (tablet, sin teclado) los atajos del
+   teclado no se muestran, para que Anterior/Siguiente/Negro/Fijar quepan en una sola fila. */
+@media (max-width: 1240px) { .wf-mando-teclas { display: none; } }

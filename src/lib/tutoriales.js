@@ -229,7 +229,7 @@ export function pasosEditorCancion() {
 
 export function pasosEnVivo() {
   // Corta a propósito (pedido de Eldin, 2026-10-11): alguien que nunca usó la consola debe poder
-  // manejar un culto en 5 minutos. Lo demás (Estilo, Insertar...) está en "Más herramientas".
+  // manejar un culto en 5 minutos. Lo demás (Estilo, Insertar...) está en las pestañas de arriba.
   return [
     {
       titulo: "Tu consola en 1 minuto",

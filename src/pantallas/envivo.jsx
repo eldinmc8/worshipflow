@@ -3,7 +3,7 @@ import ConPlan from "../components/ConPlan.jsx";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
 import { Pause, Square, Volume2, VolumeX, Speaker } from "lucide-react";
-import { Music, Search, Image as ImgIcon, ChevronLeft, ChevronRight, MonitorOff, Radio, BookOpen, Type, PenTool, FileUp, Plus, Pencil, MoreHorizontal, Trash2, GraduationCap, Pin, MessageSquare, AlertTriangle, PinOff, ListMusic, Palette, Play, SkipBack, SkipForward, X, SlidersHorizontal, Sparkles, Tv, EyeOff, Eye, ArrowRightLeft, CopyPlus, Ungroup, Timer, RotateCcw } from "lucide-react";
+import { Music, Search, Image as ImgIcon, ChevronLeft, ChevronRight, MonitorOff, Radio, BookOpen, Type, PenTool, FileUp, Plus, Pencil, MoreHorizontal, Trash2, GraduationCap, Pin, MessageSquare, AlertTriangle, PinOff, ListMusic, Palette, Play, SkipBack, SkipForward, X, Sparkles, Tv, EyeOff, Eye, ArrowRightLeft, CopyPlus, Ungroup, Timer, RotateCcw } from "lucide-react";
 import { acordeEn } from "../lib/preferencias.js";
 import { loadCache, saveCache } from "../lib/offlineCache.js";
 import { escucharProyeccion } from "../lib/liveSession.js";
@@ -248,16 +248,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   // La Biblia se monta la primera vez que se abre y ya no se desmonta (solo se esconde) mientras dure la consola.
   const [bibliaAbierta, setBibliaAbierta] = useState(false);
   useEffect(() => { if (mmPanel === "biblia") setBibliaAbierta(true); }, [mmPanel]);
-  // ---- Consola fácil (pedido de Eldin, 2026-10-11: "que alguien que nunca la haya usado la pueda usar
-  // en 5 minutos") ----
-  // Modo sencillo (escritorio): sin cinta de pestañas — solo una barra de botones grandes (Anterior,
-  // Siguiente, Negro, + Agregar, Biblia) sobre orden | diapositivas | al aire. Estilo, Insertar y lo
-  // demás quedan en "Modo completo". Se recuerda por computadora; empieza en sencillo.
-  const [sencillo, setSencillo] = useState(() => { const v = loadCache("consola_sencilla"); return v === null ? true : !!v; });
-  useEffect(() => { saveCache("consola_sencilla", sencillo); }, [sencillo]);
-  // El modo sencillo es solo de escritorio (no tiene pestaña Estilo). En celular/tablet el riel sí la
-  // tiene: antes este efecto la cerraba al instante y el botón Estilo no hacía nada (2026-11-09).
-  useEffect(() => { if (!isCompact && sencillo && (mmPanel === "estilo" || mmPanel === "insertar")) setMmPanel("transmision"); }, [isCompact, sencillo, mmPanel]);
+  // La "Vista sencilla" ya no existe (2026-11-14): las pestañas se ven siempre y lo esencial (Anterior,
+  // Siguiente, Negro, Fijar) vive en la barra de mando de abajo — ver barraDeMando.
   // ¿Hay una pantalla de proyección abierta? (ver escucharProyeccion). null = todavía no se sabe: los
   // primeros segundos no se avisa nada, la ventana de proyección tarda en abrir.
   const [hayProyeccion, setHayProyeccion] = useState(null);
@@ -619,13 +611,6 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       <span style={{ fontSize: 10, color: "var(--wf-faint)", textAlign: "center", whiteSpace: "nowrap" }}>{titulo}</span>
     </div>
   );
-  // Anterior / Siguiente / Negro en TODAS las pestañas de la cinta (pedido de Eldin, 2026-10-08): las
-  // diapositivas se manejan igual estando en Biblia, Estilo o Insertar, sin volver a Transmisión.
-  const navegacionRapida = () => (<>
-    {botonCinta({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1), ancho: 54 })}
-    {botonCinta({ icon: ChevronRight, label: "Siguiente", onClick: () => avanzar(1), acento: true, ancho: 58 })}
-    {botonCinta({ icon: MonitorOff, label: "Negro", onClick: () => setBlanked((b) => !b), activo: blanked, ancho: 50 })}
-  </>);
   // Grupo de la cinta como dato (CintaAdaptable decide si va a la vista o en "Más opciones").
   const grupoItem = (titulo, contenido, _ultimo, clave) => ({ clave: clave || titulo, titulo, contenido });
   // ===== Pestaña Estilo con TODO a la vista (rediseño de la consola, pedido de Eldin 2026-11-14: "me
@@ -1049,10 +1034,10 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     </>
   );
   const tecla = { display: "inline-block", minWidth: 16, padding: "0 6px", borderRadius: 6, border: "1px solid var(--wf-border)", borderBottomWidth: 2, background: "var(--wf-card)", color: "var(--wf-text)", fontWeight: 700, fontSize: 11, lineHeight: "18px", textAlign: "center" };
-  // Botones grandes del modo sencillo (escritorio).
-  const botonGrande = ({ icon: Icon, label, sub, onClick, fondo = "var(--wf-hover)", color = "var(--wf-text)", tour, ancho = 120, titulo }) => (
+  // Botones grandes de la barra de mando (escritorio).
+  const botonGrande = ({ icon: Icon, label, sub, onClick, fondo = "var(--wf-hover)", color = "var(--wf-text)", tour, ancho = 120, titulo, crece = false }) => (
     <button onClick={onClick} data-tour={tour} title={titulo || label} className="hoverable"
-      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minWidth: ancho, height: 52, padding: "0 16px", border: "none", borderRadius: 14, cursor: "pointer", background: fondo, color, fontFamily: "inherit", flexShrink: 0, boxShadow: "0 2px 8px rgba(22,50,79,0.10)" }}>
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minWidth: ancho, height: 56, padding: "0 16px", border: "none", borderRadius: 14, cursor: "pointer", background: fondo, color, fontFamily: "inherit", flexShrink: 0, boxShadow: "0 2px 8px rgba(22,50,79,0.10)", ...(crece ? { flex: "1 1 170px", maxWidth: 300 } : {}) }}>
       <Icon size={22} strokeWidth={2} />
       <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.1, minWidth: 0 }}>
         <span style={{ fontSize: 15, fontWeight: 800 }}>{label}</span>
@@ -1060,17 +1045,21 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       </span>
     </button>
   );
-  const barraSencilla = (
-    <div data-tour="envivo-paneles" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", flexShrink: 0, flexWrap: "wrap", rowGap: 8 }}>
+  // Barra de mando (rediseño 2026-11-14): Anterior, Siguiente, Negro y Fijar SIEMPRE abajo, en el mismo
+  // lugar, en cualquier pestaña. Reemplaza al interruptor "Vista sencilla / Más herramientas": lo
+  // esencial ya no se esconde y lo demás está en las pestañas. A la derecha queda libre la esquina del
+  // botón redondo del menú de la app (ver navEncogida en PrototipoWorshipFlow).
+  const barraDeMando = (
+    <div data-tour="envivo-mando" role="toolbar" aria-label="Mando de la proyección" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 76px 12px 16px", background: "var(--wf-card)", boxShadow: "0 -1px 3px rgba(22,50,79,0.10)", flexShrink: 0, position: "relative", zIndex: 5 }}>
       {botonGrande({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1), ancho: 130 })}
-      {botonGrande({ icon: ChevronRight, label: "Siguiente", sub: cambiaDeElemento ? `Pasas a: ${nombreSiguiente}` : next ? null : "Es la última", onClick: () => avanzar(1), fondo: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", tour: "envivo-siguiente", ancho: 190 })}
+      {botonGrande({ icon: ChevronRight, label: "Siguiente", sub: cambiaDeElemento ? `Pasas a: ${nombreSiguiente}` : next ? null : "Es la última", onClick: () => avanzar(1), fondo: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", tour: "envivo-siguiente", ancho: 170, crece: true })}
       {botonGrande({ icon: MonitorOff, label: blanked ? "Volver a mostrar" : "Negro", sub: blanked ? null : "Esconde todo", onClick: () => setBlanked((b) => !b), fondo: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)", tour: "envivo-negro", ancho: 140 })}
       {onFijar && botonGrande({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", sub: fijada ? "Volver a transmitir" : "Congela la pantalla", onClick: () => (fijada ? onSoltar() : onFijar()), fondo: fijada ? "#7B3FA0" : "var(--wf-hover)", color: fijada ? "#fff" : "var(--wf-text)", tour: "envivo-fijar", ancho: 140, titulo: "Deja la pantalla quieta en lo que se ve ahora, para moverte por la consola sin que se proyecte (tecla F)" })}
       <div style={{ width: 1, alignSelf: "stretch", background: "var(--wf-divider)", margin: "4px 4px" }} />
-      {botonGrande({ icon: Plus, label: "Agregar", sub: "Canción, texto, video…", onClick: () => { setDestinoConsola(null); setShowAgregarConsola(true); }, tour: "envivo-agregar", ancho: 140 })}
-      {botonGrande({ icon: BookOpen, label: mmPanel === "biblia" ? "Volver" : "Biblia", sub: mmPanel === "biblia" ? "a las diapositivas" : "Buscar un versículo", onClick: () => setMmPanel((p) => (p === "biblia" ? "transmision" : "biblia")), fondo: mmPanel === "biblia" ? "#2F5FA8" : "var(--wf-hover)", color: mmPanel === "biblia" ? "#fff" : "var(--wf-text)", tour: "envivo-biblia", ancho: 140 })}
+      {botonGrande({ icon: SkipBack, label: "Inicio", onClick: () => goto(0), ancho: 0, titulo: "Ir a la primera diapositiva" })}
+      {botonGrande({ icon: SkipForward, label: "Final", onClick: () => goto(Infinity), ancho: 0, titulo: "Ir a la última diapositiva" })}
       <div style={{ flex: 1 }} />
-      <div style={{ fontSize: 11.5, color: "var(--wf-muted)", lineHeight: 1.9, textAlign: "right", flexShrink: 0 }}>
+      <div className="wf-mando-teclas" style={{ fontSize: 11.5, color: "var(--wf-muted)", lineHeight: 1.9, textAlign: "right", flexShrink: 0 }}>
         <span style={tecla}>→</span> o <span style={tecla}>Espacio</span> avanza · <span style={tecla}>←</span> regresa<br /><span style={tecla}>B</span> negro · <span style={tecla}>F</span> fijar
       </div>
     </div>
@@ -1286,19 +1275,18 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           <Radio size={13} color="#C23B32" style={{ flexShrink: 0 }} />
           <span style={{ fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{eventTitle}</span>
         </div>
-        {!sencillo && [["transmision", "Transmisión"], ["biblia", "Biblia"], ["estilo", "Estilo"], ["insertar", "Insertar"]].map(([key, label]) => (
+        {[["transmision", "Transmisión"], ["biblia", "Biblia"], ["estilo", "Estilo"], ["insertar", "Insertar"]].map(([key, label]) => (
           <button
             key={key} onClick={() => setMmPanel(key)}
             style={{ padding: "10px 14px 9px", border: "none", background: "transparent", cursor: "pointer", fontSize: 14, fontWeight: mmPanel === key ? 700 : 500, color: mmPanel === key ? "var(--wf-heading)" : "var(--wf-muted)", borderBottom: `2px solid ${mmPanel === key ? "var(--wf-brand-accent)" : "transparent"}`, flexShrink: 0 }}
           >{label}</button>
         ))}
         <div style={{ flex: 1 }} />
-        {!sencillo && <div style={{ marginRight: 10, padding: "3px 0" }}>{botonAgregarConsola({ tour: "envivo-agregar" })}</div>}
-        <button
-          data-tour="envivo-modo" onClick={() => setSencillo((v) => !v)} className="hoverable"
-          title={sencillo ? "Ver todas las herramientas: Estilo, Insertar, secciones de la canción…" : "Volver a la vista sencilla, solo con lo esencial"}
-          style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 16, padding: "5px 11px", cursor: "pointer", marginRight: 8, flexShrink: 0, fontFamily: "inherit" }}
-        >{sencillo ? <><SlidersHorizontal size={13} /> Más herramientas</> : <><Sparkles size={13} /> Vista sencilla</>}</button>
+        {/* Pantallas, a la mano y siempre en el mismo lugar (antes en la cinta de Transmisión). */}
+        <button data-tour="envivo-proyeccion" onClick={abrirProyeccion} className="hoverable" title="Abrir o reabrir la pantalla de proyección" style={{ display: "flex", alignItems: "center", gap: 6, height: 32, fontSize: 12, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 16, padding: "0 12px", cursor: "pointer", marginRight: 6, flexShrink: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}><Radio size={14} /> Proyección</button>
+        <button onClick={() => setShowOtroEquipo(true)} className="hoverable" title="Conectar un Smart TV con número, o abrir en celular/tablet con QR" style={{ display: "flex", alignItems: "center", gap: 6, height: 32, fontSize: 12, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 16, padding: "0 12px", cursor: "pointer", marginRight: 6, flexShrink: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}><Tv size={14} /> Pantallas y TV</button>
+        {onMensajeEscenario && <button onClick={() => setShowEscenario(true)} className="hoverable" title="Pantalla de escenario: mensajes, temporizador del mensaje y enlace del monitor" style={{ display: "flex", alignItems: "center", gap: 6, height: 32, fontSize: 12, fontWeight: 700, color: "var(--wf-text)", background: mensajeEscenario || temporizadorActivo(temporizador) ? "#E8821E" : "var(--wf-hover)", border: "none", borderRadius: 16, padding: "0 12px", cursor: "pointer", marginRight: 6, flexShrink: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}><MessageSquare size={14} /> Escenario</button>}
+        <div style={{ width: 1, height: 22, background: "var(--wf-divider)", margin: "0 8px 0 2px", flexShrink: 0 }} />
         {onAyuda && (
           <button data-tour="envivo-ayuda" onClick={onAyuda} title="¿Cómo se usa? Ver la guía otra vez" aria-label="Ayuda" className="hoverable"
             style={{ width: 28, height: 28, borderRadius: 14, border: "none", background: "var(--wf-hover)", color: "var(--wf-text)", cursor: "pointer", fontSize: 14, fontWeight: 800, marginRight: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>?</button>
@@ -1306,25 +1294,20 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         {botonFinalizar}
       </nav>
       {franjasDeEstado}
-      {sencillo && barraSencilla}
-      {!sencillo && (
+      {/* La cinta ya no repite Anterior/Siguiente/Negro (viven en la barra de mando de abajo) y en
+          Estilo no hay cinta: el panel del centro lo tiene todo. */}
+      {mmPanel !== "estilo" && (
         <CintaAdaptable
           tour="envivo-paneles" dibujarGrupo={grupoCinta}
           estilo={{ padding: "6px 8px 4px", minHeight: 76, boxSizing: "border-box", background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)" }}
           grupos={(mmPanel === "biblia" ? [
-          grupoItem("Proyección", navegacionRapida()),
           { ...grupoItem("Color del versículo", coloresBiblia(LIVE_TEXT_COLORS, estiloBiblia.bibliaTextColor || estiloBiblia.textColor || "#FFFFFF", "bibliaTextColor", "Color del versículo"), false, "biblia-color-texto"), mantenerAbierto: true },
           { ...grupoItem("Color de la cita", coloresBiblia(LIVE_REFERENCE_COLORS, estiloBiblia.bibliaReferenciaColor || "#6E9BD1", "bibliaReferenciaColor", "Color de la cita"), false, "biblia-color-cita"), mantenerAbierto: true },
           grupoItem("", <div style={{ display: "flex", alignItems: "center", padding: "0 16px", maxWidth: 440 }}>
               <span style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.5 }}>Busca un libro, una cita (ej. stgo 4:1) o palabras del versículo, aunque no estén exactas. Toca el versículo para proyectarlo. Los versículos largos aparecen en partes (1/2, 2/2): toca la que quieras o avanza con la flecha →.</span>
             </div>, false, "ayuda-biblia"),
         ] : mmPanel === "estilo" ? [
-          grupoItem("Proyección", navegacionRapida()),
-          grupoItem("", <div style={{ display: "flex", alignItems: "center", padding: "0 16px", maxWidth: 520 }}>
-              <span style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.5 }}>Fondo, letra, interlineado y colores están todos abajo, a la vista. Lo que toques se aplica al instante, sin cortar la transmisión.</span>
-            </div>, true, "ayuda-estilo"),
         ] : mmPanel === "insertar" ? [
-          grupoItem("Proyección", navegacionRapida()),
           grupoItem("Del culto", <>
               {botonCinta({ icon: Music, label: "Canción", onClick: () => setShowAdHocSong(true) })}
               {botonCinta({ icon: BookOpen, label: "Versículo", onClick: () => setMmPanel("biblia") })}
@@ -1338,19 +1321,6 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               {onStartAdHocCuenta && botonCinta({ icon: Timer, label: "Reloj", title: "Cuenta regresiva", onClick: () => setShowCuenta(true) })}
             </>, true),
         ] : [
-          grupoItem("Navegación", <>
-              {botonCinta({ icon: SkipBack, label: "Inicio", onClick: () => goto(0) })}
-              {botonCinta({ icon: ChevronLeft, label: "Anterior", onClick: () => avanzar(-1) })}
-              {botonCinta({ icon: ChevronRight, label: "Siguiente", onClick: () => avanzar(1), acento: true, tour: "envivo-siguiente" })}
-              {botonCinta({ icon: SkipForward, label: "Final", onClick: () => goto(Infinity) })}
-            </>),
-          grupoItem("Pantalla", <>
-              {botonCinta({ icon: MonitorOff, label: "Negro", onClick: () => setBlanked((b) => !b), activo: blanked, tour: "envivo-negro" })}
-              {onFijar && botonCinta({ icon: fijada ? PinOff : Pin, label: fijada ? "Soltar" : "Fijar", onClick: () => (fijada ? onSoltar() : onFijar()), activo: !!fijada, title: "Congelar la pantalla para moverte sin proyectar (tecla F)" })}
-              {botonCinta({ icon: Radio, label: "Proyección", onClick: abrirProyeccion, title: "Reabrir la pantalla de proyección", tour: "envivo-proyeccion" })}
-              {onMensajeEscenario && botonCinta({ icon: MessageSquare, label: "Escenario", onClick: () => setShowEscenario(true), activo: !!mensajeEscenario || temporizadorActivo(temporizador), title: "Pantalla de escenario: mensajes, temporizador del mensaje y enlace del monitor" })}
-              {botonCinta({ icon: Tv, label: "Pantallas y TV", onClick: () => setShowOtroEquipo(true), title: "Conectar un Smart TV con número, o abrir en celular/tablet con QR", ancho: 76 })}
-            </>),
           grupoItem("Proyectar", botonCinta({ icon: Music, label: "Desde biblioteca", onClick: () => setShowAdHocSong("proyectar"), title: "Buscar una canción de la biblioteca y ponerla en pantalla de una vez", ancho: 96 })),
           grupoItem("Secciones de la canción", currentSongSections.length > 0 ? (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxWidth: 560, alignContent: "center" }}>
@@ -1388,8 +1358,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, padding: "0 4px" }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.5 }}>ORDEN DEL CULTO</span>
           </div>
-          {!sencillo && <div style={{ padding: "0 2px 4px" }}>{botonAgregarConsola({ ancho: true })}</div>}
-          {sencillo && serviceOrder.length > 0 && <div style={{ fontSize: 11, color: "var(--wf-faint)", padding: "0 4px 2px" }}>Toca cualquiera para proyectarlo.</div>}
+          <div style={{ padding: "0 2px 4px" }}>{botonAgregarConsola({ ancho: true, tour: "envivo-agregar" })}</div>
+          {serviceOrder.length > 0 && <div style={{ fontSize: 11, color: "var(--wf-faint)", padding: "0 4px 2px" }}>Toca cualquiera para proyectarlo.</div>}
           {serviceOrder.length === 0 && <div style={{ fontSize: 12, color: "var(--wf-faint)", padding: "8px 4px" }}>Todavía no hay nada en el orden de este culto.</div>}
           {/* Una fila por elemento, en el orden real del Setlist (los bloques son filas más), para poder
               arrastrar con el mismo gesto del Setlist — ver arrastreOrden. */}
@@ -1485,12 +1455,12 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         )}
         {/* Estilo ocupa el centro (2026-11-14): todo a la vista, con "Al aire" siempre a la derecha. */}
         {mmPanel === "estilo" && (
-          <section aria-label="Estilo" data-tour="envivo-estilo" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "0 4px calc(var(--bottom-nav-height, 80px) + 8px)" }}>
+          <section aria-label="Estilo" data-tour="envivo-estilo" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "0 4px 8px" }}>
             {panelEstiloCompleto()}
           </section>
         )}
         {mmPanel !== "biblia" && mmPanel !== "estilo" && (
-          <section aria-label="Diapositivas" data-tour="envivo-diapositivas" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "0 4px calc(var(--bottom-nav-height, 80px) + 8px)" }}>
+          <section aria-label="Diapositivas" data-tour="envivo-diapositivas" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "0 4px 8px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 16, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{itemCentro ? tituloItem(itemCentro) : "Todas las diapositivas"}</div>
@@ -1549,6 +1519,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               izquierda (pedido de Eldin, 2026-10-11): aquí abajo ya no se repite. */}
         </aside>
       </div>
+      {barraDeMando}
       </>
       )}
       {/* Clic derecho sobre una diapositiva (escritorio): editar diseño, mover/copiar a otro grupo,

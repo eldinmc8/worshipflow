@@ -98,20 +98,6 @@ export default function ControlRemoto({ evento, slideAlAire, negro = false, libr
           </div>
         )}
 
-        {/* Anterior / Siguiente */}
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={() => mandar("anterior")} disabled={!!enviando} aria-label="Diapositiva anterior" style={{ ...grande, background: "var(--wf-card)", color: "var(--wf-text)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)" }}>
-            {enviando === "anterior" ? <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} /> : <ChevronLeft size={22} />} Anterior
-          </button>
-          <button onClick={() => mandar("siguiente")} disabled={!!enviando} aria-label="Diapositiva siguiente" style={{ ...grande, flex: 1.4, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)" }}>
-            Siguiente {enviando === "siguiente" ? <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} /> : <ChevronRight size={22} />}
-          </button>
-        </div>
-        <button onClick={() => mandar("negro")} disabled={!!enviando} aria-pressed={negro}
-          style={{ ...grande, flex: "none", padding: "14px 10px", fontSize: 15, background: negro ? "#C23B32" : "var(--wf-card)", color: negro ? "#fff" : "var(--wf-text)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)" }}>
-          {negro ? <><Monitor size={18} /> Volver a mostrar</> : <><MonitorOff size={18} /> Pantalla en negro</>}
-        </button>
-
         <button onClick={() => { setError(null); setBiblia(true); }} disabled={!!enviando}
           style={{ ...grande, flex: "none", padding: "14px 10px", fontSize: 15, background: "var(--wf-card)", color: "#2F5FA8", boxShadow: "0 1px 3px rgba(22,50,79,0.08)" }}>
           <BookOpen size={18} /> Versículo de la Biblia
@@ -138,6 +124,25 @@ export default function ControlRemoto({ evento, slideAlAire, negro = false, libr
         )}
         <div style={{ fontSize: 11.5, color: "var(--wf-faint)", textAlign: "center" }}>La computadora que transmite hace el cambio. Desde aquí no se puede terminar la transmisión.</div>
       </div>
+      {/* Mando fijo abajo, al alcance del pulgar (rediseño de la consola, 2026-11-14): Anterior,
+          Siguiente y Negro ya no se van con el scroll de la lista "Ir a". */}
+      {!biblia && (
+      <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 10, padding: "12px 16px calc(14px + env(safe-area-inset-bottom))", background: "var(--wf-card)", borderRadius: "20px 20px 0 0", boxShadow: "0 -2px 10px rgba(22,50,79,0.10)" }}>
+        {/* Anterior / Siguiente */}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => mandar("anterior")} disabled={!!enviando} aria-label="Diapositiva anterior" style={{ ...grande, background: "var(--wf-hover)", color: "var(--wf-text)" }}>
+            {enviando === "anterior" ? <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} /> : <ChevronLeft size={22} />} Anterior
+          </button>
+          <button onClick={() => mandar("siguiente")} disabled={!!enviando} aria-label="Diapositiva siguiente" style={{ ...grande, flex: 1.4, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)" }}>
+            Siguiente {enviando === "siguiente" ? <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} /> : <ChevronRight size={22} />}
+          </button>
+        </div>
+        <button onClick={() => mandar("negro")} disabled={!!enviando} aria-pressed={negro}
+          style={{ ...grande, flex: "none", padding: "14px 10px", fontSize: 15, background: negro ? "#C23B32" : "var(--wf-hover)", color: negro ? "#fff" : "var(--wf-text)" }}>
+          {negro ? <><Monitor size={18} /> Volver a mostrar</> : <><MonitorOff size={18} /> Pantalla en negro</>}
+        </button>
+      </div>
+      )}
     </div>,
     document.body
   );
