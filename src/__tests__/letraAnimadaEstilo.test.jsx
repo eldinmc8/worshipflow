@@ -45,6 +45,26 @@ describe("Letra animada: el panel de Estilo también la cambia", () => {
     expect(estilo.animLetra).not.toHaveProperty("textColor");
     expect(screen.queryByLabelText("Diseño de la letra")).toBeNull(); // no aplica con letra animada
   });
+  it("elegir o volver a tocar la animación la deja con su letra; también hay un botón para volver", () => {
+    let estilo = null;
+    render(<Consola inicial={{ theme: "stage", font: "elegante", animacion: "suave" }} onEstilo={(s) => { estilo = s; }} />);
+    fireEvent.click(screen.getByText("Estilo"));
+    expect(screen.queryByText("Volver a la letra de la animación")).toBeNull(); // nada cambiado todavía
+    fireEvent.change(screen.getByLabelText("Tipografía"), { target: { value: "moderna" } });
+    fireEvent.click(screen.getByLabelText("Letra Amarillo suave"));
+    expect(estilo.animLetra).toMatchObject({ font: "moderna", textColor: "#F5D67B" });
+    // Botón de la tarjeta Letra.
+    fireEvent.click(screen.getByText("Volver a la letra de la animación"));
+    expect(estilo.animLetra).toEqual({});
+    expect(screen.getByLabelText("Tipografía").value).toBe("");
+    // Volver a tocar la misma animación en la lista también la restaura.
+    fireEvent.change(screen.getByLabelText("Tipografía"), { target: { value: "moderna" } });
+    fireEvent.click(screen.getByText("Elegir un estilo con movimiento"));
+    fireEvent.click(screen.getByTitle("Sube despacio desde la niebla"));
+    expect(estilo.animacion).toBe("suave");
+    expect(estilo.animLetra).toEqual({});
+    expect(estilo.font).toBe("elegante");
+  });
   it("sin letra animada, el panel sigue cambiando la letra de siempre", () => {
     let estilo = null;
     render(<Consola inicial={{ theme: "stage", font: "elegante" }} onEstilo={(s) => { estilo = s; }} />);

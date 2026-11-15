@@ -31,7 +31,11 @@ function SelectorAnimacionInterno({ liveStyle, setLiveStyle, columnas = 3, igles
   }, [iglesiaId, soloBasicas]);
   useEffect(() => { recargar(); }, [recargar]);
 
-  const usarPropia = (fila) => setLiveStyle((s) => ({ ...s, animacion: `mia:${fila.id}`, animReceta: fila.receta, animNombre: fila.nombre }));
+  // Elegir (o volver a tocar) una animación la deja con SU letra: se olvidan el tipo de letra, el color, el
+  // espacio y la sombra elegidos antes en Estilo (liveStyle.animLetra). Pedido de Eldin, 2026-11-15: "al
+  // darle clic a la animación original que se restaure y no se quede el tipo de letra elegido antes".
+  const elegir = (k) => setLiveStyle((s) => ({ ...s, animacion: k, animLetra: {} }));
+  const usarPropia = (fila) => setLiveStyle((s) => ({ ...s, animacion: `mia:${fila.id}`, animReceta: fila.receta, animNombre: fila.nombre, animLetra: {} }));
   const borrar = async (fila) => {
     if (!(await confirmDialog(`¿Borrar la animación "${fila.nombre}"?`, { textoConfirmar: "Borrar", danger: true }))) return;
     try {
@@ -162,7 +166,7 @@ function SelectorAnimacionInterno({ liveStyle, setLiveStyle, columnas = 3, igles
             {ANIMACIONES_BASICAS.filter((k) => ANIMACIONES[k]).map((k) => {
               const a = ANIMACIONES[k];
               return (
-                <button type="button" key={k} onClick={() => setLiveStyle((s) => ({ ...s, animacion: k }))} title={a.desc} style={tarjeta(actual === k)} {...eventosVista(k)}>
+                <button type="button" key={k} onClick={() => elegir(k)} title={a.desc} style={tarjeta(actual === k)} {...eventosVista(k)}>
                   {miniatura(k, a)}
                   {pie(a.nombre, a.desc)}
                 </button>
@@ -194,7 +198,7 @@ function SelectorAnimacionInterno({ liveStyle, setLiveStyle, columnas = 3, igles
         <div key={g}>
           {tituloGrupo(g)}
           {grid(Object.entries(ANIMACIONES).filter(([, a]) => a.grupo === g).map(([k, a]) => (
-            <button type="button" key={k} onClick={() => setLiveStyle((s) => ({ ...s, animacion: k }))} title={a.desc} style={tarjeta(actual === k)} {...eventosVista(k)}>
+            <button type="button" key={k} onClick={() => elegir(k)} title={a.desc} style={tarjeta(actual === k)} {...eventosVista(k)}>
               {miniatura(k, a)}
               {pie(a.nombre, a.desc)}
             </button>
