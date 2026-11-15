@@ -16,6 +16,7 @@ import CrearIglesia from './CrearIglesia.jsx'
 import SitioWeb, { esRutaSitioWeb } from './SitioWeb.jsx'
 import { mostrarPortada } from './lib/portada.js'
 import { manifestDePantalla } from './lib/manifestPantalla.js'
+import { esFuenteDeTransmision } from './lib/pantallaCompleta.js'
 import ToastHost from './ToastHost.jsx'
 import ConfirmDialogHost from './ConfirmDialogHost.jsx'
 import PlanesHost from './components/PlanesModal.jsx'
@@ -47,7 +48,11 @@ const isSitioWeb = esRutaSitioWeb(window.location.pathname) || mostrarPortada({
 if (isPublicScreen || isEscenario || isConectarTv) {
   // Una pantalla de proyección/escenario nunca se recarga sola por una versión nueva (perdería la
   // pantalla completa en pleno culto): la toma la próxima vez que se abra. Ver pausarActualizacion.
-  pausarActualizacion(true)
+  // EXCEPTO dentro de OBS u otro programa de transmisión (2026-11-15): ahí no hay pantalla completa
+  // que perder y la fuente "Navegador" nunca se cierra, así que con la pausa se quedaba para siempre con
+  // la versión vieja (seguía saliendo "Toca para pantalla completa" ya publicado el arreglo). Ahí cada
+  // versión nueva entra sola: la fuente se recarga en un instante y sigue mostrando lo que está al aire.
+  pausarActualizacion(!esFuenteDeTransmision())
   const link = document.querySelector('link[rel="manifest"]')
   // Manifest armado aquí mismo (2026-11-02) para que "Agregar a inicio" / "Instalar" abra EXACTAMENTE
   // esta pantalla de esta iglesia (/p/<iglesia> o /e/<iglesia>). Con el archivo fijo, el ícono siempre
