@@ -10,7 +10,7 @@ import { soportaPantallaCompleta, estaEnPantallaCompleta, pedirPantallaCompleta,
 import AvisoIphone from "./components/AvisoIphone.jsx";
 
 const CURSOR_IDLE_MS = 3000;
-// El aviso grande de "Toca para pantalla completa" se quita solo a los pocos segundos (2026-11-15): si
+// El aviso de "Toca la pantalla para ponerla completa" se quita solo a los pocos segundos (2026-11-15): si
 // nadie puede tocar esa pantalla (un programa de transmisión, un TV sin control a mano), la letra no se
 // queda tapada. Queda el botón chico de "Pantalla completa" al mover el mouse.
 const AVISO_SE_QUITA_MS = 8000;
@@ -119,6 +119,14 @@ export default function PublicScreen() {
     return () => clearTimeout(t);
   }, [needsTapToFullscreen]);
 
+  // Mientras falta la pantalla completa, tocar en cualquier parte la pide (un toque real sí lo permite).
+  useEffect(() => {
+    if (!needsTapToFullscreen) return undefined;
+    const alTocar = () => { tapToFullscreen(); };
+    window.addEventListener("pointerdown", alTocar);
+    return () => window.removeEventListener("pointerdown", alTocar);
+  }, [needsTapToFullscreen]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // El aviso se quita con el toque aunque el navegador no conceda la pantalla completa: nunca debe
   // quedarse tapando la proyección.
   const tapToFullscreen = async () => {
@@ -141,13 +149,16 @@ export default function PublicScreen() {
         ><X size={15} /></button>
       )}
       <AvisoIphone />
+      {/* Aviso de pantalla completa (2026-11-15): antes era un cuadro oscuro que TAPABA toda la
+          proyección hasta que alguien diera clic. En OBS (fuente "Navegador") nadie puede dar clic y la
+          letra no se veía. Ahora es una etiqueta chica abajo que no tapa nada; tocar en CUALQUIER parte
+          de la pantalla pide la pantalla completa (ver el efecto de arriba), y se quita sola. */}
       {needsTapToFullscreen && (
         <button
           onClick={tapToFullscreen}
-          style={{ position: "fixed", inset: 0, width: "100%", height: "100%", background: "rgba(11,15,22,0.94)", color: "#fff", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, zIndex: 999 }}
+          style={{ position: "fixed", left: "50%", bottom: 18, transform: "translateX(-50%)", maxWidth: "calc(100% - 32px)", background: "rgba(11,15,22,0.82)", color: "#fff", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 24, padding: "9px 18px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, zIndex: 999, fontSize: 14, fontWeight: 700 }}
         >
-          <span style={{ fontSize: 22, fontWeight: 700 }}>Toca para pantalla completa</span>
-          <span style={{ fontSize: 13, fontWeight: 400, color: "#8996A6" }}>Oculta la barra de tareas y queda lista para proyectar</span>
+          Toca la pantalla para ponerla completa
         </button>
       )}
       {/* A diferencia del aviso grande de arriba, este NO tapa el contenido -- la idea es justo que la
