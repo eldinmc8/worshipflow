@@ -49,3 +49,15 @@ export function alCambiarPantallaCompleta(cb, doc = typeof document !== "undefin
 export function esIphone(nav = typeof navigator !== "undefined" ? navigator : null) {
   return /iPhone|iPod/i.test(nav?.userAgent || "");
 }
+
+// Programas de transmisión (OBS, Streamlabs…) que muestran la proyección como fuente "Navegador"
+// (2026-11-15, reporte: "OBS pide dar clic y ahí no se puede"). Esa página no es una ventana: nadie
+// puede tocarla y ya ocupa todo el cuadro de la fuente, así que la pantalla completa ni se pide ni se
+// avisa. Se reconoce sola (OBS se presenta como "OBS/…" y trae window.obsstudio); para otro programa
+// que no se reconozca, basta agregar ?obs=1 al enlace.
+export function esFuenteDeTransmision(win = typeof window !== "undefined" ? window : null) {
+  if (!win) return false;
+  if (win.obsstudio) return true;
+  if (/\bOBS\/|Streamlabs|XSplit|vMix/i.test(win.navigator?.userAgent || "")) return true;
+  try { return new URLSearchParams(win.location?.search || "").has("obs"); } catch { return false; }
+}

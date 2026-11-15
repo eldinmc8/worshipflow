@@ -29,3 +29,14 @@ describe("pantalla completa", () => {
     expect(esIphone({ userAgent: "Mozilla/5.0 (Linux; Android 14)" })).toBe(false);
   });
 });
+
+describe("proyección dentro de un programa de transmisión", () => {
+  it("reconoce OBS (fuente Navegador) y el enlace con ?obs=1; un navegador normal no", async () => {
+    const { esFuenteDeTransmision } = await import("../pantallaCompleta.js");
+    const chrome = "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/127.0.0.0 Safari/537.36";
+    expect(esFuenteDeTransmision({ navigator: { userAgent: chrome }, location: { search: "" } })).toBe(false);
+    expect(esFuenteDeTransmision({ navigator: { userAgent: chrome + " OBS/31.0.0" }, location: { search: "" } })).toBe(true);
+    expect(esFuenteDeTransmision({ obsstudio: {}, navigator: { userAgent: chrome }, location: { search: "" } })).toBe(true);
+    expect(esFuenteDeTransmision({ navigator: { userAgent: chrome }, location: { search: "?obs=1" } })).toBe(true);
+  });
+});
