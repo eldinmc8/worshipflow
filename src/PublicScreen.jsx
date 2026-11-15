@@ -6,10 +6,14 @@ import { leerPantallaDeUrl } from "./lib/enlacePantalla.js";
 import { anunciarProyeccion, enviarEstadoVideo, alPedirCerrarProyeccion } from "./lib/liveSession.js";
 import { useSesionPublica } from "./lib/usarSesionPublica.js";
 import EnlaceVencido from "./components/EnlaceVencido.jsx";
-import { soportaPantallaCompleta, estaEnPantallaCompleta, pedirPantallaCompleta, salirDePantallaCompleta, alCambiarPantallaCompleta } from "./lib/pantallaCompleta.js";
+import { soportaPantallaCompleta, estaEnPantallaCompleta, pedirPantallaCompleta, salirDePantallaCompleta, alCambiarPantallaCompleta, esFuenteDeTransmision } from "./lib/pantallaCompleta.js";
 import AvisoIphone from "./components/AvisoIphone.jsx";
 
 const CURSOR_IDLE_MS = 3000;
+// El aviso grande de "Toca para pantalla completa" se quita solo a los pocos segundos (2026-11-15): si
+// nadie puede tocar esa pantalla (un programa de transmisión, un TV sin control a mano), la letra no se
+// queda tapada. Queda el botón chico de "Pantalla completa" al mover el mouse.
+const AVISO_SE_QUITA_MS = 8000;
 
 export default function PublicScreen() {
   const [cursorHidden, setCursorHidden] = useState(false);
@@ -25,6 +29,8 @@ export default function PublicScreen() {
   const [fullscreenDroppedQuietly, setFullscreenDroppedQuietly] = useState(false);
   const everFullscreenRef = useRef(false);
   const idleTimerRef = useRef(null);
+  // Dentro de OBS (fuente "Navegador") no hay nada que tocar: sin aviso de pantalla completa ni botón de salir.
+  const [enTransmision] = useState(() => esFuenteDeTransmision());
 
   // Las letras de los estilos animados se descargan al abrir la proyección, antes de que salga la primera diapositiva.
   useEffect(() => { precargarFuentesAnimacion(); }, []);
@@ -79,7 +85,7 @@ export default function PublicScreen() {
   // de "Toca para pantalla completa" nunca debe salir ahí — antes salía y, como tocarlo no hacía nada, se
   // quedaba tapando la proyección para siempre. Ver lib/pantallaCompleta.js.
   useEffect(() => {
-    if (!soportaPantallaCompleta()) return undefined;
+    if (enTransmision || !soportaPantallaCompleta()) return undefined;
     pedirPantallaCompleta();
     const checkTimer = setTimeout(() => {
       if (!estaEnPantallaCompleta()) setNeedsTapToFullscreen(true);
@@ -105,7 +111,13 @@ export default function PublicScreen() {
     };
     const dejar = alCambiarPantallaCompleta(onFsChange);
     return () => { clearTimeout(checkTimer); dejar(); };
-  }, []);
+  }, [enTransmision]);
+
+  useEffect(() => {
+    if (!needsTapToFullscreen) return undefined;
+    const t = setTimeout(() => { setNeedsTapToFullscreen(false); setFullscreenDroppedQuietly(true); }, AVISO_SE_QUITA_MS);
+    return () => clearTimeout(t);
+  }, [needsTapToFullscreen]);
 
   // El aviso se quita con el toque aunque el navegador no conceda la pantalla completa: nunca debe
   // quedarse tapando la proyección.
@@ -121,7 +133,7 @@ export default function PublicScreen() {
         <ProjectionPanel slide={live.slide} blanked={live.blanked} split={false} liveStyle={live.liveStyle}
           onEstadoVideo={(e) => enviarEstadoVideo(iglesiaId, enlace.codigo || null, { ...e, slideId: live.slide?.slideId || null })} />
       )}
-      {!cursorHidden && (
+      {!cursorHidden && !enTransmision && (
         <button
           onClick={salirDePantallaPublica}
           title="Salir de la pantalla de proyección"

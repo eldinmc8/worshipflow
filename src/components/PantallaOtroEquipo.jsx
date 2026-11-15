@@ -133,6 +133,7 @@ export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCer
             <a href={`https://wa.me/?text=${encodeURIComponent(textoWhatsApp)}`} target="_blank" rel="noopener noreferrer" style={boton}><MessageCircle size={16} color="#1F8A73" /> WhatsApp</a>
           </div>
           <div style={{ fontSize: 11.5, color: "var(--wf-faint)", lineHeight: 1.5, marginTop: 8 }}>Escanea el QR con la cámara o abre el enlace, y toca la pantalla una vez para ponerla completa.</div>
+          {!esEscenario && <div style={{ fontSize: 11.5, color: "var(--wf-faint)", lineHeight: 1.5, marginTop: 6 }}>¿Transmites con OBS? Pega este enlace en una fuente "Navegador": la letra sale sola, sin tocar nada.</div>}
         </div>
 
         {codigo && (
