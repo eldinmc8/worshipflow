@@ -61,5 +61,13 @@ describe("Letra animada: el panel de Estilo también la cambia", () => {
     const el = letraProyectada(container);
     expect(el.style.fontFamily).toContain("Poppins");
     expect(el.style.color).toBe("rgb(245, 214, 123)");
+    // El color elegido también tiene que ganarles a los colores que el estilo pinta palabra por palabra
+    // (palabras clave, segunda línea, multicolor, karaoke): para eso va la clase wf-color-propio (index.css).
+    expect(el.className).toContain("wf-color-propio");
+    expect(el.style.getPropertyValue("--wf-letra")).toBe("#F5D67B");
+  });
+  it("sin color elegido, el estilo animado conserva sus colores", () => {
+    const { container } = render(<ProjectionPanel slide={cancion} blanked={false} split={false} liveStyle={{ theme: "stage", animacion: "impacto", animLetra: { font: "moderna" } }} />);
+    expect(letraProyectada(container).className).not.toContain("wf-color-propio");
   });
 });

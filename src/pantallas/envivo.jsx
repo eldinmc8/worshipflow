@@ -798,7 +798,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         </div>
         {letraAnimada && (
           <div style={{ fontSize: 12, color: "var(--wf-text)", lineHeight: 1.45, background: "color-mix(in srgb, var(--wf-brand-accent) 14%, transparent)", borderRadius: 10, padding: "8px 10px" }}>
-            Hay una <b>letra animada</b> puesta ({nombreAnimacion(liveStyle) || "estilo animado"}): lo que elijas aquí cambia la letra animada. <b>Del estilo</b> deja lo que trae el estilo. Algunos estilos (periódico, cromo, degradado, letra calada) traen sus propios colores y letras.
+            Hay una <b>letra animada</b> puesta ({nombreAnimacion(liveStyle) || "estilo animado"}): lo que elijas aquí cambia la letra animada. <b>Del estilo</b> deja lo que trae el estilo. El color pinta todas las palabras, también las destacadas; solo cromo, degradado, letra calada, invertido, recortes de periódico y Retro 80 se quedan con sus colores.
           </div>
         )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: "16px 22px" }}>
