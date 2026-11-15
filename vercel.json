@@ -27,6 +27,10 @@
     {
       "source": "/web/:pagina",
       "destination": "/index.html"
+    },
+    {
+      "source": "/((?!assets/|api/)[^.]*)",
+      "destination": "/index.html"
     }
   ],
   "redirects": [
