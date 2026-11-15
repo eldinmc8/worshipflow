@@ -117,6 +117,13 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
   // Ajustes finos (ver LIVE_SOMBRAS y compañía) — sin valor, como siempre.
   const espaciadoLetras = liveStyle?.espaciado != null ? `${liveStyle.espaciado}em` : font.tracking;
   const sombraTexto = (LIVE_SOMBRAS[liveStyle?.sombra] || LIVE_SOMBRAS.ninguna).css;
+  // Letra animada con los ajustes de Estilo (pedido de Eldin, 2026-11-15: "me piden poder cambiar el tipo
+  // de letra y el color en las letras animadas"). liveStyle.animLetra = { font, textColor, espaciado,
+  // sombra }: lo que no se haya elegido sigue como lo trae el estilo animado. Es solo de canciones (empieza
+  // con "anim", ver estiloBiblia.js). Los tratamientos que traen sus propios colores o letras por palabra
+  // (periódico, cromo, degradado...) siguen con los suyos.
+  const letraAnim = liveStyle?.animLetra && typeof liveStyle.animLetra === "object" ? liveStyle.animLetra : {};
+  const fuenteAnimPropia = letraAnim.font ? LIVE_FONTS[letraAnim.font] || null : null;
   const alineacion = LIVE_ALINEACIONES[liveStyle?.alineacion] || LIVE_ALINEACIONES.centro;
   const posicion = LIVE_POSICIONES[liveStyle?.posicion] || LIVE_POSICIONES.centro;
   // Letra animada sobre un fondo propio (imagen o video de Estilo, de la canción o de la diapositiva):
@@ -259,7 +266,12 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
                     // (los mismos <div> de línea se reutilizan, así que la animación CSS no se repite
                     // sola con solo cambiar el texto adentro).
                     style={animarLetra
-                      ? { fontFamily: anim.fuente.family, fontWeight: anim.fuente.weight, textTransform: anim.fuente.transform || "none", letterSpacing: anim.fuente.tracking || "normal", textAlign: alineacion.text, ...(anim.mezcla ? { position: "relative", zIndex: "auto" } : { zIndex: 1 }), lineHeight: liveStyle?.interlineado ?? 1.25, textShadow: animSobreFondoPropio && anim.sombra !== "none" ? reforzarSombraAnimada(anim.sombra) : anim.sombra, color: animSobreFondoPropio ? colorLegibleAnimada(anim.color) : anim.color, whiteSpace: "nowrap", "--beat": `${beatSeg}s`, ...lineasAnimadas.vars }
+                      ? (() => {
+                          const f = fuenteAnimPropia;
+                          const sombraAnim = letraAnim.sombra && LIVE_SOMBRAS[letraAnim.sombra] ? LIVE_SOMBRAS[letraAnim.sombra].css : anim.sombra;
+                          const colorAnim = letraAnim.textColor || anim.color;
+                          return { fontFamily: f ? f.family : anim.fuente.family, fontWeight: f ? f.weight : anim.fuente.weight, fontStyle: f?.italic ? "italic" : "normal", textTransform: (f ? f.transform : anim.fuente.transform) || "none", letterSpacing: letraAnim.espaciado != null ? `${letraAnim.espaciado}em` : (f ? f.tracking : anim.fuente.tracking) || "normal", textAlign: alineacion.text, ...(anim.mezcla ? { position: "relative", zIndex: "auto" } : { zIndex: 1 }), lineHeight: liveStyle?.interlineado ?? 1.25, textShadow: animSobreFondoPropio && sombraAnim !== "none" ? reforzarSombraAnimada(sombraAnim) : sombraAnim, color: animSobreFondoPropio ? colorLegibleAnimada(colorAnim) : colorAnim, whiteSpace: "nowrap", "--beat": `${beatSeg}s`, ...lineasAnimadas.vars };
+                        })()
                       : { fontFamily: font.family, fontWeight: font.weight, textTransform: font.transform, letterSpacing: espaciadoLetras, fontStyle: font.italic ? "italic" : "normal", textAlign: alineacion.text, zIndex: 1, lineHeight: liveStyle?.interlineado ?? 1.35, textShadow: sombraTexto, color: textColor, whiteSpace: "nowrap", textWrap: "balance" }}
                     lineStyles={cancionLineStyles}
                     className={animarLetra ? `${claseAnimacion(animKey)} ${lineasAnimadas.clase || ""}${latirCancion && !/wfb-latido/.test(lineasAnimadas.clase || "") ? " wfb-latido" : ""}` : undefined}

@@ -623,9 +623,11 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   const pasoBtn = { width: 40, height: 40, flexShrink: 0, borderRadius: 12, border: "1px solid var(--wf-border)", background: "var(--wf-card)", color: "var(--wf-text)", fontSize: 20, fontWeight: 700, lineHeight: 1, cursor: "pointer", fontFamily: "inherit" };
   const cajaEstilo = { background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", padding: isCompact ? 12 : 16, display: "flex", flexDirection: "column", gap: 12, boxSizing: "border-box" };
   // Un ajuste con número: − y + grandes a los lados (un toque = un paso) y la barra en medio.
-  const ajusteConPasos = (c) => {
-    const valor = liveStyle[c.clave] ?? c.defecto;
-    const poner = (v) => setLiveStyle((st) => ({ ...st, [c.clave]: Math.min(c.max, Math.max(c.min, Math.round(v * 100) / 100)) }));
+  // fuente/setFuente: de dónde se lee y a dónde se escribe (por defecto el estilo que se edita; con letra
+  // animada, la tipografía, el color, el espacio y la sombra van a liveStyle.animLetra — ver estiloLetra).
+  const ajusteConPasos = (c, fuente = liveStyle, setFuente = setLiveStyle) => {
+    const valor = fuente[c.clave] ?? c.defecto;
+    const poner = (v) => setFuente((st) => ({ ...st, [c.clave]: Math.min(c.max, Math.max(c.min, Math.round(v * 100) / 100)) }));
     return (
       <div key={c.clave} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
         <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
@@ -641,14 +643,15 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     );
   };
   // Un ajuste de elegir una entre pocas (sombra, posición, alineación): botones a la vista.
-  const ajusteDeOpciones = (c) => (
+  // Con c.delEstilo, la primera opción ("Del estilo") deja el valor sin elegir (lo pone el estilo animado).
+  const ajusteDeOpciones = (c, fuente = liveStyle, setFuente = setLiveStyle) => (
     <div key={c.clave} style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
       <span style={tituloEstilo}>{c.label.toUpperCase()}</span>
       <div role="group" aria-label={c.label} style={{ display: "flex", flexWrap: "wrap", background: "var(--wf-hover)", borderRadius: 12, padding: 3, gap: 3 }}>
-        {Object.entries(c.opciones).map(([k, o]) => {
-          const activo = (liveStyle[c.clave] || c.defecto) === k;
+        {[...(c.delEstilo ? [["", { label: "Del estilo" }]] : []), ...Object.entries(c.opciones)].map(([k, o]) => {
+          const activo = (fuente[c.clave] || (c.delEstilo ? "" : c.defecto)) === k;
           return (
-            <button key={k} onClick={() => setLiveStyle((st) => ({ ...st, [c.clave]: k }))} aria-pressed={activo}
+            <button key={k || "del-estilo"} onClick={() => setFuente((st) => { const { [c.clave]: _x, ...resto } = st; return k ? { ...st, [c.clave]: k } : resto; })} aria-pressed={activo}
               style={{ flex: "1 1 auto", minHeight: 34, fontSize: 12, fontWeight: 600, border: "none", borderRadius: 9, padding: "4px 8px", cursor: "pointer", whiteSpace: "nowrap", color: "var(--wf-text)", background: activo ? "var(--wf-card)" : "transparent", boxShadow: activo ? "0 1px 3px rgba(22,50,79,0.15)" : "none", fontFamily: "inherit" }}>{o.label}</button>
           );
         })}
@@ -681,6 +684,14 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     showToast(editandoBiblia ? "Listo: las canciones ahora usan el estilo de la Biblia." : "Listo: la Biblia ahora usa el estilo de las canciones.", "info");
   };
   const temaConAnimacion = animacionActiva(liveStyle) && liveStyle.animFondo !== "propio";
+  // Letra animada puesta (solo canciones): la tipografía, el color, el espacio y la sombra del panel van a
+  // liveStyle.animLetra y mandan sobre los del estilo animado (ver ProjectionPanel). Sin elegir nada, el
+  // estilo animado se ve como siempre. Tamaño, interlineado, alineación y posición ya le aplicaban.
+  const letraAnimada = !editandoBiblia && !!animacionActiva(liveStyle);
+  const estiloLetra = letraAnimada ? (liveStyle.animLetra && typeof liveStyle.animLetra === "object" ? liveStyle.animLetra : {}) : liveStyle;
+  const setEstiloLetra = letraAnimada ? (cambio) => setLiveStyle((st) => ({ ...st, animLetra: cambio(st.animLetra && typeof st.animLetra === "object" ? st.animLetra : {}) })) : setLiveStyle;
+  const fuenteLetra = LIVE_FONTS[estiloLetra.font] || (letraAnimada ? null : font);
+  const colorLetra = estiloLetra.textColor || (letraAnimada ? "" : "#FFFFFF");
   const panelEstiloCompleto = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, paddingBottom: 12 }}>
       {/* 1. Qué estoy cambiando */}
@@ -780,46 +791,56 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={tituloEstilo}>LETRA</span>
           <button
-            onClick={() => setLiveStyle((st) => { const { interlineado: _i, espaciado: _e, sombra: _s, oscurecer: _o, posicion: _p, alineacion: _a, ...resto } = st; return resto; })}
-            className="hoverable" title="Vuelve interlineado, espacio, sombra, posición y alineación a como venían"
+            onClick={() => setLiveStyle((st) => { const { interlineado: _i, espaciado: _e, sombra: _s, oscurecer: _o, posicion: _p, alineacion: _a, ...resto } = st; return letraAnimada ? { ...resto, animLetra: {} } : resto; })}
+            className="hoverable" title={letraAnimada ? "Vuelve la letra animada a como la trae su estilo, y el interlineado, posición y alineación a como venían" : "Vuelve interlineado, espacio, sombra, posición y alineación a como venían"}
             style={{ fontSize: 12, fontWeight: 600, color: "var(--wf-muted)", background: "transparent", border: "none", borderRadius: 8, padding: "4px 8px", cursor: "pointer", fontFamily: "inherit" }}
           >Restablecer</button>
         </div>
+        {letraAnimada && (
+          <div style={{ fontSize: 12, color: "var(--wf-text)", lineHeight: 1.45, background: "color-mix(in srgb, var(--wf-brand-accent) 14%, transparent)", borderRadius: 10, padding: "8px 10px" }}>
+            Hay una <b>letra animada</b> puesta ({nombreAnimacion(liveStyle) || "estilo animado"}): lo que elijas aquí cambia la letra animada. <b>Del estilo</b> deja lo que trae el estilo. Algunos estilos (periódico, cromo, degradado, letra calada) traen sus propios colores y letras.
+          </div>
+        )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: "16px 22px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
             <span style={tituloEstilo}>TIPOGRAFÍA</span>
             {/* El propio <select> y cada <option> llevan la fuente real, así cada opción se ve con su letra. */}
             <select
-              aria-label="Tipografía" value={liveStyle.font || "elegante"}
-              onChange={(e) => setLiveStyle((st) => ({ ...st, font: e.target.value }))}
-              style={{ ...inputStyle, height: 40, padding: "6px 10px", fontSize: 14, fontFamily: font.family, fontWeight: font.weight, fontStyle: font.italic ? "italic" : "normal", textTransform: font.transform }}
+              aria-label="Tipografía" value={letraAnimada ? (LIVE_FONTS[estiloLetra.font] ? estiloLetra.font : "") : liveStyle.font || "elegante"}
+              onChange={(e) => { const v = e.target.value; setEstiloLetra((st) => { const { font: _f, ...resto } = st; return v ? { ...st, font: v } : resto; }); }}
+              style={{ ...inputStyle, height: 40, padding: "6px 10px", fontSize: 14, ...(fuenteLetra ? { fontFamily: fuenteLetra.family, fontWeight: fuenteLetra.weight, fontStyle: fuenteLetra.italic ? "italic" : "normal", textTransform: fuenteLetra.transform } : {}) }}
             >
+              {letraAnimada && <option value="">Del estilo animado</option>}
               {Object.entries(LIVE_FONTS).map(([key, f]) => (
                 <option key={key} value={key} style={{ fontFamily: f.family, fontWeight: f.weight, fontStyle: f.italic ? "italic" : "normal", textTransform: f.transform }}>{f.label}</option>
               ))}
             </select>
           </div>
           {ajusteConPasos({ clave: "fontScale", label: "Tamaño de letra", min: 0.6, max: 1.8, paso: 0.05, defecto: 1, mostrar: (v) => `${Math.round(v * 100)}%` })}
-          {ajusteConPasos({ clave: "interlineado", label: "Interlineado", min: 0.9, max: 2.2, paso: 0.05, defecto: 1.35, mostrar: (v) => v.toFixed(2) })}
-          {ajusteConPasos({ clave: "espaciado", label: "Espacio entre letras", min: -0.05, max: 0.3, paso: 0.01, defecto: 0, mostrar: (v) => (v === 0 ? "Normal" : `${v > 0 ? "+" : ""}${Math.round(v * 100)}`) })}
+          {ajusteConPasos({ clave: "interlineado", label: "Interlineado", min: 0.9, max: 2.2, paso: 0.05, defecto: letraAnimada ? 1.25 : 1.35, mostrar: (v) => v.toFixed(2) })}
+          {ajusteConPasos({ clave: "espaciado", label: "Espacio entre letras", min: -0.05, max: 0.3, paso: 0.01, defecto: 0, mostrar: (v) => (letraAnimada && estiloLetra.espaciado == null ? "Del estilo" : v === 0 ? "Normal" : `${v > 0 ? "+" : ""}${Math.round(v * 100)}`) }, estiloLetra, setEstiloLetra)}
           {!editandoBiblia && (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
               <span style={tituloEstilo}>COLOR DE LETRA</span>
               <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", minHeight: 40 }}>
+                {letraAnimada && (
+                  <button onClick={() => setEstiloLetra((st) => { const { textColor: _c, ...resto } = st; return resto; })} aria-pressed={!colorLetra} aria-label="Color de letra: el del estilo animado" title="El color que trae el estilo animado"
+                    style={{ height: 30, fontSize: 11.5, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: !colorLetra ? "3px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", borderRadius: 15, padding: "0 10px", cursor: "pointer", fontFamily: "inherit", boxSizing: "border-box" }}>Del estilo</button>
+                )}
                 {Object.entries(LIVE_TEXT_COLORS).map(([key, c]) => (
-                  <button key={key} onClick={() => setLiveStyle((st) => ({ ...st, textColor: c.value }))} title={c.label} aria-label={`Letra ${c.label}`} aria-pressed={(liveStyle.textColor || "#FFFFFF") === c.value}
-                    style={{ width: 30, height: 30, borderRadius: "50%", background: c.value, border: (liveStyle.textColor || "#FFFFFF") === c.value ? "3px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0, boxSizing: "border-box", flexShrink: 0 }} />
+                  <button key={key} onClick={() => setEstiloLetra((st) => ({ ...st, textColor: c.value }))} title={c.label} aria-label={`Letra ${c.label}`} aria-pressed={colorLetra === c.value}
+                    style={{ width: 30, height: 30, borderRadius: "50%", background: c.value, border: colorLetra === c.value ? "3px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0, boxSizing: "border-box", flexShrink: 0 }} />
                 ))}
                 <label title="Elegir otro color" style={{ width: 30, height: 30, borderRadius: "50%", border: "1px solid var(--wf-border)", cursor: "pointer", position: "relative", overflow: "hidden", display: "flex", flexShrink: 0, boxSizing: "border-box", background: "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)" }}>
-                  <input type="color" aria-label="Letra: otro color" value={liveStyle.textColor || "#FFFFFF"} onChange={(e) => setLiveStyle((st) => ({ ...st, textColor: e.target.value }))} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+                  <input type="color" aria-label="Letra: otro color" value={/^#[0-9a-f]{6}$/i.test(colorLetra) ? colorLetra : "#FFFFFF"} onChange={(e) => { const v = e.target.value; setEstiloLetra((st) => ({ ...st, textColor: v })); }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
                 </label>
               </div>
             </div>
           )}
           {ajusteDeOpciones({ clave: "alineacion", label: "Alineación", opciones: LIVE_ALINEACIONES, defecto: "centro" })}
           {ajusteDeOpciones({ clave: "posicion", label: "Posición", opciones: LIVE_POSICIONES, defecto: "centro" })}
-          {ajusteDeOpciones({ clave: "sombra", label: "Sombra de la letra", opciones: LIVE_SOMBRAS, defecto: "ninguna" })}
-          {!editandoBiblia && (
+          {ajusteDeOpciones({ clave: "sombra", label: "Sombra de la letra", opciones: LIVE_SOMBRAS, defecto: "ninguna", delEstilo: letraAnimada }, estiloLetra, setEstiloLetra)}
+          {!editandoBiblia && !letraAnimada && (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
               <span style={tituloEstilo}>DISEÑO DE LAS LETRAS</span>
               <select
