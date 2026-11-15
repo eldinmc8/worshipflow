@@ -79,7 +79,7 @@ export function avisoDeEnlace(url) {
   if (info.tipo === "vacio") return null;
   if (info.tipo === "youtube") return { ok: true, texto: "✓ Video de YouTube. Se reproduce con sonido en la proyección." };
   if (info.tipo === "vimeo") return { ok: true, texto: "✓ Video de Vimeo. Se reproduce con sonido en la proyección." };
-  if (info.drive) return { ok: true, texto: "Google Drive: el archivo debe estar compartido como «Cualquier persona con el enlace». Si no se ve, descárgalo y súbelo aquí." };
+  if (info.drive) return { ok: true, texto: "Google Drive: el archivo debe estar compartido como «Cualquier persona con el enlace». Pruébalo antes del culto; si un video muy pesado no carga, es mejor subirlo a YouTube como «No listado»." };
   if (info.tipo === "no-soportado") return { ok: false, texto: info.nombre === "Enlace no válido" ? "Ese enlace no es válido. Debe empezar con https://" : `Los videos de ${info.nombre} no se pueden proyectar desde otra app. Descárgalo y súbelo aquí, o usa un enlace de YouTube.` };
   return { ok: true, texto: "✓ Enlace a un archivo de video." };
 }

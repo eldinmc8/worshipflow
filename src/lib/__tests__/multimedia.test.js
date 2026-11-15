@@ -37,12 +37,12 @@ describe("subirFondo", () => {
   });
 
   it("rechaza una imagen más pesada que el límite", async () => {
-    await expect(multimedia.subirFondo("igl-1", "imagen", archivoFalso({ type: "image/png", size: multimedia.FONDO_MAX_BYTES.imagen + 1 }))).rejects.toThrow(/pesar/i);
+    await expect(multimedia.subirFondo("igl-1", "imagen", archivoFalso({ type: "image/png", size: multimedia.FONDO_MAX_BYTES.imagen + 1 }))).rejects.toThrow(/máximo es 8 MB/);
     expect(fake.subidas).toHaveLength(0);
   });
 
   it("rechaza un video más pesado que el límite", async () => {
-    await expect(multimedia.subirFondo("igl-1", "video", archivoFalso({ type: "video/mp4", size: multimedia.FONDO_MAX_BYTES.video + 1 }))).rejects.toThrow(/pesar/i);
+    await expect(multimedia.subirFondo("igl-1", "video", archivoFalso({ type: "video/mp4", size: multimedia.FONDO_MAX_BYTES.video + 1 }))).rejects.toThrow(/máximo es 50 MB.*YouTube/);
     expect(fake.subidas).toHaveLength(0);
   });
 
