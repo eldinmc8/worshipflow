@@ -8,7 +8,7 @@ import { FORMATOS_LETRA } from "../lib/dividirTexto.js";
 import AppLogo from "../AppLogo.jsx";
 import { validarPassword } from "../lib/passwordSegura.js";
 import MedidorPassword from "../MedidorPassword.jsx";
-import { listarFondos, subirFondo, borrarFondo } from "../lib/multimedia.js";
+import { listarFondos, subirFondo, borrarFondo, FONDO_MAX_BYTES } from "../lib/multimedia.js";
 import { confirmDialog } from "../lib/confirm.js";
 import { notifyError, showToast, esFalloDeConexion } from "../lib/toast.js";
 import { ModalShell, Field, primaryBtn, inputStyle, addBtnStyle } from "./compartido.jsx";
@@ -363,6 +363,7 @@ export function MediaPicker({ iglesiaId, tipo, value, onChange, color = "#B15EA0
         </button>
       </div>
       <input ref={fileInputRef} type="file" accept={tipo === "imagen" ? "image/*" : "video/*"} style={{ display: "none" }} onChange={(e) => { subir(e.target.files?.[0]); e.target.value = ""; }} />
+      {!error && <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Máximo {Math.round(FONDO_MAX_BYTES[tipo] / (1024 * 1024))} MB por {tipo === "imagen" ? "imagen" : "video"}.{tipo === "video" ? " Si pesa más, súbelo a YouTube o Google Drive y pega el enlace." : ""}</div>}
       {error && <div style={{ fontSize: 11, color: "#C23B32", marginTop: 6 }}>{error}</div>}
       {showGallery && (
         <div data-testid="biblioteca-fondos" style={{ marginTop: 10, display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${grande ? 118 : 72}px, 1fr))`, gap: 8, maxHeight: grande ? 300 : 220, overflowY: "auto", background: "var(--wf-hover)", borderRadius: 12, padding: 8 }}>
@@ -405,17 +406,17 @@ export function VideoModal({ onClose, onAdd, iglesiaId, inicial = null, destino 
   return (
     <ModalShell title={inicial ? "Editar video" : "Agregar video al setlist"} icon={Play} color="#C23B32" onClose={onClose}>
       {destino && <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10 }}>{destino}</div>}
-      <label style={etiquetaCampo}>Enlace de YouTube</label>
+      <label style={etiquetaCampo}>Enlace de YouTube o Google Drive</label>
       {!subir ? (
         <>
-          <input autoFocus inputMode="url" placeholder="Pega aquí el enlace de YouTube" value={url} onChange={(e) => setUrl(e.target.value.trim())} style={{ ...inputStyle, marginBottom: 6 }} />
+          <input autoFocus inputMode="url" placeholder="Pega aquí el enlace de YouTube o Google Drive" value={url} onChange={(e) => setUrl(e.target.value.trim())} style={{ ...inputStyle, marginBottom: 6 }} />
           <AvisoEnlaceVideo url={url} />
-          <button type="button" onClick={() => { setSubir(true); setUrl(""); }} style={{ background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>¿El video no está en YouTube? Súbelo desde tu equipo</button>
+          <button type="button" onClick={() => { setSubir(true); setUrl(""); }} style={{ background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>¿No está en YouTube ni en Drive? Súbelo desde tu equipo (hasta 50 MB)</button>
         </>
       ) : (
         <>
           <MediaPicker iglesiaId={iglesiaId} tipo="video" value={url} onChange={(u) => setUrl(u)} color="#C23B32" />
-          <button type="button" onClick={() => { setSubir(false); setUrl(""); }} style={{ background: "none", border: "none", padding: 0, marginTop: 8, fontSize: 12, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>Mejor pegar un enlace de YouTube</button>
+          <button type="button" onClick={() => { setSubir(false); setUrl(""); }} style={{ background: "none", border: "none", padding: 0, marginTop: 8, fontSize: 12, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>Mejor pegar un enlace de YouTube o Google Drive</button>
         </>
       )}
       <label style={{ ...etiquetaCampo, marginTop: 14 }}>Nombre · así sale en el orden del culto</label>

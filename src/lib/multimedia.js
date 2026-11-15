@@ -9,7 +9,7 @@ const BUCKET = "fondos-en-vivo";
 export const FONDO_MAX_BYTES = { imagen: 8 * 1024 * 1024, video: 50 * 1024 * 1024 };
 const mb = (bytes) => Math.round(bytes / (1024 * 1024));
 const mensajeMuyPesado = (tipo, size) => tipo === "video"
-  ? `Este video pesa ${mb(size)} MB y el máximo es ${mb(FONDO_MAX_BYTES.video)} MB. Mejor pega un enlace de YouTube, o usa una versión más liviana del video.`
+  ? `Este video pesa ${mb(size)} MB y el máximo es ${mb(FONDO_MAX_BYTES.video)} MB. Súbelo a YouTube (como «No listado») o a Google Drive y pega el enlace aquí.`
   : `Esta imagen pesa ${mb(size)} MB y el máximo es ${mb(FONDO_MAX_BYTES.imagen)} MB.`;
 const MIME_POR_TIPO = {
   imagen: ["image/png", "image/jpeg", "image/webp"],
