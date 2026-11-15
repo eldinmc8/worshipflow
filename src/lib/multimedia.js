@@ -4,7 +4,13 @@ import { supabase } from "./supabaseClient.js";
 // 20261004000000_fondos_en_vivo_storage.sql. Un archivo subido una vez queda disponible para elegirlo
 // de nuevo sin volver a subirlo, en cualquier diapositiva o en el fondo global de Estilo.
 const BUCKET = "fondos-en-vivo";
-export const FONDO_MAX_BYTES = { imagen: 8 * 1024 * 1024, video: 100 * 1024 * 1024 };
+// Video: 50 MB es el máximo por archivo del plan gratis de Supabase (2026-11-15). Antes decía 100 MB y un video de
+// 50-100 MB fallaba con el error en inglés "The object exceeded the maximum allowed size".
+export const FONDO_MAX_BYTES = { imagen: 8 * 1024 * 1024, video: 50 * 1024 * 1024 };
+const mb = (bytes) => Math.round(bytes / (1024 * 1024));
+const mensajeMuyPesado = (tipo, size) => tipo === "video"
+  ? `Este video pesa ${mb(size)} MB y el máximo es ${mb(FONDO_MAX_BYTES.video)} MB. Mejor pega un enlace de YouTube, o usa una versión más liviana del video.`
+  : `Esta imagen pesa ${mb(size)} MB y el máximo es ${mb(FONDO_MAX_BYTES.imagen)} MB.`;
 const MIME_POR_TIPO = {
   imagen: ["image/png", "image/jpeg", "image/webp"],
   video: ["video/mp4", "video/webm"],
@@ -34,12 +40,14 @@ export async function subirFondo(iglesiaId, tipo, file) {
   if (!MIME_POR_TIPO[tipo].includes(file.type)) {
     throw new Error(tipo === "imagen" ? "Debe ser una imagen (PNG, JPG o WEBP)." : "Debe ser un video (MP4 o WEBM).");
   }
-  if (file.size > FONDO_MAX_BYTES[tipo]) {
-    throw new Error(`No puede pesar más de ${Math.round(FONDO_MAX_BYTES[tipo] / (1024 * 1024))} MB.`);
-  }
+  if (file.size > FONDO_MAX_BYTES[tipo]) throw new Error(mensajeMuyPesado(tipo, file.size));
   const ruta = `${iglesiaId}/${tipo}/${Date.now()}-${sanitizarNombre(file.name)}`;
   const { error } = await supabase.storage.from(BUCKET).upload(ruta, file, { contentType: file.type });
-  if (error) throw error;
+  if (error) {
+    // Si el servidor igual lo rechaza por tamaño, el aviso en español (nunca el de Supabase en inglés).
+    if (/maximum allowed size|exceeded|payload too large|413/i.test(`${error.message} ${error.statusCode ?? ""}`)) throw new Error(mensajeMuyPesado(tipo, file.size));
+    throw error;
+  }
   return urlPublica(ruta);
 }
 
