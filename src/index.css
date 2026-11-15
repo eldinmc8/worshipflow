@@ -484,6 +484,20 @@ img, svg {
 @keyframes wfe-falla { 0% { opacity: .65; transform: translateX(-6%) } 50% { opacity: .5; transform: translateX(5%) } 100% { opacity: 0; transform: none } }
 @media (prefers-reduced-motion: reduce) { .wfe-destellos { animation: none; } }
 
+/* ---- Color de letra elegido en Estilo para la letra animada (liveStyle.animLetra.textColor, ver
+   ProjectionPanel): gana sobre los colores que el estilo pinta palabra por palabra (palabras clave,
+   segunda línea de otro color, estilos multicolor, letra en caja o cinta) y sobre el contorno. En el
+   karaoke pinta la palabra cuando "se canta". No toca los que dependen de su papel o de mezclarse con el
+   fondo para verse (letra calada, invertido, recortes de periódico). !important: también le gana
+   a una animación que mueva el color. ---- */
+.wf-color-propio:not(.wfa-karaoke):not(.wfa-retro) .wfa-p:not(.wft-periodico):not(.wft-calado):not(.wft-invertido):not(.wft-cromo):not(.wft-degradado):not(.wft-contorno):not(.wfm-gigante) { color: var(--wf-letra) !important; }
+/* Cromo, degradado y Retro 80 pintan la letra con un degradado recortado: con un color elegido, la letra
+   pasa a ese color liso (se pierde el brillo metálico o el arcoíris, que es lo que se pidió cambiar). */
+.wf-color-propio .wft-cromo .wft-in, .wf-color-propio .wft-degradado .wft-in, .wf-color-propio.wfa-retro .wfa-p { background: none !important; -webkit-text-fill-color: var(--wf-letra) !important; color: var(--wf-letra) !important; }
+.wf-color-propio:not(.wfa-karaoke) > div { color: var(--wf-letra) !important; }
+.wf-color-propio.wfa-karaoke .wfa-p { --brillo: var(--wf-letra) !important; }
+.wf-color-propio .wft-caja .wft-in, .wf-color-propio .wft-cinta .wft-in, .wf-color-propio .wft-sello .wft-in, .wf-color-propio .wft-resaltador .wft-in { color: var(--wf-letra) !important; }
+
 /* ---- Momentos especiales de la canción (pestaña "Animación" del editor, 2026-11-06) ---- */
 .wfa .wfm-gigante { font-size: 1.45em; color: #FFD23F !important; }
 .wfa .wfm-brillo { text-shadow: 0 0 .25em #FFFFFF, 0 0 .7em #FFD9A0, 0 0 1.4em #FF9A3A !important; }

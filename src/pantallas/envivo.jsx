@@ -797,8 +797,16 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           >Restablecer</button>
         </div>
         {letraAnimada && (
-          <div style={{ fontSize: 12, color: "var(--wf-text)", lineHeight: 1.45, background: "color-mix(in srgb, var(--wf-brand-accent) 14%, transparent)", borderRadius: 10, padding: "8px 10px" }}>
-            Hay una <b>letra animada</b> puesta ({nombreAnimacion(liveStyle) || "estilo animado"}): lo que elijas aquí cambia la letra animada. <b>Del estilo</b> deja lo que trae el estilo. Algunos estilos (periódico, cromo, degradado, letra calada) traen sus propios colores y letras.
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 12, color: "var(--wf-text)", lineHeight: 1.45, background: "color-mix(in srgb, var(--wf-brand-accent) 14%, transparent)", borderRadius: 10, padding: "8px 10px" }}>
+            <span style={{ flex: "1 1 320px" }}>
+              Hay una <b>letra animada</b> puesta ({nombreAnimacion(liveStyle) || "estilo animado"}): lo que elijas aquí cambia la letra animada. Al elegir o volver a tocar una animación en la lista, vuelve a su letra y su color. Letra calada, Invertido y Recortes de periódico se quedan con sus colores.
+            </span>
+            {Object.keys(estiloLetra).length > 0 && (
+              <button onClick={() => setLiveStyle((st) => ({ ...st, animLetra: {} }))}
+                style={{ minHeight: 34, fontSize: 12, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 10, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                Volver a la letra de la animación
+              </button>
+            )}
           </div>
         )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: "16px 22px" }}>
