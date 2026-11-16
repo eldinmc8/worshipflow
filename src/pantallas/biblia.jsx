@@ -74,7 +74,7 @@ export function BibleDownloadSection() {
   return (
     <div style={{ background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 16, padding: 14, marginBottom: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <CloudDownload size={16} color="#2F5FA8" />
+        <CloudDownload size={16} color="var(--wf-azul)" />
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>Biblia sin conexión (Reina-Valera 1960)</div>
       </div>
       <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10 }}>
@@ -85,7 +85,7 @@ export function BibleDownloadSection() {
       ) : descargando ? (
         <>
           <div style={{ height: 8, background: "var(--wf-hover)", borderRadius: 10, overflow: "hidden", marginBottom: 6 }}>
-            <div style={{ height: "100%", width: `${progreso.total ? Math.round((progreso.hechos / progreso.total) * 100) : 0}%`, background: "#2F5FA8", transition: "width .2s" }} />
+            <div style={{ height: "100%", width: `${progreso.total ? Math.round((progreso.hechos / progreso.total) * 100) : 0}%`, background: "var(--wf-azul)", transition: "width .2s" }} />
           </div>
           <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 8 }}>{progreso.hechos} de {progreso.total || "…"} capítulos — puede tardar varios minutos.</div>
           <button onClick={cancelarDescarga} style={{ fontSize: 12, fontWeight: 700, color: "#C23B32", background: "none", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 12px", cursor: "pointer" }}>Cancelar</button>
@@ -99,7 +99,7 @@ export function BibleDownloadSection() {
         <>
           {guardados > 0 && <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 8 }}>Ya tienes {guardados} de {totalCapitulos} capítulos ({porcentaje}%)</div>}
           <button onClick={iniciarDescarga} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "var(--wf-bg)", border: "none", borderRadius: 12, padding: "9px 10px", fontSize: 12, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer" }}>
-            <CloudDownload size={14} color="#2F5FA8" /> {guardados > 0 ? "Continuar descarga" : "Descargar para uso sin conexión"}
+            <CloudDownload size={14} color="var(--wf-azul)" /> {guardados > 0 ? "Continuar descarga" : "Descargar para uso sin conexión"}
           </button>
         </>
       )}
@@ -300,7 +300,7 @@ export function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", s
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ fontSize: 13, fontWeight: 700 }}>{b.ref}</span>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "#2F5FA8", background: "#EAF0FA", borderRadius: 10, padding: "1px 5px" }}>{b.version}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "var(--wf-azul)", background: "var(--wf-azul-bg)", borderRadius: 10, padding: "1px 5px" }}>{b.version}</span>
                 </div>
                 <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{b.text}</div>
               </div>
@@ -323,7 +323,7 @@ export function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", s
           </div>
 
           {(selectedBook || selectedChapter) && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#2F5FA8", fontWeight: 700, marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--wf-azul)", fontWeight: 700, marginBottom: 10 }}>
               <span onClick={backToBooks} style={{ cursor: "pointer" }}>Libros</span>
               {selectedBook && <><ChevronRight size={12} /><span onClick={backToChapters} style={{ cursor: "pointer" }}>{selectedBook.name}</span></>}
               {selectedChapter && <><ChevronRight size={12} /><span>Cap. {selectedChapter}</span></>}
@@ -365,8 +365,8 @@ export function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", s
                 {verses.map((v) => {
                   const inRange = range && v.verse >= range.start && v.verse <= range.end;
                   return (
-                    <button key={v.verse} onClick={() => pickVerse(v.verse)} style={{ textAlign: "left", padding: "6px 8px", borderRadius: 12, border: inRange ? "1px solid #2F5FA8" : "1px solid transparent", background: inRange ? "#EAF0FA" : "transparent", cursor: "pointer", fontSize: 12.5, color: "var(--wf-text)", lineHeight: 1.45 }}>
-                      <b style={{ color: "#2F5FA8" }}>{v.verse}</b> {stripBibleSearchMarkup(v.text)}
+                    <button key={v.verse} onClick={() => pickVerse(v.verse)} style={{ textAlign: "left", padding: "6px 8px", borderRadius: 12, border: inRange ? "1px solid var(--wf-azul)" : "1px solid transparent", background: inRange ? "var(--wf-azul-bg)" : "transparent", cursor: "pointer", fontSize: 12.5, color: "var(--wf-text)", lineHeight: 1.45 }}>
+                      <b style={{ color: "var(--wf-azul)" }}>{v.verse}</b> {stripBibleSearchMarkup(v.text)}
                     </button>
                   );
                 })}
@@ -511,7 +511,7 @@ export function BibleLivePanel({ version, setVersion, history, setHistory, onPro
   const matchesFilter = (name) => !bookFilter || searchResults !== null || normalizarBusqueda(name).includes(normalizarBusqueda(bookFilter));
   const oldTestament = books ? books.filter((b) => b.bookid <= 39 && matchesFilter(b.name)) : [];
   const newTestament = books ? books.filter((b) => b.bookid >= 40 && matchesFilter(b.name)) : [];
-  const bookListStyle = (b) => ({ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", padding: "3px 4px", borderRadius: 10, cursor: "pointer", fontSize: 12, fontWeight: selectedBook?.bookid === b.bookid ? 700 : 500, color: selectedBook?.bookid === b.bookid ? "var(--wf-brand-accent)" : "#2F5FA8" });
+  const bookListStyle = (b) => ({ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", padding: "3px 4px", borderRadius: 10, cursor: "pointer", fontSize: 12, fontWeight: selectedBook?.bookid === b.bookid ? 700 : 500, color: selectedBook?.bookid === b.bookid ? "var(--wf-brand-accent)" : "var(--wf-azul)" });
 
   return (
     <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0 }}>
@@ -554,7 +554,7 @@ export function BibleLivePanel({ version, setVersion, history, setHistory, onPro
             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>CAPÍTULOS DE {selectedBook.name.toUpperCase()}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4, marginBottom: 14 }}>
               {Array.from({ length: selectedBook.chapters }, (_, i) => i + 1).map((c) => (
-                <button key={c} onClick={() => openChapter(c)} style={{ padding: "6px 0", borderRadius: 10, border: "none", background: selectedChapter === c ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: selectedChapter === c ? "var(--wf-brand-primary)" : "var(--wf-text)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{c}</button>
+                <button key={c} onClick={() => openChapter(c)} style={{ padding: "6px 0", borderRadius: 10, border: "none", background: selectedChapter === c ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: selectedChapter === c ? "var(--wf-on-brand-accent)" : "var(--wf-text)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{c}</button>
               ))}
             </div>
           </>
@@ -570,8 +570,8 @@ export function BibleLivePanel({ version, setVersion, history, setHistory, onPro
             {history.map((h) => {
               const isLive = liveVerse && liveVerse.ref === h.ref && liveVerse.version === h.version;
               return (
-                <button key={`${h.ref}-${h.version}`} onClick={() => openHistoryEntry(h)} style={{ textAlign: "left", background: isLive ? "var(--wf-active-bg)" : "#fff", border: isLive ? "1px solid var(--wf-brand-accent)" : "1px solid transparent", borderRadius: 10, padding: "5px 7px", cursor: "pointer", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)" }}>{h.ref} <span style={{ color: "#2F5FA8", fontWeight: 700 }}>· {h.version}</span></div>
+                <button key={`${h.ref}-${h.version}`} onClick={() => openHistoryEntry(h)} style={{ textAlign: "left", background: isLive ? "var(--wf-active-bg)" : "var(--wf-card)", border: isLive ? "1px solid var(--wf-brand-accent)" : "1px solid transparent", borderRadius: 10, padding: "5px 7px", cursor: "pointer", boxShadow: "0 1px 4px rgba(22,50,79,0.08)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-text)" }}>{h.ref} <span style={{ color: "var(--wf-azul)", fontWeight: 700 }}>· {h.version}</span></div>
                   <div style={{ fontSize: 10.5, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.text}</div>
                 </button>
               );
@@ -603,7 +603,7 @@ export function BibleLivePanel({ version, setVersion, history, setHistory, onPro
                 const isLive = liveVerse && liveVerse.bookId === r.book && liveVerse.chapter === r.chapter && liveVerse.verseStart === r.verse && liveVerse.version === version;
                 return (
                   <button key={r.pk} onClick={() => pickSearchResult(r)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 12, border: "none", background: isLive ? "var(--wf-divider)" : "transparent", cursor: "pointer", fontSize: 13, color: "var(--wf-text)", lineHeight: 1.5 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#2F5FA8", marginBottom: 2 }}>{bookName} {r.chapter}:{r.verse}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-azul)", marginBottom: 2 }}>{bookName} {r.chapter}:{r.verse}</div>
                     {stripBibleSearchMarkup(r.text)}
                   </button>
                 );
@@ -650,14 +650,14 @@ export function BibleLivePanel({ version, setVersion, history, setHistory, onPro
                       const parteEnVivo = isLive && (liveVerse.parte ?? 0) === k;
                       return (
                         <button key={`${v.verse}-${k}`} onClick={() => pickVerse(v, k)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 12, border: "none", background: parteEnVivo ? "var(--wf-divider)" : "transparent", cursor: "pointer", fontSize: 13, color: "var(--wf-text)", lineHeight: 1.5 }}>
-                          <b style={{ color: "#2F5FA8" }}>{v.verse}</b> <span style={{ fontSize: 10.5, fontWeight: 700, color: "#2F5FA8" }}>({k + 1}/{partes.length})</span> {texto}
+                          <b style={{ color: "var(--wf-azul)" }}>{v.verse}</b> <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--wf-azul)" }}>({k + 1}/{partes.length})</span> {texto}
                         </button>
                       );
                     });
                   }
                   return (
                     <button key={v.verse} onClick={() => pickVerse(v)} style={{ textAlign: "left", padding: "7px 9px", borderRadius: 12, border: "none", background: isLive ? "var(--wf-divider)" : "transparent", cursor: "pointer", fontSize: 13, color: "var(--wf-text)", lineHeight: 1.5 }}>
-                      <b style={{ color: "#2F5FA8" }}>{v.verse}</b> {stripBibleSearchMarkup(v.text)}
+                      <b style={{ color: "var(--wf-azul)" }}>{v.verse}</b> {stripBibleSearchMarkup(v.text)}
                     </button>
                   );
                 })}

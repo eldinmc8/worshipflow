@@ -1572,7 +1572,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           )}
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4, marginTop: 4 }}>SIGUIENTE</div>
           {cambiaDeElemento && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-brand-primary)", background: "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)", borderRadius: 10, padding: "6px 9px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-heading)", background: "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)", borderRadius: 10, padding: "6px 9px" }}>
               <ChevronRight size={14} /> <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Termina esto · al avanzar pasas a <b>{nombreSiguiente}</b></span>
             </div>
           )}
