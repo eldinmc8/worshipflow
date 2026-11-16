@@ -9,11 +9,12 @@ import { confirmDialog } from "../lib/confirm.js";
 import { estaSuscritoPush, suscribirPush, desuscribirPush, esRechazoDeNotificaciones } from "../lib/notificaciones.js";
 import { isUpcoming, formatFullDate } from "../lib/dates.js";
 import { usePreferencias, TAMANOS_LETRA, setTamanoLetra, NOTACIONES, setNotacion, acordeEn } from "../lib/preferencias.js";
-import { ChevronRight, ChevronLeft, KeyRound, Check, Calendar, Bell, Moon, Type, Music, Download, Radio, Tv, Users, Palette, Shield, Sparkles, MessageCircle, Send, LogOut, Speaker, Clock, Crown, WifiOff } from "lucide-react";
+import { ChevronRight, ChevronLeft, KeyRound, Check, Calendar, Bell, Moon, Type, Music, Download, Radio, Tv, Users, Palette, Shield, Sparkles, MessageCircle, Send, LogOut, Speaker, Clock, Crown, WifiOff, BookOpen } from "lucide-react";
 import PantallaOtroEquipo from "../components/PantallaOtroEquipo.jsx";
 import { SalidaAudioModal, useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
 import { BibleDownloadSection } from "./biblia.jsx";
 import PrepararSinConexion from "../components/PrepararSinConexion.jsx";
+import BibliasIglesia from "../components/BibliasIglesia.jsx";
 import { IdentidadIglesiaModal, PantallaProyeccionModal, ChangePasswordModal, ZonaHorariaModal } from "./ventanas.jsx";
 import { etiquetaZona } from "../lib/zonasHorarias.js";
 import { inputStyle, ModalShell } from "./compartido.jsx";
@@ -231,7 +232,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
   const nombreTamano = (TAMANOS_LETRA.find((t) => t.value === tamanoLetra) || {}).label || "";
   const nombreNotacion = ((NOTACIONES.find((n) => n.value === notacion) || {}).label || "").replace(/\s+/g, " ");
   const textoPlan = plan ? (plan.en_prueba ? `${planPorId(plan.plan).nombre} · Prueba, ${diasRestantes(plan.vence)} días` : planPorId(plan.plan).nombre) : "";
-  const TITULOS = { cuenta: "Mi cuenta", fechas: "Mis próximas fechas", avisos: "Notificaciones", apariencia: "Apariencia", dispositivo: "Este dispositivo", proyeccion: "Proyección y pantallas", sinconexion: "Usar sin conexión", identidad: "Identidad y horario", ayuda: "Ayuda y contacto", avanzado: "Avanzado" };
+  const TITULOS = { cuenta: "Mi cuenta", fechas: "Mis próximas fechas", avisos: "Notificaciones", apariencia: "Apariencia", dispositivo: "Este dispositivo", proyeccion: "Proyección y pantallas", sinconexion: "Usar sin conexión", identidad: "Identidad y horario", biblias: "Biblias de la iglesia", ayuda: "Ayuda y contacto", avanzado: "Avanzado" };
 
   if (seccion) {
     return (
@@ -404,6 +405,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
           </>
         )}
         {seccion === "sinconexion" && <PrepararSinConexion />}
+        {seccion === "biblias" && realIsAdmin && <BibliasIglesia iglesiaId={myIglesiaId} usuarioId={userId} />}
         {seccion === "proyeccion" && (
           <>
           <NavRow icon={Tv} label="Pantallas y TV" onClick={() => setShowOtroEquipoAjustes("proyeccion")} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Proyección · Escenario {chevron}</span>} />
@@ -503,6 +505,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
         <FilaAjuste icon={Users} color="#6E63C7" label={teamName || "Mi equipo"} sub={`${usuariosReales.length} ${usuariosReales.length === 1 ? "miembro" : "miembros"}`} onClick={() => setShowTeamList(true)} />
         {realIsAdmin && <FilaAjuste icon={Users} color="#2F5FA8" label="Miembros y roles" sub="Invitar, permisos y estado" onClick={onGoToUsuarios} />}
         <FilaAjuste icon={Tv} color="#C23B32" label="Proyección y pantallas" sub={realIsAdmin ? "Pantallas y TV · Letra y versículos" : "Proyección · Escenario"} onClick={() => setSeccion("proyeccion")} />
+        {realIsAdmin && <FilaAjuste icon={BookOpen} color="#2F5FA8" label="Biblias de la iglesia" sub="Importar versiones (Zefania XML)" onClick={() => setSeccion("biblias")} />}
         {realIsAdmin && <FilaAjuste icon={Palette} color="#B15EA0" label="Identidad y horario" sub={["Logo y colores", zonaIglesia ? etiquetaZona(zonaIglesia) : ""].filter(Boolean).join(" · ")} onClick={() => setSeccion("identidad")} />}
         {realIsAdmin && <FilaAjuste icon={Crown} color="#E8821E" label="Plan" sub={textoPlan} onClick={abrirPlanes} />}
       </GrupoAjustes>

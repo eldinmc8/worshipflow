@@ -7,6 +7,7 @@ import { CloudDownload, ChevronRight, Search, BookOpen, X } from "lucide-react";
 import { crearIndice, buscarEnIndice, filtrarResultadosApi } from "../lib/buscarBiblia.js";
 import { stripBibleSearchMarkup } from "../lib/textoBiblia.js";
 import { leerCita, normalizar as normalizarBusqueda } from "../lib/busqueda.js";
+import { buscarEnBibliaIglesia, NOMBRES_LIBROS_ES } from "../lib/bibliasIglesia.js";
 import { partesDeVersiculo } from "../lib/dividirTexto.js";
 import { fetchBibleBooks, fetchBibleChapter, BIBLE_VERSIONS, SelectorVersionBiblia, versionBiblia, addBtnStyle, inputStyle, primaryBtn, ModalShell, iconGhost } from "./compartido.jsx";
 
@@ -169,7 +170,9 @@ async function indiceBibliaLocal(version) {
 async function buscarEnApiBiblia(version, texto) {
   // Las de api.getbible.net no tienen búsqueda por palabras: se busca en NTV/LBLA/PDT y se ofrece
   // proyectar ese mismo versículo en la versión elegida (ver searchBibleVerses, "otraVersion").
-  if (versionBiblia(version)?.fuente) return [];
+  const v = versionBiblia(version);
+  if (v?.fuente === "iglesia") return buscarEnBibliaIglesia(v.bibliaId, texto);
+  if (v?.fuente) return [];
   const res = await fetch(`https://bolls.life/v2/find/${version}?search=${encodeURIComponent(texto)}&match_case=false`);
   if (!res.ok) throw new Error("No se pudo buscar en la Biblia.");
   const data = await res.json();
@@ -178,7 +181,12 @@ async function buscarEnApiBiblia(version, texto) {
 }
 
 async function searchBibleVerses(version, query, books) {
-  const cita = leerCita(query, books);
+  let cita = leerCita(query, books);
+  // Biblia importada con los libros en otro idioma (ej. Ixil): "Juan 3:16" también se entiende.
+  if (!cita && versionBiblia(version)?.fuente === "iglesia" && books?.length) {
+    const enEspanol = leerCita(query, books.map((b) => ({ ...b, name: NOMBRES_LIBROS_ES[b.bookid - 1] || b.name })));
+    if (enEspanol) cita = { ...enEspanol, libro: books.find((b) => b.bookid === enEspanol.libro.bookid) };
+  }
   if (cita) {
     const { libro, capitulo, desde, hasta } = cita;
     const verses = await fetchBibleChapter(version, libro.bookid, capitulo);
@@ -209,7 +217,8 @@ async function searchBibleVerses(version, query, books) {
     sinInternet = e;
     // Sin conexión y sin la Biblia completa: busca en lo que sí se haya guardado.
     if (!indice) {
-      const capitulos = await todosLosVersiculosOffline(version);
+      const propia = versionBiblia(version);
+      const capitulos = await todosLosVersiculosOffline(propia?.fuente === "iglesia" ? `IGL-${propia.bibliaId}` : version);
       if (!capitulos.length) throw e;
       const todos = capitulos.flatMap((cap) => cap.verses.map((v) => ({ pk: `${cap.bookId}-${cap.chapter}-${v.verse}`, book: cap.bookId, chapter: cap.chapter, verse: v.verse, text: v.text })));
       resultados = filtrarResultadosApi(todos, query);

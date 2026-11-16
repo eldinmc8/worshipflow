@@ -53,3 +53,20 @@ describe("versiones de api.getbible.net (más en español)", () => {
       .toEqual([{ verse: 1, text: "JEHOVÁ es mi pastor; nada me faltará." }]);
   });
 });
+
+describe("Biblias importadas por la iglesia en el selector", () => {
+  it("salen primero, en su propio grupo, y se encuentran por su abreviatura", async () => {
+    const { fijarBibliasIglesia, versionBiblia, fetchBibleBooks } = await import("../pantallas/compartido.jsx");
+    const libros = [{ bookid: 43, name: "Juan", chapters: 21 }];
+    fijarBibliasIglesia([{ id: "b1", codigo: "IXIL", nombre: "Biblia Ixil", idioma: "Ixil", libros }]);
+    render(<SelectorVersionBiblia value="IXIL" onChange={() => {}} />);
+    const grupos = screen.getByLabelText("Versión de la Biblia").querySelectorAll("optgroup");
+    expect(grupos).toHaveLength(3);
+    expect(grupos[0].label).toBe("De mi iglesia");
+    expect(grupos[0].textContent).toContain("IXIL · Biblia Ixil (Ixil)");
+    expect(versionBiblia("IXIL")).toMatchObject({ fuente: "iglesia", bibliaId: "b1" });
+    expect(await fetchBibleBooks("IXIL")).toEqual(libros);
+    fijarBibliasIglesia([]);
+    expect(versionBiblia("IXIL")).toBeNull();
+  });
+});

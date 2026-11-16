@@ -5,6 +5,7 @@ import { saveCache, loadCache } from "../lib/offlineCache.js";
 import { guardarCapituloOffline, obtenerCapituloOffline } from "../lib/bibleOfflineStore.js";
 import { bloquesDelCulto } from "../lib/ordenCulto.js";
 import { createPortal } from "react-dom";
+import { useSyncExternalStore } from "react";
 
 import { useCerrarConAtras } from "../lib/atras.js";
 // ---------- Acordes diatónicos de una tonalidad (triadas + con séptima) ----------
@@ -128,12 +129,33 @@ export const BIBLE_VERSIONS = [
 ];
 export const IDIOMAS_BIBLIA = [{ id: "es", label: "Español" }, { id: "en", label: "English" }];
 
+// Biblias que importó la iglesia (Zefania XML, 2026-11-16 — ver src/lib/bibliasIglesia.js). Se fijan al
+// iniciar la app con fijarBibliasIglesia(filas de biblias_iglesia) y aparecen PRIMERO en el selector, en
+// su propio grupo "De mi iglesia". fuente: "iglesia" = el texto sale de versiculos_iglesia.
+let bibliasIglesiaActuales = [];
+const oyentesBibliasIglesia = new Set();
+export function fijarBibliasIglesia(filas) {
+  bibliasIglesiaActuales = (filas || []).map((b) => ({ code: b.codigo, label: b.idioma ? `${b.nombre} (${b.idioma})` : b.nombre, idioma: "iglesia", fuente: "iglesia", bibliaId: b.id, libros: b.libros || [] }));
+  oyentesBibliasIglesia.forEach((fn) => fn());
+}
+export const bibliasDeLaIglesia = () => bibliasIglesiaActuales;
+export const todasLasVersionesBiblia = () => [...bibliasIglesiaActuales, ...BIBLE_VERSIONS];
+export function useBibliasIglesia() {
+  return useSyncExternalStore((fn) => { oyentesBibliasIglesia.add(fn); return () => oyentesBibliasIglesia.delete(fn); }, () => bibliasIglesiaActuales);
+}
+
 // Selector de versión (2026-11-07): con más de 30 versiones ya no caben como botones — lista desplegable
 // agrupada por idioma, con el nombre completo para que nadie tenga que adivinar qué es "LSB".
 export function SelectorVersionBiblia({ value, onChange, style, compacto = false, id }) {
+  const propias = useBibliasIglesia();
   return (
     <select id={id} value={value} onChange={(e) => onChange(e.target.value)} aria-label="Versión de la Biblia"
       style={{ width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 10, padding: compacto ? "6px 8px" : "8px 10px", fontSize: compacto ? 12 : 13, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer", boxSizing: "border-box", fontFamily: "inherit", ...style }}>
+      {propias.length > 0 && (
+        <optgroup label="De mi iglesia">
+          {propias.map((v) => <option key={v.code} value={v.code}>{v.code} · {v.label}</option>)}
+        </optgroup>
+      )}
       {IDIOMAS_BIBLIA.map((idioma) => (
         <optgroup key={idioma.id} label={idioma.label}>
           {BIBLE_VERSIONS.filter((v) => v.idioma === idioma.id).map((v) => <option key={v.code} value={v.code}>{v.code} · {v.label}</option>)}
@@ -149,7 +171,7 @@ export function SelectorVersionBiblia({ value, onChange, style, compacto = false
 // Sus libros no traen cuántos capítulos tienen: es la numeración estándar de 66 libros (1189 capítulos),
 // la misma de bolls.life (comprobado contra RV1960).
 export const CAPITULOS_POR_LIBRO = [50, 40, 27, 36, 34, 24, 21, 4, 31, 24, 22, 25, 29, 36, 10, 13, 10, 42, 150, 31, 12, 8, 66, 52, 5, 48, 12, 14, 3, 9, 1, 4, 7, 3, 3, 3, 2, 14, 4, 28, 16, 24, 21, 28, 16, 16, 13, 6, 6, 4, 4, 5, 3, 6, 4, 3, 1, 13, 5, 5, 3, 5, 1, 1, 1, 22];
-export const versionBiblia = (code) => BIBLE_VERSIONS.find((v) => v.code === code) || null;
+export const versionBiblia = (code) => bibliasIglesiaActuales.find((v) => v.code === code) || BIBLE_VERSIONS.find((v) => v.code === code) || null;
 export function librosDesdeGetbible(data) {
   const lista = Array.isArray(data) ? data : Object.values(data || {});
   return lista.map((b) => ({ bookid: Number(b.nr), name: b.name, chapters: CAPITULOS_POR_LIBRO[Number(b.nr) - 1] || 1 }))
@@ -338,6 +360,8 @@ const bibleBooksCache = {};
 // localmente — es un archivo chico (unos 66 nombres), así que basta con offlineCache. El texto de
 // cada capítulo, mucho más pesado, vive aparte en IndexedDB (ver bibleOfflineStore.js).
 export async function fetchBibleBooks(version) {
+  const propia = versionBiblia(version);
+  if (propia?.fuente === "iglesia") return propia.libros;
   if (bibleBooksCache[version]) return bibleBooksCache[version];
   try {
     const res = await fetch(urlLibros(version));
@@ -355,6 +379,23 @@ export async function fetchBibleBooks(version) {
 }
 
 export async function fetchBibleChapter(version, bookId, chapter) {
+  const propia = versionBiblia(version);
+  if (propia?.fuente === "iglesia") {
+    // Guardado sin conexión con el id de la Biblia (no con la abreviatura): si el admin la reemplaza por
+    // otro archivo, nadie se queda leyendo los versículos viejos.
+    const clave = `IGL-${propia.bibliaId}`;
+    try {
+      // Import diferido: así este archivo (que usan casi todas las pantallas) no carga Supabase solo por esto.
+      const { capituloBibliaIglesia } = await import("../lib/bibliasIglesia.js");
+      const data = await capituloBibliaIglesia(propia.bibliaId, bookId, chapter);
+      if (data.length) guardarCapituloOffline(clave, bookId, chapter, data);
+      return data;
+    } catch (e) {
+      const offline = await obtenerCapituloOffline(clave, bookId, chapter);
+      if (offline) return offline;
+      throw e;
+    }
+  }
   try {
     const res = await fetch(urlCapitulo(version, bookId, chapter));
     if (!res.ok) throw new Error("No se pudo cargar el capítulo.");

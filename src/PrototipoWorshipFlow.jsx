@@ -11,6 +11,7 @@ import { registrarLineaBaseEventos, listEventosCompletos, sincronizarServiceOrde
 import { registrarLineaBaseMinisterios, listMinisteriosCompletos, sincronizarPlan, sincronizarRecursos, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarPermisosLider, actualizarColorMinisterio, eliminarMinisterio } from "./lib/ministerios.js";
 import { listCancionesCompletas, updateCancion, guardarLetraCancion, guardarCancionDesdeEditor, deleteCancion } from "./lib/canciones.js";
 import { saveCache, loadCache } from "./lib/offlineCache.js";
+import { listarBibliasIglesia } from "./lib/bibliasIglesia.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { palabrasPorParteSegun, expandirVersiculosLargos, reorganizarLetra } from "./lib/dividirTexto.js";
 import { insertarEnBloque } from "./lib/ordenCulto.js";
@@ -39,7 +40,7 @@ import ImportarCancionesPdf from "./components/ImportarCancionesPdf.jsx";
 import BuscarCancionWeb from "./components/BuscarCancionWeb.jsx";
 import BosquejoWizard from "./components/BosquejoWizard.jsx";
 import { stripBibleSearchMarkup } from "./lib/textoBiblia.js";
-import { semitoneShift, transposeLine, CLASIFICACIONES_DEFAULT, fijarClasificacionesActuales, EVENTO_LIBRE, isWorshipBlock, serviceItemLabel, DEFAULT_COVERS, lideraBloque, nextMinistryChildId, misAsignacionesEnEvento, ModalShell, ghostToggleBtn, primaryBtn, fetchBibleChapter, fetchBibleBooks } from "./pantallas/compartido.jsx";
+import { semitoneShift, transposeLine, CLASIFICACIONES_DEFAULT, fijarClasificacionesActuales, fijarBibliasIglesia, EVENTO_LIBRE, isWorshipBlock, serviceItemLabel, DEFAULT_COVERS, lideraBloque, nextMinistryChildId, misAsignacionesEnEvento, ModalShell, ghostToggleBtn, primaryBtn, fetchBibleChapter, fetchBibleBooks } from "./pantallas/compartido.jsx";
 import { InicioView } from "./pantallas/inicio.jsx";
 import { SettingsView } from "./pantallas/ajustes.jsx";
 import { MinistriesList, MinistryDetail } from "./pantallas/ministerios.jsx";
@@ -248,6 +249,18 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // Clasificaciones de canción de ESTA iglesia (ver CLASIFICACIONES_DEFAULT).
   const clasificaciones = myIglesia.categoriasCanciones?.length ? myIglesia.categoriasCanciones : CLASIFICACIONES_DEFAULT;
   fijarClasificacionesActuales(clasificaciones);
+  // Biblias que importó esta iglesia (Zefania XML): salen primero en el selector de versión. Copia local
+  // para que sigan en la lista sin internet (sus capítulos ya leídos quedan guardados aparte).
+  useEffect(() => {
+    if (!perfil?.iglesia_id) return;
+    const clave = `biblias_iglesia_${perfil.iglesia_id}`;
+    const guardadas = loadCache(clave);
+    if (Array.isArray(guardadas)) fijarBibliasIglesia(guardadas);
+    const recargar = () => listarBibliasIglesia().then((filas) => { if (filas) { fijarBibliasIglesia(filas); saveCache(clave, filas); } }).catch(() => {});
+    recargar();
+    window.addEventListener("wf-biblias-iglesia", recargar);
+    return () => window.removeEventListener("wf-biblias-iglesia", recargar);
+  }, [perfil?.iglesia_id]);
   // Solo el Administrador real puede guardarlas (la RLS de iglesias exige usuarios.rol = 'admin').
   const guardarClasificaciones = async (lista) => {
     const { error } = await supabase.from("iglesias").update({ categorias_canciones: lista }).eq("id", perfil?.iglesia_id);

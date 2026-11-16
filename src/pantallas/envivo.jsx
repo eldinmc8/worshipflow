@@ -29,7 +29,7 @@ import PanelEscenario from "../components/PanelEscenario.jsx";
 import ImportarPresentacion from "../components/ImportarPresentacion.jsx";
 import CuentaRegresivaModal from "../components/CuentaRegresivaModal.jsx";
 import { cuentaPorMinutos } from "../lib/cuentaRegresiva.js";
-import { TYPE_META, ModalShell, addBtnStyle, inputStyle, primaryBtn, BIBLE_VERSIONS, LIVE_FONTS, LIVE_THEMES, iconGhost, LIVE_SOMBRAS, LIVE_POSICIONES, LIVE_ALINEACIONES, ElegirParteDelCulto, Field } from "./compartido.jsx";
+import { TYPE_META, ModalShell, addBtnStyle, inputStyle, primaryBtn, BIBLE_VERSIONS, versionBiblia, LIVE_FONTS, LIVE_THEMES, iconGhost, LIVE_SOMBRAS, LIVE_POSICIONES, LIVE_ALINEACIONES, ElegirParteDelCulto, Field } from "./compartido.jsx";
 import { BibleLivePanel } from "./biblia.jsx";
 import { MediaPicker, SlideModal, AvisoEnlaceVideo, VideoModal } from "./ventanas.jsx";
 import { avisoDeEnlace, tipoDeVideo } from "../lib/videoEnlace.js";
@@ -305,7 +305,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   // sobrevivan al cambiar de pestaña e ir a Estilo/Transmisión y volver a Biblia — y también en
   // localStorage (mismo mecanismo que offlineCache) para que sobrevivan a salir de "En vivo" del todo
   // (MultimediaControl se desmonta con la pestaña) o recargar la app a medio culto.
-  const [bibleVersion, setBibleVersion] = useState(() => { const v = loadCache("bible_version"); return BIBLE_VERSIONS.some((x) => x.code === v) ? v : BIBLE_VERSIONS[0].code; });
+  const [bibleVersion, setBibleVersion] = useState(() => { const v = loadCache("bible_version"); return versionBiblia(v) ? v : BIBLE_VERSIONS[0].code; });
   // Historial de versículos POR EVENTO (pedido de Eldin, 2026-10-11): solo los que se usaron en este
   // culto, no todos los de siempre. La consola se vuelve a montar al cambiar de evento (key).
   const claveHistorial = `bible_historial_${eventoId || "libre"}`;
