@@ -609,7 +609,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   const grupoCinta = (titulo, contenido, ultimo = false) => (
     <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 2, padding: "0 10px", borderRight: ultimo ? "none" : "1px solid var(--wf-divider)", flexShrink: 0 }}>
       <div style={{ display: "flex", gap: 2, alignItems: "center", flex: 1 }}>{contenido}</div>
-      <span style={{ fontSize: 10, color: "var(--wf-faint)", textAlign: "center", whiteSpace: "nowrap" }}>{titulo}</span>
+      <span style={{ fontSize: 10.5, color: "var(--wf-muted)", textAlign: "center", whiteSpace: "nowrap" }}>{titulo}</span>
     </div>
   );
   // Grupo de la cinta como dato (CintaAdaptable decide si va a la vista o en "Más opciones").
@@ -1061,7 +1061,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
 
 
   const botonFinalizar = (
-    <button data-tour="envivo-finalizar" onClick={finalizarConConfirmacion} disabled={!canEnd && !enPractica} title={canEnd || enPractica ? undefined : `Solo ${liveOwner} o un administrador puede finalizar esta transmisión`} style={{ fontSize: 11, fontWeight: 700, color: canEnd || enPractica ? "#C23B32" : "#B7BEC9", background: "transparent", border: `1px solid ${canEnd || enPractica ? "#C23B32" : "var(--wf-border)"}`, borderRadius: 20, padding: "3px 10px", cursor: canEnd || enPractica ? "pointer" : "not-allowed", flexShrink: 0 }}>{enPractica ? "Salir de la práctica" : "Finalizar evento"}</button>
+    <button data-tour="envivo-finalizar" onClick={finalizarConConfirmacion} disabled={!canEnd && !enPractica} title={canEnd || enPractica ? undefined : `Solo ${liveOwner} o un administrador puede finalizar esta transmisión`} style={{ fontSize: 11, fontWeight: 700, color: canEnd || enPractica ? "var(--wf-rojo)" : "var(--wf-faint)", background: "transparent", border: `1px solid ${canEnd || enPractica ? "var(--wf-rojo)" : "var(--wf-border)"}`, borderRadius: 20, padding: "3px 10px", cursor: canEnd || enPractica ? "pointer" : "not-allowed", flexShrink: 0 }}>{enPractica ? "Salir de la práctica" : "Finalizar evento"}</button>
   );
   // Franjas de estado, arriba de todo y en cualquier modo: práctica, pantalla en negro y proyección
   // cerrada. Que la consola diga en grande cuando algo no está normal.
@@ -1572,7 +1572,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           )}
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)", letterSpacing: 0.4, marginTop: 4 }}>SIGUIENTE</div>
           {cambiaDeElemento && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-brand-primary)", background: "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)", borderRadius: 10, padding: "6px 9px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-heading)", background: "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)", borderRadius: 10, padding: "6px 9px" }}>
               <ChevronRight size={14} /> <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Termina esto · al avanzar pasas a <b>{nombreSiguiente}</b></span>
             </div>
           )}
