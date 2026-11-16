@@ -39,6 +39,7 @@
   /* Azul de versículos como TEXTO y su fondo suave: en oscuro se aclaran para que se lean. */
   --wf-azul: #2F5FA8;
   --wf-azul-bg: #EAF0FA;
+  --wf-rojo: #C23B32;
   /* Colores DE MARCA (header/nav navy, botones/acentos naranja) — a propósito NO se redeclaran en
      [data-theme="dark"] más abajo: se quedan iguales en los dos temas (el navy del header, por
      ejemplo, nunca se aclara en modo oscuro). Por defecto son los de Jesús El Buen Pastor; cada
@@ -74,6 +75,7 @@
   --wf-active-text: #F0B86E;
   --wf-azul: #8DB4EE;
   --wf-azul-bg: #1E2C44;
+  --wf-rojo: #F0766C;
   /* Barras de desplazamiento oscuras: las del sistema salían blancas y brillantes sobre la consola. */
   scrollbar-color: #3A4556 transparent;
 }
