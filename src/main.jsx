@@ -15,6 +15,7 @@ import { leerPantallaDeUrl, leerEscenarioDeUrl } from './lib/enlacePantalla.js'
 import CrearIglesia from './CrearIglesia.jsx'
 import SitioWeb, { esRutaSitioWeb } from './SitioWeb.jsx'
 import { mostrarPortada } from './lib/portada.js'
+import { esAppInstalada } from './lib/pwaInstall.js'
 import { manifestDePantalla } from './lib/manifestPantalla.js'
 import { esFuenteDeTransmision } from './lib/pantallaCompleta.js'
 import ToastHost from './ToastHost.jsx'
@@ -43,7 +44,7 @@ const isCrearIglesia = new URLSearchParams(window.location.search).has('crear-ig
 // En worshipflowapp.com, "/" siempre muestra la página web; la app vive en app.worshipflowapp.com (ver lib/portada.js).
 const isSitioWeb = esRutaSitioWeb(window.location.pathname) || mostrarPortada({
   hostname: window.location.hostname, pathname: window.location.pathname, search: window.location.search,
-  hash: window.location.hash,
+  hash: window.location.hash, instalada: esAppInstalada(),
 })
 if (isPublicScreen || isEscenario || isConectarTv) {
   // Una pantalla de proyección/escenario nunca se recarga sola por una versión nueva (perdería la

@@ -14,8 +14,12 @@ export function direccionApp(hostname) {
   return esDominioPagina(hostname) ? URL_APP_PROPIA : "/";
 }
 
-export function mostrarPortada({ hostname, pathname, search = "", hash = "" }) {
+export function mostrarPortada({ hostname, pathname, search = "", hash = "", instalada = false }) {
   if (!esDominioPagina(hostname)) return false;
+  // App instalada (ícono en el celular o la computadora): siempre abre la app, nunca la página web
+  // (2026-11-17, iglesia que usa la app para la Biblia: quien la instaló desde worshipflowapp.com antes
+  // del cambio veía la página web, y "Abrir la app web" la sacaba al navegador).
+  if (instalada) return false;
   if (pathname !== "/" && pathname !== "") return false;
   const params = new URLSearchParams(search);
   // Regreso de un inicio de sesión o de un enlace de correo: lo maneja la app.

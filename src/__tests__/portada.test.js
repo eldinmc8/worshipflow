@@ -24,6 +24,10 @@ describe("portada en worshipflowapp.com", () => {
     expect(mostrarPortada({ ...base, pathname: "/tv" })).toBe(false);
     expect(mostrarPortada({ ...base, pathname: "/p/mi-iglesia" })).toBe(false);
   });
+
+  it("la app instalada siempre abre la app, aunque esté en worshipflowapp.com", () => {
+    expect(mostrarPortada({ ...base, instalada: true })).toBe(false);
+  });
 });
 
 describe("Abrir la app web", () => {

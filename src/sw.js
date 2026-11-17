@@ -1,4 +1,4 @@
-import { precacheAndRoute, createHandlerBoundToURL } from "workbox-precaching";
+import { precacheAndRoute, createHandlerBoundToURL, matchPrecache } from "workbox-precaching";
 import { registerRoute, NavigationRoute } from "workbox-routing";
 import { CacheFirst, StaleWhileRevalidate } from "workbox-strategies";
 import { ExpirationPlugin } from "workbox-expiration";
@@ -20,6 +20,22 @@ precacheAndRoute(self.__WB_MANIFEST);
 const ES_DOMINIO_PAGINA = ["worshipflowapp.com", "www.worshipflowapp.com"].includes(self.location.hostname);
 const PAGINA_WEB = [/^\/web(\/|\?|$)/, ...(ES_DOMINIO_PAGINA ? [/^\/$/] : [])];
 registerRoute(new NavigationRoute(createHandlerBoundToURL("index.html"), { denylist: PAGINA_WEB }));
+// Pero SIN internet la página web tampoco puede quedar en el error del navegador (2026-11-17: una
+// iglesia que proyecta la Biblia sin señal abría la app instalada desde worshipflowapp.com y salía la
+// página de "sin conexión" del navegador). Con internet se pide a la red como arriba; si no hay, sale la
+// app guardada — y la app instalada abre la app, no la página web (ver mostrarPortada en lib/portada.js).
+registerRoute(
+  ({ request, url }) => request.mode === "navigate" && PAGINA_WEB.some((r) => r.test(url.pathname + url.search)),
+  async ({ request }) => {
+    try {
+      return await fetch(request);
+    } catch (e) {
+      const guardada = await matchPrecache("index.html");
+      if (guardada) return guardada;
+      throw e;
+    }
+  }
+);
 // 2) Las letras tipográficas (Google Fonts): sin esto, una proyección recargada sin internet salía con
 //    una letra genérica. Se guardan la primera vez que se usan.
 registerRoute(

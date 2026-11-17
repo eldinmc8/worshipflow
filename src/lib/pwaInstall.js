@@ -43,3 +43,13 @@ export async function promptInstall() {
   notify();
   return outcome === "accepted";
 }
+
+// ¿Esta ventana es la app instalada (abierta desde su ícono) y no una pestaña del navegador?
+// display_override del manifest puede abrirla en "fullscreen", por eso se revisan los dos.
+export function esAppInstalada() {
+  try {
+    return ["standalone", "fullscreen", "minimal-ui"].some((m) => window.matchMedia(`(display-mode: ${m})`).matches) || window.navigator.standalone === true;
+  } catch {
+    return false;
+  }
+}
