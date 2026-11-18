@@ -1,5 +1,5 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { PRECIOS_PRUEBA, precios } from "../paddle-webhook/logica.ts";
+import { PRECIOS_PRUEBA, PRECIO_PRUEBA_REAL, precios } from "../paddle-webhook/logica.ts";
 
 // Suscripción de Paddle desde la app (pedido de Eldin, 2026-11-13), para que una iglesia que ya paga con
 // tarjeta no tenga que escribir por WhatsApp:
@@ -22,7 +22,7 @@ function json(payload: unknown, status = 200) {
 function precioDe(plan: string, periodo: string): string | null {
   const mapa = precios(Deno.env.get("PADDLE_PRECIOS"));
   const real = (Deno.env.get("PADDLE_API_KEY") ?? "").startsWith("pdl_live_");
-  const candidatos = Object.entries(mapa).filter(([id, p]) => p.plan === plan && p.periodo === periodo && (real ? !(id in PRECIOS_PRUEBA) : id in PRECIOS_PRUEBA));
+  const candidatos = Object.entries(mapa).filter(([id, p]) => p.plan === plan && p.periodo === periodo && id !== PRECIO_PRUEBA_REAL && (real ? !(id in PRECIOS_PRUEBA) : id in PRECIOS_PRUEBA));
   return candidatos[0]?.[0] ?? null;
 }
 

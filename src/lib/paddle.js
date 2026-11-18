@@ -14,20 +14,34 @@ export const PAGOS_SOLO_SUPER_ADMIN = true;
 export const entornoPaddle = (token = PADDLE_TOKEN) => (token.startsWith("test_") ? "sandbox" : "production");
 export const pagosConfigurados = (token = PADDLE_TOKEN) => token.startsWith("test_") || token.startsWith("live_");
 
-// Precios de Paddle por plan y periodo (los del sandbox; al pasar a cobros reales se cambian por los live).
-export const PRECIOS_PADDLE = {
+// Precios de Paddle por plan y periodo: los del modo de prueba (sandbox) y los reales (live, 2026-11-17). Se usan
+// los que corresponden al token. "prueba" = Iglesia mensual con 1 mes gratis (trial de Paddle, pide tarjeta).
+const PRECIOS_SANDBOX = {
   ministerio: { mensual: "pri_01m7b85590yd962hrysezw192r", anual: "pri_01m7b85rw9fear6kcqbhv526px" },
   crecimiento: { mensual: "pri_01m7b828dt7zexxkyg8getyr7e", anual: "pri_01m7b838djdpz4xdjpk1kmjtty" },
   iglesia: { mensual: "pri_01m7b7q5bw2gv796ykfaqj8k9t", anual: "pri_01m7b7rr1caa03yk2fdtpb66nj" },
 };
+const PRECIOS_LIVE = {
+  ministerio: { mensual: "pri_01m7p4n151m6z06qrwqjxf31dq", anual: "pri_01m7p4p77yaepcd2kw0415nwks" },
+  crecimiento: { mensual: "pri_01m7p5198wc2nrbcpp3c72hnxt", anual: "pri_01m7p52nepd48n18gcm3wm8bnt" },
+  iglesia: { mensual: "pri_01m7p57kacjcsmn0db54164mr6", anual: "pri_01m7p58m4pvxf9cvxd5kgabzs7", prueba: "PENDIENTE" },
+};
+export const preciosPaddle = (token = PADDLE_TOKEN) => (entornoPaddle(token) === "sandbox" ? PRECIOS_SANDBOX : PRECIOS_LIVE);
+export const PRECIOS_PADDLE = preciosPaddle();
+export const DIAS_PRUEBA_TARJETA = 30;
 
-export const precioPaddle = (plan, periodo) => PRECIOS_PADDLE[plan]?.[periodo] ?? null;
+export const precioPaddle = (plan, periodo, token = PADDLE_TOKEN) => {
+  const id = preciosPaddle(token)[plan]?.[periodo] ?? null;
+  return id && id.startsWith("pri_") ? id : null;
+};
+// ¿Se puede ofrecer el mes gratis con tarjeta? (hace falta el precio con trial configurado en Paddle)
+export const pruebaConTarjetaLista = (token = PADDLE_TOKEN) => pagosConfigurados(token) && !!precioPaddle("iglesia", "prueba", token);
 
 export const URL_PAGO = "https://worshipflowapp.com/web/pagar";
 export const URL_APP = "https://app.worshipflowapp.com/";
 
-export function enlacePago({ plan, anual, iglesiaId, correo }) {
-  const p = new URLSearchParams({ plan, periodo: anual ? "anual" : "mensual", iglesia: iglesiaId || "" });
+export function enlacePago({ plan, anual, prueba = false, iglesiaId, correo }) {
+  const p = new URLSearchParams({ plan: prueba ? "iglesia" : plan, periodo: prueba ? "prueba" : anual ? "anual" : "mensual", iglesia: iglesiaId || "" });
   if (correo) p.set("correo", correo);
   return `${URL_PAGO}?${p.toString()}`;
 }

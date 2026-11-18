@@ -608,7 +608,8 @@ function Pagar() {
   };
   useEffect(() => { if (estado === "cargando") abrir(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const precio = plan ? (pedido.periodo === "anual" ? `$${plan.precioAnual} al año` : `$${plan.precio} al mes`) : "";
+  const prueba = pedido?.periodo === "prueba";
+  const precio = plan ? (prueba ? `1 mes gratis, después $${plan.precio} al mes` : pedido.periodo === "anual" ? `$${plan.precioAnual} al año` : `$${plan.precio} al mes`) : "";
   return (
     <Legal ruta="/web/pagar" titulo={estado === "listo" ? "¡Gracias!" : "Pagar tu plan"}>
       {estado === "invalido" ? (
@@ -618,13 +619,18 @@ function Pagar() {
         </>
       ) : estado === "listo" ? (
         <>
-          <p>Recibimos tu pago del plan <strong>{plan.nombre}</strong> ({precio}). En unos segundos tu iglesia ya tiene el plan activo; si la app ya estaba abierta, ciérrala y vuelve a abrirla.</p>
+          {prueba ? (
+            <p>¡Listo! Empezó tu <strong>mes gratis del plan {plan.nombre}</strong>. En unos segundos tu iglesia ya lo tiene activo; si la app ya estaba abierta, ciérrala y vuelve a abrirla. Al terminar el mes se cobran ${plan.precio} al mes, salvo que canceles antes desde <strong>Tu plan → Administrar mi suscripción</strong>.</p>
+          ) : (
+            <p>Recibimos tu pago del plan <strong>{plan.nombre}</strong> ({precio}). En unos segundos tu iglesia ya tiene el plan activo; si la app ya estaba abierta, ciérrala y vuelve a abrirla.</p>
+          )}
           <p>Paddle te mandó el recibo por correo. Desde ese correo también puedes cancelar o pedir un reembolso.</p>
           <p><Boton href={URL_APP} mismaPestana>Volver a WorshipFlow</Boton></p>
         </>
       ) : (
         <>
           <p>Plan <strong>{plan.nombre}</strong> · {precio}. El pago lo procesa <strong>Paddle.com</strong>, nuestro revendedor oficial, de forma segura.</p>
+          {prueba && <p>Hoy no se te cobra nada: pedimos tu tarjeta para que, al terminar el mes, la suscripción siga sin interrupciones. Si cancelas antes de que termine, no se te cobra.</p>}
           {error && <p style={{ color: "#C23B32" }}>{error}</p>}
           <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Boton onClick={abrir}>{estado === "cerrado" || estado === "error" ? "Volver a abrir el pago" : "Abrir el pago"}</Boton>
