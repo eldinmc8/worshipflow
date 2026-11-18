@@ -86,7 +86,7 @@ function Logo({ claro, tamano = 32 }) {
 function BarraAviso() {
   return (
     <div style={{ background: OSCURO, color: "#fff", padding: "10px 16px", textAlign: "center", fontSize: 12.5, fontWeight: 500, lineHeight: 1.5 }}>
-      Cada iglesia nueva tiene 14 días del plan Iglesia completo. Sin tarjeta.{" "}
+      Prueba el plan Iglesia 1 mes gratis.{" "}
       <Enlace ruta="/web/precios" style={{ color: NARANJA, fontWeight: 700 }}>Ver planes →</Enlace>
     </div>
   );
@@ -203,7 +203,7 @@ const PREGUNTAS = [
   ["¿Puedo cancelar cuando quiera?", "Sí. Cancelas cuando quieras y no se te vuelve a cobrar. Además, tienes 14 días después de cualquier pago para pedir el reembolso completo."],
   ["¿Puedo cambiar de plan?", "Sí, cuando quieras. Si bajas de plan no se borra nada: lo que pase del límite queda guardado, solo no se puede agregar más."],
   ["¿Cómo pago?", "Por ahora con transferencia o PayPal: escríbenos por WhatsApp y activamos tu plan. Pronto también con tarjeta directo en la app."],
-  ["¿Hay prueba gratis?", "Sí. Cada iglesia nueva tiene 14 días del plan Iglesia completo. Después sigue gratis en el plan Gratis si no elige un plan de pago."],
+  ["¿Hay prueba gratis?", "Sí. Cada iglesia nueva puede probar el plan Iglesia 1 mes gratis registrando su tarjeta; si cancela antes de que termine el mes, no se le cobra nada. Y si no quiere poner tarjeta, puede usar el plan Gratis sin límite de tiempo."],
 ];
 
 // Maqueta de la consola en vivo (ilustración, no la app real). La letra es de un himno de dominio público.
@@ -262,7 +262,7 @@ function Inicio() {
               <Boton href={URL_APP} mismaPestana tipo="oscuro" grande>Abrir la app web</Boton>
               <Boton ruta="/web/precios" tipo="texto" grande>Ver planes →</Boton>
             </div>
-            <span style={{ fontSize: 13, color: SUAVE }}>14 días con todo incluido · Sin tarjeta · Funciona en el navegador</span>
+            <span style={{ fontSize: 13, color: SUAVE }}>Plan Gratis para siempre · 1 mes gratis del plan Iglesia · Funciona en el navegador</span>
           </div>
           <div style={{ flex: "1 1 480px", minWidth: 0 }}><MaquetaEnVivo /></div>
         </section>
@@ -350,7 +350,7 @@ function Inicio() {
           </div>
         </section>
 
-        <LlamadoFinal titulo="Empieza gratis." texto="14 días con todo incluido. Sin tarjeta." />
+        <LlamadoFinal titulo="Empieza gratis." texto="Plan Gratis para siempre, o 1 mes gratis del plan Iglesia." />
       </main>
       <Pie />
     </>
@@ -425,6 +425,11 @@ function Precios() {
                         <Check size={16} color={TINTA} strokeWidth={2.2} style={{ flexShrink: 0, marginTop: 2 }} /> {t}
                       </div>
                     ))}
+                    {(p.noIncluye || []).map((t) => (
+                      <div key={t} style={{ display: "flex", gap: 9, fontSize: 14, lineHeight: 1.45, color: SUAVE }}>
+                        <X size={16} strokeWidth={2.2} style={{ flexShrink: 0, marginTop: 2 }} /> {t}
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
@@ -461,7 +466,7 @@ function Precios() {
           </div>
         </section>
 
-        <LlamadoFinal gris titulo="Prueba el plan Iglesia 14 días." texto="Después sigue gratis si no eliges un plan de pago. Sin tarjeta." />
+        <LlamadoFinal gris titulo="Prueba el plan Iglesia 1 mes gratis." texto="Cancela cuando quieras antes de que termine el mes y no se te cobra nada." />
       </main>
       <Pie />
     </>
