@@ -165,4 +165,18 @@ describe("planes de suscripción", () => {
     await actuarComo(db, ADMIN);
     expect((await sql("select public.mi_plan() as p")).rows[0].p.limites.canciones).toBeNull();
   });
+
+  it("la prueba con tarjeta se ofrece una sola vez y no a iglesias con plan Iglesia sin vencimiento", async () => {
+    await ponerPlan("gratis");
+    await actuarComo(db, ADMIN);
+    let p = (await sql("select public.mi_plan() as p")).rows[0].p;
+    expect(p.prueba_disponible).toBe(true);
+    expect(p.creada).toBeTruthy();
+    await comoServidor();
+    await sql("update public.iglesias set prueba_usada = true where id = $1", [IG]);
+    await actuarComo(db, ADMIN);
+    expect((await sql("select public.mi_plan() as p")).rows[0].p.prueba_disponible).toBe(false);
+    await actuarComo(db, ELDIN);
+    expect((await sql("select public.mi_plan() as p")).rows[0].p.prueba_disponible).toBe(false);
+  });
 });

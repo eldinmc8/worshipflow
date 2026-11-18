@@ -12,13 +12,25 @@ export const PRECIOS_PRUEBA: Record<string, { plan: string; periodo: string }> =
   pri_01m7b7q5bw2gv796ykfaqj8k9t: { plan: "iglesia", periodo: "mensual" },
   pri_01m7b7rr1caa03yk2fdtpb66nj: { plan: "iglesia", periodo: "anual" },
 };
+// Precios del modo real (Live, 2026-11-17). "prueba" = Iglesia mensual con 1 mes gratis (trial de Paddle):
+// es la oferta de las iglesias nuevas; al terminar el mes se cobra como Iglesia mensual.
+export const PRECIOS_REALES: Record<string, { plan: string; periodo: string }> = {
+  pri_01m7p4n151m6z06qrwqjxf31dq: { plan: "ministerio", periodo: "mensual" },
+  pri_01m7p4p77yaepcd2kw0415nwks: { plan: "ministerio", periodo: "anual" },
+  pri_01m7p5198wc2nrbcpp3c72hnxt: { plan: "crecimiento", periodo: "mensual" },
+  pri_01m7p52nepd48n18gcm3wm8bnt: { plan: "crecimiento", periodo: "anual" },
+  pri_01m7p57kacjcsmn0db54164mr6: { plan: "iglesia", periodo: "mensual" },
+  pri_01m7p58m4pvxf9cvxd5kgabzs7: { plan: "iglesia", periodo: "anual" },
+};
+// Iglesia mensual con 1 mes gratis (trial). Cuenta como Iglesia mensual, pero nunca se usa para cambiar de plan.
+export const PRECIO_PRUEBA_REAL = "pri_01m7pbervbwqyafheyppmyn6pk";
 const PLANES_VALIDOS = new Set(["ministerio", "crecimiento", "iglesia"]);
 
 export function precios(extra?: string | null): Record<string, { plan: string; periodo: string }> {
   try {
-    return { ...PRECIOS_PRUEBA, ...JSON.parse(extra || "{}") };
+    return { ...PRECIOS_PRUEBA, ...PRECIOS_REALES, [PRECIO_PRUEBA_REAL]: { plan: "iglesia", periodo: "mensual" }, ...JSON.parse(extra || "{}") };
   } catch {
-    return PRECIOS_PRUEBA;
+    return { ...PRECIOS_PRUEBA, ...PRECIOS_REALES, [PRECIO_PRUEBA_REAL]: { plan: "iglesia", periodo: "mensual" } };
   }
 }
 
@@ -55,6 +67,8 @@ export function cambiosPorSuscripcion(sub: any, mapa = precios()): Record<string
   const intervalo = item?.price?.billing_cycle?.interval;
   const periodo = conocido?.periodo ?? (intervalo === "year" ? "anual" : intervalo === "month" ? "mensual" : null);
   const base: Record<string, unknown> = {
+    // Cualquier suscripción (con o sin prueba) gasta la única prueba gratis de la iglesia.
+    prueba_usada: true,
     paddle_suscripcion_id: sub.id,
     cliente_pago_id: sub.customer_id ?? null,
     pago_estado: sub.scheduled_change?.action === "cancel" ? "cancela_al_final" : sub.status,
@@ -64,7 +78,9 @@ export function cambiosPorSuscripcion(sub: any, mapa = precios()): Record<string
     case "trialing": {
       if (!plan || !PLANES_VALIDOS.has(plan)) return null;
       const fin = sub.current_billing_period?.ends_at;
-      return { ...base, plan, plan_periodo: periodo, en_prueba: false, plan_vence: fin ? masDias(fin, GRACIA_DIAS) : null };
+      // En prueba (trialing) el periodo actual ES el mes gratis: vence al terminar (+ gracia) y la app muestra
+      // "Prueba, te quedan X días". Al primer cobro llega "active" y se quita la marca de prueba.
+      return { ...base, plan, plan_periodo: periodo, en_prueba: sub.status === "trialing", plan_vence: fin ? masDias(fin, GRACIA_DIAS) : null };
     }
     case "past_due":
       // Sigue con su plan hasta el fin del periodo pagado + gracia (ya guardado); solo se marca el estado.

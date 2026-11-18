@@ -117,7 +117,12 @@ Deno.serve(async (req: Request) => {
     for (let intento = 0; intento < 20 && !iglesia; intento++) {
       const slug = intento === 0 ? base : `${base}-${intento + 1}`;
       const { data, error } = await admin
-        .from("iglesias").insert({ nombre: iglesiaNombre, slug, zona_horaria: zonaHoraria }).select("id").single();
+        .from("iglesias")
+        // Prueba con tarjeta (2026-11-17): arranca en Gratis y la app le ofrece 1 mes gratis del plan Iglesia
+        // poniendo su tarjeta (Paddle). Si el código es de Fundadora, el trigger fundadora_por_codigo la pasa a
+        // Iglesia sin vencimiento justo después.
+        .insert({ nombre: iglesiaNombre, slug, zona_horaria: zonaHoraria, plan: "gratis", plan_vence: null, en_prueba: false })
+        .select("id").single();
       if (!error) { iglesia = data; break; }
       if (error.code !== "23505") return await fallar("No se pudo crear la iglesia: " + error.message, 400);
       // 23505 = slug duplicado -- se reintenta con el siguiente sufijo, cualquier otro error corta de una.

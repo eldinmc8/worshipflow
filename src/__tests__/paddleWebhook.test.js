@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createHmac } from "node:crypto";
-import { firmaValida, cambiosPorSuscripcion, precios } from "../../supabase/functions/paddle-webhook/logica.ts";
+import { firmaValida, cambiosPorSuscripcion, precios, PRECIOS_PRUEBA, PRECIOS_REALES, PRECIO_PRUEBA_REAL } from "../../supabase/functions/paddle-webhook/logica.ts";
 
 // Avisos de Paddle (2026-11-13): sin firma válida no se toca nada, y cada estado cambia el plan como toca.
 const SECRETO = "pdl_ntfset_prueba_secreto";
@@ -34,11 +34,17 @@ describe("cambios del plan según la suscripción", () => {
       plan_vence: "2026-12-16T00:00:00.000Z", paddle_suscripcion_id: "sub_1", cliente_pago_id: "ctm_1", pago_estado: "active",
     });
   });
-  it("los seis precios de prueba están mapeados a su plan y periodo", () => {
-    const mapa = precios();
-    expect(Object.values(mapa).map((p) => `${p.plan}-${p.periodo}`).sort()).toEqual([
-      "crecimiento-anual", "crecimiento-mensual", "iglesia-anual", "iglesia-mensual", "ministerio-anual", "ministerio-mensual",
-    ]);
+  it("los precios de prueba y los reales están mapeados a su plan y periodo", () => {
+    const esperado = ["crecimiento-anual", "crecimiento-mensual", "iglesia-anual", "iglesia-mensual", "ministerio-anual", "ministerio-mensual"];
+    expect(Object.values(PRECIOS_PRUEBA).map((p) => `${p.plan}-${p.periodo}`).sort()).toEqual(esperado);
+    expect(Object.values(PRECIOS_REALES).map((p) => `${p.plan}-${p.periodo}`).sort()).toEqual(esperado);
+    expect(precios()[PRECIO_PRUEBA_REAL]).toEqual({ plan: "iglesia", periodo: "mensual" });
+  });
+  it("en prueba (trialing): plan Iglesia, marcada en prueba y gasta la prueba; al primer cobro se quita la marca", () => {
+    const enPrueba = cambiosPorSuscripcion(sub({ status: "trialing", items: [{ price: { id: "pri_01m7p57kacjcsmn0db54164mr6", billing_cycle: { interval: "month" } } }] }));
+    expect(enPrueba).toMatchObject({ plan: "iglesia", en_prueba: true, prueba_usada: true });
+    expect(cambiosPorSuscripcion(sub()).en_prueba).toBe(false);
+    expect(cambiosPorSuscripcion(sub({ status: "canceled" })).prueba_usada).toBe(true);
   });
   it("precio desconocido: usa el plan del producto; si no hay plan válido, no cambia nada", () => {
     const otro = { price: { id: "pri_x", billing_cycle: { interval: "year" } }, product: { custom_data: { plan: "iglesia" } } };

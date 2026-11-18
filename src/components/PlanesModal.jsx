@@ -12,7 +12,7 @@ import { WHATSAPP_SOPORTE } from "../lib/soporte.js";
 import { supabase, callUsersFunction } from "../lib/supabaseClient.js";
 import { confirmDialog } from "../lib/confirm.js";
 import { showToast } from "../lib/toast.js";
-import { pagosConfigurados, PAGOS_SOLO_SUPER_ADMIN, enlacePago } from "../lib/paddle.js";
+import { pagosConfigurados, PAGOS_SOLO_SUPER_ADMIN, enlacePago, pruebaConTarjetaLista } from "../lib/paddle.js";
 
 function Medidor({ label, usados, limite }) {
   const pct = limite == null ? 0 : Math.min(100, Math.round((usados / Math.max(limite, 1)) * 100));
@@ -43,6 +43,8 @@ export function PlanesModal({ onClose, teamName }) {
     if (PAGOS_SOLO_SUPER_ADMIN) supabase.rpc?.("soy_super_admin").then(({ data }) => setSuperAdmin(!!data)).catch(() => {});
   }, []);
   const puedePagar = pagosConfigurados() && !!plan?.soy_admin && !!plan?.iglesia_id && !plan?.tiene_suscripcion && (!PAGOS_SOLO_SUPER_ADMIN || superAdmin);
+  // Mes gratis del plan Iglesia con tarjeta (2026-11-17): una sola vez por iglesia, no para Fundadoras.
+  const ofrecerPrueba = puedePagar && !!plan?.prueba_disponible && pruebaConTarjetaLista();
   // Iglesia que ya paga con tarjeta: cambia de plan o administra su suscripción sin escribir por WhatsApp.
   const conSuscripcion = !!plan?.tiene_suscripcion && !!plan?.soy_admin;
   const [ocupado, setOcupado] = useState(false);
@@ -97,6 +99,15 @@ export function PlanesModal({ onClose, teamName }) {
   return (
     <ModalShell title="Tu plan" icon={Crown} color="var(--wf-brand-accent)" onClose={onClose} alto>
       <div style={{ flex: 1, overflowY: "auto", margin: "0 -4px", padding: "0 4px" }}>
+        {ofrecerPrueba && (
+          <div style={{ background: "linear-gradient(135deg, #16324F, #2F5FA8)", color: "#fff", borderRadius: 16, padding: "14px 16px", marginBottom: 12 }}>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>Prueba el plan Iglesia 1 mes gratis</div>
+            <div style={{ fontSize: 12.5, opacity: 0.9, marginTop: 4, lineHeight: 1.45 }}>Todo WorshipFlow, sin límites, durante 30 días. Pones tu tarjeta y hoy no se cobra nada; al terminar el mes sigue a ${planPorId("iglesia").precio} al mes. Cancela cuando quieras antes y no se te cobra.</div>
+            <a href={enlacePago({ plan: "iglesia", prueba: true, iglesiaId: plan.iglesia_id, correo })} style={{ display: "inline-block", marginTop: 10, background: "#E8821E", color: "#fff", textDecoration: "none", fontWeight: 800, fontSize: 13.5, borderRadius: 12, padding: "9px 14px" }}>
+              Empezar mi mes gratis
+            </a>
+          </div>
+        )}
         {plan && (
           <div style={{ background: "var(--wf-bg)", borderRadius: 14, padding: 14, marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
@@ -185,5 +196,14 @@ export function PlanesModal({ onClose, teamName }) {
 export default function PlanesHost() {
   const [abierto, setAbierto] = useState(false);
   useEffect(() => onAbrirPlanes(() => setAbierto(true)), []);
+  // Iglesia recién creada (menos de 3 días) que todavía puede tomar el mes gratis: se le muestra la oferta una vez.
+  const plan = usePlan();
+  useEffect(() => {
+    if (!plan?.prueba_disponible || !plan?.soy_admin || !pruebaConTarjetaLista() || PAGOS_SOLO_SUPER_ADMIN) return;
+    if (!plan.creada || Date.now() - new Date(plan.creada).getTime() > 3 * 86400000) return;
+    const clave = `wf-oferta-prueba-${plan.iglesia_id}`;
+    try { if (localStorage.getItem(clave)) return; localStorage.setItem(clave, "1"); } catch { return; }
+    setAbierto(true);
+  }, [plan?.prueba_disponible, plan?.soy_admin, plan?.creada, plan?.iglesia_id]);
   return abierto ? <PlanesModal onClose={() => setAbierto(false)} /> : null;
 }
