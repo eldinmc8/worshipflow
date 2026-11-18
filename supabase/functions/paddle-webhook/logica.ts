@@ -23,7 +23,7 @@ export const PRECIOS_REALES: Record<string, { plan: string; periodo: string }> =
   pri_01m7p58m4pvxf9cvxd5kgabzs7: { plan: "iglesia", periodo: "anual" },
 };
 // Iglesia mensual con 1 mes gratis (trial). Cuenta como Iglesia mensual, pero nunca se usa para cambiar de plan.
-export const PRECIO_PRUEBA_REAL = "PENDIENTE";
+export const PRECIO_PRUEBA_REAL = "pri_01m7pbervbwqyafheyppmyn6pk";
 const PLANES_VALIDOS = new Set(["ministerio", "crecimiento", "iglesia"]);
 
 export function precios(extra?: string | null): Record<string, { plan: string; periodo: string }> {

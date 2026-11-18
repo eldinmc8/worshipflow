@@ -24,7 +24,7 @@ const PRECIOS_SANDBOX = {
 const PRECIOS_LIVE = {
   ministerio: { mensual: "pri_01m7p4n151m6z06qrwqjxf31dq", anual: "pri_01m7p4p77yaepcd2kw0415nwks" },
   crecimiento: { mensual: "pri_01m7p5198wc2nrbcpp3c72hnxt", anual: "pri_01m7p52nepd48n18gcm3wm8bnt" },
-  iglesia: { mensual: "pri_01m7p57kacjcsmn0db54164mr6", anual: "pri_01m7p58m4pvxf9cvxd5kgabzs7", prueba: "PENDIENTE" },
+  iglesia: { mensual: "pri_01m7p57kacjcsmn0db54164mr6", anual: "pri_01m7p58m4pvxf9cvxd5kgabzs7", prueba: "pri_01m7pbervbwqyafheyppmyn6pk" },
 };
 export const preciosPaddle = (token = PADDLE_TOKEN) => (entornoPaddle(token) === "sandbox" ? PRECIOS_SANDBOX : PRECIOS_LIVE);
 export const PRECIOS_PADDLE = preciosPaddle();
