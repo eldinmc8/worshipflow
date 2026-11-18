@@ -5,7 +5,7 @@
 // paddle-suscripcion) y "Administrar mi suscripción" abre el portal de Paddle (tarjeta, recibos, cancelar).
 // "Quiero este plan" (WhatsApp) sigue para pagos por transferencia: el super admin activa el plan desde la consola.
 import { useEffect, useState } from "react";
-import { Crown, Check } from "lucide-react";
+import { Crown, Check, X } from "lucide-react";
 import { ModalShell } from "../pantallas/compartido.jsx";
 import { PLANES, planPorId, usePlan, recargarPlan, diasRestantes, onAbrirPlanes } from "../lib/planes.js";
 import { WHATSAPP_SOPORTE } from "../lib/soporte.js";
@@ -148,6 +148,11 @@ export function PlanesModal({ onClose, teamName }) {
               {p.incluye.map((t) => (
                 <div key={t} style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 12.5, marginBottom: 3 }}>
                   <Check size={14} color={p.color} style={{ flexShrink: 0, marginTop: 2 }} /> {t}
+                </div>
+              ))}
+              {(p.noIncluye || []).map((t) => (
+                <div key={t} style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 12.5, marginBottom: 3, color: "var(--wf-muted)" }}>
+                  <X size={14} style={{ flexShrink: 0, marginTop: 2 }} /> {t}
                 </div>
               ))}
               {esActual ? (

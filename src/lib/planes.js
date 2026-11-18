@@ -8,7 +8,8 @@ export const PLANES = [
   {
     id: "gratis", nombre: "Gratis", precio: 0, precioAnual: 0, color: "#5661B3",
     resumen: "Para empezar a proyectar el domingo",
-    incluye: ["Hasta 5 miembros", "Biblia en todas las versiones", "Pantalla de escenario (teleprompter)", "Eventos y setlist", "Proyección en vivo", "Temas de color y tipos de letra", "5 letras animadas básicas", "Hasta 20 canciones", "1 ministerio", "Asistente: 5 mensajes al día"],
+    incluye: ["Hasta 5 miembros y 20 canciones", "Proyección en vivo con Biblia", "Eventos y setlist", "5 letras animadas básicas"],
+    noIncluye: ["Modo Músico (acordes y auto-avance)", "Todas las letras animadas y fondos en movimiento", "Plantillas de eventos", "Importar PowerPoint y PDF", "Modo Predicar", "Logo, imagen o video propio de fondo", "Más de 1 ministerio"],
   },
   {
     id: "ministerio", nombre: "Ministerio", precio: 9.99, precioAnual: 99, color: "#1F8A73",
