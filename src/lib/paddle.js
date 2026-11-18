@@ -6,10 +6,10 @@
 // Quien sube el plan es el aviso de Paddle (Edge Function paddle-webhook), no esta página.
 
 // Token público de Paddle.js. "test_..." = modo de prueba (sandbox); "live_..." = cobros reales.
-export const PADDLE_TOKEN = "test_3ede9acf30e95270f0bbb341df6";
+export const PADDLE_TOKEN = "live_265ee5f7cd9cd5db55861ec8e1a";
 
 // Mientras se prueba con el sandbox, solo el super admin ve el botón de pagar con tarjeta.
-export const PAGOS_SOLO_SUPER_ADMIN = true;
+export const PAGOS_SOLO_SUPER_ADMIN = false;
 
 export const entornoPaddle = (token = PADDLE_TOKEN) => (token.startsWith("test_") ? "sandbox" : "production");
 export const pagosConfigurados = (token = PADDLE_TOKEN) => token.startsWith("test_") || token.startsWith("live_");
