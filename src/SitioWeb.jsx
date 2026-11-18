@@ -43,6 +43,9 @@ export const esRutaSitioWeb = (path) => /^\/web(\/(precios|terminos|privacidad|r
 
 const whatsapp = (texto) => `https://wa.me/${WHATSAPP_SOPORTE}?text=${encodeURIComponent(texto)}`;
 const PEDIR_CODIGO = whatsapp("Hola, quiero probar WorshipFlow en mi iglesia. ¿Me pueden dar un código de invitación?");
+// "Elegir plan" (2026-11-18): el pago necesita saber de qué iglesia es, así que lleva a la app, que abre "Tu plan"
+// después de iniciar sesión (PlanesHost lee ?planes=1). Quien aún no tiene cuenta pide su código por WhatsApp.
+const ELEGIR_PLAN = `${URL_APP}${URL_APP.includes("?") ? "&" : "?"}planes=1`;
 
 function irA(ruta, e) {
   if (e) e.preventDefault();
@@ -401,7 +404,6 @@ function Precios() {
             {PLANES.map((p) => {
               const destacado = p.id === "ministerio";
               const gratis = p.precio === 0;
-              const mensaje = whatsapp(`Hola, quiero el plan ${p.nombre} de WorshipFlow (${anual ? `$${p.precioAnual} al año` : `$${p.precio} al mes`}).`);
               return (
                 <div key={p.id} style={{ border: destacado ? `2px solid ${NARANJA}` : `1px solid ${LINEA}`, borderRadius: 16, padding: destacado ? 25 : 26, display: "flex", flexDirection: "column", gap: 10, background: "#fff" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minHeight: 24 }}>
@@ -416,9 +418,12 @@ function Precios() {
                   <span style={{ fontSize: 12.5, color: SUAVE, minHeight: 18 }}>
                     {gratis ? "Sin tarjeta" : anual ? `Equivale a ${precioTexto(Math.round((p.precioAnual / 12) * 100) / 100)} al mes` : `o ${precioTexto(p.precioAnual)} al año`}
                   </span>
-                  <Boton href={gratis ? PEDIR_CODIGO : mensaje} tipo={destacado ? "principal" : gratis ? "suave" : "oscuro"} style={{ margin: "8px 0 6px", width: "100%" }}>
+                  <Boton href={gratis ? PEDIR_CODIGO : ELEGIR_PLAN} tipo={destacado ? "principal" : gratis ? "suave" : "oscuro"} style={{ margin: "8px 0 0", width: "100%" }}>
                     {gratis ? "Empezar gratis" : "Elegir plan"}
                   </Boton>
+                  <span style={{ fontSize: 12.5, color: SUAVE, textAlign: "center", minHeight: 18, marginBottom: 6 }}>
+                    {gratis ? "" : <>¿Aún no tienes cuenta? <a href={PEDIR_CODIGO} style={{ color: TINTA, textDecoration: "underline" }}>Pide tu código</a></>}
+                  </span>
                   <div style={{ borderTop: `1px solid ${NIEBLA}`, paddingTop: 16, display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
                     {p.incluye.map((t) => (
                       <div key={t} style={{ display: "flex", gap: 9, fontSize: 14, lineHeight: 1.45, color: TEXTO }}>

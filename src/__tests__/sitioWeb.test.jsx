@@ -51,3 +51,17 @@ describe("página de pago", () => {
     expect(screen.getAllByText("Abrir la app web").some((el) => el.closest("a")?.getAttribute("href") === "/")).toBe(true);
   });
 });
+
+// "Al darle pagar al plan sigue enviando a WhatsApp" (2026-11-18): "Elegir plan" lleva a la app con ?planes=1.
+describe("botón Elegir plan", () => {
+  it("los planes pagados llevan a la app (no a WhatsApp) y ofrecen pedir código a quien no tiene cuenta", () => {
+    abrir("/web/precios");
+    const botones = screen.getAllByText("Elegir plan").map((b) => b.closest("a"));
+    expect(botones.length).toBe(3);
+    botones.forEach((a) => {
+      expect(a.getAttribute("href")).toMatch(/[?&]planes=1$/);
+      expect(a.getAttribute("href")).not.toMatch(/wa\.me/);
+    });
+    expect(screen.getAllByText("Pide tu código").length).toBe(3);
+  });
+});

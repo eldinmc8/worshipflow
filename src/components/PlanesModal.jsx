@@ -192,12 +192,34 @@ export function PlanesModal({ onClose, teamName }) {
   );
 }
 
+export const CLAVE_PLANES_WEB = "wf-abrir-planes";
+
 // Montado una vez (main.jsx): abre la ventana cuando cualquier candado llama abrirPlanes().
 export default function PlanesHost() {
   const [abierto, setAbierto] = useState(false);
   useEffect(() => onAbrirPlanes(() => setAbierto(true)), []);
-  // Iglesia recién creada (menos de 3 días) que todavía puede tomar el mes gratis: se le muestra la oferta una vez.
+  // "Elegir plan" en la página web (2026-11-18) llega aquí con ?planes=1. Se guarda el pedido (sobrevive al inicio
+  // de sesión, incluso con Google) y se abre la ventana en cuanto se sepa que quien entró es administrador.
   const plan = usePlan();
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has("planes")) return;
+      sessionStorage.setItem(CLAVE_PLANES_WEB, "1");
+      url.searchParams.delete("planes");
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    } catch { /* sin almacenamiento: no pasa nada */ }
+  }, []);
+  useEffect(() => {
+    if (!plan) return;
+    try {
+      if (!sessionStorage.getItem(CLAVE_PLANES_WEB)) return;
+      sessionStorage.removeItem(CLAVE_PLANES_WEB);
+    } catch { return; }
+    if (plan.soy_admin) setAbierto(true);
+    else showToast("Solo el administrador de tu iglesia puede elegir el plan.");
+  }, [plan]);
+  // Iglesia recién creada (menos de 3 días) que todavía puede tomar el mes gratis: se le muestra la oferta una vez.
   useEffect(() => {
     if (!plan?.prueba_disponible || !plan?.soy_admin || !pruebaConTarjetaLista() || PAGOS_SOLO_SUPER_ADMIN) return;
     if (!plan.creada || Date.now() - new Date(plan.creada).getTime() > 3 * 86400000) return;
