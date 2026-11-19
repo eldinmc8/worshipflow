@@ -11,10 +11,9 @@ const labelStyle = { fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", ma
 const primaryBtn = { width: "100%", background: "#E8821E", border: "none", borderRadius: 8, padding: "11px", fontSize: 14, fontWeight: 700, color: "#16324F", cursor: "pointer" };
 
 
-// Puerta de alta para una iglesia NUEVA (Fase 4 del SaaS) — a propósito separada de Login.jsx y sin
-// ningún enlace visible desde ahí: se llega acá solo con la URL exacta (?crear-iglesia), que por ahora
-// Eldin comparte a mano con quien esté invitando a probar la app, no un botón público de "Registrarse"
-// (decisión explícita, 2026-09-30 — mismo motivo por el que Login.jsx ya no ofrece auto-registro).
+// Alta de una iglesia NUEVA (?crear-iglesia). Desde el lanzamiento (2026-11-18) el registro es abierto: la página
+// web y el inicio de sesión traen el botón "Crear mi iglesia". El código de invitación es opcional (Fundadoras y
+// enlaces de la consola, ?crear-iglesia&codigo=...).
 export default function CrearIglesia() {
   // El enlace que copia Eldin desde la consola ya trae el código (?crear-iglesia&codigo=...).
   const [codigoInvitacion, setCodigoInvitacion] = useState(() => {
@@ -81,8 +80,8 @@ export default function CrearIglesia() {
 
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
-            <span style={labelStyle}>Código de invitación</span>
-            <input required placeholder="El que te dio quien te invitó" value={codigoInvitacion} onChange={(e) => setCodigoInvitacion(e.target.value)} style={inputStyle} />
+            <span style={labelStyle}>Código de invitación (opcional)</span>
+            <input placeholder="Solo si te dimos uno" value={codigoInvitacion} onChange={(e) => setCodigoInvitacion(e.target.value)} style={inputStyle} />
           </div>
           <div>
             <span style={labelStyle}>Nombre de la iglesia</span>
@@ -106,7 +105,9 @@ export default function CrearIglesia() {
             <div style={{ marginTop: 8 }}><MedidorPassword password={adminPassword} /></div>
           </div>
           {error && <div style={{ fontSize: 12, color: "#C23B32" }}>{error}</div>}
+          <div style={{ fontSize: 12, color: "var(--wf-muted)", textAlign: "center" }}>Empiezas en el plan Gratis y puedes probar 30 días el plan Iglesia completo.</div>
           <button type="submit" disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.6 : 1, marginTop: 4 }}>{loading ? "Creando…" : "Crear mi iglesia"}</button>
+          <a href={window.location.origin + "/"} style={{ fontSize: 13, color: "var(--wf-muted)", textAlign: "center" }}>Ya tengo cuenta: iniciar sesión</a>
         </form>
       </div>
     </div>

@@ -42,7 +42,12 @@ const PAGINAS = [
 export const esRutaSitioWeb = (path) => /^\/web(\/(precios|terminos|privacidad|reembolsos|pagar))?\/?$/.test(path);
 
 const whatsapp = (texto) => `https://wa.me/${WHATSAPP_SOPORTE}?text=${encodeURIComponent(texto)}`;
-const PEDIR_CODIGO = whatsapp("Hola, quiero probar WorshipFlow en mi iglesia. ¿Me pueden dar un código de invitación?");
+// Registro abierto (2026-11-18): "Crear mi iglesia" lleva directo al alta en la app, sin pedir código.
+const CREAR_IGLESIA = `${URL_APP}${URL_APP.includes("?") ? "&" : "?"}crear-iglesia`;
+const ESCRIBENOS = whatsapp("Hola, tengo una pregunta sobre WorshipFlow.");
+// "Elegir plan" (2026-11-18): el pago necesita saber de qué iglesia es, así que lleva a la app, que abre "Tu plan"
+// después de iniciar sesión (PlanesHost lee ?planes=1). Quien aún no tiene cuenta crea su iglesia primero.
+const ELEGIR_PLAN = `${URL_APP}${URL_APP.includes("?") ? "&" : "?"}planes=1`;
 
 function irA(ruta, e) {
   if (e) e.preventDefault();
@@ -86,7 +91,7 @@ function Logo({ claro, tamano = 32 }) {
 function BarraAviso() {
   return (
     <div style={{ background: OSCURO, color: "#fff", padding: "10px 16px", textAlign: "center", fontSize: 12.5, fontWeight: 500, lineHeight: 1.5 }}>
-      Cada iglesia nueva tiene 14 días del plan Iglesia completo. Sin tarjeta.{" "}
+      Cada iglesia nueva puede probar 30 días gratis el plan Iglesia completo.{" "}
       <Enlace ruta="/web/precios" style={{ color: NARANJA, fontWeight: 700 }}>Ver planes →</Enlace>
     </div>
   );
@@ -109,7 +114,7 @@ function Encabezado({ ruta }) {
           </div>
           <div className="sw-escritorio" style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 14 }}>
             <a href={URL_APP} style={{ color: TINTA, textDecoration: "none", fontWeight: 500 }}>Abrir la app web</a>
-            <Boton href={PEDIR_CODIGO}>Probar gratis</Boton>
+            <Boton href={CREAR_IGLESIA} mismaPestana>Crear mi iglesia</Boton>
           </div>
           <button className="sw-celular" onClick={() => setMenu((v) => !v)} aria-label={menu ? "Cerrar menú" : "Abrir menú"} aria-expanded={menu}
             style={{ background: NIEBLA, border: "none", color: TINTA, borderRadius: 12, width: 44, height: 44, display: "none", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
@@ -121,7 +126,7 @@ function Encabezado({ ruta }) {
             <Enlace ruta="/web" style={{ padding: "12px 4px", color: TINTA }}>Inicio</Enlace>
             <Enlace ruta="/web/precios" style={{ padding: "12px 4px", color: TINTA }}>Precios</Enlace>
             <a href={URL_APP} style={{ color: TINTA, textDecoration: "none", padding: "12px 4px" }}>Abrir la app web</a>
-            <Boton href={PEDIR_CODIGO} grande style={{ marginTop: 6 }}><MessageCircle size={17} /> Probar gratis</Boton>
+            <Boton href={CREAR_IGLESIA} mismaPestana grande style={{ marginTop: 6 }}>Crear mi iglesia gratis</Boton>
           </div>
         )}
       </header>
@@ -192,7 +197,7 @@ const DISPOSITIVOS = [
 ];
 
 const PASOS = [
-  { titulo: "Pide tu código", texto: "Escríbenos por WhatsApp y te damos tu código de invitación para crear tu iglesia." },
+  { titulo: "Crea tu iglesia", texto: "Regístrate gratis en minutos, sin pedirle nada a nadie. Quedas como administrador." },
   { titulo: "Invita a tu equipo", texto: "Agrega a tus músicos, cantantes y técnicos. Cada uno ve sus roles y confirma." },
   { titulo: "Proyecta el domingo", texto: "Arma el setlist, conecta la pantalla y controla todo desde el celular." },
 ];
@@ -203,7 +208,7 @@ const PREGUNTAS = [
   ["¿Puedo cancelar cuando quiera?", "Sí. Cancelas cuando quieras y no se te vuelve a cobrar. Además, tienes 14 días después de cualquier pago para pedir el reembolso completo."],
   ["¿Puedo cambiar de plan?", "Sí, cuando quieras. Si bajas de plan no se borra nada: lo que pase del límite queda guardado, solo no se puede agregar más."],
   ["¿Cómo pago?", "Por ahora con transferencia o PayPal: escríbenos por WhatsApp y activamos tu plan. Pronto también con tarjeta directo en la app."],
-  ["¿Hay prueba gratis?", "Sí. Cada iglesia nueva tiene 14 días del plan Iglesia completo. Después sigue gratis en el plan Gratis si no elige un plan de pago."],
+  ["¿Hay prueba gratis?", "Sí. Cada iglesia nueva puede probar 30 días gratis el plan Iglesia completo. Para activar la prueba se registra una tarjeta; si cancelas antes de que terminen los 30 días, no se te cobra nada. Sin tarjeta puedes usar el plan Gratis para siempre."],
 ];
 
 // Maqueta de la consola en vivo (ilustración, no la app real). La letra es de un himno de dominio público.
@@ -258,11 +263,11 @@ function Inicio() {
               Proyecta letras y versículos, prepara el setlist, coordina a tu equipo y toca con acordes que avanzan solos. Desde el celular.
             </p>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <Boton href={PEDIR_CODIGO} grande><MessageCircle size={18} /> Pedir mi código</Boton>
+              <Boton href={CREAR_IGLESIA} mismaPestana grande>Crear mi iglesia gratis</Boton>
               <Boton href={URL_APP} mismaPestana tipo="oscuro" grande>Abrir la app web</Boton>
               <Boton ruta="/web/precios" tipo="texto" grande>Ver planes →</Boton>
             </div>
-            <span style={{ fontSize: 13, color: SUAVE }}>14 días con todo incluido · Sin tarjeta · Funciona en el navegador</span>
+            <span style={{ fontSize: 13, color: SUAVE }}>Plan Gratis para siempre · 30 días gratis del plan Iglesia · Funciona en el navegador</span>
           </div>
           <div style={{ flex: "1 1 480px", minWidth: 0 }}><MaquetaEnVivo /></div>
         </section>
@@ -350,7 +355,7 @@ function Inicio() {
           </div>
         </section>
 
-        <LlamadoFinal titulo="Empieza gratis." texto="14 días con todo incluido. Sin tarjeta." />
+        <LlamadoFinal titulo="Empieza gratis." texto="Crea tu iglesia en minutos y prueba 30 días el plan Iglesia completo." />
       </main>
       <Pie />
     </>
@@ -366,7 +371,8 @@ function LlamadoFinal({ titulo, texto, gris }) {
           <p style={{ margin: 0, fontSize: 18, color: SUAVE, lineHeight: 1.5 }}>{texto}</p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <Boton href={PEDIR_CODIGO} grande><MessageCircle size={18} /> Pedir mi código</Boton>
+          <Boton href={CREAR_IGLESIA} mismaPestana grande>Crear mi iglesia gratis</Boton>
+          <Boton href={ESCRIBENOS} tipo="texto" grande><MessageCircle size={18} /> ¿Dudas? Escríbenos</Boton>
           {!gris && <Boton ruta="/web/precios" tipo="texto" grande>Ver planes →</Boton>}
         </div>
       </div>
@@ -401,7 +407,6 @@ function Precios() {
             {PLANES.map((p) => {
               const destacado = p.id === "ministerio";
               const gratis = p.precio === 0;
-              const mensaje = whatsapp(`Hola, quiero el plan ${p.nombre} de WorshipFlow (${anual ? `$${p.precioAnual} al año` : `$${p.precio} al mes`}).`);
               return (
                 <div key={p.id} style={{ border: destacado ? `2px solid ${NARANJA}` : `1px solid ${LINEA}`, borderRadius: 16, padding: destacado ? 25 : 26, display: "flex", flexDirection: "column", gap: 10, background: "#fff" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minHeight: 24 }}>
@@ -416,9 +421,12 @@ function Precios() {
                   <span style={{ fontSize: 12.5, color: SUAVE, minHeight: 18 }}>
                     {gratis ? "Sin tarjeta" : anual ? `Equivale a ${precioTexto(Math.round((p.precioAnual / 12) * 100) / 100)} al mes` : `o ${precioTexto(p.precioAnual)} al año`}
                   </span>
-                  <Boton href={gratis ? PEDIR_CODIGO : mensaje} tipo={destacado ? "principal" : gratis ? "suave" : "oscuro"} style={{ margin: "8px 0 6px", width: "100%" }}>
+                  <Boton href={gratis ? CREAR_IGLESIA : ELEGIR_PLAN} mismaPestana tipo={destacado ? "principal" : gratis ? "suave" : "oscuro"} style={{ margin: "8px 0 0", width: "100%" }}>
                     {gratis ? "Empezar gratis" : "Elegir plan"}
                   </Boton>
+                  <span style={{ fontSize: 12.5, color: SUAVE, textAlign: "center", minHeight: 18, marginBottom: 6 }}>
+                    {gratis ? "" : <>¿Aún no tienes cuenta? <a href={CREAR_IGLESIA} style={{ color: TINTA, textDecoration: "underline" }}>Crea tu iglesia</a></>}
+                  </span>
                   <div style={{ borderTop: `1px solid ${NIEBLA}`, paddingTop: 16, display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
                     {p.incluye.map((t) => (
                       <div key={t} style={{ display: "flex", gap: 9, fontSize: 14, lineHeight: 1.45, color: TEXTO }}>
@@ -461,7 +469,7 @@ function Precios() {
           </div>
         </section>
 
-        <LlamadoFinal gris titulo="Prueba el plan Iglesia 14 días." texto="Después sigue gratis si no eliges un plan de pago. Sin tarjeta." />
+        <LlamadoFinal gris titulo="Prueba el plan Iglesia 30 días." texto="Si cancelas antes de que terminen, no se te cobra nada. O quédate en el plan Gratis para siempre." />
       </main>
       <Pie />
     </>
@@ -534,7 +542,7 @@ function Terminos() {
       <p>Nuestro proceso de compra lo realiza nuestro revendedor en línea, <strong>Paddle.com</strong>. Paddle.com es el comerciante registrado (Merchant of Record) de todos nuestros pedidos: cobra los pagos, emite los recibos, calcula y entrega los impuestos que correspondan, y atiende las consultas sobre cobros y las devoluciones. Al comprar un plan también aceptas los <a href="https://www.paddle.com/legal/checkout-buyer-terms" target="_blank" rel="noopener" style={{ color: TINTA, textDecoration: "underline" }}>términos para compradores de Paddle</a>.</p>
       <p>WorshipFlow ofrece un plan Gratis y planes de pago (Ministerio, Crecimiento e Iglesia) con los límites y precios publicados en la página de <Enlace ruta="/web/precios" style={{ color: TINTA, textDecoration: "underline" }}>precios</Enlace>. Los planes de pago son suscripciones que se cobran por adelantado y se renuevan solas, de forma mensual o anual, en dólares estadounidenses, hasta que las canceles. Si un plan de pago vence o no se renueva, la iglesia pasa al plan Gratis: no se borra ningún dato, pero no se puede agregar más de lo que permite ese plan. Podemos cambiar los precios avisando con al menos 30 días de anticipación; el cambio aplica a partir de la siguiente renovación.</p>
       <H>Prueba gratis</H>
-      <p>Las iglesias nuevas pueden tener un periodo de prueba del plan Iglesia. Al terminar, pasan al plan Gratis si no eligen un plan de pago. La prueba no requiere tarjeta.</p>
+      <p>Las iglesias nuevas pueden probar el plan Iglesia durante 30 días registrando una tarjeta. Si cancelan antes de que termine la prueba, no se les cobra nada; si no, al terminar se cobra el plan Iglesia mensual. Sin tarjeta pueden usar el plan Gratis.</p>
       <H>Cancelación y reembolsos</H>
       <p>Puedes cancelar cuando quieras desde la app, desde el enlace del recibo de Paddle o escribiéndonos; el plan sigue activo hasta el final del periodo pagado y no se te vuelve a cobrar. Puedes pedir el reembolso completo de cualquier pago dentro de los 14 días siguientes, como explica nuestra <Enlace ruta="/web/reembolsos" style={{ color: TINTA, textDecoration: "underline" }}>política de reembolsos</Enlace>.</p>
       <H>Uso aceptable</H>
