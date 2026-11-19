@@ -5,9 +5,8 @@ import GenericMark from "./GenericMark.jsx";
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
 const primaryBtn = { width: "100%", background: "#E8821E", border: "none", borderRadius: 8, padding: "11px", fontSize: 14, fontWeight: 700, color: "#16324F", cursor: "pointer" };
 
-// Ya no ofrece "crear cuenta de administrador" aquí — esa puerta de auto-registro solo tenía sentido
-// antes de que existiera el primer admin de la iglesia; ahora todos entran con credenciales ya creadas
-// desde Ajustes/Usuarios, para no dejar esa opción visible a cualquiera que abra la app.
+// Los miembros entran con credenciales ya creadas desde Ajustes/Usuarios. Desde el lanzamiento (2026-11-18) hay un
+// enlace "Crear mi iglesia gratis" (?crear-iglesia) para iglesias nuevas: el registro de iglesias es abierto.
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -58,6 +57,10 @@ export default function Login() {
         >
           <GoogleIcon /> Continuar con Google
         </button>
+        <div style={{ fontSize: 13, color: "var(--wf-muted)", textAlign: "center", marginTop: 16 }}>
+          ¿Tu iglesia aún no usa WorshipFlow?{" "}
+          <a href="/?crear-iglesia" style={{ color: "#E8821E", fontWeight: 700, textDecoration: "none" }}>Crear mi iglesia gratis</a>
+        </div>
         <div style={{ fontSize: 11, color: "var(--wf-faint)", textAlign: "center", marginTop: 10 }}>Solo funciona si un administrador ya te invitó con este mismo correo.</div>
       </div>
     </div>

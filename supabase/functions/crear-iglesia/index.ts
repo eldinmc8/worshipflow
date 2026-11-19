@@ -26,10 +26,8 @@ function json(payload: unknown, status: number) {
 
 // Fase 4 (SaaS): a diferencia de crear-usuario (que exige sesión de administrador, salvo el bootstrap
 // de la toda la primera cuenta de toda la base), esta función es a propósito pública — no pide
-// Authorization. Es la puerta de "una iglesia nueva se da de alta sola", así que por diseño cualquiera
-// que tenga el enlace puede llamarla. El enlace mismo (src/CrearIglesia.jsx, ruta ?crear-iglesia) no
-// está anunciado en ningún lado visible de la app — se comparte a mano mientras esto siga siendo una
-// puerta controlada en vez de un lanzamiento público (decisión de Eldin, 2026-09-30).
+// Authorization. Es la puerta de "una iglesia nueva se da de alta sola". Desde el lanzamiento (2026-11-18)
+// el registro es abierto: la página web y el inicio de sesión enlazan a src/CrearIglesia.jsx (?crear-iglesia).
 
 // Deja "iglesia", "jesús el buen pastor", "Mi Iglesia 123!" -> "jesus-el-buen-pastor", "mi-iglesia-123"
 // -- mismo criterio simple que cualquier slug de URL (sin libraries: NFD + quitar diacríticos cubre
@@ -67,17 +65,19 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json();
 
-    // Sin un código de invitación válido, ni llegar a validar el resto — el enlace ?crear-iglesia
-    // podría reenviarse a un tercero. Los códigos los crea Eldin desde la consola general (tabla
-    // codigos_invitacion, solo accesible para super admin): puede haber VARIOS pendientes a la vez,
-    // cada uno de un solo uso (pedido de Eldin, 2026-11-06).
+    // Registro abierto (pedido de Eldin, 2026-11-18): cualquiera puede crear su iglesia; arranca en Gratis y la
+    // app le ofrece el mes gratis del plan Iglesia con tarjeta. El código de invitación es OPCIONAL: si viene
+    // (enlace de la consola, ?crear-iglesia&codigo=...), se valida y se gasta igual que antes, y el trigger
+    // fundadora_por_codigo deja a las Fundadoras en Iglesia sin vencimiento. Un código mal escrito sí se
+    // rechaza (para que nadie pierda su beneficio sin darse cuenta).
     const codigoIngresado = String(body.codigo_invitacion || "").trim().toLowerCase();
-    if (!codigoIngresado) return json({ error: "Falta el código de invitación." }, 403);
-    const { data: invitacion } = await admin.from("codigos_invitacion").select("codigo, usado_at, vence_at").eq("codigo", codigoIngresado).maybeSingle();
-    if (!invitacion) return json({ error: "Código de invitación incorrecto." }, 403);
-    if (invitacion.usado_at) return json({ error: "Ese código de invitación ya se usó. Pide uno nuevo a quien te invitó." }, 403);
-    if (invitacion.vence_at && new Date(invitacion.vence_at).getTime() < Date.now()) {
-      return json({ error: "Ese código de invitación ya venció. Pide uno nuevo a quien te invitó." }, 403);
+    if (codigoIngresado) {
+      const { data: invitacion } = await admin.from("codigos_invitacion").select("codigo, usado_at, vence_at").eq("codigo", codigoIngresado).maybeSingle();
+      if (!invitacion) return json({ error: "Código de invitación incorrecto. Si no tienes código, deja ese campo vacío." }, 403);
+      if (invitacion.usado_at) return json({ error: "Ese código de invitación ya se usó. Deja el campo vacío para crear tu iglesia sin código." }, 403);
+      if (invitacion.vence_at && new Date(invitacion.vence_at).getTime() < Date.now()) {
+        return json({ error: "Ese código de invitación ya venció. Deja el campo vacío para crear tu iglesia sin código." }, 403);
+      }
     }
 
     const iglesiaNombre = String(body.iglesia_nombre || "").trim();
@@ -101,11 +101,13 @@ Deno.serve(async (req: Request) => {
     // Se gasta el código AQUÍ, antes de crear nada, solo si sigue sin usar — así dos personas con el
     // mismo código al mismo tiempo no pueden crear dos iglesias. Los demás códigos pendientes no se
     // tocan. Si algo de abajo falla, se libera para que puedan reintentar con el mismo.
-    const { data: gastado } = await admin.from("codigos_invitacion").update({ usado_at: new Date().toISOString() })
-      .eq("codigo", codigoIngresado).is("usado_at", null).gt("vence_at", new Date().toISOString()).select("codigo");
-    if (!gastado?.length) return json({ error: "Ese código de invitación ya se usó. Pide uno nuevo a quien te invitó." }, 403);
+    if (codigoIngresado) {
+      const { data: gastado } = await admin.from("codigos_invitacion").update({ usado_at: new Date().toISOString() })
+        .eq("codigo", codigoIngresado).is("usado_at", null).gt("vence_at", new Date().toISOString()).select("codigo");
+      if (!gastado?.length) return json({ error: "Ese código de invitación ya se usó. Deja el campo vacío para crear tu iglesia sin código." }, 403);
+    }
     const fallar = async (mensaje: string, status: number) => {
-      await admin.from("codigos_invitacion").update({ usado_at: null, iglesia_id: null }).eq("codigo", codigoIngresado);
+      if (codigoIngresado) await admin.from("codigos_invitacion").update({ usado_at: null, iglesia_id: null }).eq("codigo", codigoIngresado);
       return json({ error: mensaje }, status);
     };
 
@@ -163,7 +165,7 @@ Deno.serve(async (req: Request) => {
     if (cancionesError) console.error(`sembrar_canciones_default falló para iglesia ${iglesia.id}:`, cancionesError);
 
     // 6) Anotar qué iglesia usó el código (solo informativo para la consola).
-    await admin.from("codigos_invitacion").update({ iglesia_id: iglesia.id }).eq("codigo", codigoIngresado);
+    if (codigoIngresado) await admin.from("codigos_invitacion").update({ iglesia_id: iglesia.id }).eq("codigo", codigoIngresado);
 
     return json({ success: true, iglesia_id: iglesia.id }, 200);
   } catch (e) {

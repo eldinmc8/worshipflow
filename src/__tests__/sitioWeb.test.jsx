@@ -54,7 +54,7 @@ describe("página de pago", () => {
 
 // "Al darle pagar al plan sigue enviando a WhatsApp" (2026-11-18): "Elegir plan" lleva a la app con ?planes=1.
 describe("botón Elegir plan", () => {
-  it("los planes pagados llevan a la app (no a WhatsApp) y ofrecen pedir código a quien no tiene cuenta", () => {
+  it("los planes pagados llevan a la app (no a WhatsApp) y ofrecen crear la iglesia a quien no tiene cuenta", () => {
     abrir("/web/precios");
     const botones = screen.getAllByText("Elegir plan").map((b) => b.closest("a"));
     expect(botones.length).toBe(3);
@@ -62,6 +62,18 @@ describe("botón Elegir plan", () => {
       expect(a.getAttribute("href")).toMatch(/[?&]planes=1$/);
       expect(a.getAttribute("href")).not.toMatch(/wa\.me/);
     });
-    expect(screen.getAllByText("Pide tu código").length).toBe(3);
+    expect(screen.getAllByText("Crea tu iglesia").length).toBe(3);
+  });
+});
+
+// Registro abierto (2026-11-18): el primer botón es "Crear mi iglesia gratis", ya no "Pedir mi código".
+describe("registro abierto", () => {
+  it("la portada empieza con Crear mi iglesia y lleva al alta en la app", () => {
+    const { container } = abrir("/web");
+    const crear = screen.getAllByText("Crear mi iglesia gratis")[0].closest("a");
+    expect(crear.getAttribute("href")).toMatch(/[?&]crear-iglesia$/);
+    expect(container.textContent).not.toMatch(/Pedir mi código/);
+    expect(container.textContent).not.toMatch(/14 días del plan Iglesia/);
+    expect(container.textContent).toMatch(/30 días gratis del plan Iglesia/);
   });
 });
