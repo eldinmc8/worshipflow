@@ -39,6 +39,9 @@ registerRoute(
   ({ request, url }) => request.destination === "image" && (url.origin === self.location.origin || url.pathname.startsWith("/storage/v1/object/public/")),
   new CacheFirst({
     cacheName: "wf-imagenes",
+    // Sin esto, una imagen guardada con "Preparar para usar sin conexión" podía no encontrarse por el
+    // encabezado "Vary" del servidor (2026-11-20, ver lib/prepararSinConexion.js).
+    matchOptions: { ignoreVary: true },
     plugins: [new CacheableResponsePlugin({ statuses: [0, 200] }), new ExpirationPlugin({ maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 60 })],
   })
 );

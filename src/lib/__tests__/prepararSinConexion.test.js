@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { recolectarMedios, fuentesDeEventos, guardarYVerificar, guardarCanciones, guardarImagenes, appGuardada, eventosProximos } from "../prepararSinConexion.js";
+import { recolectarMedios, fuentesDeEventos, guardarYVerificar, guardarCanciones, guardarImagenes, appGuardada, eventosProximos, contarImagenesGuardadas, mediosConLugar, resumirLugares } from "../prepararSinConexion.js";
 
 const cacheFalsa = () => {
   const m = new Map();
@@ -88,5 +88,36 @@ describe("appGuardada", () => {
     const { api } = cacheFalsa();
     expect(await appGuardada({ nav: { serviceWorker: { getRegistration: async () => ({}) } }, cachesApi: api })).toBe(false);
     expect(await appGuardada({ nav: {}, cachesApi: api })).toBe(false);
+  });
+});
+
+describe("arreglos 2026-11-20", () => {
+  it("las imágenes de WorshipFlow con la dirección vieja cuentan como propias", () => {
+    const m = recolectarMedios([{ imageUrl: "https://worshipflow-pearl.vercel.app/diapositivas/bienvenida.jpg" }]);
+    expect(m.imagenes).toEqual(["/diapositivas/bienvenida.jpg"]);
+    expect(m.externas).toEqual([]);
+  });
+  it("busca en la caché sin tomar en cuenta el encabezado Vary", async () => {
+    const opciones = [];
+    const m = new Map();
+    const api = { open: async () => ({ match: async (u, o) => { opciones.push(o); return o?.ignoreVary ? m.get(u) : undefined; }, put: async (u, r) => { m.set(u, r); } }) };
+    const r = await guardarImagenes(["/a.png"], { cachesApi: api, fetchFn: async () => ({ ok: true, type: "cors" }) });
+    expect(r).toEqual({ guardadas: 1, fallidas: [] });
+    expect(await contarImagenesGuardadas(["/a.png"], api)).toBe(1);
+  });
+  it("si la imagen no queda guardada, la reporta como fallida", async () => {
+    const api = { open: async () => ({ match: async () => undefined, put: async () => {} }) };
+    const r = await guardarImagenes(["/a.png"], { cachesApi: api, fetchFn: async () => ({ ok: true, type: "cors" }) });
+    expect(r.fallidas).toEqual(["/a.png"]);
+  });
+  it("dice dónde se usa cada medio, en palabras de la iglesia", () => {
+    const eventos = [
+      { id: 1, serviceOrder: [{ type: "slide", title: "Bienvenida", imageUrl: "https://otro.com/f.jpg" }] },
+      { id: 2, serviceOrder: [{ type: "slide", title: "Bienvenida", imageUrl: "https://otro.com/f.jpg" }] },
+    ];
+    const r = mediosConLugar(eventos, [], { fondo: "https://x.supabase.co/storage/v1/object/public/f/v.mp4" });
+    expect(r.externas).toEqual(["https://otro.com/f.jpg"]);
+    expect(r.lugares["https://otro.com/f.jpg"]).toEqual(["Diapositiva «Bienvenida» (en 2 eventos)"]);
+    expect(resumirLugares(r.videos, r.lugares)[0]).toMatch(/estilo en vivo/);
   });
 });

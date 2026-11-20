@@ -12,7 +12,7 @@ import { fetchBibleBooks, fetchBibleChapter } from "../pantallas/compartido.jsx"
 import { BIBLE_OFFLINE_VERSION } from "../pantallas/biblia.jsx";
 import {
   recolectarMedios, fuentesDeEventos, guardarYVerificar, guardarCanciones, guardarImagenes,
-  appGuardada, contarImagenesGuardadas, eventosProximos,
+  appGuardada, contarImagenesGuardadas, eventosProximos, mediosConLugar, resumirLugares,
 } from "../lib/prepararSinConexion.js";
 
 // "Preparar para usar sin conexión" (pedido de Eldin, 2026-11-14), en Ajustes de la computadora que
@@ -20,6 +20,10 @@ import {
 // lista con lo que quedó listo y lo que no. La lógica está en lib/prepararSinConexion.js.
 
 const OK = "#1F8A73", AVISO = "#B58500", MAL = "#C23B32";
+
+// Lo que salió mal en la última vez que se tocó "Preparar ahora" (se pierde al salir de la pantalla).
+let ultimo = { imagenesFallidas: 0, bibliaFallidos: 0, bibliaError: false };
+const enLista = (l) => (l.length ? ` ${l.join(" · ")}.` : "");
 
 // Lee lo guardado en este equipo (sin internet) y arma las filas de la lista.
 async function revisar() {
@@ -46,20 +50,34 @@ async function revisar() {
     detalle: !canciones ? "Todavía no hay canciones guardadas." : faltan ? `Faltan ${faltan} canciones de los eventos próximos. Toca "Preparar ahora".` : `${canciones.length} canciones guardadas.`,
   });
 
-  const medios = recolectarMedios(...(() => { const f = fuentesDeEventos(proximos, canciones || []); return [f.items, f.canciones, loadCache("estilo_en_vivo")]; })());
+  const medios = mediosConLugar(proximos, canciones || [], loadCache("estilo_en_vivo"));
   const guardadas = await contarImagenesGuardadas(medios.imagenes);
+  const faltanImg = [];
+  if (guardadas < medios.imagenes.length) for (const u of medios.imagenes) if ((await contarImagenesGuardadas([u])) === 0) faltanImg.push(u);
   filas.push({
     id: "imagenes", ok: guardadas === medios.imagenes.length, titulo: "Imágenes de fondo",
-    detalle: medios.imagenes.length ? `${guardadas} de ${medios.imagenes.length} guardadas.` : "Los eventos próximos no usan imágenes.",
+    detalle: !medios.imagenes.length ? "Los eventos próximos no usan imágenes."
+      : guardadas === medios.imagenes.length ? `${guardadas} ${guardadas === 1 ? "imagen guardada" : "imágenes guardadas"}: se verán aunque no haya internet.`
+      : `${guardadas} de ${medios.imagenes.length} guardadas. Faltan:${enLista(resumirLugares(faltanImg, medios.lugares))} Toca "Preparar ahora" con buena señal.${ultimo.imagenesFallidas ? " (La última vez no se pudieron bajar; revisa el internet.)" : ""}`,
   });
-  if (medios.externas.length) filas.push({ id: "externas", aviso: true, titulo: "Imágenes de otro sitio web", detalle: `${medios.externas.length} no se pueden guardar y sin internet no se verán. Súbelas a WorshipFlow para que se guarden.` });
-  if (medios.videos.length) filas.push({ id: "videos", aviso: true, titulo: "Videos de fondo", detalle: `${medios.videos.length} ${medios.videos.length === 1 ? "video" : "videos"} en los eventos próximos: no se guardan y sin internet no se verán. Cambia esos fondos a color o imagen.` });
+  if (medios.externas.length) filas.push({
+    id: "externas", aviso: true, titulo: "Imágenes de otra página de internet",
+    detalle: `${medios.externas.length === 1 ? "Esta imagen viene" : `Estas ${medios.externas.length} imágenes vienen`} de otra página y no se pueden guardar, así que sin internet no se verán:${enLista(resumirLugares(medios.externas, medios.lugares))} Para arreglarlo, abre esa diapositiva y usa "Subir imagen…" en su fondo para que quede guardada en WorshipFlow.`,
+  });
+  if (medios.videos.length) filas.push({
+    id: "videos", aviso: true, titulo: medios.videos.length === 1 ? "Video de fondo" : "Videos de fondo",
+    detalle: `Los videos no se guardan (pesan mucho). Sin internet no se verán:${enLista(resumirLugares(medios.videos, medios.lugares))} Si el culto será sin internet, cambia ese fondo a una imagen o a un color. Con internet funcionan normal.`,
+  });
 
   let capitulos = 0, total = 0;
   try { capitulos = await contarCapitulosGuardados(BIBLE_OFFLINE_VERSION); } catch { /* sin IndexedDB */ }
   try { total = (await fetchBibleBooks(BIBLE_OFFLINE_VERSION)).reduce((a, b) => a + b.chapters, 0); } catch { /* sin internet: se usa el total conocido */ }
   const completa = total > 0 ? capitulos >= total : capitulos >= 1189;
-  filas.push({ id: "biblia", ok: completa, titulo: "Biblia (Reina-Valera 1960)", detalle: completa ? `Descargada completa (${capitulos} capítulos).` : `${capitulos} de ${total || 1189} capítulos. Toca "Preparar ahora" con buena señal (tarda unos minutos).` });
+  filas.push({
+    id: "biblia", ok: completa, titulo: "Biblia (Reina-Valera 1960)",
+    detalle: completa ? `Descargada completa (${capitulos} capítulos).`
+      : `${capitulos} de ${total || 1189} capítulos.${ultimo.bibliaError ? " Se cortó el internet a medio camino." : ultimo.bibliaFallidos ? ` Faltaron ${ultimo.bibliaFallidos} por la señal.` : ""} Toca "Preparar ahora" con buena señal y no cierres esta pantalla hasta que termine (tarda unos minutos; sigue donde se quedó).`,
+  });
   return filas;
 }
 
@@ -74,6 +92,7 @@ export default function PrepararSinConexion() {
   const preparar = async () => {
     if (typeof navigator !== "undefined" && navigator.onLine === false) { showToast("Necesitas internet para preparar. Hazlo con Wi-Fi.", "offline"); return; }
     cancelRef.current = { aborted: false };
+    ultimo = { imagenesFallidas: 0, bibliaFallidos: 0, bibliaError: false };
     try {
       setTrabajo({ texto: "Guardando canciones y eventos…" });
       const [canciones, eventos, ministerios] = await Promise.all([listCancionesCompletas(), listEventosCompletos(), listMinisteriosCompletos()]);
@@ -89,15 +108,21 @@ export default function PrepararSinConexion() {
       const medios = recolectarMedios(f.items, f.canciones, loadCache("estilo_en_vivo"));
       if (medios.imagenes.length) {
         setTrabajo({ texto: "Guardando imágenes de fondo…", hechos: 0, total: medios.imagenes.length });
-        await guardarImagenes(medios.imagenes, { onProgreso: (hechos, total) => setTrabajo({ texto: "Guardando imágenes de fondo…", hechos, total }) });
+        const r = await guardarImagenes(medios.imagenes, { onProgreso: (hechos, total) => setTrabajo({ texto: "Guardando imágenes de fondo…", hechos, total }) });
+        ultimo.imagenesFallidas = r.fallidas.length;
       }
 
       setTrabajo({ texto: "Descargando la Biblia…", hechos: 0, total: 0 });
-      await descargarBibliaCompleta(BIBLE_OFFLINE_VERSION, {
-        fetchBooks: fetchBibleBooks, fetchChapter: fetchBibleChapter,
-        onProgress: (hechos, total) => setTrabajo({ texto: "Descargando la Biblia… (puede tardar unos minutos)", hechos, total }),
-        signal: cancelRef.current,
-      });
+      try {
+        const r = await descargarBibliaCompleta(BIBLE_OFFLINE_VERSION, {
+          fetchBooks: fetchBibleBooks, fetchChapter: fetchBibleChapter,
+          onProgress: (hechos, total) => setTrabajo({ texto: "Descargando la Biblia… (puede tardar unos minutos, no cierres esta pantalla)", hechos, total }),
+          signal: cancelRef.current,
+        });
+        ultimo.bibliaFallidos = r.fallidos || 0;
+      } catch {
+        ultimo.bibliaError = true;
+      }
     } catch (e) {
       notifyError("No se pudo terminar de preparar", e);
     } finally {
@@ -116,7 +141,7 @@ export default function PrepararSinConexion() {
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--wf-text)" }}>Preparar para usar sin conexión</div>
       </div>
       <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10 }}>
-        Hazlo con Wi-Fi, en la computadora que proyecta. Guarda las canciones, los eventos próximos, las imágenes de fondo y la Biblia para que el culto funcione aunque no haya internet. La proyección al TV por HDMI sigue funcionando; una pantalla en otro dispositivo sí necesita internet.
+        Hazlo con Wi-Fi, en la computadora que proyecta. Guarda las canciones, los eventos próximos, las imágenes de fondo y la Biblia para que el culto funcione aunque no haya internet. La proyección al TV por HDMI sigue funcionando; una pantalla en otro dispositivo sí necesita internet. Se guarda solo en el equipo donde tocas el botón.
       </div>
 
       {filas === null ? (
@@ -138,9 +163,13 @@ export default function PrepararSinConexion() {
           })}
           {todoListo && (
             <div style={{ marginTop: 8, fontSize: 12.5, fontWeight: 700, color: hayAvisos ? AVISO : OK }}>
-              {hayAvisos ? "Casi listo: revisa los avisos en amarillo." : "✓ Todo listo para usar sin conexión."}
+              {hayAvisos ? "✓ Listo. Lo amarillo no es un error: son cosas que necesitan internet. Cámbialas solo si el culto será sin internet." : "✓ Todo listo para usar sin conexión."}
             </div>
           )}
+          <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--wf-bg)", borderRadius: 12, fontSize: 11.5, color: "var(--wf-muted)" }}>
+            <div style={{ fontWeight: 700, color: "var(--wf-text)", marginBottom: 2 }}>Cómo comprobarlo</div>
+            Cuando todo esté en verde, apaga el Wi-Fi de esta computadora, recarga la página y abre el evento del domingo. Si ves las canciones, los fondos y puedes buscar un versículo, está listo. Luego vuelve a prender el Wi-Fi.
+          </div>
         </div>
       )}
 

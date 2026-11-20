@@ -3,6 +3,7 @@ import { traerTodas } from "./traerTodas.js";
 import { sincronizarRecordatorios } from "./recordatorios.js";
 import { fijarLineaBase, idsABorrar, actualizarTrasGuardar } from "./lineaBase.js";
 import { listBosquejosPorEvento } from "./bosquejos.js";
+import { urlPropia, urlsPropias } from "./urlPropia.js";
 
 // Algunas acciones (ej. agregar varios versículos de un rango, uno por diapositiva) pueden disparar
 // varios guardados del mismo evento casi al mismo tiempo. Si corrieran en paralelo el más lento podría
@@ -100,7 +101,9 @@ export async function reordenarItems(items, fromIdx, toIdx) {
 // lo que este dispositivo conocía y el usuario quitó (ver src/lib/lineaBase.js).
 // =====================================================================================
 
-function filaAItemServicio(row, encargadosPorItem) {
+function filaAItemServicio(filaOriginal, encargadosPorItem) {
+  // Imágenes de WorshipFlow guardadas con la dirección vieja → ruta propia (ver lib/urlPropia.js).
+  const row = filaOriginal.tipo === "slide" ? { ...filaOriginal, fondo_imagen_url: urlPropia(filaOriginal.fondo_imagen_url), estructura: urlsPropias(filaOriginal.estructura) } : filaOriginal;
   const base = { id: row.id, encargados: (encargadosPorItem[row.id] || []).map(filaAEncargado) };
   if (row.tipo === "bloque") {
     // "Este bloque es la predicación" marcado a mano: viaja en estructura (que los bloques no usaban).

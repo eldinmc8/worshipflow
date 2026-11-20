@@ -53,7 +53,8 @@ export function BibleDownloadSection() {
         onProgress: (hechos, total) => setProgreso({ hechos, total }),
         signal: cancelRef.current,
       });
-      if (!resultado.cancelado) showToast("Biblia Reina-Valera 1960 descargada — ya puedes usarla sin conexión.", "info");
+      if (!resultado.cancelado && resultado.fallidos) showToast(`Faltaron ${resultado.fallidos} capítulos por la señal. Toca "Continuar descarga" y se bajan solo esos.`, "offline");
+      else if (!resultado.cancelado) showToast("Biblia Reina-Valera 1960 descargada — ya puedes usarla sin conexión.", "info");
     } catch (e) {
       notifyError("No se pudo terminar de descargar la Biblia", e);
     } finally {
@@ -139,7 +140,7 @@ async function arrancarDescargaAuto() {
       onProgress: (h, t) => { descargaAuto.hechos = h; descargaAuto.total = t; if (h % 25 === 0) avisarDescargaAuto(); },
     });
     delete indicesBiblia[BIBLE_OFFLINE_VERSION];
-    descargaAuto.estado = r.cancelado ? "inactivo" : "lista";
+    descargaAuto.estado = r.cancelado || r.fallidos ? "inactivo" : "lista";
   } catch {
     descargaAuto.estado = "inactivo"; // se vuelve a intentar la próxima vez que se abra la Biblia
   }

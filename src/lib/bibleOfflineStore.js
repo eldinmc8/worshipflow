@@ -104,23 +104,38 @@ export async function todosLosVersiculosOffline(version) {
 // archivo) con una pausa corta entre cada uno para no saturar un servicio gratuito compartido con
 // más gente. onProgress(hechos, total) se llama tras cada capítulo para poder mostrar una barra de
 // avance; señal.aborted permite cancelar a medio camino sin perder lo ya descargado.
-export async function descargarBibliaCompleta(version, { fetchBooks, fetchChapter, onProgress, signal }) {
+// Arreglo (pedido de Eldin, 2026-11-20: "Biblia 2 de 1189" aunque tocaba "Preparar ahora"): antes, si
+// fallaba UN capítulo (un segundo sin señal, la API ocupada), se detenía toda la descarga. Ahora cada
+// capítulo se reintenta (intentos) y, si aun así falla, se sigue con los demás y se cuenta en
+// `fallidos` (volver a descargar baja solo los que faltan). Solo se detiene si fallan muchos seguidos
+// (maxSeguidos): eso ya es que no hay internet.
+export async function descargarBibliaCompleta(version, { fetchBooks, fetchChapter, onProgress, signal, intentos = 3, maxSeguidos = 8, esperar = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
   const books = await fetchBooks(version);
   const total = books.reduce((acc, b) => acc + b.chapters, 0);
-  let hechos = 0;
+  let hechos = 0, fallidos = 0, seguidos = 0;
   for (const book of books) {
     for (let chapter = 1; chapter <= book.chapters; chapter++) {
-      if (signal?.aborted) return { hechos, total, cancelado: true };
+      if (signal?.aborted) return { hechos, total, fallidos, cancelado: true };
       const yaGuardado = await obtenerCapituloOffline(version, book.bookid, chapter);
       if (!yaGuardado) {
-        const verses = await fetchChapter(version, book.bookid, chapter);
-        await guardarCapituloOffline(version, book.bookid, chapter, verses);
-        // Pausa corta entre pedidos — nada más para no golpear la API gratuita de un solo tirón.
-        await new Promise((r) => setTimeout(r, 120));
+        let verses = null;
+        for (let i = 0; i < intentos && verses == null; i++) {
+          if (i > 0) await esperar(1000 * i * i);
+          try { verses = await fetchChapter(version, book.bookid, chapter); } catch { verses = null; }
+        }
+        if (verses == null) {
+          fallidos++; seguidos++;
+          if (seguidos >= maxSeguidos) throw new Error("Se perdió la conexión mientras se descargaba la Biblia.");
+        } else {
+          seguidos = 0;
+          await guardarCapituloOffline(version, book.bookid, chapter, verses);
+          // Pausa corta entre pedidos — nada más para no golpear la API gratuita de un solo tirón.
+          await esperar(120);
+        }
       }
       hechos++;
       onProgress?.(hechos, total);
     }
   }
-  return { hechos, total, cancelado: false };
+  return { hechos, total, fallidos, cancelado: false };
 }

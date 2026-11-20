@@ -32,12 +32,12 @@ describe("Preparar para usar sin conexión", () => {
     expect(screen.queryByText(/Todo listo/)).toBeNull();
 
     fireEvent.click(screen.getByText("Preparar ahora"));
-    await screen.findByText(/Todo listo|Casi listo/);
+    await screen.findByText(/Todo listo|✓ Listo/);
 
     expect(JSON.parse(localStorage.getItem("worshipflow_cache_eventos")).data[0].id).toBe("e1");
     expect(JSON.parse(localStorage.getItem("worshipflow_cache_canciones")).data[0].id).toBe("s1");
     expect(cacheMapa.has("/fondos/a.png")).toBe(true);
-    expect(screen.getByText(/1 de 1 guardadas/)).toBeTruthy();
+    expect(screen.getByText(/1 imagen guardada/)).toBeTruthy();
     expect(screen.getByText(/Culto del domingo/)).toBeTruthy();
   });
 
