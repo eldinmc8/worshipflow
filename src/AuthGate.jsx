@@ -1,10 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { WifiOff } from "lucide-react";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import { esFalloDeConexion } from "./lib/toast.js";
 import { suscribirPush } from "./lib/notificaciones.js";
 import { colorLegibleSobre } from "./lib/colores.js";
-import Login from "./Login.jsx";
+import Login, { GoogleIcon } from "./Login.jsx";
+import UnirseIglesia, { EsperandoAprobacion } from "./UnirseIglesia.jsx";
+import { leerCodigoDeUrl, codigoPendiente, solicitarIngreso, miSolicitud, olvidarCodigo, nombreDeSesion } from "./lib/unirse.js";
 import { validarPassword } from "./lib/passwordSegura.js";
 import MedidorPassword from "./MedidorPassword.jsx";
 import UsersAdmin from "./UsersAdmin.jsx";
@@ -39,6 +41,13 @@ export default function AuthGate() {
   // a la app — así los usuarios nuevos quedan con las notificaciones activadas casi de una, en vez de
   // tener que encontrar el botón en Ajustes por su cuenta (donde muchos nunca lo harían).
   const [showPushPrompt, setShowPushPrompt] = useState(false);
+  // Llegó por un enlace de "olvidé mi contraseña" (no por invitación): solo se pide la nueva.
+  const [esRecuperacion, setEsRecuperacion] = useState(() => /type=recovery/.test(window.location.hash));
+  // Pidió unirse con el enlace de la iglesia y espera aprobación: { estado, iglesia } (ver lib/unirse.js).
+  const [solicitud, setSolicitud] = useState(null);
+  const esperabaAprobacion = useRef(false);
+  // El enlace para unirse que traía ESTA visita (?unirse=), para mostrar la pantalla de registro.
+  const [codigoUnirseUrl] = useState(() => leerCodigoDeUrl());
 
   // Se enciende si alguien logra obtener una sesión válida de Supabase (típicamente iniciando con
   // Google) sin tener una fila en "usuarios" — o sea, sin que un administrador lo haya invitado antes.
@@ -99,6 +108,7 @@ export default function AuthGate() {
   }, [myIglesia.colorPrimario, myIglesia.colorAcento]);
 
   const [errorSesion, setErrorSesion] = useState("");
+  const revisarSolicitud = useCallback(() => setReintento((n) => n + 1), []);
   // Sin internet (2026-10-17): si la app se abre o se recarga sin señal y el token ya venció, Supabase no
   // puede renovarlo y devolvía "sin sesión" — mandaba al login en pleno culto. Se usa la sesión que ya
   // estaba guardada en este dispositivo; al volver el internet, Supabase la renueva sola.
@@ -122,6 +132,7 @@ export default function AuthGate() {
       // Una llave recién renovada dice qué hora es en el servidor: si la computadora está muy corrida,
       // se corta aquí (cerrando la sesión solo en este equipo) antes de que se arme la cadena de
       // renovaciones que termina en "Todavía no tienes acceso".
+      if (evento === "PASSWORD_RECOVERY") { setNeedsPassword(true); setEsRecuperacion(true); }
       if (evento === "TOKEN_REFRESHED") {
         const desfase = desfaseDeReloj(s);
         if (relojMal(desfase)) {
@@ -139,7 +150,7 @@ export default function AuthGate() {
   // nuevo y antes eso volvía a leer el perfil cada vez (en la PC con el reloj mal, decenas por segundo).
   const userId = session?.user?.id || null;
   useEffect(() => {
-    if (!userId) { setPerfil(null); return; }
+    if (!userId) { setPerfil(null); setSolicitud(null); return; }
     let vigente = true; // una respuesta que llega después de cerrar sesión o cambiar de cuenta se ignora
     setErrorPerfil(false);
     const usarGuardado = () => {
@@ -171,6 +182,24 @@ export default function AuthGate() {
             if (!usarGuardado()) setErrorPerfil(true);
             return;
           }
+          // Sin fila en "usuarios": ¿pidió unirse con el enlace de una iglesia? Entonces espera aprobación.
+          try {
+            let mia = await miSolicitud();
+            const codigo = codigoPendiente(actual);
+            if (codigo && (!mia || mia.estado === "rechazada")) {
+              const r = await solicitarIngreso(codigo, nombreDeSesion(actual));
+              olvidarCodigo();
+              if (!vigente) return;
+              if (r?.estado === "miembro") { setReintento((n) => n + 1); return; }
+              if (r?.estado === "pendiente" || r?.estado === "rechazada") mia = r;
+            }
+            if (!vigente) return;
+            if (mia) { esperabaAprobacion.current = true; setSolicitud(mia); return; }
+          } catch (e) {
+            if (!vigente) return;
+            if (esFalloDeConexion(e) || !usarGuardado()) setErrorPerfil(true);
+            return;
+          }
           setAccessDenied(true);
           // Descarta de una la cuenta huérfana que Google acaba de crear en Auth (ver
           // descartar-acceso-no-invitado) — si no, un admin que después invite este mismo correo se
@@ -187,6 +216,9 @@ export default function AuthGate() {
           return;
         }
         setPerfil(data);
+        setSolicitud(null);
+        olvidarCodigo(); // ya es miembro: un enlace para unirse que traiga no hace falta
+        if (esperabaAprobacion.current) { esperabaAprobacion.current = false; setShowPushPrompt(true); }
         try { localStorage.setItem(`worshipflow_perfil_${userId}`, JSON.stringify(data)); } catch { /* sin storage */ }
       });
     return () => { vigente = false; };
@@ -279,7 +311,7 @@ export default function AuthGate() {
       </div>
     );
   }
-  if (!session) return <Login />;
+  if (!session) return codigoUnirseUrl ? <UnirseIglesia codigo={codigoUnirseUrl} /> : <Login />;
 
   if (errorPerfil) {
     return (
@@ -297,11 +329,23 @@ export default function AuthGate() {
   if (needsPassword) {
     return (
       <SetPassword
+        recuperar={esRecuperacion}
         onDone={() => {
           window.history.replaceState(null, "", window.location.pathname); // limpia el token del hash de la URL
           setNeedsPassword(false);
-          setShowPushPrompt(true);
+          if (esRecuperacion) setEsRecuperacion(false);
+          else setShowPushPrompt(true);
         }}
+      />
+    );
+  }
+
+  if (solicitud && !perfil) {
+    return (
+      <EsperandoAprobacion
+        solicitud={solicitud}
+        onRevisar={revisarSolicitud}
+        onSalir={() => { setSolicitud(null); esperabaAprobacion.current = false; supabase.auth.signOut(); }}
       />
     );
   }
@@ -367,7 +411,7 @@ const primaryBtn = { width: "100%", background: "var(--wf-brand-accent)", border
 
 // Pantalla que ve quien acaba de aceptar una invitación (o, más adelante, un enlace de "olvidé mi
 // contraseña"): ya tiene sesión válida gracias al enlace, solo le falta elegir su propia contraseña.
-function SetPassword({ onDone }) {
+function SetPassword({ onDone, recuperar = false }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -403,9 +447,10 @@ function SetPassword({ onDone }) {
         <div style={{ marginBottom: 16 }}>
           <GenericMark size={58} />
         </div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-text)", marginBottom: 4 }}>¡Bienvenido/a!</div>
-        <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>Elige cómo quieres entrar de ahora en adelante.</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-text)", marginBottom: 4 }}>{recuperar ? "Elige tu contraseña nueva" : "¡Bienvenido/a!"}</div>
+        <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>{recuperar ? "La usarás de ahora en adelante para entrar." : "Elige cómo quieres entrar de ahora en adelante."}</div>
 
+        {!recuperar && <>
         <button
           type="button" onClick={continuarConGoogle} disabled={googleLoading || loading}
           style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "10px", fontSize: 14, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer", opacity: googleLoading ? 0.6 : 1, marginBottom: 14 }}
@@ -418,6 +463,7 @@ function SetPassword({ onDone }) {
           <span style={{ fontSize: 11, color: "var(--wf-faint)", fontWeight: 600 }}>O ELIGE UNA CONTRASEÑA</span>
           <div style={{ flex: 1, height: 1, background: "var(--wf-divider)" }} />
         </div>
+        </>}
 
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <input type="password" required placeholder="Nueva contraseña" value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} autoComplete="new-password" />
@@ -431,16 +477,6 @@ function SetPassword({ onDone }) {
   );
 }
 
-function GoogleIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
-      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z" />
-      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 16.3 4 9.6 8.3 6.3 14.7z" />
-      <path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.5-5.2l-6.2-5.3C29.3 35.4 26.8 36 24 36c-5.3 0-9.6-3.1-11.3-7.6l-6.5 5C9.5 39.6 16.2 44 24 44z" />
-      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.5l6.2 5.3C40.5 36.4 44 30.9 44 24c0-1.3-.1-2.3-.4-3.5z" />
-    </svg>
-  );
-}
 
 // Cuando un admin invita solo con correo+rol (sin nombre), esto es lo primero que ve la persona al
 // entrar (después de elegir contraseña, si vino por invitación por correo). Si la sesión trae datos de

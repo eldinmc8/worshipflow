@@ -15,6 +15,8 @@ Es multi-iglesia: cada iglesia ve solo lo suyo. Web en worshipflowapp.com y la a
 - Listas de nombres y canciones siempre en orden alfabético.
 - En la app, los ministerios se llaman **"Grupos"**. Los roles son para permisos generales; el poder sobre un ministerio viene de ser líder del grupo (cada grupo define qué puede hacer su líder).
 - En Ajustes hay una sola lista de Miembros (invitar por correo, cambiar estado, todo ahí).
+- **Unirse con enlace** (2026-11-20, migración `20261124000000_unirse_con_enlace.sql`, `src/lib/unirse.js`, `src/UnirseIglesia.jsx`, `src/components/EnlaceUnirse.jsx`): cada iglesia tiene un enlace `?unirse=CODIGO` (Miembros → Enlace para unirse: copiar, WhatsApp, cambiar). Quien lo abre crea su cuenta y queda en `solicitudes_ingreso` como pendiente, SIN fila en `usuarios` (no ve nada) hasta que un admin la aprueba con un rol. `mi_iglesia_id()` devuelve null para una sesión sin fila en `usuarios` (antes caía a la iglesia más antigua).
+- **¿Olvidaste tu contraseña?** en el inicio de sesión: `resetPasswordForEmail` → el enlace vuelve a la app y AuthGate pide la nueva (`SetPassword` modo recuperar).
 - **Canciones**: nunca cambiar la letra (en las diapositivas solo se limpian alargamientos y "//"); cada diapositiva lleva 2 renglones; autor desconocido = "Unknown".
 - Planes: Gratis (20 canciones, 5 letras animadas básicas sin poder crear nuevas), Ministerio (75), Crecimiento (200), Iglesia (ilimitadas). Cobros por Paddle.
 

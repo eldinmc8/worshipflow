@@ -6,6 +6,7 @@ import { parseIsoDateLocal, todayLocal, buildMonthWeeks, MONTH_NAMES_FULL, DOW_L
 import { validarPassword } from "./lib/passwordSegura.js";
 import RolesAdmin from "./RolesAdmin.jsx";
 import { ordenarPor } from "./lib/orden.js";
+import EnlaceUnirse from "./components/EnlaceUnirse.jsx";
 
 import { esPopPropio, cuandoListo } from "./lib/atras.js";
 const ROLES = [
@@ -403,9 +404,11 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
               <h1 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, color: "var(--wf-heading)", margin: 0 }}>Miembros</h1>
               <button onClick={onExit} style={ghostBtn}>← Volver a la app</button>
             </div>
-            <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 14 }}>Todo lo de las personas en un solo lugar: invitar por correo, cambiar su rol y su estado aquí mismo. Toca a alguien para ver su horario, reiniciar su contraseña o eliminarlo. Lo que puede hacer el líder de un grupo se decide dentro de cada grupo.</div>
+            <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 14 }}>Todo lo de las personas en un solo lugar: compartir el enlace para unirse, aprobar solicitudes, invitar por correo, cambiar su rol y su estado aquí mismo. Toca a alguien para ver su horario, reiniciar su contraseña o eliminarlo. Lo que puede hacer el líder de un grupo se decide dentro de cada grupo.</div>
 
             {error && <div style={{ background: "#FDECEA", border: "1px solid #C23B32", color: "#8A2A24", borderRadius: 12, padding: "8px 12px", fontSize: 13, marginBottom: 14 }}>{error}</div>}
+
+            <EnlaceUnirse iglesiaId={iglesiaId} opcionesRol={<OpcionesRol rolesApp={rolesApp} />} valorARol={patchDeValorRol} onAprobado={load} />
 
             <form onSubmit={addUser} style={{ background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", padding: 16, marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
               <div style={{ flex: "1 1 220px" }}>
