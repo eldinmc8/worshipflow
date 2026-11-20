@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react"; // eslint-disable-line no-unused-vars
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, cleanup, screen } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 vi.mock("../lib/supabaseClient.js", () => ({ supabase: {}, callUsersFunction: vi.fn() }));
 import SitioWeb from "../SitioWeb.jsx";
 import { CORREO_SOPORTE } from "../lib/soporte.js";
@@ -106,5 +106,21 @@ describe("cuenta regresiva del lanzamiento", () => {
     despues();
     abrir("/web");
     expect(screen.queryAllByRole("timer").length).toBe(0);
+  });
+});
+
+// Carrusel de la portada (2026-11-20): una ventana por cada función real de la app.
+describe("carrusel de funciones en la portada", () => {
+  it("muestra todas las funciones y puntos para saltar de una a otra", () => {
+    const { container } = abrir("/web");
+    const region = container.querySelector('[aria-roledescription="carrusel"]');
+    expect(region).toBeTruthy();
+    for (const f of ["Culto del domingo", "Modo Músico", "Pantalla de escenario", "Control remoto", "Biblia integrada", "Biblioteca de canciones", "Letras animadas y estilo", "Grupos", "Equipo del culto", "Bosquejo y Modo Predicar", "Asistente con IA"]) {
+      expect(region.textContent).toContain(f);
+    }
+    const puntos = region.querySelectorAll("button.wfc-dot");
+    expect(puntos.length).toBe(11);
+    fireEvent.click(puntos[2]);
+    expect(puntos[2].getAttribute("aria-current")).toBe("true");
   });
 });
