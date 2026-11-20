@@ -2,7 +2,7 @@
 // todas las fechas de un rango (máximo un año), por ejemplo todos los miércoles. Aquí solo va la
 // cuenta de fechas, títulos y repetidos; la pantalla está en src/components/PublicarVariasFechas.jsx
 // y la creación de los eventos en createEventsBatch (PrototipoWorshipFlow.jsx).
-import { parseIsoDateLocal, MONTH_NAMES_FULL, tituloAutomatico } from "./dates.js";
+import { parseIsoDateLocal, MONTH_NAMES_FULL, tituloAutomatico, formatHora } from "./dates.js";
 
 export const DIAS_SEMANA = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 export const DIAS_CORTOS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -93,7 +93,8 @@ export function fechaLarga(iso) {
 // diciembre · 7:00 pm"; modo "plantilla": "Culto de oración – 2 dic".
 export function tituloParaFecha(base, iso, modo = "plantilla", hora = null) {
   if (modo === "fecha") return tituloAutomatico(iso, hora);
-  return `${(base || "").trim()} – ${fechaCorta(iso)}`;
+  const h = formatHora(hora);
+  return `${(base || "").trim()} – ${fechaCorta(iso)}${h ? ` · ${h}` : ""}`;
 }
 
 const normal = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
@@ -102,12 +103,14 @@ const normal = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/
 // le agrega al final, para reconocer también los que se publicaron antes con este mismo asistente.
 // tituloDe (opcional): el nombre que llevaría cada fecha; si ya hay un evento ese día con ese mismo
 // nombre (ej. "Miércoles 2 de diciembre · 7:00 pm") también cuenta como repetido.
-export function fechasRepetidas(eventos, base, fechas, tituloDe = null) {
+// hora (opcional): si el evento que ya existe tiene otra hora, NO es repetido (dos servicios el mismo día).
+export function fechasRepetidas(eventos, base, fechas, tituloDe = null, hora = null) {
   const b = normal(base);
   const set = new Set(fechas);
   const rep = new Set();
   (eventos || []).forEach((ev) => {
     if (ev.esPlantilla || !set.has(ev.date)) return;
+    if (hora && ev.hora && String(ev.hora).slice(0, 5) !== String(hora).slice(0, 5)) return;
     const t = normal(ev.title);
     if ((b && (t === b || t.startsWith(`${b} –`) || t.startsWith(`${b} -`))) || (tituloDe && t === normal(tituloDe(ev.date)))) rep.add(ev.date);
   });

@@ -10,7 +10,7 @@ import {
 
 // "Publicar en varias fechas": toma una plantilla y crea un evento por cada fecha elegida (máximo un
 // año). Pasos: 1) qué días, 2) desde/hasta, 3) revisar y publicar. Lógica en src/lib/publicarVarias.js.
-const PASOS = [{ clave: "dias", nombre: "Días" }, { clave: "fechas", nombre: "Fechas" }, { clave: "revisar", nombre: "Revisar" }];
+const PASOS = [{ clave: "fechas", nombre: "Días y fechas" }, { clave: "revisar", nombre: "Revisar" }];
 const campo = { ...inputStyle, fontSize: 16, minHeight: 44 };
 
 export default function PublicarVariasFechas({ plantilla, eventos, onPublicar, onCerrar, onVerEventos }) {
@@ -33,7 +33,7 @@ export default function PublicarVariasFechas({ plantilla, eventos, onPublicar, o
   const problema = problemaDelRango(desde, hasta);
   const fechas = useMemo(() => generarFechas({ desde, hasta, dias, frecuencia, semanaDelMes }), [desde, hasta, dias, frecuencia, semanaDelMes]);
   const tituloDe = (f) => tituloParaFecha(nombre, f, modoNombre, hora);
-  const repetidas = useMemo(() => fechasRepetidas(eventos, nombre, fechas, (f) => tituloParaFecha(nombre, f, "fecha", hora)), [eventos, nombre, fechas, hora]);
+  const repetidas = useMemo(() => fechasRepetidas(eventos, nombre, fechas, (f) => tituloParaFecha(nombre, f, "fecha", hora), hora), [eventos, nombre, fechas, hora]);
   const fuera = quitadas || repetidas; // al llegar a Revisar, las repetidas vienen quitadas
   const elegidas = fechas.filter((f) => !fuera.has(f));
 
@@ -59,7 +59,7 @@ export default function PublicarVariasFechas({ plantilla, eventos, onPublicar, o
     return s;
   });
   const irAPaso = (i) => {
-    if (i === 2 && paso < 2) setQuitadas(null); // recalcula repetidas con lo que se eligió
+    if (i === 1 && paso < 1) setQuitadas(null); // recalcula repetidas con lo que se eligió
     setPaso(i);
   };
 
@@ -72,12 +72,12 @@ export default function PublicarVariasFechas({ plantilla, eventos, onPublicar, o
     setListo({ ...r, fechas: lista.map((x) => x.date) });
   };
 
-  const puedeSeguir = paso === 0 ? dias.length > 0 : paso === 1 ? !problema && fechas.length > 0 : (modoNombre === "fecha" || nombre.trim()) && elegidas.length > 0;
-  const falta = paso === 0 ? "Elige al menos un día" : paso === 1 ? (problema || "No hay fechas en ese rango") : (modoNombre !== "fecha" && !nombre.trim() ? "Falta el nombre" : "Elige al menos una fecha");
+  const puedeSeguir = paso === 0 ? dias.length > 0 && !problema && fechas.length > 0 : (modoNombre === "fecha" || nombre.trim()) && elegidas.length > 0;
+  const falta = paso === 0 ? (!dias.length ? "Elige al menos un día" : problema || "No hay fechas en ese rango") : (modoNombre !== "fecha" && !nombre.trim() ? "Falta el nombre" : "Elige al menos una fecha");
 
   if (listo) {
     return (
-      <AsistentePasos titulo="Publicar en varias fechas" pasos={PASOS} paso={2} onPaso={() => {}} onCerrar={onCerrar} onFinal={onCerrar} textoFinal="Cerrar">
+      <AsistentePasos titulo="Publicar en varias fechas" pasos={PASOS} paso={1} onPaso={() => {}} onCerrar={onCerrar} onFinal={onCerrar} textoFinal="Cerrar">
         <div style={{ textAlign: "center", padding: "30px 8px" }}>
           <CheckCircle2 size={54} color="#1F8A73" />
           <h2 style={{ fontFamily: "var(--wf-font-titulo)", fontSize: 21, margin: "12px 0 6px" }}>¡Listo! Se publicaron {listo.creados} servicios</h2>
@@ -124,9 +124,10 @@ export default function PublicarVariasFechas({ plantilla, eventos, onPublicar, o
         </>
       )}
 
-      {paso === 1 && (
+      {paso === 0 && (
         <>
-          <EncabezadoPaso titulo="¿Desde cuándo y hasta cuándo?" ayuda="Puedes publicar hasta un año completo de una vez." />
+          <div style={{ height: 1, background: "var(--wf-divider)", margin: "22px 0 18px" }} />
+          <EncabezadoPaso titulo="¿Desde cuándo y hasta cuándo?" ayuda="Elige el rango de fechas. Puede ser de hasta un año." />
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
             {[["mes", "Este mes"], ["3m", "3 meses"], ["6m", "6 meses"], ["año", "Todo el año"]].map(([v, l]) => <Pildora key={v} activo={atajo === v} onClick={() => ponerAtajo(v)}>{l}</Pildora>)}
           </div>
@@ -137,21 +138,30 @@ export default function PublicarVariasFechas({ plantilla, eventos, onPublicar, o
           <div style={{ marginTop: 18, borderRadius: 16, padding: "14px 16px", background: problema ? "color-mix(in srgb, #C23B32 10%, transparent)" : "color-mix(in srgb, var(--wf-brand-accent) 10%, transparent)" }}>
             {problema ? (
               <span style={{ fontSize: 14, fontWeight: 700, color: "#C23B32" }}>{problema}</span>
+            ) : !dias.length ? (
+              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-muted)" }}>Elige arriba el día (por ejemplo, Miércoles) para ver cuántos servicios son.</span>
             ) : (
               <>
                 <div style={{ fontSize: 24, fontWeight: 800 }}>{fechas.length} {fechas.length === 1 ? "servicio" : "servicios"}</div>
-                <div style={{ fontSize: 13, color: "var(--wf-muted)" }}>{fechas.length ? `${dias.map((d) => DIAS_CORTOS[d]).join(", ")}, ${resumenRango(fechas)}` : "Ningún día elegido cae en ese rango."}</div>
+                <div style={{ fontSize: 13, color: "var(--wf-muted)" }}>{fechas.length ? `${dias.map((d) => DIAS_CORTOS[d]).join(", ")} · ${resumenRango(fechas)}` : "Ningún día elegido cae en ese rango."}</div>
               </>
             )}
           </div>
         </>
       )}
 
-      {paso === 2 && (
+      {paso === 0 && (
+        <>
+          <div style={{ height: 1, background: "var(--wf-divider)", margin: "22px 0 18px" }} />
+          <EncabezadoPaso titulo="¿A qué hora?" ayuda="Si el mismo día hay dos servicios (por ejemplo, 9:00 y 11:00), publica uno con cada hora: así cada uno queda separado, con su nombre y su hora." />
+          <Field label="Hora del servicio"><input type="time" value={hora} onChange={(e) => setHora(e.target.value)} style={campo} /></Field>
+        </>
+      )}
+
+      {paso === 1 && (
         <>
           <EncabezadoPaso titulo="Revisa y publica" ayuda="Así se van a llamar. Quita las fechas que no van, por ejemplo un feriado." />
           <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 18 }}>
-            <Field label="Hora del servicio"><input type="time" value={hora} onChange={(e) => setHora(e.target.value)} style={campo} /></Field>
             <Field label="Nombre de cada servicio">
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 <Pildora activo={modoNombre === "fecha"} onClick={() => setModoNombre("fecha")}>Fecha y hora</Pildora>
