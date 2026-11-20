@@ -6,13 +6,14 @@
 // Rediseño (2026-11-11): lienzo blanco, un solo acento naranja de marca, letra Inter con tracking
 // cerrado, bandas grises para separar y pie oscuro. El logo es el ícono oficial (WorshipFlowIcon).
 // Los planes, precios y la tabla salen de lib/planes.js: no se escriben a mano aquí.
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { Radio, Music, ListMusic, BookOpen, Users, Tv, Check, MessageCircle, Menu, X, Minus, Plus, Smartphone, Tablet, Monitor, Cast } from "lucide-react";
 import WorshipFlowIcon from "./WorshipFlowIcon.jsx";
 import { PLANES, COMPARATIVO } from "./lib/planes.js";
 import { CORREO_SOPORTE, WHATSAPP_SOPORTE } from "./lib/soporte.js";
 import { direccionApp } from "./lib/portada.js";
 import { PADDLE_TOKEN, pagosConfigurados, leerPedidoPago, cargarPaddle } from "./lib/paddle.js";
+import { useLanzamiento, fechaLanzamientoTexto, fechaLanzamientoCorta } from "./lib/lanzamiento.js";
 
 // "Abrir la app web" / "Entrar": en worshipflowapp.com lleva a app.worshipflowapp.com; en la dirección vieja, a "/".
 const URL_APP = direccionApp(typeof window !== "undefined" ? window.location.hostname : "");
@@ -48,6 +49,42 @@ const ESCRIBENOS = whatsapp("Hola, tengo una pregunta sobre WorshipFlow.");
 // "Elegir plan" (2026-11-18): el pago necesita saber de qué iglesia es, así que lleva a la app, que abre "Tu plan"
 // después de iniciar sesión (PlanesHost lee ?planes=1). Quien aún no tiene cuenta crea su iglesia primero.
 const ELEGIR_PLAN = `${URL_APP}${URL_APP.includes("?") ? "&" : "?"}planes=1`;
+// Cuenta regresiva (2026-11-19): hasta el lanzamiento oficial la página se ve completa (precios, información),
+// pero los botones de crear iglesia y elegir plan se cambian por "Avísame del lanzamiento". La fecha se cambia
+// en supabase/functions/_shared/lanzamiento.js.
+const AVISAME = whatsapp("Hola, quiero que me avisen cuando abra WorshipFlow.");
+const Lanzamiento = createContext({ lanzado: true, dias: 0, horas: 0, minutos: 0, segundos: 0 });
+const useEstadoLanzamiento = () => useContext(Lanzamiento);
+
+// "Crear mi iglesia" antes y después del lanzamiento: mismo lugar, mismo estilo.
+function BotonCrear({ children, ...props }) {
+  const { lanzado } = useEstadoLanzamiento();
+  if (lanzado) return <Boton href={CREAR_IGLESIA} mismaPestana {...props}>{children}</Boton>;
+  return <Boton href={AVISAME} {...props}>Avísame del lanzamiento</Boton>;
+}
+
+const dos = (n) => String(n).padStart(2, "0");
+
+// Reloj grande de la cuenta regresiva (días · horas · minutos · segundos).
+function CuentaRegresiva({ centrada }) {
+  const { lanzado, dias, horas, minutos, segundos } = useEstadoLanzamiento();
+  if (lanzado) return null;
+  const celdas = [[dias, dias === 1 ? "día" : "días"], [dos(horas), "horas"], [dos(minutos), "min"], [dos(segundos), "seg"]];
+  return (
+    <div role="timer" aria-label="Cuenta regresiva para el lanzamiento oficial" style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: centrada ? "center" : "flex-start", textAlign: centrada ? "center" : "left" }}>
+      <span style={{ fontSize: 13, fontWeight: 700, color: "#B4610F", textTransform: "uppercase", letterSpacing: "0.04em" }}>Lanzamiento oficial</span>
+      <div style={{ display: "flex", gap: 8 }}>
+        {celdas.map(([n, t]) => (
+          <div key={t} style={{ background: OSCURO, color: "#fff", borderRadius: 12, minWidth: 66, padding: "10px 8px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <span style={{ fontSize: "clamp(24px, 4vw, 32px)", fontWeight: 700, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>{n}</span>
+            <span style={{ fontSize: 11.5, color: "#B9C2D0", fontWeight: 500 }}>{t}</span>
+          </div>
+        ))}
+      </div>
+      <span style={{ fontSize: 13.5, color: SUAVE }}>Abrimos el {fechaLanzamientoTexto()} (hora de Guatemala). Mientras tanto, conoce la app y sus precios.</span>
+    </div>
+  );
+}
 
 function irA(ruta, e) {
   if (e) e.preventDefault();
@@ -89,9 +126,10 @@ function Logo({ claro, tamano = 32 }) {
 }
 
 function BarraAviso() {
+  const { lanzado, dias, horas, minutos } = useEstadoLanzamiento();
   return (
     <div style={{ background: OSCURO, color: "#fff", padding: "10px 16px", textAlign: "center", fontSize: 12.5, fontWeight: 500, lineHeight: 1.5 }}>
-      Cada iglesia nueva puede probar 30 días gratis el plan Iglesia completo.{" "}
+      {!lanzado ? <>Lanzamiento oficial en {dias} {dias === 1 ? "día" : "días"}, {horas} h y {minutos} min.{" "}</> : <>Cada iglesia nueva puede probar 30 días gratis el plan Iglesia completo.{" "}</>}
       <Enlace ruta="/web/precios" style={{ color: NARANJA, fontWeight: 700 }}>Ver planes →</Enlace>
     </div>
   );
@@ -114,7 +152,7 @@ function Encabezado({ ruta }) {
           </div>
           <div className="sw-escritorio" style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 14 }}>
             <a href={URL_APP} style={{ color: TINTA, textDecoration: "none", fontWeight: 500 }}>Abrir la app web</a>
-            <Boton href={CREAR_IGLESIA} mismaPestana>Crear mi iglesia</Boton>
+            <BotonCrear>Crear mi iglesia</BotonCrear>
           </div>
           <button className="sw-celular" onClick={() => setMenu((v) => !v)} aria-label={menu ? "Cerrar menú" : "Abrir menú"} aria-expanded={menu}
             style={{ background: NIEBLA, border: "none", color: TINTA, borderRadius: 12, width: 44, height: 44, display: "none", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
@@ -126,7 +164,7 @@ function Encabezado({ ruta }) {
             <Enlace ruta="/web" style={{ padding: "12px 4px", color: TINTA }}>Inicio</Enlace>
             <Enlace ruta="/web/precios" style={{ padding: "12px 4px", color: TINTA }}>Precios</Enlace>
             <a href={URL_APP} style={{ color: TINTA, textDecoration: "none", padding: "12px 4px" }}>Abrir la app web</a>
-            <Boton href={CREAR_IGLESIA} mismaPestana grande style={{ marginTop: 6 }}>Crear mi iglesia gratis</Boton>
+            <BotonCrear grande style={{ marginTop: 6 }}>Crear mi iglesia gratis</BotonCrear>
           </div>
         )}
       </header>
@@ -262,8 +300,9 @@ function Inicio() {
             <p style={{ margin: 0, fontSize: "clamp(17px, 2.2vw, 20px)", lineHeight: 1.5, color: SUAVE, maxWidth: 540 }}>
               Proyecta letras y versículos, prepara el setlist, coordina a tu equipo y toca con acordes que avanzan solos. Desde el celular.
             </p>
+            <CuentaRegresiva />
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <Boton href={CREAR_IGLESIA} mismaPestana grande>Crear mi iglesia gratis</Boton>
+              <BotonCrear grande>Crear mi iglesia gratis</BotonCrear>
               <Boton href={URL_APP} mismaPestana tipo="oscuro" grande>Abrir la app web</Boton>
               <Boton ruta="/web/precios" tipo="texto" grande>Ver planes →</Boton>
             </div>
@@ -371,7 +410,7 @@ function LlamadoFinal({ titulo, texto, gris }) {
           <p style={{ margin: 0, fontSize: 18, color: SUAVE, lineHeight: 1.5 }}>{texto}</p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <Boton href={CREAR_IGLESIA} mismaPestana grande>Crear mi iglesia gratis</Boton>
+          <BotonCrear grande>Crear mi iglesia gratis</BotonCrear>
           <Boton href={ESCRIBENOS} tipo="texto" grande><MessageCircle size={18} /> ¿Dudas? Escríbenos</Boton>
           {!gris && <Boton ruta="/web/precios" tipo="texto" grande>Ver planes →</Boton>}
         </div>
@@ -385,6 +424,7 @@ const precioTexto = (n) => `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
 function Precios() {
   const [anual, setAnual] = useState(false);
   const [abierta, setAbierta] = useState(0);
+  const { lanzado } = useEstadoLanzamiento();
   return (
     <>
       <Encabezado ruta="/web/precios" />
@@ -392,6 +432,7 @@ function Precios() {
         <section style={{ ...contenedor, paddingTop: "clamp(48px, 7vw, 72px)", paddingBottom: 28, display: "flex", flexDirection: "column", alignItems: "center", gap: 18, textAlign: "center" }}>
           <h1 style={{ margin: 0, fontSize: "clamp(38px, 6vw, 60px)", lineHeight: 1.05, fontWeight: 700, letterSpacing: "-0.04em", color: TINTA }}>Planes para cada iglesia</h1>
           <p style={{ margin: 0, fontSize: "clamp(16px, 2vw, 19px)", color: SUAVE }}>Empieza gratis. Cambia de plan cuando quieras.</p>
+          <div style={{ marginTop: 8 }}><CuentaRegresiva centrada /></div>
           <div role="group" aria-label="Periodo de pago" style={{ display: "inline-flex", background: NIEBLA, borderRadius: 12, padding: 4, marginTop: 6 }}>
             {[false, true].map((a) => (
               <button key={String(a)} onClick={() => setAnual(a)} aria-pressed={anual === a}
@@ -421,11 +462,15 @@ function Precios() {
                   <span style={{ fontSize: 12.5, color: SUAVE, minHeight: 18 }}>
                     {gratis ? "Sin tarjeta" : anual ? `Equivale a ${precioTexto(Math.round((p.precioAnual / 12) * 100) / 100)} al mes` : `o ${precioTexto(p.precioAnual)} al año`}
                   </span>
-                  <Boton href={gratis ? CREAR_IGLESIA : ELEGIR_PLAN} mismaPestana tipo={destacado ? "principal" : gratis ? "suave" : "oscuro"} style={{ margin: "8px 0 0", width: "100%" }}>
-                    {gratis ? "Empezar gratis" : "Elegir plan"}
-                  </Boton>
+                  {lanzado ? (
+                    <Boton href={gratis ? CREAR_IGLESIA : ELEGIR_PLAN} mismaPestana tipo={destacado ? "principal" : gratis ? "suave" : "oscuro"} style={{ margin: "8px 0 0", width: "100%" }}>
+                      {gratis ? "Empezar gratis" : "Elegir plan"}
+                    </Boton>
+                  ) : (
+                    <Boton href={AVISAME} tipo={destacado ? "principal" : gratis ? "suave" : "oscuro"} style={{ margin: "8px 0 0", width: "100%" }}>Avísame del lanzamiento</Boton>
+                  )}
                   <span style={{ fontSize: 12.5, color: SUAVE, textAlign: "center", minHeight: 18, marginBottom: 6 }}>
-                    {gratis ? "" : <>¿Aún no tienes cuenta? <a href={CREAR_IGLESIA} style={{ color: TINTA, textDecoration: "underline" }}>Crea tu iglesia</a></>}
+                    {!lanzado ? `Disponible desde el ${fechaLanzamientoCorta()}` : gratis ? "" : <>¿Aún no tienes cuenta? <a href={CREAR_IGLESIA} style={{ color: TINTA, textDecoration: "underline" }}>Crea tu iglesia</a></>}
                   </span>
                   <div style={{ borderTop: `1px solid ${NIEBLA}`, paddingTop: 16, display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
                     {p.incluye.map((t) => (
@@ -666,6 +711,7 @@ function Reembolsos() {
 }
 
 export default function SitioWeb() {
+  const lanzamiento = useLanzamiento();
   const [ruta, setRuta] = useState(window.location.pathname.replace(/\/$/, "") || "/web");
   useEffect(() => {
     const alCambiar = () => setRuta(window.location.pathname.replace(/\/$/, "") || "/web");
@@ -686,7 +732,7 @@ export default function SitioWeb() {
         .sw *, .sw *::before, .sw *::after { box-sizing: border-box; }
         @media (max-width: 760px) { .sw-escritorio { display: none !important; } .sw-celular { display: flex !important; } }
       `}</style>
-      {pagina}
+      <Lanzamiento.Provider value={lanzamiento}>{pagina}</Lanzamiento.Provider>
     </div>
   );
 }

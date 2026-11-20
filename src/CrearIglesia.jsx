@@ -5,6 +5,7 @@ import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
 import MarkCircle from "./MarkCircle.jsx";
 import { validarPassword } from "./lib/passwordSegura.js";
 import MedidorPassword from "./MedidorPassword.jsx";
+import { useLanzamiento, fechaLanzamientoTexto } from "./lib/lanzamiento.js";
 
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
 const labelStyle = { fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 4, display: "block" };
@@ -14,6 +15,8 @@ const primaryBtn = { width: "100%", background: "#E8821E", border: "none", borde
 // Alta de una iglesia NUEVA (?crear-iglesia). Desde el lanzamiento (2026-11-18) el registro es abierto: la página
 // web y el inicio de sesión traen el botón "Crear mi iglesia". El código de invitación es opcional (Fundadoras y
 // enlaces de la consola, ?crear-iglesia&codigo=...).
+// Cuenta regresiva (2026-11-19): hasta el lanzamiento oficial (supabase/functions/_shared/lanzamiento.js) solo se
+// crea iglesia CON código. Sin código se ve la cuenta regresiva; la función crear-iglesia lo vuelve a revisar.
 export default function CrearIglesia() {
   // El enlace que copia Eldin desde la consola ya trae el código (?crear-iglesia&codigo=...).
   const [codigoInvitacion, setCodigoInvitacion] = useState(() => {
@@ -28,6 +31,8 @@ export default function CrearIglesia() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [listo, setListo] = useState(false);
+  const { lanzado, dias, horas, minutos, segundos } = useLanzamiento();
+  const [tengoCodigo, setTengoCodigo] = useState(() => !!codigoInvitacion);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -68,6 +73,30 @@ export default function CrearIglesia() {
     );
   }
 
+  if (!lanzado && !tengoCodigo) {
+    const dos = (n) => String(n).padStart(2, "0");
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "var(--wf-font-ui)", padding: "40px 20px" }}>
+        <div className="screen-enter" style={{ width: 400, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+          <MarkCircle size={72} />
+          <span style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 18, fontWeight: 600, color: "var(--wf-heading)" }}>Muy pronto podrás crear tu iglesia</span>
+          <div role="timer" style={{ display: "flex", gap: 6 }}>
+            {[[dias, "días"], [dos(horas), "horas"], [dos(minutos), "min"], [dos(segundos), "seg"]].map(([n, t]) => (
+              <div key={t} style={{ background: "#16324F", color: "#fff", borderRadius: 10, minWidth: 58, padding: "8px 6px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <span style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{n}</span>
+                <span style={{ fontSize: 11, opacity: 0.75 }}>{t}</span>
+              </div>
+            ))}
+          </div>
+          <span style={{ fontSize: 13, color: "var(--wf-muted)" }}>El lanzamiento oficial es el {fechaLanzamientoTexto()} (hora de Guatemala).</span>
+          <a href="https://worshipflowapp.com/web/precios" style={{ ...primaryBtn, display: "block", textDecoration: "none", boxSizing: "border-box" }}>Ver planes y precios</a>
+          <button type="button" onClick={() => setTengoCodigo(true)} style={{ background: "none", border: "none", color: "var(--wf-muted)", fontSize: 13, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit" }}>Tengo un código de invitación</button>
+          <a href={window.location.origin + "/"} style={{ fontSize: 13, color: "var(--wf-muted)" }}>Ya tengo cuenta: iniciar sesión</a>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "'Poppins', sans-serif", padding: "40px 20px" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Poppins:wght@400;500;600;700&display=swap');`}</style>
@@ -80,8 +109,8 @@ export default function CrearIglesia() {
 
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
-            <span style={labelStyle}>Código de invitación (opcional)</span>
-            <input placeholder="Solo si te dimos uno" value={codigoInvitacion} onChange={(e) => setCodigoInvitacion(e.target.value)} style={inputStyle} />
+            <span style={labelStyle}>{lanzado ? "Código de invitación (opcional)" : "Código de invitación"}</span>
+            <input required={!lanzado} placeholder={lanzado ? "Solo si te dimos uno" : "El que te dimos"} value={codigoInvitacion} onChange={(e) => setCodigoInvitacion(e.target.value)} style={inputStyle} />
           </div>
           <div>
             <span style={labelStyle}>Nombre de la iglesia</span>

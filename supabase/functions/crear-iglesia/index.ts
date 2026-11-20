@@ -1,4 +1,5 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { yaLanzamos } from "../_shared/lanzamiento.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -71,6 +72,11 @@ Deno.serve(async (req: Request) => {
     // fundadora_por_codigo deja a las Fundadoras en Iglesia sin vencimiento. Un código mal escrito sí se
     // rechaza (para que nadie pierda su beneficio sin darse cuenta).
     const codigoIngresado = String(body.codigo_invitacion || "").trim().toLowerCase();
+    // Cuenta regresiva (2026-11-19): hasta el lanzamiento oficial (fecha en ../_shared/lanzamiento.js) solo se
+    // crea iglesia con código de invitación. Al llegar la fecha se abre solo.
+    if (!codigoIngresado && !yaLanzamos()) {
+      return json({ error: "Todavía no abrimos el registro. Muy pronto podrás crear tu iglesia: mira la cuenta regresiva en worshipflowapp.com." }, 403);
+    }
     if (codigoIngresado) {
       const { data: invitacion } = await admin.from("codigos_invitacion").select("codigo, usado_at, vence_at").eq("codigo", codigoIngresado).maybeSingle();
       if (!invitacion) return json({ error: "Código de invitación incorrecto. Si no tienes código, deja ese campo vacío." }, 403);
