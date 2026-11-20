@@ -109,16 +109,14 @@ export function renombrarParte(cancion, k, nombre) {
 }
 
 // ---- Letra ----
-const lineasLetra = (lineas) => (lineas || []).filter((l) => limpiarParaProyectar(l));
 // La parte "va de la mano": lo que ven los músicos (sin acordes) es la misma letra de las diapositivas.
 // Solo entonces escribir la letra actualiza también el texto de los músicos. Si alguien escribió
 // los acordes con otra letra (canciones viejas), eso no se toca.
 export function contenidoVaConLetra(cancion, k) {
   const lines = cancion.blocks[k]?.lines || [];
   if (!lines.some((l) => String(l).trim())) return true;
-  const a = lineasLetra(lines).map(limpiarParaProyectar);
-  const b = (cancion.letra?.[k] || []).flat().map((l) => limpiarParaProyectar(l)).filter(Boolean);
-  return JSON.stringify(a) === JSON.stringify(b);
+  // Palabra por palabra: los músicos pueden tener los renglones unidos distinto que las diapositivas.
+  return JSON.stringify(clavesDe(lines)) === JSON.stringify(clavesDe((cancion.letra?.[k] || []).flat()));
 }
 
 // Texto para el cuadro de la parte: la letra de las diapositivas, con un renglón vacío entre una y otra.
@@ -127,37 +125,86 @@ export function textoDeParte(cancion, k) {
   return (cancion.letra?.[k] || []).map((s) => (s || []).join("\n")).filter((s) => s.trim()).join("\n\n");
 }
 
-// Pasa los acordes ya puestos a la letra nueva: cada renglón que sigue igual conserva sus acordes.
-// Los renglones que solo tenían acordes (ej. una entrada) se quedan antes del renglón que seguía.
-export function pasarAcordes(lineasViejas, lineasNuevas) {
-  const viejas = (lineasViejas || []).map(String);
-  const clave = viejas.map((l) => limpiarParaProyectar(l));
-  const usadas = new Set();
-  const destino = new Map(); // índice viejo (con letra) → índice nuevo
-  const salida = lineasNuevas.map((l, i) => {
-    const c = limpiarParaProyectar(l);
-    if (!c) return "";
-    let j = clave[i] === c && !usadas.has(i) ? i : clave.findIndex((x, idx) => x === c && !usadas.has(idx));
-    if (j < 0) return l.replace(/\s+$/, "");
-    usadas.add(j);
-    destino.set(j, i);
-    return viejas[j];
-  });
-  // Renglones de solo acordes
-  const antesDe = new Map();
-  const alFinal = [];
-  viejas.forEach((l, i) => {
-    if (!/\[[^\]]*\]/.test(l) || quitarAcordes(l).trim()) return;
-    let j = i + 1;
-    while (j < viejas.length && !clave[j]) j++;
-    const n = j < viejas.length ? destino.get(j) : undefined;
-    if (n === undefined) { if (j >= viejas.length) alFinal.push(l); return; }
-    antesDe.set(n, [...(antesDe.get(n) || []), l]);
-  });
+// ---- Palabras con su "clave" (la palabra como se proyecta) para comparar sin acordes ni alargamientos ----
+const claveDe = (palabra) => limpiarParaProyectar(palabra);
+// Para emparejar, sin mayúsculas ni signos: "Sientas," y "sientas" son la misma palabra.
+const claveSuelta = (palabra) => { const c = claveDe(palabra); return c.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "") || c; };
+function clavesDe(lineas) {
   const out = [];
-  salida.forEach((l, i) => { (antesDe.get(i) || []).forEach((x) => out.push(x)); out.push(l); });
-  out.push(...alFinal);
-  while (out.length && !String(out[out.length - 1]).trim()) out.pop();
+  (lineas || []).forEach((l) => String(l).split(/\s+/).forEach((t) => { const c = claveDe(t); if (c) out.push(c); }));
+  return out;
+}
+// Lo que ven los músicos, palabra por palabra: cada palabra con sus acordes/alargamiento, si termina
+// renglón, y lo que no es palabra (acordes sueltos, "//") pegado a la palabra de antes.
+function palabrasDeContenido(lineas) {
+  const palabras = [];
+  const soloAcordes = []; // renglones de solo acordes: { antes: índice de la palabra que sigue, linea }
+  (lineas || []).forEach((l) => {
+    const linea = String(l);
+    if (!linea.trim()) return;
+    if (!clavesDe([linea]).length) { soloAcordes.push({ antes: palabras.length, linea: linea.replace(/\s+$/, "") }); return; }
+    let prefijo = [];
+    let ultima = null;
+    linea.trim().split(/\s+/).forEach((t) => {
+      const c = claveDe(t);
+      if (!c) { if (ultima) ultima.sufijos.push(t); else prefijo.push(t); return; }
+      ultima = { clave: c, suelta: claveSuelta(t), token: t, prefijo, sufijos: [], fin: false };
+      prefijo = [];
+      palabras.push(ultima);
+    });
+    if (ultima) ultima.fin = true;
+  });
+  return { palabras, soloAcordes };
+}
+// Pares (vieja, nueva) de palabras iguales en el mismo orden (la subsecuencia común más larga).
+function emparejar(a, b) {
+  const n = a.length, m = b.length;
+  const t = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) t[i][j] = a[i] === b[j] ? t[i + 1][j + 1] + 1 : Math.max(t[i + 1][j], t[i][j + 1]);
+  const par = new Map(); // nueva → vieja
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { par.set(j, i); i++; j++; } else if (t[i + 1][j] >= t[i][j + 1]) i++; else j++;
+  }
+  return par;
+}
+
+// Pasa los acordes ya puestos a la letra nueva, palabra por palabra: cada palabra que sigue igual
+// conserva sus acordes y su alargamiento, y los renglones quedan como los acomodó el líder (unidos o
+// partidos); solo lo nuevo toma los renglones de la letra. Los renglones de solo acordes (una entrada)
+// se quedan antes de la palabra que les seguía.
+export function pasarAcordes(lineasViejas, lineasNuevas) {
+  const { palabras: viejas, soloAcordes } = palabrasDeContenido(lineasViejas);
+  const nuevas = [];
+  (lineasNuevas || []).forEach((l) => {
+    const toks = String(l).trim().split(/\s+/).filter(Boolean);
+    toks.forEach((t, x) => nuevas.push({ texto: t, clave: claveDe(t) || t, suelta: claveSuelta(t) || t, fin: x === toks.length - 1 }));
+  });
+  const par = emparejar(viejas.map((p) => p.suelta), nuevas.map((p) => p.suelta));
+  const out = [];
+  let actual = [];
+  const cerrar = () => { if (actual.length) out.push(actual.join(" ")); actual = []; };
+  const pendientes = [...soloAcordes];
+  nuevas.forEach((p, j) => {
+    const i = par.get(j);
+    if (i !== undefined) {
+      // Renglones de solo acordes que iban antes de esta palabra (o de una que se borró antes que ella).
+      while (pendientes.length && pendientes[0].antes <= i) { cerrar(); out.push(pendientes.shift().linea); }
+      const v = viejas[i];
+      // Igual: tal cual (con acordes y alargamiento). Si cambió un signo o una mayúscula: la palabra
+      // nueva con los mismos acordes encima.
+      const { acordes } = partirPalabra(v.token);
+      const palabra = v.clave === p.clave ? v.token : armarPalabra(p.texto, acordes);
+      actual.push([...v.prefijo, palabra, ...v.sufijos].join(" "));
+      // Termina renglón donde lo terminaba el líder, salvo que siga letra nueva en el mismo renglón.
+      if (v.fin && (p.fin || j === nuevas.length - 1 || par.has(j + 1))) cerrar();
+    } else {
+      actual.push(p.texto);
+      if (p.fin) cerrar();
+    }
+  });
+  cerrar();
+  pendientes.forEach((x) => out.push(x.linea));
   return out.length ? out : [""];
 }
 
@@ -303,14 +350,18 @@ export function acortarLetra(linea, n, pos) {
 // ---- Escribir los acordes como texto (para quien escribe rápido en la computadora) ----
 // Se puede escribir [G] donde sea y alargar palabras, pero la letra tiene que seguir siendo la misma:
 // si cambió, se dice en qué renglón y no se guarda.
-const letraDeRenglones = (lineas) => lineas.map((l) => limpiarParaProyectar(l)).filter(Boolean);
 export function revisarTextoAcordes(original, texto) {
   const nuevas = String(texto || "").replace(/\r\n?/g, "\n").split("\n");
-  const antes = letraDeRenglones(original || []);
-  const despues = letraDeRenglones(nuevas);
+  const antes = clavesDe(original || []);
+  const despues = clavesDe(nuevas);
   const n = Math.max(antes.length, despues.length);
   for (let i = 0; i < n; i++) {
-    if (antes[i] !== despues[i]) return { ok: false, renglon: i + 1, esperado: antes[i] || "", escrito: despues[i] || "" };
+    if (antes[i] !== despues[i]) {
+      // En qué renglón del texto quedó esa palabra.
+      let cuenta = 0, renglon = nuevas.length;
+      for (let r = 0; r < nuevas.length; r++) { cuenta += clavesDe([nuevas[r]]).length; if (cuenta > i) { renglon = r + 1; break; } }
+      return { ok: false, renglon, esperado: antes[i] || "", escrito: despues[i] || "" };
+    }
   }
   return { ok: true, lineas: nuevas.filter((l) => l.trim()).map((l) => l.replace(/\s+$/, "")) };
 }
@@ -319,3 +370,19 @@ export function revisarTextoAcordes(original, texto) {
 export const agregarAcordeAlFinal = (linea, acorde) => `${String(linea || "").replace(/\s+$/, "")}${String(linea || "").trim() ? " " : ""}[${acorde}]`;
 export const esLineaSoloAcordes = (linea) => /\[[^\]]*\]/.test(linea) && !quitarAcordes(linea).trim();
 export const tieneAcordes = (cancion) => Object.values(cancion?.blocks || {}).some((b) => (b.lines || []).some((l) => /\[[^\]]*\]/.test(l)));
+
+// ---- Renglones del músico: unir y partir (la letra y las diapositivas no cambian) ----
+export function unirRenglones(lineas, i) {
+  if (i < 0 || i >= lineas.length - 1) return lineas;
+  const out = [...lineas];
+  out.splice(i, 2, `${String(lineas[i]).replace(/\s+$/, "")} ${String(lineas[i + 1]).trim()}`);
+  return out;
+}
+export function partirRenglon(lineas, i, n) {
+  const linea = String(lineas[i] || "");
+  const p = palabrasDe(linea)[n];
+  if (!p || n === 0) return lineas;
+  const out = [...lineas];
+  out.splice(i, 1, linea.slice(0, p.inicio).replace(/\s+$/, ""), linea.slice(p.inicio));
+  return out;
+}

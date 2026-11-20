@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { ChevronUp, ChevronDown, X, Plus, Pencil, Trash2, Repeat, Music, ListMusic, Keyboard, Hand, MoveHorizontal } from "lucide-react";
+import { ChevronUp, ChevronDown, X, Plus, Pencil, Trash2, Repeat, Music, ListMusic, Keyboard, Hand, MoveHorizontal, ArrowDownToLine, Scissors } from "lucide-react";
 import { useArrastreLista } from "../lib/arrastreLista.js";
 import { promptDialog, confirmDialog } from "../lib/confirm.js";
 import { acordeEn } from "../lib/preferencias.js";
@@ -7,7 +7,7 @@ import { quitarAcordes, diapositivasDeLineas, distintivoDe } from "../lib/textoC
 import {
   TIPOS_PARTE, ordenDe, partesUnicas, partesSinUsar, agregarParte, repetirParte, moverEnOrden, quitarDelOrden, borrarParte, renombrarParte,
   textoDeParte, contenidoVaConLetra, escribirLetraParte, lineasParaAcordes, palabrasDe, ponerAcorde, quitarAcorde, agregarAcordeAlFinal,
-  partirPalabra, alargarLetra, acortarLetra, puedeAlargar, puedeAcortar, revisarTextoAcordes,
+  partirPalabra, alargarLetra, acortarLetra, puedeAlargar, puedeAcortar, revisarTextoAcordes, unirRenglones, partirRenglon,
 } from "../lib/pasosCancion.js";
 
 // Pasos 2, 3 y 4 del asistente de canciones (ver lib/pasosCancion.js). Pensados primero para el
@@ -235,10 +235,12 @@ function PalabraConAcordes({ texto }) {
   );
 }
 
-function CuadroTextoAcordes({ lineas, onListo }) {
+function CuadroTextoAcordes({ lineas, onListo, onActivo, insertarRef }) {
   const [texto, setTexto] = useState(() => lineas.filter((l) => String(l).trim()).join("\n"));
   const [error, setError] = useState(null);
   const ref = useRef(null);
+  const cursor = useRef(null); // dónde estaba el cursor la última vez (el celular lo pierde al tocar la barra)
+  const recordar = () => { const el = ref.current; if (el) cursor.current = [el.selectionStart, el.selectionEnd]; };
   useLayoutEffect(() => { const el = ref.current; if (el) { el.style.height = "auto"; el.style.height = `${Math.max(el.scrollHeight, 80)}px`; } }, [texto]);
   const cambiar = (t) => {
     setTexto(t);
@@ -247,13 +249,23 @@ function CuadroTextoAcordes({ lineas, onListo }) {
     const r = revisarTextoAcordes(lineas, t);
     if (r.ok) { setError(null); onListo(r.lineas.length ? r.lineas : [""]); } else setError(r);
   };
+  // La barra de acordes de abajo pone el acorde donde está el cursor: sin escribir corchetes.
+  const insertar = (acorde) => {
+    const [ini, fin] = cursor.current || [texto.length, texto.length];
+    const ins = `[${acorde}]`;
+    cambiar(texto.slice(0, ini) + ins + texto.slice(fin));
+    const pos = ini + ins.length;
+    cursor.current = [pos, pos];
+    requestAnimationFrame(() => { const el = ref.current; if (el) { el.focus({ preventScroll: true }); el.setSelectionRange(pos, pos); } });
+  };
+  const activar = () => { recordar(); if (insertarRef) insertarRef.current = insertar; onActivo?.(); };
   return (
     <div>
-      <textarea ref={ref} value={texto} onChange={(e) => cambiar(e.target.value)} spellCheck={false} aria-label="Acordes como texto"
+      <textarea ref={ref} value={texto} onChange={(e) => { cambiar(e.target.value); recordar(); }} onFocus={activar} onSelect={activar} onKeyUp={recordar} onClick={activar} spellCheck={false} aria-label="Acordes como texto"
         style={{ width: "100%", boxSizing: "border-box", resize: "none", overflow: "hidden", border: `1px solid ${error ? "#C23B32" : "var(--wf-border)"}`, borderRadius: 12, padding: "10px 12px", fontSize: 15, lineHeight: 1.55, fontFamily: "'JetBrains Mono', monospace", background: "var(--wf-bg)", color: "var(--wf-text)", outline: "none" }} />
       {error && (
         <div role="alert" style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 6, background: "rgba(194,59,50,0.1)", borderRadius: 10, padding: "8px 10px", fontSize: 12.5, color: "var(--wf-text)" }}>
-          <span style={{ flex: 1 }}>En el renglón {error.renglon} cambió la letra{error.esperado ? <> (debe decir «{error.esperado}»)</> : " (sobra un renglón)"}. Aquí solo se ponen acordes: la letra se cambia en el paso Letra. Esto no se guarda hasta que la letra quede igual.</span>
+          <span style={{ flex: 1 }}>En el renglón {error.renglon} cambió la letra{error.esperado && error.escrito ? <>: dice «{error.escrito}» y debe decir «{error.esperado}»</> : error.esperado ? <>: falta «{error.esperado}»</> : <>: sobra «{error.escrito}»</>}. Aquí solo se ponen acordes: la letra se cambia en el paso Letra. Esto no se guarda hasta que la letra quede igual.</span>
           <button type="button" onClick={() => { setTexto(lineas.filter((l) => String(l).trim()).join("\n")); setError(null); }} style={{ ...btnChico, minHeight: 30, background: "var(--wf-card)", color: "var(--wf-text)" }}>Deshacer</button>
         </div>
       )}
@@ -264,8 +276,10 @@ function CuadroTextoAcordes({ lineas, onListo }) {
 export function PasoAcordes({ cancion, setCancion, colorDe, grupos, abajo }) {
   const partes = partesUnicas(cancion);
   const [sel, setSel] = useState(null); // { k, i, n, pos } n = número de palabra o "fin"; pos = antes de qué letra
-  const [otro, setOtro] = useState("");
   const [comoTexto, setComoTexto] = useState(false);
+  const insertarRef = useRef(null); // el cuadro de texto donde está el cursor (modo texto)
+  const [cuadroActivo, setCuadroActivo] = useState(null);
+  const cambiarLineas = (k, fn) => { setCancion((c) => ({ ...c, blocks: { ...c.blocks, [k]: { ...c.blocks[k], lines: fn(lineasParaAcordes(c, k).filter((x) => String(x).trim())) } } })); setSel(null); };
 
   const lineasDe = (k) => {
     const l = lineasParaAcordes(cancion, k).filter((x) => String(x).trim());
@@ -322,16 +336,16 @@ export function PasoAcordes({ cancion, setCancion, colorDe, grupos, abajo }) {
     );
   }
   return (
-    <div style={{ paddingBottom: sel && !comoTexto ? 290 : 0 }}>
+    <div style={{ paddingBottom: comoTexto ? 120 : sel ? 300 : 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <h2 style={{ ...tituloPaso, flex: 1 }}>Acordes <span style={{ fontSize: 13, fontWeight: 600, color: "var(--wf-muted)", fontFamily: "var(--wf-font-ui)" }}>· opcional</span></h2>
-        <button type="button" onClick={() => { setComoTexto((v) => !v); setSel(null); }} style={{ ...btnChico, background: "var(--wf-hover)", color: "var(--wf-text)" }}>
+        <button type="button" onClick={() => { setComoTexto((v) => !v); setSel(null); setCuadroActivo(null); insertarRef.current = null; }} style={{ ...btnChico, background: "var(--wf-hover)", color: "var(--wf-text)" }}>
           {comoTexto ? <><Hand size={14} /> Tocar palabras</> : <><Keyboard size={14} /> Escribir como texto</>}
         </button>
       </div>
       <p style={ayuda}>{comoTexto
         ? <>Escribe cada acorde entre corchetes justo antes de la letra donde cae, ej. <code style={{ color: "#1F8A73" }}>[G]Santo es el [D]Señor</code>. Puedes alargar palabras ("Diooos"), pero la letra no se puede cambiar aquí.</>
-        : <><b>Toca una palabra</b>, elige la letra exacta donde cae el acorde y luego el acorde. La letra no se cambia aquí: para eso está el paso Letra.</>}</p>
+        : <><b>Toca una palabra</b>, elige la letra exacta donde cae el acorde y luego el acorde. Con <b>Unir</b> juntas dos renglones en uno solo para el músico (la pantalla no cambia). La letra no se cambia aquí: para eso está el paso Letra.</>}</p>
       {partes.map((k) => {
         const b = cancion.blocks[k];
         const lines = lineasDe(k);
@@ -347,7 +361,7 @@ export function PasoAcordes({ cancion, setCancion, colorDe, grupos, abajo }) {
               </label>
             </div>
             {comoTexto ? (
-              <CuadroTextoAcordes key={`${k}-texto`} lineas={lines} onListo={(nuevas) => setCancion((c) => ({ ...c, blocks: { ...c.blocks, [k]: { ...c.blocks[k], lines: nuevas } } }))} />
+              <CuadroTextoAcordes key={`${k}-texto`} lineas={lines} insertarRef={insertarRef} onActivo={() => setCuadroActivo(k)} onListo={(nuevas) => setCancion((c) => ({ ...c, blocks: { ...c.blocks, [k]: { ...c.blocks[k], lines: nuevas } } }))} />
             ) : (
               <>
                 {sinLetra && <div style={{ fontSize: 12.5, color: "var(--wf-muted)", marginBottom: 8 }}>Esta parte no tiene letra. Puedes poner sus acordes aquí:</div>}
@@ -370,6 +384,12 @@ export function PasoAcordes({ cancion, setCancion, colorDe, grupos, abajo }) {
                         style={{ minHeight: 34, minWidth: 34, marginLeft: 4, borderRadius: 8, border: "1.5px dashed var(--wf-border)", background: esSel(k, i, "fin") ? "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)" : "transparent", color: "var(--wf-faint)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, fontSize: 13, fontWeight: 700, padding: sinLetra ? "0 10px" : 0, fontFamily: "inherit", alignSelf: "flex-end" }}>
                         <Plus size={14} />{sinLetra && " Acorde"}
                       </button>
+                      {i < lines.length - 1 && (
+                        <button type="button" onClick={() => cambiarLineas(k, (ls) => unirRenglones(ls, i))} aria-label="Unir con el renglón de abajo" title="Unir con el renglón de abajo (solo para el músico)"
+                          style={{ minHeight: 34, marginLeft: 4, borderRadius: 8, border: "none", background: "var(--wf-hover)", color: "var(--wf-muted)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, padding: "0 9px", fontFamily: "inherit", alignSelf: "flex-end" }}>
+                          <ArrowDownToLine size={13} /> Unir
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -408,31 +428,53 @@ export function PasoAcordes({ cancion, setCancion, colorDe, grupos, abajo }) {
                 <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
                   <button type="button" onClick={alargar} disabled={!puedeAlargar(palabraSel.texto, sel.pos)} title="Estira esta letra solo para los músicos" style={{ ...btnChico, background: "var(--wf-hover)", color: "var(--wf-text)", opacity: puedeAlargar(palabraSel.texto, sel.pos) ? 1 : 0.35 }}><MoveHorizontal size={14} /> Alargar</button>
                   <button type="button" onClick={acortar} disabled={!puedeAcortar(palabraSel.texto, sel.pos)} style={{ ...btnChico, background: "var(--wf-hover)", color: "var(--wf-text)", opacity: puedeAcortar(palabraSel.texto, sel.pos) ? 1 : 0.35 }}>Acortar</button>
+                  {sel.n > 0 && <button type="button" onClick={() => cambiarLineas(sel.k, (ls) => partirRenglon(ls, sel.i, sel.n))} title="Empieza un renglón nuevo en esta palabra (solo para el músico)" style={{ ...btnChico, background: "var(--wf-hover)", color: "var(--wf-text)" }}><Scissors size={14} /> Partir aquí</button>}
                   {acordeEnPos && <button type="button" onClick={quitar} style={{ ...btnChico, background: "rgba(194,59,50,0.12)", color: "#C23B32" }}>Quitar {acordeEn(acordeEnPos.acorde)}</button>}
                 </div>
               </>
             )}
             {partida && !partida.plano && <div style={{ marginBottom: 8 }}><button type="button" onClick={quitar} style={{ ...btnChico, background: "rgba(194,59,50,0.12)", color: "#C23B32" }}>Quitar acorde</button></div>}
-            <div className="chordbar-scroll" style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", alignItems: "stretch" }}>
-              {grupos.map((g, gi) => (
-                <div key={g.titulo} style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "stretch", paddingLeft: gi === 0 ? 0 : 8, borderLeft: gi === 0 ? "none" : "1px solid var(--wf-divider)" }}>
-                  {g.acordes.map((c) => (
-                    <button key={c.chord + c.grado} type="button" onClick={() => poner(c.chord)} className="hoverable" style={{ flexShrink: 0, minWidth: 52, minHeight: 50, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", cursor: "pointer" }}>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>{acordeEn(c.chord)}</span>
-                      <span style={{ fontSize: 10, color: "var(--wf-faint)", whiteSpace: "nowrap" }}>{c.grado}</span>
-                    </button>
-                  ))}
-                </div>
-              ))}
-              <form onSubmit={(e) => { e.preventDefault(); poner(otro); setOtro(""); }} style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "stretch", paddingLeft: grupos.length ? 8 : 0, borderLeft: grupos.length ? "1px solid var(--wf-divider)" : "none" }}>
-                <input value={otro} onChange={(e) => setOtro(e.target.value.replace(/[[\]\s]/g, ""))} placeholder="Otro" aria-label="Escribir otro acorde" style={{ width: 76, border: "1px solid var(--wf-border)", borderRadius: 12, padding: "0 8px", fontSize: 16, fontFamily: "'JetBrains Mono', monospace", background: "var(--wf-bg)", color: "var(--wf-text)" }} />
-                <button type="submit" disabled={!otro.trim()} style={{ minWidth: 52, borderRadius: 12, border: "none", background: "#1F8A73", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: otro.trim() ? 1 : 0.4 }}>Poner</button>
-              </form>
+            <BarraAcordes grupos={grupos} onAcorde={poner} />
+          </div>
+        </div>
+      )}
+
+      {comoTexto && (
+        <div style={{ position: "fixed", left: 0, right: 0, bottom: abajo, background: "var(--wf-card)", borderTop: "1px solid var(--wf-divider)", boxShadow: "0 -4px 14px rgba(22,50,79,0.12)", padding: "8px 0 10px", zIndex: 46 }}>
+          <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 12px" }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>
+              {cuadroActivo ? <>Toca un acorde y se pone donde está el cursor en <b>{cancion.blocks[cuadroActivo]?.label}</b></> : "Toca dentro de una parte y luego un acorde: se pone donde está el cursor"}
             </div>
-            {grupos.length === 0 && <div style={{ fontSize: 12, color: "var(--wf-faint)", marginTop: 6 }}>Elige la tonalidad en Datos para ver aquí sus acordes.</div>}
+            <BarraAcordes grupos={grupos} onAcorde={(a) => insertarRef.current?.(a)} desactivada={!cuadroActivo} />
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+// Barra de acordes de la tonalidad (deslizable) + "Otro" para escribir uno que no esté.
+function BarraAcordes({ grupos, onAcorde, desactivada = false }) {
+  const [otro, setOtro] = useState("");
+  return (
+    <>
+      <div className="chordbar-scroll" style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", alignItems: "stretch", opacity: desactivada ? 0.5 : 1 }}>
+        {grupos.map((g, gi) => (
+          <div key={g.titulo} style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "stretch", paddingLeft: gi === 0 ? 0 : 8, borderLeft: gi === 0 ? "none" : "1px solid var(--wf-divider)" }}>
+            {g.acordes.map((c) => (
+              <button key={c.chord + c.grado} type="button" disabled={desactivada} onMouseDown={(e) => e.preventDefault()} onClick={() => onAcorde(c.chord)} className="hoverable" style={{ flexShrink: 0, minWidth: 52, minHeight: 50, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "6px 10px", cursor: desactivada ? "default" : "pointer" }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>{acordeEn(c.chord)}</span>
+                <span style={{ fontSize: 10, color: "var(--wf-faint)", whiteSpace: "nowrap" }}>{c.grado}</span>
+              </button>
+            ))}
+          </div>
+        ))}
+        <form onSubmit={(e) => { e.preventDefault(); if (otro.trim() && !desactivada) onAcorde(otro.trim()); setOtro(""); }} style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "stretch", paddingLeft: grupos.length ? 8 : 0, borderLeft: grupos.length ? "1px solid var(--wf-divider)" : "none" }}>
+          <input value={otro} onChange={(e) => setOtro(e.target.value.replace(/[[\]\s]/g, ""))} placeholder="Otro" aria-label="Escribir otro acorde" style={{ width: 76, border: "1px solid var(--wf-border)", borderRadius: 12, padding: "0 8px", fontSize: 16, fontFamily: "'JetBrains Mono', monospace", background: "var(--wf-bg)", color: "var(--wf-text)" }} />
+          <button type="submit" disabled={!otro.trim() || desactivada} style={{ minWidth: 52, borderRadius: 12, border: "none", background: "#1F8A73", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: otro.trim() ? 1 : 0.4 }}>Poner</button>
+        </form>
+      </div>
+      {grupos.length === 0 && <div style={{ fontSize: 12, color: "var(--wf-faint)", marginTop: 6 }}>Elige la tonalidad en Datos para ver aquí sus acordes.</div>}
+    </>
   );
 }

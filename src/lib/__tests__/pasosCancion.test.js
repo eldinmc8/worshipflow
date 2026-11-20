@@ -3,7 +3,7 @@ import {
   agregarParte, repetirParte, quitarDelOrden, moverEnOrden, ordenDe, partesUnicas, partesSinUsar,
   escribirLetraParte, textoDeParte, contenidoVaConLetra, pasarAcordes, lineasParaAcordes,
   palabrasDe, ponerAcorde, quitarAcorde, agregarAcordeAlFinal, tieneAcordes,
-  alargarLetra, acortarLetra, puedeAlargar, revisarTextoAcordes,
+  alargarLetra, acortarLetra, puedeAlargar, revisarTextoAcordes, unirRenglones, partirRenglon,
 } from "../pasosCancion.js";
 
 const vacia = () => ({ title: "", key: "G", artist: "", blocks: {}, letra: {}, defaultStructure: [] });
@@ -58,9 +58,9 @@ describe("Letra", () => {
     expect(c.letra[k]).toEqual([["uno", "dos"], ["tres"]]);
   });
 
-  it("cambiar la letra conserva los acordes de los renglones que no cambiaron", () => {
+  it("cambiar la letra conserva los acordes de las palabras que no cambiaron", () => {
     const nuevas = pasarAcordes(["[G]Santo es el [D]Señor", "[Em]Digno de [C]honor"], ["Santo es el Señor", "Digno de gloria"]);
-    expect(nuevas).toEqual(["[G]Santo es el [D]Señor", "Digno de gloria"]);
+    expect(nuevas).toEqual(["[G]Santo es el [D]Señor", "[Em]Digno de gloria"]);
   });
 
   it("los renglones de solo acordes se quedan en su lugar", () => {
@@ -145,6 +145,31 @@ describe("Acordes", () => {
     expect(r.ok).toBe(true);
     expect(r.lineas).toEqual(["[G]Saaanto es el [D]Señor", "[A] [E]"]);
     const mal = revisarTextoAcordes(["Santo es el Señor", "Digno"], "[G]Santo es mi Señor\nDigno");
-    expect(mal).toMatchObject({ ok: false, renglon: 1, esperado: "Santo es el Señor" });
+    expect(mal).toMatchObject({ ok: false, renglon: 1, esperado: "el", escrito: "mi" });
+    // Unir renglones en el texto sí se puede: la letra es la misma.
+    expect(revisarTextoAcordes(["Prepárate para", "que sientas"], "[G]Prepárate para [Em]que sientas").ok).toBe(true);
+  });
+
+  it("unir y partir renglones solo para el músico; se conserva aunque multimedia corrija", () => {
+    let c = agregarParte(vacia(), "estrofa");
+    const [k] = ordenDe(c);
+    c = escribirLetraParte(c, k, "Prepárate para\nque sientas,\n\nPrepárate para\nque sientas,");
+    let lines = c.blocks[k].lines;
+    expect(lines).toHaveLength(4);
+    lines = unirRenglones(lines, 0);
+    lines = unirRenglones(lines, 1);
+    lines = [ponerAcorde(lines[0], 0, "G"), ponerAcorde(lines[1], 3, "D")];
+    expect(lines).toEqual(["[G]Prepárate para que sientas,", "Prepárate para que [D]sientas,"]);
+    c = { ...c, blocks: { ...c.blocks, [k]: { ...c.blocks[k], lines } } };
+    expect(contenidoVaConLetra(c, k)).toBe(true);
+    // Multimedia corrige una palabra: lo demás (renglones unidos y acordes) se queda.
+    c = escribirLetraParte(c, k, "Prepárate para\nque sientas,\n\nPrepárate para\nque sientas hoy,", true);
+    expect(c.blocks[k].lines).toEqual(["[G]Prepárate para que sientas,", "Prepárate para que [D]sientas hoy,"]);
+    expect(c.letra[k]).toEqual([["Prepárate para", "que sientas,"], ["Prepárate para", "que sientas hoy,"]]);
+    expect(partirRenglon(["[G]Prepárate para que sientas,"], 0, 2)).toEqual(["[G]Prepárate para", "que sientas,"]);
+  });
+
+  it("un acorde suelto al final del renglón y una entrada de solo acordes no se pierden", () => {
+    expect(pasarAcordes(["[G] [D]", "Santo [Em]", "Digno"], ["Santo", "Digno de ti"])).toEqual(["[G] [D]", "Santo [Em]", "Digno de ti"]);
   });
 });
