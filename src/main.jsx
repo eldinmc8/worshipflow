@@ -10,8 +10,9 @@ import { iniciarPreferencias } from './lib/preferencias.js'
 import AuthGate from './AuthGate.jsx'
 import PublicScreen from './PublicScreen.jsx'
 import PantallaEscenario from './PantallaEscenario.jsx'
+import PantallaTransmision from './PantallaTransmision.jsx'
 import ConectarTv from './ConectarTv.jsx'
-import { leerPantallaDeUrl, leerEscenarioDeUrl } from './lib/enlacePantalla.js'
+import { leerPantallaDeUrl, leerEscenarioDeUrl, leerTransmisionDeUrl } from './lib/enlacePantalla.js'
 import CrearIglesia from './CrearIglesia.jsx'
 import SitioWeb, { esRutaSitioWeb } from './SitioWeb.jsx'
 import { mostrarPortada } from './lib/portada.js'
@@ -34,6 +35,8 @@ iniciarMonitoreo()
 const isPublicScreen = !!leerPantallaDeUrl(window.location.pathname, window.location.search)
 // Pantalla de escenario (stage display) para quienes están en la plataforma: /e/<iglesia>.
 const isEscenario = !isPublicScreen && !!leerEscenarioDeUrl(window.location.pathname, window.location.search)
+// Salida para la transmisión (OBS): /t/<iglesia> — fondo transparente, solo la letra en una franja.
+const isTransmision = !isPublicScreen && !isEscenario && !!leerTransmisionDeUrl(window.location.pathname, window.location.search)
 // Conectar TV con un número de 6 dígitos (Smart TV): /tv
 const isConectarTv = /^\/tv\/?$/.test(window.location.pathname)
 // Alta de una iglesia nueva (Fase 4) — su propia URL (?crear-iglesia), sin ningún enlace visible
@@ -45,7 +48,10 @@ const isSitioWeb = esRutaSitioWeb(window.location.pathname) || mostrarPortada({
   hostname: window.location.hostname, pathname: window.location.pathname, search: window.location.search,
   hash: window.location.hash,
 })
-if (isPublicScreen || isEscenario || isConectarTv) {
+if (isTransmision) {
+  // Vive dentro de OBS: cada versión nueva entra sola (no hay pantalla completa que perder).
+  pausarActualizacion(false)
+} else if (isPublicScreen || isEscenario || isConectarTv) {
   // Una pantalla de proyección/escenario nunca se recarga sola por una versión nueva (perdería la
   // pantalla completa en pleno culto): la toma la próxima vez que se abra. Ver pausarActualizacion.
   // EXCEPTO dentro de OBS u otro programa de transmisión (2026-11-15): ahí no hay pantalla completa
@@ -80,7 +86,7 @@ function App() {
 
   return (
     <>
-      {updateReady && (
+      {updateReady && !isTransmision && (
         <div style={{ position: 'fixed', left: 0, right: 0, top: 0, zIndex: 10000, background: 'var(--wf-brand-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 10, padding: '10px 16px', fontFamily: "'Poppins', sans-serif", fontSize: 13, fontWeight: 600, boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
           <span>Hay una nueva actualización disponible</span>
           <button
@@ -91,10 +97,10 @@ function App() {
           </button>
         </div>
       )}
-      <ErrorPantalla>{isPublicScreen ? <PublicScreen /> : isEscenario ? <PantallaEscenario /> : isConectarTv ? <ConectarTv /> : isCrearIglesia ? <CrearIglesia /> : isSitioWeb ? <SitioWeb /> : <AuthGate />}</ErrorPantalla>
+      <ErrorPantalla>{isPublicScreen ? <PublicScreen /> : isEscenario ? <PantallaEscenario /> : isTransmision ? <PantallaTransmision /> : isConectarTv ? <ConectarTv /> : isCrearIglesia ? <CrearIglesia /> : isSitioWeb ? <SitioWeb /> : <AuthGate />}</ErrorPantalla>
       <ToastHost />
       <ConfirmDialogHost />
-      {!isPublicScreen && !isEscenario && !isConectarTv && !isCrearIglesia && !isSitioWeb && <PlanesHost />}
+      {!isPublicScreen && !isEscenario && !isTransmision && !isConectarTv && !isCrearIglesia && !isSitioWeb && <PlanesHost />}
     </>
   )
 }

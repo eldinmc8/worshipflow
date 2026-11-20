@@ -37,6 +37,7 @@ import { posicionActual, textoTiempo } from "../lib/videoControl.js";
 import { useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
 import { estiloDeBiblia, setterDeBiblia, setterDeCanciones, sinEfectosDeCanciones } from "../lib/estiloBiblia.js";
 import { ProjectionPanel } from "./proyeccion.jsx";
+import { ajustesTransmision, TAMANOS_TRANSMISION, POSICIONES_TRANSMISION, FONDOS_TRANSMISION } from "../lib/transmision.js";
 import { TRANSICIONES, VELOCIDADES_TRANSICION, transicionDelCulto, transicionDeItem, conTransicionDeItem } from "../lib/transiciones.js";
 
 // ---------- Color por sección para el grid de diapositivas del panel Multimedia (estilo "grid de shows" tipo FreeShow) ----------
@@ -692,6 +693,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   const setEstiloLetra = letraAnimada ? (cambio) => setLiveStyle((st) => ({ ...st, animLetra: cambio(st.animLetra && typeof st.animLetra === "object" ? st.animLetra : {}) })) : setLiveStyle;
   const fuenteLetra = LIVE_FONTS[estiloLetra.font] || (letraAnimada ? null : font);
   const colorLetra = estiloLetra.textColor || (letraAnimada ? "" : "#FFFFFF");
+  // Ajustes de la salida para la transmisión: van al estilo completo (no al de Canciones ni al de la Biblia).
+  const setTransmision = (cambio) => setEstiloCompleto((st) => ({ ...st, transmision: cambio(ajustesTransmision(st)) }));
   const panelEstiloCompleto = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, paddingBottom: 12 }}>
       {/* 1. Qué estoy cambiando */}
@@ -875,6 +878,23 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         </div>
         <div style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.45 }}>
           ¿Una distinta para un canto o un aviso? En Transmisión, tócalo en el orden del culto y elige en <b>Transición</b>, arriba de sus diapositivas. La letra animada usa su propio movimiento.
+        </div>
+      </div>
+
+      {/* Transmisión (OBS), 2026-11-20: la letra que sale en la transmisión tiene su propio tamaño,
+          posición y fondo (liveStyle.transmision) y NO cambia la pantalla del templo. Ver lib/transmision.js. */}
+      <div style={cajaEstilo}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+          <span style={tituloEstilo}>TRANSMISIÓN (OBS)</span>
+          <span style={{ fontSize: 12, color: "var(--wf-muted)" }}>Solo para la letra encima de la cámara. La pantalla del templo no cambia.</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: isCompact ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "12px 20px" }}>
+          {ajusteConPasos({ clave: "tamano", label: "Tamaño de la letra", min: TAMANOS_TRANSMISION.min, max: TAMANOS_TRANSMISION.max, paso: TAMANOS_TRANSMISION.paso, defecto: TAMANOS_TRANSMISION.defecto, mostrar: (v) => `${Math.round(v * 100)}%` }, ajustesTransmision(estiloCompleto), setTransmision)}
+          {ajusteDeOpciones({ clave: "posicion", label: "Dónde sale", opciones: POSICIONES_TRANSMISION, defecto: "abajo" }, ajustesTransmision(estiloCompleto), setTransmision)}
+          {ajusteDeOpciones({ clave: "fondo", label: "Fondo", opciones: FONDOS_TRANSMISION, defecto: "franja" }, ajustesTransmision(estiloCompleto), setTransmision)}
+        </div>
+        <div style={{ fontSize: 12, color: "var(--wf-muted)", lineHeight: 1.45 }}>
+          El enlace para OBS está en <b>Pantallas y TV → Transmisión (OBS)</b>. Pégalo en una fuente "Navegador" del mismo tamaño que la transmisión, sin achicarla.
         </div>
       </div>
 
