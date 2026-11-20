@@ -1309,7 +1309,7 @@ export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChang
               <span style={{ width: 40, height: 40, borderRadius: 12, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ClipboardPaste size={20} /></span>
               <span style={{ flex: 1 }}>
                 <span style={{ display: "block", fontWeight: 800, fontSize: 14.5 }}>Pegar canción completa</span>
-                <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-muted)" }}>¿La copiaste de internet? Pégala con o sin acordes y se arma sola (partes, letra y acordes).</span>
+                <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-muted)" }}>¿La copiaste de internet? Pégala y se arma sola.</span>
               </span>
             </button>
           )}
@@ -1379,7 +1379,7 @@ export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChang
           </div>
         </div>
       )}
-      {pegando && <EditorTextoCancion cancion={draft} nueva onAplicar={aplicarPegado} onCerrar={() => setPegando(false)} />}
+      {pegando && <EditorTextoCancion cancion={draft} onAplicar={aplicarPegado} onCerrar={() => setPegando(false)} />}
     </div>
   );
 }
