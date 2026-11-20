@@ -1264,14 +1264,17 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // simple "ya terminé de configurar esto" que regresa a la lista, ya que el evento se fue guardando
   // solo desde el instante en que se creó (mismo patrón de autoguardado que ya usa toda la app).
   const [draftFromTemplateId, setDraftFromTemplateId] = useState(null);
-  const createEvent = ({ templateId, title, dateLabel, date, hora, location, esPlantilla, ministryId = null }) => {
+  // serviceOrder: el orden del culto armado en el asistente por pasos (evento especial o plantilla nueva,
+  // ver AsistenteEvento). abrir: false para no navegar al evento (ej. "Guardar y publicar en varias fechas").
+  const createEvent = ({ templateId, title, dateLabel = "", date, hora, location, esPlantilla, ministryId = null, serviceOrder = null }, { abrir = true } = {}) => {
     const template = events.find((e) => e.id === templateId);
+    const ordenArmado = serviceOrder ? serviceOrder.map((it) => (it.type === "seccion" && !it.ministryId ? { ...it, ministryId: ministerioParaBloque(it.title) } : it)) : null;
     const newEvent = {
       id: nextId(),
       title, dateLabel, date, hora: hora || null, location,
       openPositions: template ? template.openPositions : 0,
       cover: template ? template.cover : DEFAULT_COVERS[events.length % DEFAULT_COVERS.length],
-      serviceOrder: template ? cloneServiceOrder(template.serviceOrder) : [],
+      serviceOrder: ordenArmado || (template ? cloneServiceOrder(template.serviceOrder) : []),
       worshipRoles: template ? cloneWorshipRoles(template.worshipRoles || []) : [],
       reminders: template ? cloneRecordatorios(template.reminders) : [],
       vistas: [],
@@ -1280,8 +1283,15 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     };
     setEventsSynced((evs) => [...evs, newEvent]);
     crearEventoCompleto(newEvent, userId).catch((e) => notifyError("No se pudo guardar el evento", e));
-    setSelectedEventId(newEvent.id);
+    // Encargados puestos en el asistente de un evento especial: se les avisa como a cualquier asignación.
+    // (En una plantilla no: ahí son "encargados fijos" y se avisa al publicarla en fechas.)
+    if (ordenArmado && !esPlantilla) {
+      const ids = new Set(ordenArmado.flatMap((it) => (it.encargados || []).map((m) => m.usuarioId)).filter(Boolean));
+      ids.forEach((uid) => notificarAsignacion(uid, { titulo: "Se te ha asignado", cuerpo: `En "${title}". Entra al evento para confirmar.`, eventoId: newEvent.id }));
+    }
+    if (abrir) setSelectedEventId(newEvent.id);
     if (template && !esPlantilla) setDraftFromTemplateId(newEvent.id);
+    return newEvent;
   };
   // "Publicar en varias fechas" (2026-11-20): un evento por cada fecha, clonado de la plantilla igual que
   // createEvent (orden del culto, encargados en "pendiente", recordatorios). Se guardan de a pocos para no
@@ -2584,7 +2594,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       )}
 
       {tab === "eventos" && !selectedEvent && (
-        <EventList events={realEvents} plantillas={plantillas} isAdminViewer={puedeGestionarEventos} liveEventId={liveEventId} liveLibre={liveLibre} onSelect={setSelectedEventId} onCreate={createEvent} onPublicarVarias={createEventsBatch} canStartLive={canStartLive} onStartFree={startFreeEvent} library={library} myUserId={myUserId} ministries={ministries} gruposQueLidero={gruposQueLideroYo} />
+        <EventList events={realEvents} plantillas={plantillas} isAdminViewer={puedeGestionarEventos} liveEventId={liveEventId} liveLibre={liveLibre} onSelect={setSelectedEventId} onCreate={createEvent} onPublicarVarias={createEventsBatch} usuarios={usuariosReales} isCompact={isCompact} canStartLive={canStartLive} onStartFree={startFreeEvent} library={library} myUserId={myUserId} ministries={ministries} gruposQueLidero={gruposQueLideroYo} />
       )}
 
       {tab === "eventos" && selectedEvent && !openSong && (

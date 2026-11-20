@@ -23,7 +23,7 @@ export default function AsistentePasos({ titulo, pasos, paso, onPaso, onCerrar, 
   const siguiente = () => (ultimo ? onFinal() : ir(paso + 1));
 
   return createPortal(
-    <div role="dialog" aria-label={titulo} style={{ position: "fixed", inset: 0, zIndex: 60, background: "var(--wf-bg)", display: "flex", flexDirection: "column", color: "var(--wf-text)" }}>
+    <div role="dialog" aria-label={titulo} style={{ position: "fixed", inset: 0, zIndex: 48, background: "var(--wf-bg)", display: "flex", flexDirection: "column", color: "var(--wf-text)" }}>
       <div style={{ padding: "12px 16px 0", maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={onCerrar} disabled={ocupado} aria-label="Salir" style={{ background: "transparent", border: "none", color: "var(--wf-muted)", cursor: "pointer", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 10 }}><ArrowLeft size={18} /></button>
@@ -83,7 +83,7 @@ export function EncabezadoPaso({ titulo, ayuda }) {
 export function Pildora({ activo, onClick, children, disabled = false }) {
   return (
     <button type="button" aria-pressed={activo} disabled={disabled} onClick={onClick}
-      style={{ fontSize: 14, fontWeight: 700, minHeight: 42, padding: "8px 14px", borderRadius: 21, border: "none", background: activo ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: activo ? "var(--wf-on-brand-accent, #fff)" : "var(--wf-text)", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, fontFamily: "inherit" }}>
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, minHeight: 42, padding: "8px 14px", borderRadius: 21, border: "none", background: activo ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: activo ? "var(--wf-on-brand-accent, #fff)" : "var(--wf-text)", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, fontFamily: "inherit" }}>
       {children}
     </button>
   );

@@ -1,9 +1,9 @@
 // Eventos: calendario y lista, detalle del evento y su Setlist (bloques, encargados, equipo de alabanza, bosquejo). Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import ConPlan from "../components/ConPlan.jsx";
-import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Calendar, Music, ArrowLeft, Trash2, Bell, X, Settings, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy, Timer, CalendarRange } from "lucide-react";
+import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Music, ArrowLeft, Trash2, Bell, X, Settings, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy, Timer, CalendarRange } from "lucide-react";
 import { bosquejoTieneCambiosSinEnviar, esBloquePredicacion } from "../lib/bosquejos.js";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { todayLocal, monthKey, monthLabelFromKey, parseIsoDateLocal, isUpcoming, compareByDay, MONTH_ABBR, formatFullDate, tituloAutomatico, horaDeEvento } from "../lib/dates.js";
+import { todayLocal, monthKey, monthLabelFromKey, parseIsoDateLocal, isUpcoming, compareByDay, MONTH_ABBR, formatFullDate, horaDeEvento } from "../lib/dates.js";
 import { acordeEn, getNotacion } from "../lib/preferencias.js";
 import { useArrastreLista } from "../lib/arrastreLista.js";
 import { buscarCanciones } from "../lib/busqueda.js";
@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 import ImportarPresentacion from "../components/ImportarPresentacion.jsx";
 import CuentaRegresivaModal from "../components/CuentaRegresivaModal.jsx";
 import PublicarVariasFechas from "../components/PublicarVariasFechas.jsx";
+import AsistenteEvento from "../components/AsistenteEvento.jsx";
 import { SelectEstilo } from "../components/EditorAnimacionCancion.jsx";
 import { ANIMACIONES } from "../components/LetrasAnimadas.jsx";
 import RelojCuentaRegresiva, { estiloCuenta } from "../components/RelojCuentaRegresiva.jsx";
@@ -250,12 +251,11 @@ function EtiquetaMinisterio({ ministerio, claro = false }) {
   );
 }
 
-export function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, onSelect, onCreate, onPublicarVarias = null, canStartLive, onStartFree, library, myUserId, ministries = [], gruposQueLidero = new Set() }) {
+export function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, onSelect, onCreate, onPublicarVarias = null, canStartLive, onStartFree, library, myUserId, ministries = [], gruposQueLidero = new Set(), usuarios = [], isCompact = false }) {
   const [viewMode, setViewMode] = useState("eventos");
-  const [publicarDe, setPublicarDe] = useState(null); // plantilla abierta en "Publicar en varias fechas" // eventos | plantillas (solo administradores alternan)
-  const [step, setStep] = useState(null); // null | 'template' | 'details'
-  const [templateId, setTemplateId] = useState("blank");
-  const [form, setForm] = useState({ title: "", dateLabel: "", date: "", hora: "", location: "", ministryId: null });
+  const [publicarDe, setPublicarDe] = useState(null); // plantilla abierta en "Publicar en varias fechas"
+  const [step, setStep] = useState(null); // null | "nuevo": asistente por pasos (Nueva plantilla / Nuevo evento)
+  const [ministerioInicial, setMinisterioInicial] = useState(null);
   const [monthFilter, setMonthFilter] = useState("proximos"); // 'proximos' | mes (para revisar eventos pasados)
   // Eventos por ministerio: filtro (todos | general | id del ministerio) y quién puede crear qué.
   const [ministerioFiltro, setMinisterioFiltro] = useState("todos");
@@ -266,19 +266,13 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
   const ministeriosConEventos = ministries.filter((m) => events.some((ev) => ev.ministryId === m.id));
 
   const isPlantillaMode = isAdminViewer && viewMode === "plantillas";
-  // Crear una plantilla no pasa por "seleccionar plantilla" (sería plantilla-de-plantilla) — va directo
-  // al formulario de detalles, y se guarda con esPlantilla: true.
+  // Nueva plantilla / Nuevo evento: asistente por pasos (src/components/AsistenteEvento.jsx, 2026-11-20).
   const openCreate = () => {
-    setTemplateId("blank");
     // Si está filtrando un ministerio, el evento nuevo ya viene de ese ministerio.
     const filtrado = ministeriosParaCrear.find((m) => m.id === ministerioFiltro);
-    setForm({ title: "", dateLabel: "", date: "", hora: "", location: "", tituloTocado: false, ministryId: filtrado ? filtrado.id : (isAdminViewer ? null : ministeriosParaCrear[0]?.id || null) });
-    setStep(isPlantillaMode ? "details" : "template");
+    setMinisterioInicial(filtrado ? filtrado.id : (isAdminViewer ? null : ministeriosParaCrear[0]?.id || null));
+    setStep("nuevo");
   };
-  const confirmTemplate = () => setStep("details");
-  // Nombre predeterminado (2026-11-20): mientras no se escriba uno propio, el título es la fecha y la
-  // hora ("Viernes 20 de noviembre · 7:00 pm").
-  const conTituloAuto = (f) => (f.tituloTocado ? f : { ...f, title: tituloAutomatico(f.date, f.hora) });
   // Tocar una plantilla en la lista NO debe abrirla como si fuera un evento ya decidido, ni pasar por
   // un formulario/modal intermedio — clona la plantilla de una vez como evento real (autoguardado,
   // igual que cualquier otro cambio en esta app) y navega directo a su pantalla completa: Setlist ya
@@ -287,12 +281,6 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
   const aplicarPlantilla = (pl) => {
     onCreate({ templateId: pl.id, title: pl.title, dateLabel: "", date: null, hora: null, location: pl.location || "Por definir", esPlantilla: false });
   };
-  const confirmCreate = () => {
-    if (!form.title.trim() || (!isPlantillaMode && !form.date)) return;
-    onCreate({ templateId: templateId === "blank" ? null : templateId, title: form.title, dateLabel: form.dateLabel || "", date: form.date || null, hora: form.hora || null, location: form.location || "Por definir", esPlantilla: isPlantillaMode, ministryId: isPlantillaMode ? null : form.ministryId || null });
-    setStep(null);
-  };
-
   const today = todayLocal();
   // Ventana fija de ±6 meses alrededor de hoy, para poder planear meses futuros aunque todavía no
   // tengan eventos — más cualquier mes que sí tenga eventos reales aunque caiga fuera de la ventana.
@@ -367,11 +355,10 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
         <button onClick={openCreate} style={{ position: "fixed", right: 20, bottom: 92, width: 54, height: 54, borderRadius: "50%", background: "#5661B3", border: "none", boxShadow: "0 8px 18px rgba(86,97,179,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 41 }}>
           <Plus size={24} color="#fff" />
         </button>
-        {step === "details" && (
-          <ModalShell title="Nueva plantilla" icon={ListMusic} color="#5661B3" onClose={() => setStep(null)}>
-            <Field label="Nombre de la plantilla" required><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ej. Domingo AM — estructura estándar" style={inputStyle} autoFocus /></Field>
-            <button onClick={confirmCreate} disabled={!form.title.trim()} style={{ ...primaryBtn, marginTop: 14, opacity: form.title.trim() ? 1 : 0.4 }}>Crear plantilla</button>
-          </ModalShell>
+        {step && (
+          <AsistenteEvento modo="plantilla" library={library} usuarios={usuarios} isCompact={isCompact}
+            onCrear={onCreate} onCerrar={() => setStep(null)}
+            onPublicarVarias={onPublicarVarias ? (pl) => { setStep(null); setPublicarDe(pl); } : null} />
         )}
       </div>
     );
@@ -501,59 +488,10 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
         </button>
       )}
 
-      {step === "template" && (
-        <ModalShell title="Selecciona plantilla" icon={ListMusic} color="#5661B3" onClose={() => setStep(null)}>
-          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>Copia el orden del culto de una plantilla ya armada por un administrador, o empieza en blanco.</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
-            {plantillas.length === 0 && <div style={{ fontSize: 12, color: "var(--wf-faint)", fontStyle: "italic", marginBottom: 4 }}>Todavía no hay plantillas creadas.</div>}
-            {plantillas.map((pl) => (
-              <label key={pl.id} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, border: templateId === pl.id ? "1px solid #5661B3" : "1px solid var(--wf-divider)", cursor: "pointer" }}>
-                <input type="radio" name="template" checked={templateId === pl.id} onChange={() => setTemplateId(pl.id)} />
-                <div><div style={{ fontSize: 13, fontWeight: 600 }}>{pl.title}</div><div style={{ fontSize: 11, color: "var(--wf-faint)" }}>{pl.serviceOrder.length} elementos en el setlist</div></div>
-              </label>
-            ))}
-            <label className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, border: templateId === "blank" ? "1px solid #5661B3" : "1px solid var(--wf-divider)", cursor: "pointer" }}>
-              <input type="radio" name="template" checked={templateId === "blank"} onChange={() => setTemplateId("blank")} />
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--wf-text-2)" }}>Evento en blanco</div>
-            </label>
-          </div>
-          <button onClick={confirmTemplate} style={primaryBtn}>Continuar</button>
-        </ModalShell>
-      )}
-
-      {step === "details" && (
-        <ModalShell title="Detalles del evento" icon={Calendar} color="var(--wf-brand-accent)" onClose={() => setStep(null)}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {!isPlantillaMode && ministeriosParaCrear.length > 0 && (
-              <Field label="¿De quién es este evento?">
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {[...(isAdminViewer ? [{ id: null, name: "General (toda la iglesia)", color: null }] : []), ...ministeriosParaCrear].map((m) => {
-                    const on = (form.ministryId || null) === m.id;
-                    return (
-                      <button key={m.id || "general"} type="button" onClick={() => setForm({ ...form, ministryId: m.id })} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 14, cursor: "pointer",
-                        border: on ? "none" : "1px solid var(--wf-divider)", background: on ? (m.color || "var(--wf-brand-accent)") : "var(--wf-card)", color: on ? "#fff" : "var(--wf-text)" }}>
-                        {m.color && !on && <span style={{ width: 7, height: 7, borderRadius: "50%", background: m.color }} />}{m.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </Field>
-            )}
-            <Field label="Fecha del calendario" required>
-              <input type="date" value={form.date} onChange={(e) => setForm(conTituloAuto({ ...form, date: e.target.value }))} style={inputStyle} />
-              <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Es la fecha real del evento — de aquí sale su lugar en Inicio y en el filtro de mes, y también trae sola la planificación de Ministerios de esa semana.</span>
-            </Field>
-            <Field label="Hora (opcional)">
-              <input type="time" value={form.hora} onChange={(e) => setForm(conTituloAuto({ ...form, hora: e.target.value }))} style={inputStyle} />
-            </Field>
-            <Field label="Título" required>
-              <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value, tituloTocado: true })} placeholder={form.ministryId ? "Ej. Retiro de jóvenes" : "Se llena solo con la fecha y la hora"} style={inputStyle} />
-              <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Se llena solo con la fecha y la hora. Puedes cambiarlo si es un evento especial.</span>
-            </Field>
-            <Field label="Ubicación"><input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Ej. Pastores, Sacatepéquez" style={inputStyle} /></Field>
-          </div>
-          <button onClick={confirmCreate} disabled={!form.title.trim() || !form.date} style={{ ...primaryBtn, marginTop: 14, opacity: form.title.trim() && form.date ? 1 : 0.4, cursor: form.title.trim() && form.date ? "pointer" : "not-allowed" }}>Crear evento</button>
-        </ModalShell>
+      {step && (
+        <AsistenteEvento modo="evento" plantillas={plantillas} library={library} usuarios={usuarios} isCompact={isCompact}
+          ministerios={ministeriosParaCrear} puedeGeneral={isAdminViewer} ministerioInicial={ministerioInicial}
+          onCrear={onCreate} onCerrar={() => setStep(null)} />
       )}
     </div>
   );
