@@ -53,15 +53,32 @@ const ELEGIR_PLAN = `${URL_APP}${URL_APP.includes("?") ? "&" : "?"}planes=1`;
 // Cuenta regresiva (2026-11-19): hasta el lanzamiento oficial la página se ve completa (precios, información),
 // pero los botones de crear iglesia y elegir plan se cambian por "Avísame del lanzamiento". La fecha se cambia
 // en supabase/functions/_shared/lanzamiento.js.
-const AVISAME = whatsapp("Hola, quiero que me avisen cuando abra WorshipFlow.");
+// Lista de espera (2026-11-20): formulario de Google para quienes quieren los beneficios especiales de lanzamiento.
+// Enlace, título y texto viven aquí, en un solo lugar.
+const LISTA_ESPERA = "https://docs.google.com/forms/d/e/1FAIpQLSe30hSHTDvqWe7h3o8bpvVEjD4B7c5wNNAfiFcgsJ_L9shurA/viewform";
+const LISTA_ESPERA_TITULO = "Únete a la lista de espera";
+const LISTA_ESPERA_TEXTO = "Sé de los primeros en entrar y recibe beneficios especiales de lanzamiento.";
 const Lanzamiento = createContext({ lanzado: true, dias: 0, horas: 0, minutos: 0, segundos: 0 });
 const useEstadoLanzamiento = () => useContext(Lanzamiento);
 
 // "Crear mi iglesia" antes y después del lanzamiento: mismo lugar, mismo estilo.
-function BotonCrear({ children, ...props }) {
+function BotonCrear({ children, ocultarAntes, ...props }) {
   const { lanzado } = useEstadoLanzamiento();
   if (lanzado) return <Boton href={CREAR_IGLESIA} mismaPestana {...props}>{children}</Boton>;
-  return <Boton href={AVISAME} {...props}>Avísame del lanzamiento</Boton>;
+  if (ocultarAntes) return null;
+  return <Boton href={LISTA_ESPERA} {...props}>{props.grande ? LISTA_ESPERA_TITULO : "Lista de espera"}</Boton>;
+}
+
+// Recuadro grande de la lista de espera: solo antes del lanzamiento.
+function BannerListaEspera({ centrado }) {
+  const { lanzado } = useEstadoLanzamiento();
+  if (lanzado) return null;
+  return (
+    <div style={{ background: "#FFF4E8", border: `1px solid ${NARANJA}`, borderRadius: 16, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12, alignItems: centrado ? "center" : "flex-start", textAlign: centrado ? "center" : "left", maxWidth: 520, width: "100%", boxSizing: "border-box" }}>
+      <span style={{ fontSize: 15.5, lineHeight: 1.45, color: TINTA, fontWeight: 500 }}>🎁 {LISTA_ESPERA_TEXTO}</span>
+      <Boton href={LISTA_ESPERA} grande style={{ width: "100%", minHeight: 58, fontSize: 18, whiteSpace: "normal" }}>{LISTA_ESPERA_TITULO} →</Boton>
+    </div>
+  );
 }
 
 const dos = (n) => String(n).padStart(2, "0");
@@ -264,8 +281,9 @@ function Inicio() {
               Proyecta letras y versículos, prepara el setlist, coordina a tu equipo y toca con acordes que avanzan solos. Desde el celular.
             </p>
             <CuentaRegresiva />
+            <BannerListaEspera />
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <BotonCrear grande>Crear mi iglesia gratis</BotonCrear>
+              <BotonCrear grande ocultarAntes>Crear mi iglesia gratis</BotonCrear>
               <Boton href={URL_APP} mismaPestana tipo="oscuro" grande>Abrir la app web</Boton>
               <Boton ruta="/web/precios" tipo="texto" grande>Ver planes →</Boton>
             </div>
@@ -396,6 +414,7 @@ function Precios() {
           <h1 style={{ margin: 0, fontSize: "clamp(38px, 6vw, 60px)", lineHeight: 1.05, fontWeight: 700, letterSpacing: "-0.04em", color: TINTA }}>Planes para cada iglesia</h1>
           <p style={{ margin: 0, fontSize: "clamp(16px, 2vw, 19px)", color: SUAVE }}>Empieza gratis. Cambia de plan cuando quieras.</p>
           <div style={{ marginTop: 8 }}><CuentaRegresiva centrada /></div>
+          <BannerListaEspera centrado />
           <div role="group" aria-label="Periodo de pago" style={{ display: "inline-flex", background: NIEBLA, borderRadius: 12, padding: 4, marginTop: 6 }}>
             {[false, true].map((a) => (
               <button key={String(a)} onClick={() => setAnual(a)} aria-pressed={anual === a}
@@ -430,7 +449,7 @@ function Precios() {
                       {gratis ? "Empezar gratis" : "Elegir plan"}
                     </Boton>
                   ) : (
-                    <Boton href={AVISAME} tipo={destacado ? "principal" : gratis ? "suave" : "oscuro"} style={{ margin: "8px 0 0", width: "100%" }}>Avísame del lanzamiento</Boton>
+                    <Boton href={LISTA_ESPERA} tipo={destacado ? "principal" : gratis ? "suave" : "oscuro"} style={{ margin: "8px 0 0", width: "100%" }}>{LISTA_ESPERA_TITULO}</Boton>
                   )}
                   <span style={{ fontSize: 12.5, color: SUAVE, textAlign: "center", minHeight: 18, marginBottom: 6 }}>
                     {!lanzado ? `Disponible desde el ${fechaLanzamientoCorta()}` : gratis ? "" : <>¿Aún no tienes cuenta? <a href={CREAR_IGLESIA} style={{ color: TINTA, textDecoration: "underline" }}>Crea tu iglesia</a></>}

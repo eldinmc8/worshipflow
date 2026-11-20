@@ -93,7 +93,11 @@ describe("cuenta regresiva del lanzamiento", () => {
     expect(screen.getAllByRole("timer").length).toBeGreaterThan(0);
     expect(container.textContent).toMatch(/Lanzamiento oficial en 2 días, 3 h/);
     expect([...container.querySelectorAll("a")].some((a) => /crear-iglesia/.test(a.getAttribute("href") || ""))).toBe(false);
-    expect(screen.getAllByText("Avísame del lanzamiento").length).toBeGreaterThan(0);
+    const botones = screen.getAllByText(/Únete a la lista de espera/);
+    expect(botones.length).toBeGreaterThan(0);
+    const enlace = botones[0].closest("a");
+    expect(enlace.getAttribute("href")).toMatch(/docs\.google\.com\/forms/);
+    expect(enlace.getAttribute("target")).toBe("_blank");
   });
   it("antes del lanzamiento los precios se ven completos pero sin botones de pago", () => {
     antes();
