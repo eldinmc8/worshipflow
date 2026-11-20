@@ -5,6 +5,7 @@ import { usePreferencias } from "./lib/preferencias.js";
 import { delegarPantallaCompleta, esperarListaYDelegar } from "./lib/delegarPantallaCompleta.js";
 import { pausarActualizacion } from "./lib/pausaActualizacion.js";
 import { supabase, callUsersFunction } from "./lib/supabaseClient.js";
+import { personasDePlantilla, resumenRango } from "./lib/publicarVarias.js";
 import { showToast, notifyError, esFalloDeConexion } from "./lib/toast.js";
 import { ordenarPor } from "./lib/orden.js";
 import { registrarLineaBaseEventos, listEventosCompletos, sincronizarServiceOrder, sincronizarWorshipRoles, crearEventoCompleto, deleteEvento, updateEvento, marcarAsignacionVista } from "./lib/eventos.js";
@@ -30,7 +31,7 @@ import { textoALetra } from "./lib/textoCancion.js";
 import { sincronizarRecordatorios } from "./lib/recordatorios.js";
 import { listMisNotificaciones, subscribeNotificaciones, marcarLeida, marcarTodasLeidas, estadoPermisoNotificacion, tieneAlgunaSuscripcionPush, decidirAccionPush, suscribirPush } from "./lib/notificaciones.js";
 import { estaEnPredicacion, perteneceA, temporizadorActivo, iniciarTemporizador, armarEscenario } from "./lib/escenario.js";
-import { isUpcoming, compareByDay, formatFullDate } from "./lib/dates.js";
+import { isUpcoming, compareByDay, formatFullDate, formatHora } from "./lib/dates.js";
 import { CLAVES_TUTORIAL, pasosBienvenida, pasosEventos, pasosEvento, pasosCanciones, pasosEditorCancion, pasosEnVivo, marcarTutorialVisto, reiniciarTutoriales } from "./lib/tutoriales.js";
 import { Eye, WifiOff, EyeOff, ChevronRight, Bell, Pencil, Check, LayoutGrid, Home, Music, Calendar, MessageCircle, Radio, Image as ImgIcon, Settings, X } from "lucide-react";
 import AppLogo from "./AppLogo.jsx";
@@ -1281,6 +1282,53 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     crearEventoCompleto(newEvent, userId).catch((e) => notifyError("No se pudo guardar el evento", e));
     setSelectedEventId(newEvent.id);
     if (template && !esPlantilla) setDraftFromTemplateId(newEvent.id);
+  };
+  // "Publicar en varias fechas" (2026-11-20): un evento por cada fecha, clonado de la plantilla igual que
+  // createEvent (orden del culto, encargados en "pendiente", recordatorios). Se guardan de a pocos para no
+  // saturar la conexión; onProgreso(n) mueve el contador del botón. A cada persona asignada en la
+  // plantilla le llega UN aviso con todas sus fechas (ver personasDePlantilla).
+  const createEventsBatch = async (template, { fechas, hora, dateLabel, location }, onProgreso) => {
+    const nuevos = fechas.map(({ date, title }, i) => ({
+      id: nextId(),
+      title, dateLabel: dateLabel || "", date, hora: hora || null, location: location || "Por definir",
+      openPositions: template.openPositions || 0,
+      cover: template.cover || DEFAULT_COVERS[(events.length + i) % DEFAULT_COVERS.length],
+      serviceOrder: cloneServiceOrder(template.serviceOrder || []),
+      worshipRoles: cloneWorshipRoles(template.worshipRoles || []),
+      reminders: cloneRecordatorios(template.reminders),
+      vistas: [],
+      esPlantilla: false,
+      ministryId: template.ministryId || null,
+    }));
+    setEventsSynced((evs) => [...evs, ...nuevos]);
+    let hechos = 0;
+    const fallidos = [];
+    const cola = [...nuevos];
+    const trabajador = async () => {
+      while (cola.length) {
+        const ev = cola.shift();
+        try { await crearEventoCompleto(ev, userId); } catch (e) { console.warn("No se pudo guardar el evento", ev.date, e); fallidos.push(ev.id); }
+        hechos++;
+        onProgreso?.(hechos);
+      }
+    };
+    await Promise.all([trabajador(), trabajador(), trabajador()]);
+    if (fallidos.length) {
+      const set = new Set(fallidos);
+      setEventsSynced((evs) => evs.filter((e) => !set.has(e.id)));
+      notifyError(`No se pudieron guardar ${fallidos.length} servicios`, new Error("Revisa tu conexión"));
+    }
+    const creados = nuevos.filter((e) => !fallidos.includes(e.id));
+    if (creados.length) {
+      const rango = resumenRango(creados.map((e) => e.date));
+      const base = template.title;
+      personasDePlantilla(template).forEach((uid) => notificarAsignacion(uid, {
+        titulo: "Se te ha asignado",
+        cuerpo: `En "${base}": ${creados.length} ${creados.length === 1 ? "servicio" : "servicios"}, ${rango}. Entra a Eventos para confirmar.`,
+        eventoId: creados[0].id,
+      }));
+    }
+    return { creados: creados.length, fallidos: fallidos.length };
   };
   const deleteEvent = async (event) => {
     if (event.id === liveEventId) { showToast("No puedes eliminar un evento que está en vivo — finalízalo primero."); return; }
@@ -2536,7 +2584,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       )}
 
       {tab === "eventos" && !selectedEvent && (
-        <EventList events={realEvents} plantillas={plantillas} isAdminViewer={puedeGestionarEventos} liveEventId={liveEventId} liveLibre={liveLibre} onSelect={setSelectedEventId} onCreate={createEvent} canStartLive={canStartLive} onStartFree={startFreeEvent} library={library} myUserId={myUserId} ministries={ministries} gruposQueLidero={gruposQueLideroYo} />
+        <EventList events={realEvents} plantillas={plantillas} isAdminViewer={puedeGestionarEventos} liveEventId={liveEventId} liveLibre={liveLibre} onSelect={setSelectedEventId} onCreate={createEvent} onPublicarVarias={createEventsBatch} canStartLive={canStartLive} onStartFree={startFreeEvent} library={library} myUserId={myUserId} ministries={ministries} gruposQueLidero={gruposQueLideroYo} />
       )}
 
       {tab === "eventos" && selectedEvent && !openSong && (
@@ -2812,7 +2860,7 @@ function SlideMiniPreview({ lines }) {
 // (texto libre, ej. "10:00 am"), que solo es una nota para mostrar — ver src/lib/dates.js.
 
 function MiniTicket({ ev, isLive, onClick }) {
-  const time = (ev.dateLabel.split("·")[1] || "").trim();
+  const time = formatHora(ev.hora) || ((ev.dateLabel || "").split("·")[1] || "").trim();
   const shortTitle = ev.title.split("–")[0].trim();
   return (
     <button onClick={onClick} className="hoverable" style={{ width: "100%", textAlign: "left", border: isLive ? "2px solid var(--wf-brand-accent)" : "none", cursor: "pointer", borderRadius: 12, padding: "5px 6px", background: ev.cover || DEFAULT_COVERS[0], color: "#fff", lineHeight: 1.25 }}>
