@@ -244,9 +244,9 @@ export function textoACancion(texto, original = null) {
     const auto = seccionesAutomaticas(trozos[0].lineas, trozos[0].linea);
     if (auto) {
       trozos.splice(0, 1, ...auto.trozos);
-      avisos.push({ tipo: "ok", texto: `Encontré el coro solo (se repite ${auto.repeticiones} veces) y armé el orden. Si quieres, ponle nombre a cada parte con los botones de abajo.` });
+      avisos.push({ tipo: "ok", texto: `Encontré el coro solo (se repite ${auto.repeticiones} veces) y armé el orden. Puedes cambiar los nombres en Estructura.` });
     } else {
-      avisos.push({ tipo: "info", texto: "Sin nombres de sección todo queda en una Estrofa. Si la canción tiene coro, escríbelo con [Coro] (o pega el coro completo cada vez que se repite y lo detecto solo)." });
+      avisos.push({ tipo: "info", texto: "No traía nombres de partes, así que todo quedó en una Estrofa. Si tiene coro, escribe [Coro] encima del coro, o arréglalo después en Estructura." });
     }
   }
 
@@ -387,7 +387,7 @@ export function textoALetra(texto, cancion) {
     if (!actual) { if (l.trim()) sueltas++; return; }
     actual.lineas.push(l);
   });
-  if (sueltas) avisos.push({ tipo: "aviso", texto: `Hay ${sueltas} línea${sueltas === 1 ? "" : "s"} arriba que no está${sueltas === 1 ? "" : "n"} debajo de ninguna parte. Ponles encima el nombre de la parte (ej. [Coro]) para que se proyecten.` });
+  if (sueltas) avisos.push({ tipo: "aviso", texto: `Hay ${sueltas} línea${sueltas === 1 ? "" : "s"} arriba que no está${sueltas === 1 ? "" : "n"} debajo de ninguna parte. Ponles encima el nombre de la parte (ej. [Coro]) para que no se pierdan.` });
 
   const libres = ordenSecciones(cancion);
   const usadas = new Set();
