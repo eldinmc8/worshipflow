@@ -37,3 +37,13 @@ export function enlaceEscenario(slug, origen = typeof window !== "undefined" ? w
 export function leerEscenarioDeUrl(pathname, search) {
   return leer("e", "escenario", pathname, search);
 }
+
+// Salida para la transmisión (OBS, 2026-11-20): https://<app>/t/<slug>/<código>, o ?screen=transmision&igl=<slug>&k=<código>.
+// Fondo transparente y solo la letra en una franja, con su propio tamaño (ver lib/transmision.js).
+export function enlaceTransmision(slug, origen = typeof window !== "undefined" ? window.location.origin : "", codigo = null) {
+  return armar("t", "transmision", slug, origen, codigo);
+}
+
+export function leerTransmisionDeUrl(pathname, search) {
+  return leer("t", "transmision", pathname, search);
+}
