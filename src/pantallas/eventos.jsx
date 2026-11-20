@@ -1,9 +1,9 @@
 // Eventos: calendario y lista, detalle del evento y su Setlist (bloques, encargados, equipo de alabanza, bosquejo). Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import ConPlan from "../components/ConPlan.jsx";
-import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Calendar, Music, ArrowLeft, Trash2, Bell, X, Settings, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy, Timer } from "lucide-react";
+import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Calendar, Music, ArrowLeft, Trash2, Bell, X, Settings, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy, Timer, CalendarRange } from "lucide-react";
 import { bosquejoTieneCambiosSinEnviar, esBloquePredicacion } from "../lib/bosquejos.js";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { todayLocal, monthKey, monthLabelFromKey, parseIsoDateLocal, isUpcoming, compareByDay, MONTH_ABBR, formatFullDate } from "../lib/dates.js";
+import { todayLocal, monthKey, monthLabelFromKey, parseIsoDateLocal, isUpcoming, compareByDay, MONTH_ABBR, formatFullDate, tituloAutomatico, horaDeEvento } from "../lib/dates.js";
 import { acordeEn, getNotacion } from "../lib/preferencias.js";
 import { useArrastreLista } from "../lib/arrastreLista.js";
 import { buscarCanciones } from "../lib/busqueda.js";
@@ -15,6 +15,7 @@ import DiapositivaDisenada from "../components/DiapositivaDisenada.jsx";
 import { createPortal } from "react-dom";
 import ImportarPresentacion from "../components/ImportarPresentacion.jsx";
 import CuentaRegresivaModal from "../components/CuentaRegresivaModal.jsx";
+import PublicarVariasFechas from "../components/PublicarVariasFechas.jsx";
 import { SelectEstilo } from "../components/EditorAnimacionCancion.jsx";
 import { ANIMACIONES } from "../components/LetrasAnimadas.jsx";
 import RelojCuentaRegresiva, { estiloCuenta } from "../components/RelojCuentaRegresiva.jsx";
@@ -249,8 +250,9 @@ function EtiquetaMinisterio({ ministerio, claro = false }) {
   );
 }
 
-export function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, onSelect, onCreate, canStartLive, onStartFree, library, myUserId, ministries = [], gruposQueLidero = new Set() }) {
-  const [viewMode, setViewMode] = useState("eventos"); // eventos | plantillas (solo administradores alternan)
+export function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, onSelect, onCreate, onPublicarVarias = null, canStartLive, onStartFree, library, myUserId, ministries = [], gruposQueLidero = new Set() }) {
+  const [viewMode, setViewMode] = useState("eventos");
+  const [publicarDe, setPublicarDe] = useState(null); // plantilla abierta en "Publicar en varias fechas" // eventos | plantillas (solo administradores alternan)
   const [step, setStep] = useState(null); // null | 'template' | 'details'
   const [templateId, setTemplateId] = useState("blank");
   const [form, setForm] = useState({ title: "", dateLabel: "", date: "", hora: "", location: "", ministryId: null });
@@ -270,10 +272,13 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
     setTemplateId("blank");
     // Si está filtrando un ministerio, el evento nuevo ya viene de ese ministerio.
     const filtrado = ministeriosParaCrear.find((m) => m.id === ministerioFiltro);
-    setForm({ title: "", dateLabel: "", date: "", hora: "", location: "", ministryId: filtrado ? filtrado.id : (isAdminViewer ? null : ministeriosParaCrear[0]?.id || null) });
+    setForm({ title: "", dateLabel: "", date: "", hora: "", location: "", tituloTocado: false, ministryId: filtrado ? filtrado.id : (isAdminViewer ? null : ministeriosParaCrear[0]?.id || null) });
     setStep(isPlantillaMode ? "details" : "template");
   };
   const confirmTemplate = () => setStep("details");
+  // Nombre predeterminado (2026-11-20): mientras no se escriba uno propio, el título es la fecha y la
+  // hora ("Viernes 20 de noviembre · 7:00 pm").
+  const conTituloAuto = (f) => (f.tituloTocado ? f : { ...f, title: tituloAutomatico(f.date, f.hora) });
   // Tocar una plantilla en la lista NO debe abrirla como si fuera un evento ya decidido, ni pasar por
   // un formulario/modal intermedio — clona la plantilla de una vez como evento real (autoguardado,
   // igual que cualquier otro cambio en esta app) y navega directo a su pantalla completa: Setlist ya
@@ -333,7 +338,8 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
         <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 16 }}>Arma aquí bloques ya establecidos (orden del culto) que cualquier administrador podrá usar como base al crear un evento nuevo.</div>
         {plantillas.length === 0 && <div style={{ textAlign: "center", color: "var(--wf-faint)", fontSize: 13, padding: "40px 0" }}>Todavía no hay plantillas — crea la primera con el botón +.</div>}
         {plantillas.map((pl) => (
-          <div key={pl.id} style={{ display: "flex", alignItems: "center", gap: 4, width: "100%", background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 20, padding: 10, marginBottom: 10 }}>
+          <div key={pl.id} style={{ width: "100%", background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 20, padding: 10, marginBottom: 10, boxSizing: "border-box" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <button onClick={() => aplicarPlantilla(pl)} className="hoverable" title="Crear un evento con esta base" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, textAlign: "left", background: "transparent", border: "none", borderRadius: 14, padding: 4, cursor: "pointer" }}>
               <div style={{ width: 34, height: 34, borderRadius: 14, background: "var(--wf-hover)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ListMusic size={16} color="#5661B3" /></div>
               <div style={{ minWidth: 0 }}>
@@ -345,7 +351,19 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
               <Pencil size={15} color="#5661B3" />
             </button>
           </div>
+          {onPublicarVarias && (
+            <button onClick={() => setPublicarDe(pl)} data-tour="plantilla-publicar-varias"
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", marginTop: 8, minHeight: 44, borderRadius: 14, border: "none", background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent, #fff)", fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+              <CalendarRange size={17} /> Publicar en varias fechas
+            </button>
+          )}
+          </div>
         ))}
+        {publicarDe && (
+          <PublicarVariasFechas plantilla={publicarDe} eventos={events} onCerrar={() => setPublicarDe(null)}
+            onPublicar={(datos, onProgreso) => onPublicarVarias(publicarDe, datos, onProgreso)}
+            onVerEventos={() => { setPublicarDe(null); setViewMode("eventos"); }} />
+        )}
         <button onClick={openCreate} style={{ position: "fixed", right: 20, bottom: 92, width: 54, height: 54, borderRadius: "50%", background: "#5661B3", border: "none", boxShadow: "0 8px 18px rgba(86,97,179,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 41 }}>
           <Plus size={24} color="#fff" />
         </button>
@@ -521,15 +539,16 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
                 </div>
               </Field>
             )}
-            <Field label="Título" required><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={form.ministryId ? "Ej. Retiro de jóvenes" : "Ej. Domingo AM – 19 Jul"} style={inputStyle} /></Field>
             <Field label="Fecha del calendario" required>
-              <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} style={inputStyle} />
+              <input type="date" value={form.date} onChange={(e) => setForm(conTituloAuto({ ...form, date: e.target.value }))} style={inputStyle} />
               <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Es la fecha real del evento — de aquí sale su lugar en Inicio y en el filtro de mes, y también trae sola la planificación de Ministerios de esa semana.</span>
             </Field>
-            <Field label="Hora o nota (opcional)"><input value={form.dateLabel} onChange={(e) => setForm({ ...form, dateLabel: e.target.value })} placeholder="Ej. 10:00 am" style={inputStyle} /></Field>
-            <Field label="Hora exacta (opcional)">
-              <input type="time" value={form.hora} onChange={(e) => setForm({ ...form, hora: e.target.value })} style={inputStyle} />
-              <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Solo se usa para calcular recordatorios "por horas" — no reemplaza la nota de arriba.</span>
+            <Field label="Hora (opcional)">
+              <input type="time" value={form.hora} onChange={(e) => setForm(conTituloAuto({ ...form, hora: e.target.value }))} style={inputStyle} />
+            </Field>
+            <Field label="Título" required>
+              <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value, tituloTocado: true })} placeholder={form.ministryId ? "Ej. Retiro de jóvenes" : "Se llena solo con la fecha y la hora"} style={inputStyle} />
+              <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Se llena solo con la fecha y la hora. Puedes cambiarlo si es un evento especial.</span>
             </Field>
             <Field label="Ubicación"><input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Ej. Pastores, Sacatepéquez" style={inputStyle} /></Field>
           </div>
@@ -618,7 +637,7 @@ export function EventDetail({
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, verDiapositivas = true,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
-  onViewMinistry, onOpenSong, onAddReminder, onRemoveReminder, onSetHora, onUpdateEventDetails, onMarkVisto, onSetEnsayo,
+  onViewMinistry, onOpenSong, onAddReminder, onRemoveReminder, onUpdateEventDetails, onMarkVisto, onSetEnsayo,
   showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide,
   showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint,
 }) {
@@ -692,11 +711,6 @@ export function EventDetail({
                   </Field>
                 </div>
               </div>
-              <div style={{ marginTop: 14 }}>
-                <Field label="Hora o nota (opcional)">
-                  <input value={event.dateLabel || ""} onChange={(e) => patchEvent({ dateLabel: e.target.value })} placeholder="Ej. 10:00 am" style={inputStyle} />
-                </Field>
-              </div>
             </>
           )}
 
@@ -717,11 +731,8 @@ export function EventDetail({
               </div>
               {!event.esPlantilla && (
                 <>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-muted)" }}>HORA DEL EVENTO</span>
-                    <input type="time" value={event.hora || ""} onChange={(e) => onSetHora(e.target.value)} style={{ ...inputStyle, width: "auto", padding: "5px 8px", fontSize: 12 }} />
-                  </div>
-                  {!event.hora && <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Sin hora definida, los recordatorios "por horas" no se pueden calcular con precisión.</div>}
+                  {/* La hora se elige una sola vez, arriba en "Hora" (quitado el selector repetido, 2026-11-20). */}
+                  {!event.hora && <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Sin hora definida (arriba, en "Hora"), los recordatorios "por horas" no se pueden calcular con precisión.</div>}
                 </>
               )}
             </div>
@@ -769,7 +780,7 @@ export function EventDetail({
         </div>
         <div style={{ borderRadius: 16, background: "linear-gradient(135deg, #2A3B4D, var(--wf-hover))", padding: 20, marginBottom: 16 }}>
           <div style={{ display: "inline-block", background: event.esPlantilla ? "#5661B3" : "rgba(0,0,0,0.35)", borderRadius: 20, padding: "4px 12px", fontSize: 12, marginBottom: 10 }}>
-            {event.esPlantilla ? "PLANTILLA" : (formatFullDate(event.date) || "Sin fecha") + (event.dateLabel ? ` · ${event.dateLabel}` : "")}
+            {event.esPlantilla ? "PLANTILLA" : (formatFullDate(event.date) || "Sin fecha") + (horaDeEvento(event) ? ` · ${horaDeEvento(event)}` : "")}
           </div>
           <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 24, fontWeight: 600, marginBottom: 4 }}>{event.title}</div>
           {!event.esPlantilla && <div style={{ fontSize: 13, color: "#C8CDD6" }}>{event.location}</div>}
@@ -822,7 +833,7 @@ export function EventDetail({
         <div className="print-only" style={{ padding: 28, fontFamily: "'Poppins', sans-serif", color: "#111" }}>
           <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, fontWeight: 600, marginBottom: 2 }}>{event.title}</div>
           <div style={{ fontSize: 12, color: "#444", marginBottom: 20 }}>
-            {(formatFullDate(event.date) || event.dateLabel || "")}{event.hora ? ` · ${event.hora}` : ""}
+            {(formatFullDate(event.date) || "")}{horaDeEvento(event) ? ` · ${horaDeEvento(event)}` : ""}
           </div>
           <ol style={{ paddingLeft: 20, margin: 0 }}>
             {serviceOrderVisiblePara(event, isAdminViewer || puedeEditarSetlist, userId, usuariosReales.find((u) => u.id === userId)?.rol === "supervisor", new Set((ministries || []).filter((m) => m.leaderId === userId).map((m) => m.id)), verDiapositivas).map((item) => {

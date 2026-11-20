@@ -58,3 +58,25 @@ export function buildMonthWeeks(year, month) {
   if (week.length) { while (week.length < 7) week.push(null); weeks.push(week); }
   return weeks;
 }
+
+// "19:00" → "7:00 pm" (la hora del evento se elige una sola vez, con el selector de hora).
+export function formatHora(hora) {
+  if (!hora) return "";
+  const [h, m] = String(hora).split(":").map(Number);
+  if (Number.isNaN(h)) return "";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m || 0).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
+}
+const DIAS_LARGOS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+// Nombre predeterminado de un servicio (pedido de Eldin, 2026-11-20): "Viernes 20 de noviembre · 7:00 pm".
+export function tituloAutomatico(iso, hora) {
+  const d = parseIsoDateLocal(iso);
+  if (!d) return "";
+  const h = formatHora(hora);
+  return `${DIAS_LARGOS[d.getDay()]} ${d.getDate()} de ${MONTH_NAMES_FULL[d.getMonth()].toLowerCase()}${h ? ` · ${h}` : ""}`;
+}
+// Lo que se muestra como hora de un evento: la hora elegida; los eventos viejos que solo tenían la
+// nota de texto ("Hora o nota", ya quitada) siguen mostrando esa nota.
+export function horaDeEvento(ev) {
+  return formatHora(ev?.hora) || (ev?.dateLabel || "");
+}
