@@ -152,26 +152,54 @@ describe("¿abre la pantalla?", () => {
     sinPantallaDeError();
   });
 
-  it("en el editor de la canción se pueden mover las partes en Contenido", async () => {
+  it("en el editor de la canción se ordenan las partes y se ponen acordes sin tocar la letra", async () => {
     abrirApp();
     await screen.findByText(/Miembros del equipo/, {}, { timeout: 4000 });
     await irA("Canciones");
     fireEvent.click((await screen.findAllByText(/Grande es tu fidelidad/))[0]);
     fireEvent.click(await screen.findByRole("button", { name: /^Editar$/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Contenido" }));
+    fireEvent.click(await screen.findByRole("tab", { name: /Estructura/ }));
     const orden = () => [...document.querySelectorAll("[data-parte]")].map((el) => el.getAttribute("data-parte"));
-    expect(orden()).toEqual(["V1", "C"]);
-    fireEvent.click(screen.getByRole("button", { name: "Subir Coro" }));
-    expect(orden()).toEqual(["C", "V1"]);
-    fireEvent.click(screen.getByRole("button", { name: "Bajar Coro" }));
-    expect(orden()).toEqual(["V1", "C"]);
-    // En el celular, mantener presionado dentro de la letra debe abrir el menú de Copiar/Pegar/Seleccionar
-    // todo (en Android sale con el evento contextmenu): la parte arrastrable no lo puede bloquear.
-    const letra = document.querySelector('[data-parte="V1"] textarea');
-    expect(fireEvent.contextMenu(letra)).toBe(true);
-    expect(fireEvent.contextMenu(document.querySelector('[data-parte="V1"] input'))).toBe(true);
-    // Fuera de los campos (la barra de la parte) sí se bloquea, para poder arrastrar.
+    expect(orden()).toEqual(["V1", "C", "C"]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Subir Coro" })[0]);
+    expect(orden()).toEqual(["C", "V1", "C"]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Bajar Coro" })[0]);
+    expect(orden()).toEqual(["V1", "C", "C"]);
+    // En el celular, mantener presionada una parte (fuera de los botones) arrastra: no abre el menú.
     expect(fireEvent.contextMenu(document.querySelector('[data-parte="V1"]'))).toBe(false);
+    // Acordes: se toca una palabra y luego el acorde; la letra no es un campo de texto.
+    fireEvent.click(screen.getByRole("tab", { name: /Acordes/ }));
+    expect([...document.querySelectorAll("textarea, input")].some((el) => /eterno/.test(el.value))).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: /eterno,/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^A\s*V$/ }));
+    expect(screen.getByRole("button", { name: /A\s*eterno,/ })).toBeTruthy();
+    sinPantallaDeError();
+  });
+
+  it("una canción nueva se arma paso a paso: datos, partes, letra y acordes opcionales", async () => {
+    abrirApp();
+    await screen.findByText(/Miembros del equipo/, {}, { timeout: 4000 });
+    await irA("Canciones");
+    fireEvent.click(document.querySelector('[data-tour="canciones-nueva"]'));
+    const siguiente = () => screen.getByRole("button", { name: /Siguiente/ });
+    expect(await screen.findByText("Pegar canción completa")).toBeTruthy();
+    expect(siguiente().disabled).toBe(true); // falta título y tonalidad
+    fireEvent.change(screen.getByPlaceholderText("Nombre de la canción"), { target: { value: "Santo" } });
+    fireEvent.change(screen.getByDisplayValue("Selecciona tonalidad"), { target: { value: "G" } });
+    fireEvent.click(siguiente());
+    fireEvent.click(screen.getByRole("button", { name: "Estrofa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Coro" }));
+    fireEvent.click(screen.getByRole("button", { name: "Coro" }));
+    expect([...document.querySelectorAll("[data-parte]")].map((el) => el.getAttribute("data-parte"))).toEqual(["V1", "C", "C"]);
+    fireEvent.click(siguiente());
+    // Sin botones de partes: solo un cuadro por cada parte elegida.
+    expect(screen.queryByRole("button", { name: /\+ Coro/ })).toBeNull();
+    fireEvent.change(screen.getByLabelText("Letra de Coro"), { target: { value: "Santo santo\nes el Señor\n\nDigno de gloria" } });
+    expect(screen.getByText("2 DIAPOSITIVAS")).toBeTruthy();
+    expect(screen.getByText(/se canta 2 veces/)).toBeTruthy();
+    fireEvent.click(siguiente());
+    expect(screen.getByRole("button", { name: "Omitir" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /santo/ })).toBeTruthy();
     sinPantallaDeError();
   });
 
@@ -181,7 +209,7 @@ describe("¿abre la pantalla?", () => {
     await irA("Canciones");
     fireEvent.click((await screen.findAllByText(/Grande es tu fidelidad/))[0]);
     fireEvent.click(await screen.findByRole("button", { name: /^Editar$/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Animación" }));
+    fireEvent.click(await screen.findByRole("tab", { name: /Animación/ }));
     fireEvent.change(screen.getByLabelText("Estilo de la canción"), { target: { value: "aura" } });
     fireEvent.change(screen.getByLabelText("Estilo de Coro"), { target: { value: "estadio" } });
     fireEvent.click(screen.getByRole("button", { name: /Agregar momento/ }));

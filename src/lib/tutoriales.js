@@ -200,29 +200,29 @@ export function pasosCanciones({ puedeGestionarCanciones }) {
 export function pasosEditorCancion() {
   return [
     {
-      target: "cancion-texto",
-      titulo: "Escribir",
-      texto: "Aquí va la letra que se proyecta. Escribe debajo del nombre de cada parte; un renglón vacío (doble Enter) = nueva diapositiva.",
-    },
-    {
-      target: "cancion-detalles",
-      titulo: "Detalles",
-      texto: "Título, tonalidad, tempo, compás y artista de la canción.",
-    },
-    {
-      target: "cancion-contenido",
-      titulo: "Contenido",
-      texto: "La letra con acordes, escritos así: [G]Cuando el día. La barra de abajo inserta los acordes de la tonalidad donde está el cursor.",
+      target: "cancion-datos",
+      titulo: "1. Datos",
+      texto: "Título y tonalidad (lo único obligatorio), y si quieres artista, tempo y compás. ¿Ya la tienes copiada? Usa \"Pegar canción completa\".",
     },
     {
       target: "cancion-estructura",
-      titulo: "Estructura",
-      texto: "El orden en que se canta: Estrofa, Coro x2, Puente... Arrastra las partes para cambiar el orden.",
+      titulo: "2. Estructura",
+      texto: "Elige las partes en el orden en que se cantan: Intro, Estrofa, Coro… Si el coro se repite, tócalo otra vez.",
+    },
+    {
+      target: "cancion-letra",
+      titulo: "3. Letra",
+      texto: "Escribe la letra dentro de cada parte. Un renglón vacío = nueva diapositiva.",
+    },
+    {
+      target: "cancion-acordes",
+      titulo: "4. Acordes",
+      texto: "Opcional. Toca una palabra y elige el acorde que va encima. La letra no se cambia aquí.",
     },
     {
       target: "cancion-guardar",
       titulo: "Guarda",
-      texto: "Toca Guardar al terminar. Los cambios se ven al instante en todos los dispositivos.",
+      texto: "Toca Guardar cuando quieras. Los cambios se ven al instante en todos los dispositivos.",
     },
   ];
 }

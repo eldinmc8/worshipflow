@@ -39,12 +39,12 @@ Es multi-iglesia: cada iglesia ve solo lo suyo. Web en worshipflowapp.com y la a
 
 ## Módulos principales
 
-**Canciones**: biblioteca con búsqueda y favoritos. Editor con 4 pestañas:
+**Canciones**: biblioteca con búsqueda y favoritos. Editor por pasos (2026-11-20): una canción NUEVA se arma en un asistente de 4 pasos con Atrás/Siguiente (Datos → Estructura → Letra → Acordes; solo título y tonalidad son obligatorios, Acordes tiene "Omitir"); una canción que ya existe usa los mismos pasos como pestañas + Animación. La letra se escribe SOLO en Letra (un cuadro por parte, sin botones de partes) y los acordes se ponen SOLO en Acordes tocando una palabra (la letra no se puede editar ahí). "Pegar canción completa" (en Datos, mientras no hay letra) arma todo de una. Lógica en `src/lib/pasosCancion.js`, pantallas en `src/components/PasosCancion.jsx`. Antes eran estas pestañas:
 - Detalles (título, tempo, tonalidad, artista, temas)
 - Contenido: letra con acordes inline `[Acorde]texto`, barra de acordes diatónicos de la tonalidad elegida (triadas y con séptima) que se insertan en el cursor, campo de "compases" por sección
 - Letra: editor de diapositivas independiente del Contenido — cada sección puede dividirse en varias diapositivas con mini-preview oscura; esto es lo que realmente alimenta la proyección, no los acordes
 - Estructura: orden de secciones con multiplicador (x1, x2...)
-Buscar en internet (botón "Internet" de la biblioteca): busca en LaCuerda.net y trae letra + acordes para revisar y guardar. La página la trae la Edge Function `buscar-cancion-web` (solo ese sitio, solo con sesión) y la lee `src/lib/cancionesWeb.js`. Cifra Club y Letras.com bloquean lecturas automáticas: NO saltarse ese bloqueo — para esos sitios la app abre la búsqueda en otra pestaña y la letra se pega en Nueva canción → Escribir.
+Buscar en internet (botón "Internet" de la biblioteca): busca en LaCuerda.net y trae letra + acordes para revisar y guardar. La página la trae la Edge Function `buscar-cancion-web` (solo ese sitio, solo con sesión) y la lee `src/lib/cancionesWeb.js`. Cifra Club y Letras.com bloquean lecturas automáticas: NO saltarse ese bloqueo — para esos sitios la app abre la búsqueda en otra pestaña y la letra se pega en Nueva canción → Pegar canción completa.
 Vista de solo lectura separada del editor (pestañas V1/C/V2/V3 tipo pill, acordes arriba de la letra en fuente monoespaciada alineados por carácter).
 
 **Eventos**: creación desde plantilla (clona roles y setlist de otro evento, reseteando confirmaciones) o en blanco. Cada evento tiene:

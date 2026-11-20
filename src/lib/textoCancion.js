@@ -428,6 +428,6 @@ export function textoALetra(texto, cancion) {
   if (nuevas.length) avisos.push({ tipo: "info", texto: `Parte nueva: ${nuevas.map((k) => blocks[k].label).join(", ")}. La puse al final del orden; muévela en Estructura si va en otro lugar.` });
   const faltan = libres.filter((k) => !usadas.has(k));
   if (faltan.length && trozos.length) avisos.push({ tipo: "info", texto: `No están en el texto: ${faltan.map((k) => origBlocks[k].label).join(", ")}. No se borran: se quedan como estaban.` });
-  if (acordesQuitados) avisos.push({ tipo: "info", texto: "Aquí va solo la letra: los acordes [ ] no se proyectan. Para acordes usa la pestaña Contenido." });
+  if (acordesQuitados) avisos.push({ tipo: "info", texto: "Aquí va solo la letra: los acordes [ ] no se proyectan. Los acordes se ponen en el paso Acordes." });
   return { blocks, letra, defaultStructure, avisos, acordesEncima: 0, tonalidadSugerida: null, tituloSugerido: null, soloLetra: true, secciones: trozos.map((t) => t.etiqueta) };
 }

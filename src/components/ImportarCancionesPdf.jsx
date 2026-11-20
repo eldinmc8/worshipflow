@@ -38,7 +38,7 @@ export default function ImportarCancionesPdf({ library = [], clasificaciones = [
         setArchivos((a) => a.map((x) => (x.id === n.id ? { ...x, estado: canciones.length ? "listo" : "error", error: canciones.length ? null : "No se encontró ninguna canción en este PDF.", canciones } : x)));
       } catch (e) {
         const msg = e?.message === "SIN_TEXTO"
-          ? "Este PDF es una imagen escaneada (foto o escáner): no trae texto que se pueda leer. Hay que copiar la letra a mano o pegarla en la pestaña Escribir."
+          ? "Este PDF es una imagen escaneada (foto o escáner): no trae texto que se pueda leer. Hay que copiar la letra a mano o pegarla en Nueva canción → Pegar canción completa."
           : "No se pudo leer este PDF.";
         setArchivos((a) => a.map((x) => (x.id === n.id ? { ...x, estado: "error", error: msg } : x)));
       }

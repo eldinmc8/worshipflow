@@ -1,7 +1,7 @@
 // Canciones: biblioteca, vista de la canción (acordes, Modo Músico), editor y sus ventanas. Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { useState, useMemo, useRef, useEffect } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
-import { FileUp, Globe, Plus, Search, Heart, Pencil, Paperclip, Trash2, ListMusic, Music, Minus, FileText, Image as ImgIcon, Link2, ArrowLeft, ChevronDown, Radio, Pause, Users, Play, PencilLine, ChevronLeft, ChevronRight, RefreshCw, X, Check, ClipboardPaste, GripVertical, ChevronUp, Lock } from "lucide-react";
+import { FileUp, Globe, Plus, Search, Heart, Pencil, Paperclip, Trash2, ListMusic, Music, Minus, FileText, Image as ImgIcon, Link2, ArrowLeft, ChevronDown, Radio, Pause, Users, Play, PencilLine, ChevronLeft, ChevronRight, RefreshCw, X, Check, ClipboardPaste, Lock } from "lucide-react";
 import { usePlan, permite, abrirPlanes } from "../lib/planes.js";
 import { acordeEn, usePreferencias, lineaEn } from "../lib/preferencias.js";
 import { confirmDialog } from "../lib/confirm.js";
@@ -10,27 +10,11 @@ import { notifyError, showToast } from "../lib/toast.js";
 import { supabase } from "../lib/supabaseClient.js";
 import { cargarNotas, guardarNota, DUENO_EQUIPO } from "../lib/notasSeccion.js";
 import { clearMusicoLive } from "../lib/musicoLive.js";
-import { useArrastreLista } from "../lib/arrastreLista.js";
 import EditorAnimacionCancion from "../components/EditorAnimacionCancion.jsx";
 import EditorTextoCancion from "../components/EditorTextoCancion.jsx";
+import { PasoEstructura, PasoLetra, PasoAcordes } from "../components/PasosCancion.jsx";
+import { tieneAcordes, normalizarOrden } from "../lib/pasosCancion.js";
 import { NOTES, iconGhost, ModalShell, inputStyle, addBtnStyle, primaryBtn, clasificacionesActuales, transposeLine, semitoneShift, transposeChordToken, Field } from "./compartido.jsx";
-
-// Agrupa un array plano ['v1','c','v2','c'] en entradas con conteo consecutivo [{key:'v1',count:1},{key:'c',count:1}...]
-function groupConsecutive(flat) {
-  const out = [];
-  flat.forEach((k) => {
-    const last = out[out.length - 1];
-    if (last && last.key === k) last.count += 1;
-    else out.push({ key: k, count: 1 });
-  });
-  return out;
-}
-
-function expandEntries(entries) {
-  const out = [];
-  entries.forEach((e) => { for (let i = 0; i < e.count; i++) out.push(e.key); });
-  return out;
-}
 
 function diatonicChords(keyStr) {
   if (!keyStr) return [];
@@ -327,9 +311,6 @@ function badgeColor(badge) {
   return "#2E86AB"; // Estrofas y cualquier otro badge personalizado: celeste
 }
 
-// Catálogo de tipos de sección para "Añadir secciones" (estilo OnStage) — cada tipo puede repetirse
-// (Estrofa 1, Estrofa 2...); el prefijo arma el badge numerado (V1, C2...). El color sale de
-// badgeColor() con el prefijo, así el catálogo y las tarjetas ya agregadas siempre coinciden.
 // Compases más usados, el primero es el más común. Opcional en cada canción.
 const COMPASES = ["4/4", "3/4", "6/8", "2/4", "12/8", "2/2", "5/4", "7/8"];
 
@@ -342,16 +323,6 @@ function tiemposPorCompas(compas) {
   return den === 8 && num % 3 === 0 ? num / 3 : num;
 }
 
-const SECTION_TYPES = [
-  { id: "estrofa", label: "Estrofa", prefix: "V" },
-  { id: "precoro", label: "Pre-coro", prefix: "PC" },
-  { id: "coro", label: "Coro", prefix: "C" },
-  { id: "puente", label: "Puente", prefix: "P" },
-  { id: "intro", label: "Intro", prefix: "IN" },
-  { id: "outro", label: "Outro", prefix: "O" },
-  { id: "final", label: "Final", prefix: "F" },
-  { id: "instrumental", label: "Instrumental", prefix: "INS" },
-];
 
 // Clave de sessionStorage donde SongView guarda la cejilla de cada canción, songId → traste (ver ahí).
 // Nombre distinto al de la versión anterior ("wf-cejilla", un solo número global) para no leer ese formato.
@@ -1229,144 +1200,32 @@ function TiraNota({ tipo, etiqueta, texto, onAbrir, onBorrar }) {
   );
 }
 
-// Catálogo estilo OnStage para agregar varias secciones de una — la lista de tipos (Estrofa, Coro...)
-// se muestra sin numerar hasta que se marca la primera; a partir de ahí cada tipo va "creciendo" de a
-// una repetición por vez (marcar Estrofa 1 revela Estrofa 2, marcar esa revela Estrofa 3...), en vez de
-// mostrar de entrada un número fijo de repeticiones que probablemente no coincida con la canción real.
-// Cuántas secciones de cada tipo ya tiene la canción (el número más alto: V1, V2, V3 → 3; "C" sin
-// número cuenta como 1). Así "Añadir" arranca en la que sigue (Estrofa 4) en vez de repetir Estrofa 1.
-function ultimoNumeroPorTipo(blocks) {
-  const max = {};
-  Object.values(blocks || {}).forEach((b) => {
-    const m = String(b.badge || "").match(/^([A-Z]+)(\d*)$/);
-    if (!m) return;
-    const tipo = SECTION_TYPES.find((t) => t.prefix === m[1]);
-    if (!tipo) return;
-    const n = m[2] ? parseInt(m[2], 10) : 1;
-    max[tipo.id] = Math.max(max[tipo.id] || 0, n);
-  });
-  return max;
-}
-
-function AddSectionsModal({ existingBlocks, onClose, onAdd }) {
-  const [query, setQuery] = useState("");
-  const yaTiene = useMemo(() => ultimoNumeroPorTipo(existingBlocks), [existingBlocks]);
-  const [checkedCounts, setCheckedCounts] = useState({}); // { [typeId]: cuántas repeticiones están marcadas }
-  const toggleInstance = (typeId, n) => {
-    setCheckedCounts((c) => {
-      const current = c[typeId] || 0;
-      // Tocar una ya marcada (o cualquiera antes de ella) la desmarca A ELLA Y a las que venían
-      // después — no tendría sentido dejar "Estrofa 3" marcada sin la "Estrofa 2".
-      const next = n <= current ? n - 1 : n;
-      return { ...c, [typeId]: Math.max(0, next) };
-    });
-  };
-  const filteredTypes = SECTION_TYPES.filter((t) => t.label.toLowerCase().includes(query.toLowerCase()));
-  const totalChecked = Object.values(checkedCounts).reduce((a, b) => a + b, 0);
-  // Ref (no state) para bloquear un doble-toque en el mismo instante — el modal se cierra apenas se
-  // confirma, pero en un celular con la pantalla algo lenta dos toques rápidos podían caer ANTES de
-  // que React llegue a desmontarlo, agregando las mismas secciones dos (o más) veces.
-  const submittedRef = useRef(false);
-  const confirm = () => {
-    if (submittedRef.current) return;
-    const toAdd = [];
-    SECTION_TYPES.forEach((t) => {
-      const count = checkedCounts[t.id] || 0;
-      const base = yaTiene[t.id] || 0;
-      for (let n = base + 1; n <= base + count; n++) toAdd.push({ badge: `${t.prefix}${n}`, label: `${t.label} ${n}` });
-    });
-    if (toAdd.length === 0) return;
-    submittedRef.current = true;
-    onAdd(toAdd);
-    onClose();
-  };
-  return (
-    <ModalShell title="Añadir nuevas secciones" icon={ListMusic} color="#2F5FA8" onClose={onClose}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
-        <Search size={13} color="var(--wf-faint)" />
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar una nueva sección" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 12, width: "100%" }} />
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "50vh", overflowY: "auto", marginBottom: 12 }}>
-        {filteredTypes.map((t) => {
-          const count = checkedCounts[t.id] || 0;
-          const color = badgeColor(t.prefix);
-          const base = yaTiene[t.id] || 0;
-          const revealed = Math.min(count + 1, 12); // tope generoso — ninguna canción real necesita más
-          return Array.from({ length: revealed }, (_, i) => {
-            const n = i + 1; // posición dentro de lo que se va a agregar
-            const numero = base + n; // número real de la sección (Estrofa 4 si ya hay 3)
-            const isChecked = n <= count;
-            const showNumber = base > 0 || revealed > 1; // con una sola instancia a la vista y ninguna previa, se ve "Estrofa" pelado
-            return (
-              <button
-                key={`${t.id}-${n}`}
-                onClick={() => toggleInstance(t.id, n)}
-                className="hoverable"
-                style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: isChecked ? `${color}18` : "var(--wf-card)", border: isChecked ? `1.5px solid ${color}` : "1px solid var(--wf-divider)", borderRadius: 14, padding: "10px 12px", cursor: "pointer" }}
-              >
-                <span style={{ width: 26, height: 26, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  {showNumber ? `${t.prefix}${numero}` : t.prefix}
-                </span>
-                <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--wf-text)" }}>{showNumber ? `${t.label} ${numero}` : t.label}</span>
-                {isChecked ? <Check size={16} color={color} /> : <span style={{ width: 16, height: 16, borderRadius: "50%", border: "1.5px solid var(--wf-border)" }} />}
-              </button>
-            );
-          });
-        })}
-        {filteredTypes.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, textAlign: "center", padding: "16px 0" }}>No hay secciones que coincidan.</div>}
-      </div>
-      <button onClick={confirm} disabled={totalChecked === 0} style={{ ...primaryBtn, opacity: totalChecked === 0 ? 0.4 : 1, cursor: totalChecked === 0 ? "not-allowed" : "pointer" }}>
-        Agregar{totalChecked > 0 ? ` (${totalChecked})` : ""}
-      </button>
-    </ModalShell>
-  );
-}
+// ---------------- Editor de canciones: asistente por pasos ----------------
+// Pedido de Eldin (2026-11-20): "Escribir" quedaba confuso. Ahora una canción nueva se arma en 4
+// pasos (Datos → Estructura → Letra → Acordes) con Atrás/Siguiente; solo los Datos son obligatorios.
+// Una canción que ya existe usa los mismos pasos como pestañas (más Animación) para ir directo a lo que
+// se quiere corregir. La letra se escribe SOLO en Letra y los acordes se ponen SOLO en Acordes
+// (tocando una palabra), así nadie cambia la letra sin querer al poner acordes.
+const PASOS_CANCION = [["datos", "Datos"], ["estructura", "Estructura"], ["letra", "Letra"], ["acordes", "Acordes"]];
 
 export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draftGetterRef }) {
   const canEditKey = isAdminViewer || !song;
-  const initialSnapshotRef = useRef(song ? JSON.stringify(song) : JSON.stringify(blankSong()));
+  const nueva = !song;
+  const initialSnapshotRef = useRef(song ? JSON.stringify(normalizarOrden(song)) : JSON.stringify(blankSong()));
   const [draft, setDraft] = useState(() => JSON.parse(initialSnapshotRef.current));
-  // "Escribir" (pedido de Eldin, 2026-10-13): la letra se escribe directo en un cuadro grande y las
-  // diapositivas salen solas. Canción nueva o sin letra abre ahí; una ya armada, en Detalles.
-  const [subTab, setSubTab] = useState(() => {
-    const d = song || blankSong();
-    return Object.values(d.blocks || {}).every((b) => !(b.lines || []).some((l) => String(l).trim())) ? "escribir" : "detalles";
-  }); // escribir | detalles | contenido | estructura (la pestaña Letra se quitó el 2026-10-14: Escribir la reemplaza)
-  const [activeBlockKey, setActiveBlockKey] = useState(null);
-  const [showAddSections, setShowAddSections] = useState(false);
-  const textareaRefs = useRef({});
-  // "Pegar canción / Editar como texto" (ver components/EditorTextoCancion.jsx). Sin letra todavía =
-  // modo pegar (cuadro vacío); con letra = la canción completa como texto.
-  const sinLetra = Object.values(draft.blocks).every((b) => !(b.lines || []).some((l) => String(l).trim()));
-  // Lo que el cuadro "Escribir" sugirió la última vez (tonalidad/título): si la persona no lo cambió a
-  // mano, se va actualizando mientras escribe; si lo cambió, se respeta.
-  const autoRef = useRef({ key: "", title: "" });
-  const escribirTexto = ({ blocks, letra, defaultStructure, key, title }) => {
-    setDraft((d) => {
-      const auto = autoRef.current;
-      const nuevoKey = key && (!d.key || d.key === auto.key) ? key : d.key;
-      const nuevoTitulo = title && (!d.title.trim() || d.title === auto.title) ? title : d.title;
-      if (nuevoKey === key) auto.key = key;
-      if (nuevoTitulo === title) auto.title = title;
-      // Artista es obligatorio para guardar; una canción escrita aquí no lo trae → "Unknown", como las demás.
-      return { ...d, blocks, letra, defaultStructure, key: nuevoKey, title: nuevoTitulo, artist: d.artist.trim() ? d.artist : "Unknown" };
-    });
-  };
+  const [subTab, setSubTab] = useState("datos"); // datos | estructura | letra | acordes | animacion
+  const [pegando, setPegando] = useState(false);
+  const raizRef = useRef(null);
+  const sinLetra = Object.values(draft.blocks).every((b) => !(b.lines || []).some((l) => String(l).trim())) && Object.values(draft.letra || {}).every((s) => !(s || []).some((x) => (x || []).some((l) => String(l).trim())));
 
-  // En celular, el teclado nativo se come la mitad inferior de la pantalla pero el navegador NO
-  // achica el viewport donde vive esta barra "fixed" — se queda calculando su posición contra el
-  // alto de pantalla COMPLETO (como si el teclado no existiera), así que termina tapada debajo del
-  // teclado en vez de flotar justo encima, como sí hacen los teclados de acordes de apps nativas.
-  // window.visualViewport sí conoce el alto REAL visible (descontando el teclado) — se usa para
-  // empujar la barra hacia arriba exactamente lo que el teclado ocupa.
+  // En celular, el teclado tapa lo que está "fixed" abajo: window.visualViewport dice cuánto ocupa,
+  // para subir la barra de acordes justo encima (y esconder Atrás/Siguiente mientras se escribe).
   const [keyboardInset, setKeyboardInset] = useState(0);
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     const onViewportChange = () => {
       const inset = window.innerHeight - vv.height - vv.offsetTop;
-      // Un umbral chico filtra los cambios normales de la barra de direcciones del navegador al
-      // hacer scroll (unos pocos px) para que la barra no "salte" cuando en realidad no hay teclado.
       setKeyboardInset(inset > 100 ? inset : 0);
     };
     vv.addEventListener("resize", onViewportChange);
@@ -1375,308 +1234,149 @@ export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChang
     return () => { vv.removeEventListener("resize", onViewportChange); vv.removeEventListener("scroll", onViewportChange); };
   }, []);
 
-  // Avisa al contenedor si hay cambios sin guardar (para el guard de "atrás" con confirmación) y le
-  // deja siempre a mano el borrador actual (para el botón "Guardar y salir" de esa confirmación). Todo
-  // en un solo efecto sin dependencias: la limpieza de la render anterior corre justo antes que este
-  // efecto, así que solo queda "sucio" en falso cuando de verdad se desmonta (nada la pisa después).
+  // Avisa al contenedor si hay cambios sin guardar y le deja a mano el borrador actual (ver la
+  // confirmación de "atrás" en PrototipoWorshipFlow).
   useEffect(() => {
     if (draftGetterRef) draftGetterRef.current = () => draft;
     if (onDirtyChange) onDirtyChange(JSON.stringify(draft) !== initialSnapshotRef.current);
     return () => { if (onDirtyChange) onDirtyChange(false); if (draftGetterRef) draftGetterRef.current = null; };
   });
 
-  const blockKeys = Object.keys(draft.blocks);
-  const setBlockField = (key, field, value) => setDraft((d) => ({ ...d, blocks: { ...d.blocks, [key]: { ...d.blocks[key], [field]: value } } }));
-  const setBlockLines = (key, text) => setBlockField(key, "lines", text.split("\n"));
-
-  // Agrega varias secciones de una (ver AddSectionsModal) — cada una con su propio key único aunque
-  // se hayan creado en el mismo tick (Date.now() solo no alcanza para eso).
-  const addSections = (list) => {
-    setDraft((d) => {
-      const blocks = { ...d.blocks };
-      const letra = { ...d.letra };
-      list.forEach((s, i) => {
-        const key = `b${Date.now()}_${i}`;
-        blocks[key] = { badge: s.badge, label: s.label, bars: 8, lines: [""] };
-        letra[key] = [[""]];
-      });
-      return { ...d, blocks, letra };
-    });
-  };
-  // Mover partes en Contenido (pedido de Eldin, 2026-11-05): ej. empezó por el verso y luego quiere la
-  // intro hasta arriba. Cambia solo el orden en el editor (y en cómo se guardan), no la Estructura.
-  const moverBloque = (desde, destino) => setDraft((d) => {
-    const keys = Object.keys(d.blocks);
-    if (destino < 0 || destino >= keys.length || desde === destino) return d;
-    const [k] = keys.splice(desde, 1);
-    keys.splice(destino, 0, k);
-    const letra = Object.fromEntries([...keys.filter((x) => d.letra?.[x]).map((x) => [x, d.letra[x]]), ...Object.entries(d.letra || {}).filter(([x]) => !keys.includes(x))]);
-    return { ...d, blocks: Object.fromEntries(keys.map((x) => [x, d.blocks[x]])), letra };
-  });
-  const arrastreContenido = useArrastreLista({ habilitado: true, onReorder: moverBloque });
-  const removeBlock = (key) => setDraft((d) => {
-    const blocks = { ...d.blocks }; delete blocks[key];
-    const letra = { ...d.letra }; delete letra[key];
-    return { ...d, blocks, letra, defaultStructure: d.defaultStructure.filter((k) => k !== key) };
-  });
-
-  const insertChord = (chord) => {
-    let key = activeBlockKey;
-    if (!key || !draft.blocks[key]) key = blockKeys[0];
-    if (!key) return;
-    const el = textareaRefs.current[key];
-    const text = draft.blocks[key].lines.join("\n");
-    const start = el ? el.selectionStart : text.length;
-    const end = el ? el.selectionEnd : text.length;
-    const insertion = `[${chord}]`;
-    setBlockLines(key, text.slice(0, start) + insertion + text.slice(end));
-    setActiveBlockKey(key);
-    requestAnimationFrame(() => {
-      const el2 = textareaRefs.current[key];
-      if (el2) { el2.focus(); const pos = start + insertion.length; el2.setSelectionRange(pos, pos); }
-    });
-  };
-
-  // Retroceso con el cursor justo después del "]" de un acorde "[Am7]" borra el acorde entero. Borrar
-  // desde adentro del acorde sigue siendo letra por letra, para poder corregirlo (ej. [G] → [Gm]).
-  // Se detecta comparando el texto antes/después en onChange y no en keydown, porque los teclados de
-  // Android no siempre reportan la tecla de borrar como "Backspace".
-  const onContentChange = (key, e) => {
-    const prev = draft.blocks[key].lines.join("\n");
-    const next = e.target.value;
-    const pos = e.target.selectionStart;
-    const inputType = e.nativeEvent && e.nativeEvent.inputType;
-    const isBackspace = !inputType || inputType === "deleteContentBackward";
-    if (isBackspace && prev[pos] === "]" && next.length === prev.length - 1 && prev.slice(0, pos) + prev.slice(pos + 1) === next) {
-      const chordRe = /\[[^[\]\n]*\]/g;
-      let m;
-      while ((m = chordRe.exec(prev))) {
-        if (pos === m.index + m[0].length - 1) {
-          setBlockLines(key, prev.slice(0, m.index) + prev.slice(m.index + m[0].length));
-          requestAnimationFrame(() => {
-            const el = textareaRefs.current[key];
-            if (el) el.setSelectionRange(m.index, m.index);
-          });
-          return;
-        }
-      }
-    }
-    setBlockLines(key, next);
-  };
-
-  const entries = groupConsecutive(draft.defaultStructure);
-  const setEntries = (newEntries) => setDraft((d) => ({ ...d, defaultStructure: expandEntries(newEntries) }));
-  const changeCount = (idx, delta) => {
-    const arr = [...entries]; arr[idx] = { ...arr[idx], count: Math.max(0, arr[idx].count + delta) };
-    setEntries(arr.filter((e) => e.count > 0));
-  };
-  // Reordenar la estructura igual que el Setlist (pedido de Eldin, 2026-10-08): se agarra la sección
-  // desde cualquier parte (mouse: presionar y mover; dedo: mantener presionado) — sin flechitas.
-  const arrastreEstructura = useArrastreLista({
-    habilitado: true,
-    onReorder: (desde, destino) => { const arr = [...entries]; const [movida] = arr.splice(desde, 1); arr.splice(destino, 0, movida); setEntries(arr); },
-  });
-  const addEntry = (key) => setEntries([...entries, { key, count: 1 }]);
-
-  const canSave = draft.title.trim() && draft.key.trim() && draft.artist.trim();
-  // Guarda contra tocar "Guardar" varias veces seguidas (típico en celular, cuando no queda claro al
-  // toque si ya registró) — para una canción NUEVA, cada tap disparaba su propio insert antes de que el
-  // primero terminara y la pantalla navegara afuera, dejando la misma canción duplicada/triplicada.
+  // Solo título y tonalidad son obligatorios; sin artista se guarda como "Unknown" (la regla de siempre).
+  const canSave = !!(draft.title.trim() && draft.key.trim());
+  const faltan = [!draft.title.trim() && "el título", !draft.key.trim() && "la tonalidad"].filter(Boolean).join(" y ");
   const [isSaving, setIsSaving] = useState(false);
   const handleSaveClick = () => {
-    if (isSaving) return;
+    if (isSaving || !canSave) return;
     setIsSaving(true);
-    // onSave ya avisa con una alerta si falla (ver saveSong) — acá solo importa reactivar el botón,
-    // así que el rechazo se descarta a propósito en vez de dejarlo como "unhandled rejection".
-    Promise.resolve(onSave(draft)).catch(() => {}).finally(() => setIsSaving(false));
+    const final = draft.artist.trim() ? draft : { ...draft, artist: "Unknown" };
+    Promise.resolve(onSave(final)).catch(() => {}).finally(() => setIsSaving(false));
   };
 
-  return (
-    <div style={{ padding: 20, maxWidth: subTab === "escribir" ? 1200 : 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
-      {/* Fijo al hacer scroll: así "Guardar" queda siempre a mano después de agregar bloques, acordes
-          o diapositivas más abajo, sin tener que volver a subir hasta el principio. */}
-      <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--wf-bg)", paddingBottom: 10, marginBottom: 4 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-            <button onClick={onCancel} style={iconGhost}><ArrowLeft size={16} /></button>
-            <span style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 20, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{song ? "Editar canción" : "Nueva canción"}</span>
-          </div>
-          <span style={{ flex: 1 }} />
-          <button data-tour="cancion-guardar" disabled={!canSave || isSaving} onClick={handleSaveClick} style={{ ...primaryBtn, width: "auto", padding: "8px 18px", opacity: canSave && !isSaving ? 1 : 0.4, cursor: canSave && !isSaving ? "pointer" : "not-allowed" }}>{isSaving ? "Guardando…" : "Guardar"}</button>
-        </div>
+  const irA = (paso) => {
+    setSubTab(paso);
+    requestAnimationFrame(() => raizRef.current?.scrollIntoView?.({ block: "start" }));
+  };
+  const pasoIdx = PASOS_CANCION.findIndex(([v]) => v === subTab);
+  const aplicarPegado = ({ blocks, letra, defaultStructure, key, title }) => {
+    setDraft((d) => ({ ...d, blocks, letra, defaultStructure: defaultStructure?.length ? defaultStructure : Object.keys(blocks), key: d.key || key || "", title: d.title.trim() ? d.title : (title || ""), artist: d.artist.trim() ? d.artist : "Unknown" }));
+    setPegando(false);
+    irA("letra");
+  };
 
-        <div style={{ display: "flex", gap: 16, borderBottom: "1px solid var(--wf-divider)", marginTop: 14, overflowX: "auto", scrollbarWidth: "none" }}>
-          {[["escribir", "Escribir"], ["detalles", "Detalles"], ["contenido", "Contenido"], ["estructura", "Estructura"], ["animacion", "Animación"]].map(([val, label]) => (
-            <button key={val} data-tour={`cancion-${val === "escribir" ? "texto" : val}`} onClick={() => setSubTab(val)} style={{ background: "none", border: "none", padding: "0 0 10px", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4, color: subTab === val ? "var(--wf-text)" : "var(--wf-faint)", borderBottom: subTab === val ? "2px solid #2F5FA8" : "2px solid transparent", cursor: "pointer" }}>{val === "escribir" && <PencilLine size={13} />}{label}</button>
-          ))}
+  const altoNav = "var(--bottom-nav-height, 78px)";
+  const conPie = nueva && keyboardInset === 0;
+  const abajoAcordes = keyboardInset > 0 ? `${keyboardInset}px` : conPie ? `calc(${altoNav} + 68px)` : altoNav;
+  const botonPie = { minHeight: 48, borderRadius: 14, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit", padding: "0 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 };
+
+  return (
+    <div ref={raizRef} style={{ padding: 16, paddingBottom: nueva ? 110 : 24, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box", scrollMarginTop: 0 }}>
+      <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--wf-bg)", paddingBottom: 8, marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onCancel} aria-label="Salir" style={{ ...iconGhost, width: 40, height: 40 }}><ArrowLeft size={18} /></button>
+          <span style={{ flex: 1, minWidth: 0, fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 19, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nueva ? "Nueva canción" : (draft.title || "Editar canción")}</span>
+          <button data-tour="cancion-guardar" disabled={!canSave || isSaving} onClick={handleSaveClick} style={{ ...primaryBtn, width: "auto", minHeight: 40, padding: "8px 18px", opacity: canSave && !isSaving ? 1 : 0.4, cursor: canSave && !isSaving ? "pointer" : "not-allowed" }}>{isSaving ? "Guardando…" : "Guardar"}</button>
+        </div>
+        {/* Los pasos: en una canción nueva marcan el avance (1 de 4…); en una que ya existe son pestañas. */}
+        <div role="tablist" style={{ display: "flex", gap: 4, marginTop: 12 }}>
+          {[...PASOS_CANCION, ...(nueva ? [] : [["animacion", "Animación"]])].map(([val, label], i) => {
+            const activo = subTab === val;
+            const hecho = nueva && i < pasoIdx;
+            const bloqueado = nueva && i > 0 && !canSave;
+            return (
+              <button key={val} role="tab" aria-selected={activo} data-tour={`cancion-${val}`} disabled={bloqueado} onClick={() => irA(val)}
+                style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "6px 2px 8px", border: "none", background: "none", cursor: bloqueado ? "not-allowed" : "pointer", opacity: bloqueado ? 0.45 : 1, fontFamily: "inherit", borderBottom: `3px solid ${activo ? "var(--wf-brand-accent)" : hecho ? "color-mix(in srgb, var(--wf-brand-accent) 40%, transparent)" : "var(--wf-divider)"}` }}>
+                <span style={{ width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5, fontWeight: 800, background: activo ? "var(--wf-brand-accent)" : hecho ? "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)" : "var(--wf-hover)", color: activo ? "var(--wf-on-brand-accent, #fff)" : "var(--wf-text)" }}>
+                  {hecho ? <Check size={14} /> : val === "animacion" ? <Play size={12} /> : i + 1}
+                </span>
+                <span style={{ fontSize: 11.5, fontWeight: activo ? 800 : 600, color: activo ? "var(--wf-text)" : "var(--wf-muted)", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {subTab === "escribir" && !canSave && !sinLetra && (
-        <button onClick={() => setSubTab("detalles")} style={{ display: "block", width: "100%", textAlign: "left", background: "color-mix(in srgb, var(--wf-brand-accent) 10%, transparent)", border: "none", borderRadius: 12, padding: "8px 12px", marginBottom: 10, fontSize: 12.5, color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit" }}>
-          Para guardar falta {[!draft.title.trim() && "el título", !draft.key.trim() && "la tonalidad"].filter(Boolean).join(" y ") || "completar Detalles"} → <b>ir a Detalles</b>
-        </button>
-      )}
-      {subTab === "escribir" && <EditorTextoCancion inline cancion={draft} nueva={sinLetra} onCambio={escribirTexto} />}
-      {subTab === "detalles" && sinLetra && (
-        <button onClick={() => setSubTab("escribir")} className="hoverable"
-          style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", maxWidth: 480, textAlign: "left", border: "1.5px dashed var(--wf-brand-accent)", background: "color-mix(in srgb, var(--wf-brand-accent) 8%, transparent)", borderRadius: 16, padding: "12px 14px", marginBottom: 16, cursor: "pointer", color: "var(--wf-text)", fontFamily: "inherit" }}>
-          <span style={{ width: 40, height: 40, borderRadius: 12, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ClipboardPaste size={20} /></span>
-          <span style={{ flex: 1 }}>
-            <span style={{ display: "block", fontWeight: 800, fontSize: 14.5 }}>¿Ya tienes la canción escrita?</span>
-            <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-muted)" }}>Escríbela o pégala completa en la pestaña Escribir, con o sin acordes, y se arma sola.</span>
-          </span>
-        </button>
-      )}
-      {subTab === "detalles" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 480 }}>
-          <Field label="Título" required><input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Introduce un título" style={inputStyle} /></Field>
-          <Field label="Tempo"><input value={draft.tempo} onChange={(e) => setDraft({ ...draft, tempo: e.target.value })} placeholder="Introduce el tempo" style={inputStyle} /></Field>
-          <Field label="Compás">
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {COMPASES.map((c) => (
-                <button key={c} type="button" onClick={() => setDraft({ ...draft, compas: draft.compas === c ? "" : c })} style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: "none", background: draft.compas === c ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: draft.compas === c ? "var(--wf-on-brand-accent)" : "var(--wf-text)", cursor: "pointer", fontFamily: "'JetBrains Mono', monospace" }}>{c}</button>
-              ))}
-            </div>
-            <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Opcional. Toca el elegido otra vez para quitarlo.</span>
-          </Field>
-          <Field label="Tonalidad" required>
-            {canEditKey ? (
-              <select value={draft.key} onChange={(e) => setDraft({ ...draft, key: e.target.value })} style={inputStyle}>
-                <option value="">Selecciona tonalidad</option>
-                {KEY_OPTIONS.map((k) => <option key={k} value={k}>{k}</option>)}
-              </select>
-            ) : (
-              <div style={{ ...inputStyle, color: "var(--wf-muted)", background: "var(--wf-hover)" }}>
-                {draft.key || "Sin definir"}
-                <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Solo un administrador puede cambiar la tonalidad definitiva de la canción.</span>
-              </div>
-            )}
-          </Field>
-          <Field label="Artista" required><input value={draft.artist} onChange={(e) => setDraft({ ...draft, artist: e.target.value })} placeholder="Elegir artista" style={inputStyle} /></Field>
-          <Field label="Temas"><input value={draft.themes} onChange={(e) => setDraft({ ...draft, themes: e.target.value })} placeholder="Ej. Adoración, Fe" style={inputStyle} /></Field>
-          <Field label="Clasificación" required>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {clasificacionesActuales.map(({ clave: key, nombre }) => ({ key, c: { label: nombre } })).map(({ key, c }) => (
-                <button key={key} type="button" onClick={() => setDraft({ ...draft, category: key })} style={{ fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: "none", background: draft.category === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: draft.category === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{c.label}</button>
-              ))}
-            </div>
-            <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Define a qué bloque del Setlist se manda esta canción al agregarla{(() => { const b = clasificacionesActuales.find((c) => c.clave === draft.category)?.bloque; return b ? ` (esta va a "${b}")` : " (esta va al final)"; })()}.</span>
-          </Field>
-        </div>
-      )}
-
-      {subTab === "contenido" && (
-        <div style={{ paddingBottom: draft.key ? 166 : 0 }}>
-          <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 14 }}>Escribe la letra con los acordes en formato <code style={{ color: "#1F8A73" }}>[Acorde]</code> justo antes de la sílaba, o toca un acorde de la barra de abajo para insertarlo donde esté el cursor. Esto es lo que ve el músico.</div>
-
-          {!draft.key && (
-            <div style={{ fontSize: 12, color: "var(--wf-faint)", marginBottom: 14 }}>Elige una tonalidad en "Detalles" para ver aquí los acordes que puedes usar.</div>
+      {subTab === "datos" && (
+        <div style={{ maxWidth: 520 }}>
+          {nueva && <h2 style={{ fontFamily: "var(--wf-font-titulo)", fontSize: 19, fontWeight: 700, letterSpacing: "-0.02em", margin: "4px 0 4px" }}>Datos de la canción</h2>}
+          {nueva && <p style={{ fontSize: 13.5, color: "var(--wf-muted)", margin: "0 0 14px" }}>Solo el título y la tonalidad son obligatorios. Lo demás lo puedes llenar después.</p>}
+          {sinLetra && (
+            <button onClick={() => setPegando(true)} className="hoverable"
+              style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", border: "1.5px dashed var(--wf-brand-accent)", background: "color-mix(in srgb, var(--wf-brand-accent) 8%, transparent)", borderRadius: 16, padding: "12px 14px", marginBottom: 18, cursor: "pointer", color: "var(--wf-text)", fontFamily: "inherit" }}>
+              <span style={{ width: 40, height: 40, borderRadius: 12, background: "var(--wf-brand-accent)", color: "var(--wf-brand-primary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ClipboardPaste size={20} /></span>
+              <span style={{ flex: 1 }}>
+                <span style={{ display: "block", fontWeight: 800, fontSize: 14.5 }}>Pegar canción completa</span>
+                <span style={{ display: "block", fontSize: 12.5, color: "var(--wf-muted)" }}>¿La copiaste de internet? Pégala con o sin acordes y se arma sola (partes, letra y acordes).</span>
+              </span>
+            </button>
           )}
-
-          {blockKeys.length === 0 && (
-            <div style={{ textAlign: "center", color: "var(--wf-faint)", fontSize: 13, padding: "40px 0" }}>
-              No se añadieron secciones,{" "}
-              <button onClick={() => setShowAddSections(true)} style={{ background: "none", border: "none", color: "#2F5FA8", fontWeight: 700, cursor: "pointer", padding: 0, fontSize: 13 }}>añadir secciones</button>
-            </div>
-          )}
-
-          {blockKeys.length > 1 && <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginBottom: 8 }}>Para cambiar el orden de las partes, usa las flechas o arrastra la parte desde su barra de arriba.</div>}
-          {blockKeys.map((key, idx) => (
-            <div key={key} data-parte={key} {...arrastreContenido.filaProps(idx)} style={{ background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: 14, marginBottom: 10, ...arrastreContenido.estiloFila(idx) }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                {blockKeys.length > 1 && <GripVertical size={14} color="var(--wf-border-soft)" style={{ flexShrink: 0, cursor: "grab" }} />}
-                <input data-no-arrastre value={draft.blocks[key].badge} onChange={(e) => setBlockField(key, "badge", e.target.value)} style={{ ...inputStyle, width: 46, textAlign: "center", padding: "6px 4px" }} />
-                <input data-no-arrastre value={draft.blocks[key].label} onChange={(e) => setBlockField(key, "label", e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-                <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                  <input data-no-arrastre type="number" min={1} value={draft.blocks[key].bars || 8} onChange={(e) => setBlockField(key, "bars", Math.max(1, parseInt(e.target.value) || 1))} style={{ ...inputStyle, width: 48, textAlign: "center", padding: "6px 4px" }} />
-                  <span style={{ fontSize: 10, color: "var(--wf-faint)", whiteSpace: "nowrap" }}>compases</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Field label="Título" required><input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Nombre de la canción" style={{ ...inputStyle, fontSize: 16, minHeight: 44 }} /></Field>
+            <Field label="Tonalidad" required>
+              {canEditKey ? (
+                <select value={draft.key} onChange={(e) => setDraft({ ...draft, key: e.target.value })} style={{ ...inputStyle, fontSize: 16, minHeight: 44 }}>
+                  <option value="">Selecciona tonalidad</option>
+                  {KEY_OPTIONS.map((k) => <option key={k} value={k}>{k}</option>)}
+                </select>
+              ) : (
+                <div style={{ ...inputStyle, color: "var(--wf-muted)", background: "var(--wf-hover)" }}>
+                  {draft.key || "Sin definir"}
+                  <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Solo un administrador puede cambiar la tonalidad definitiva de la canción.</span>
                 </div>
-                {blockKeys.length > 1 && (
-                  <>
-                    <button onClick={() => moverBloque(idx, idx - 1)} disabled={idx === 0} aria-label={`Subir ${draft.blocks[key].label}`} title="Subir" style={{ ...iconGhost, opacity: idx === 0 ? 0.3 : 1 }}><ChevronUp size={15} /></button>
-                    <button onClick={() => moverBloque(idx, idx + 1)} disabled={idx === blockKeys.length - 1} aria-label={`Bajar ${draft.blocks[key].label}`} title="Bajar" style={{ ...iconGhost, opacity: idx === blockKeys.length - 1 ? 0.3 : 1 }}><ChevronDown size={15} /></button>
-                  </>
-                )}
-                <button onClick={() => removeBlock(key)} aria-label={`Quitar ${draft.blocks[key].label}`} style={{ ...iconGhost, color: "#C23B32" }}><Trash2 size={14} /></button>
+              )}
+            </Field>
+            <Field label="Artista"><input value={draft.artist} onChange={(e) => setDraft({ ...draft, artist: e.target.value })} placeholder="Si no lo sabes, déjalo vacío" style={{ ...inputStyle, fontSize: 16, minHeight: 44 }} /></Field>
+            <Field label="Tempo"><input value={draft.tempo} inputMode="numeric" onChange={(e) => setDraft({ ...draft, tempo: e.target.value })} placeholder="Ej.: 72" style={{ ...inputStyle, fontSize: 16, minHeight: 44 }} /></Field>
+            <Field label="Compás">
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {COMPASES.map((c) => (
+                  <button key={c} type="button" onClick={() => setDraft({ ...draft, compas: draft.compas === c ? "" : c })} style={{ fontSize: 13, fontWeight: 700, minHeight: 38, padding: "6px 14px", borderRadius: 20, border: "none", background: draft.compas === c ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: draft.compas === c ? "var(--wf-on-brand-accent)" : "var(--wf-text)", cursor: "pointer", fontFamily: "'JetBrains Mono', monospace" }}>{c}</button>
+                ))}
               </div>
-              <textarea
-                data-no-arrastre
-                ref={(el) => { textareaRefs.current[key] = el; }}
-                onFocus={() => setActiveBlockKey(key)}
-                value={draft.blocks[key].lines.join("\n")}
-                onChange={(e) => onContentChange(key, e)}
-                rows={draft.blocks[key].lines.length + 1}
-                style={{ ...inputStyle, resize: "vertical", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, marginBottom: 8, border: activeBlockKey === key ? "1px solid #1F8A73" : "1px solid var(--wf-border)" }}
-              />
-              <div style={{ marginTop: 4 }}>
-                {draft.blocks[key].lines.map((l, i) => <ChordsAboveLyrics key={i} raw={l} />)}
+              <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Opcional. Toca el elegido otra vez para quitarlo.</span>
+            </Field>
+            <Field label="Temas"><input value={draft.themes} onChange={(e) => setDraft({ ...draft, themes: e.target.value })} placeholder="Ej. Adoración, Fe" style={{ ...inputStyle, fontSize: 16, minHeight: 44 }} /></Field>
+            <Field label="Clasificación">
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {clasificacionesActuales.map(({ clave: key, nombre }) => (
+                  <button key={key} type="button" onClick={() => setDraft({ ...draft, category: key })} style={{ fontSize: 13, fontWeight: 700, minHeight: 38, padding: "6px 14px", borderRadius: 20, border: "none", background: draft.category === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: draft.category === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{nombre}</button>
+                ))}
               </div>
-            </div>
-          ))}
-          {blockKeys.length > 0 && (
-            <button onClick={() => setShowAddSections(true)} className="hoverable" style={addBtnStyle}><Plus size={14} /> Agregar secciones</button>
-          )}
+              <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Define a qué bloque del Setlist se manda esta canción al agregarla{(() => { const b = clasificacionesActuales.find((c) => c.clave === draft.category)?.bloque; return b ? ` (esta va a "${b}")` : " (esta va al final)"; })()}.</span>
+            </Field>
+          </div>
         </div>
       )}
 
+      {subTab === "estructura" && <PasoEstructura cancion={draft} setCancion={setDraft} colorDe={badgeColor} />}
+      {subTab === "letra" && <PasoLetra cancion={draft} setCancion={setDraft} colorDe={badgeColor} onIrAEstructura={() => irA("estructura")} />}
+      {subTab === "acordes" && <PasoAcordes cancion={draft} setCancion={setDraft} colorDe={badgeColor} grupos={acordesDeTonalidad(draft.key)} abajo={abajoAcordes} />}
       {subTab === "animacion" && <EditorAnimacionCancion draft={draft} setDraft={setDraft} />}
 
-      {subTab === "estructura" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 8 }}><ListMusic size={13} /> ESTRUCTURA ACTUAL</div>
-            {entries.map((e, idx) => (
-              <div key={idx} {...arrastreEstructura.filaProps(idx)} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 12, padding: "8px 10px", marginBottom: 6, ...arrastreEstructura.estiloFila(idx) }}>
-                <GripVertical size={14} color="var(--wf-border-soft)" />
-                <span style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--wf-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{draft.blocks[e.key]?.badge}</span>
-                <span style={{ fontSize: 13, flex: 1 }}>{draft.blocks[e.key]?.label}</span>
-                <button onClick={() => changeCount(idx, -1)} style={iconGhost}><Minus size={13} /></button>
-                <span style={{ fontSize: 12, width: 22, textAlign: "center" }}>x{e.count}</span>
-                <button onClick={() => changeCount(idx, 1)} style={iconGhost}><Plus size={13} /></button>
-              </div>
-            ))}
-            {entries.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12 }}>Agrega bloques desde la derecha.</div>}
-          </div>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 8 }}><ListMusic size={13} /> ESTRUCTURAS DISPONIBLES</div>
-            {blockKeys.map((key) => (
-              <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 12, padding: "8px 10px", marginBottom: 6 }}>
-                <span style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--wf-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{draft.blocks[key].badge}</span>
-                <span style={{ fontSize: 13, flex: 1 }}>{draft.blocks[key].label}</span>
-                <button onClick={() => addEntry(key)} style={iconGhost}><Plus size={15} color="var(--wf-brand-accent)" /></button>
-              </div>
-            ))}
-            {blockKeys.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12 }}>Primero agrega secciones en la pestaña Contenido.</div>}
+      {/* Atrás / Siguiente (solo canción nueva). Se esconde mientras el teclado está abierto. */}
+      {conPie && (
+        <div style={{ position: "fixed", left: 0, right: 0, bottom: altoNav, zIndex: 45, background: "var(--wf-bg)", borderTop: "1px solid var(--wf-divider)", padding: "10px 0" }}>
+          <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 16px", display: "flex", alignItems: "center", gap: 8 }}>
+            {pasoIdx > 0 ? (
+              <button type="button" onClick={() => irA(PASOS_CANCION[pasoIdx - 1][0])} style={{ ...botonPie, background: "var(--wf-hover)", border: "none", color: "var(--wf-text)" }}><ChevronLeft size={18} /> Atrás</button>
+            ) : (
+              <span style={{ flex: 1, fontSize: 12.5, color: "var(--wf-muted)" }}>{canSave ? "" : `Falta ${faltan}`}</span>
+            )}
+            {pasoIdx > 0 && <span style={{ flex: 1 }} />}
+            {pasoIdx < PASOS_CANCION.length - 1 ? (
+              <button type="button" disabled={!canSave} onClick={() => irA(PASOS_CANCION[pasoIdx + 1][0])} style={{ ...botonPie, border: "none", background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent, #fff)", opacity: canSave ? 1 : 0.4, cursor: canSave ? "pointer" : "not-allowed" }}>
+                Siguiente <ChevronRight size={18} />
+              </button>
+            ) : (
+              <>
+                {!tieneAcordes(draft) && <button type="button" onClick={handleSaveClick} disabled={isSaving} style={{ ...botonPie, background: "transparent", border: "1.5px solid var(--wf-border)", color: "var(--wf-text)" }}>Omitir</button>}
+                <button type="button" onClick={handleSaveClick} disabled={isSaving} style={{ ...botonPie, border: "none", background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent, #fff)" }}><Check size={18} /> {isSaving ? "Guardando…" : "Guardar"}</button>
+              </>
+            )}
           </div>
         </div>
       )}
-
-      {/* Barra de acordes: fija arriba de la nav, como una barra de accesorios de teclado (estilo
-          OnStage). No vive en el flujo normal a propósito — así el scroll de las secciones de la
-          canción nunca la arrastra, y siempre queda lista para tocar un acorde. Se desliza en
-          horizontal con el dedo (overflowX) en vez de envolver en varias líneas. */}
-      {subTab === "contenido" && draft.key && (
-        <div style={{ position: "fixed", left: 0, right: 0, bottom: keyboardInset > 0 ? keyboardInset : "var(--bottom-nav-height, 78px)", background: "var(--wf-card)", borderTop: "1px solid var(--wf-divider)", boxShadow: "0 -4px 14px rgba(22,50,79,0.1)", padding: "8px 0 10px", zIndex: 45 }}>
-          <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 12px" }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 6 }}>ACORDES DE {draft.key.toUpperCase()} <span style={{ fontWeight: 500, color: "var(--wf-faint)" }}>· desliza para ver más</span></div>
-            <div className="chordbar-scroll" style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", alignItems: "stretch" }}>
-              {acordesDeTonalidad(draft.key).map((g, gi) => (
-                <div key={g.titulo} style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "stretch", paddingLeft: gi === 0 ? 0 : 8, borderLeft: gi === 0 ? "none" : "1px solid var(--wf-divider)" }}>
-                  <span style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", fontSize: 9, fontWeight: 700, color: "var(--wf-faint)", textTransform: "uppercase", textAlign: "center" }}>{g.titulo}</span>
-                  {g.acordes.map((c) => (
-                    <button key={c.chord + c.grado} onClick={() => insertChord(c.chord)} className="hoverable" style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "8px 12px", cursor: "pointer" }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: "#1F8A73", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>{c.chord}</span>
-                      <span style={{ fontSize: 10, color: "var(--wf-faint)", whiteSpace: "nowrap" }}>{c.grado}</span>
-                    </button>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-      {showAddSections && <AddSectionsModal existingBlocks={draft.blocks} onClose={() => setShowAddSections(false)} onAdd={addSections} />}
+      {pegando && <EditorTextoCancion cancion={draft} nueva onAplicar={aplicarPegado} onCerrar={() => setPegando(false)} />}
     </div>
   );
 }

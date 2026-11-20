@@ -202,7 +202,7 @@ export default function BuscarCancionWeb({ library = [], clasificaciones = [], u
               {(resultados !== null || error) && (
                 <div style={{ marginTop: 18, background: "var(--wf-bg)", borderRadius: 14, padding: 12, fontSize: 13 }}>
                   <div style={{ fontWeight: 800, marginBottom: 4 }}>{resultados === null ? "Mientras tanto" : "¿No está la que buscas?"}</div>
-                  <div style={{ color: "var(--wf-muted)", marginBottom: 8 }}>Búscala en otro sitio, copia la letra (con o sin acordes) y pégala en <b>+ Nueva canción → Escribir</b>: la app acomoda los acordes sola.</div>
+                  <div style={{ color: "var(--wf-muted)", marginBottom: 8 }}>Búscala en otro sitio, copia la letra (con o sin acordes) y pégala en <b>+ Nueva canción → Pegar canción completa</b>: la app acomoda los acordes sola.</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {enlacesDeBusqueda(buscado || q).map((s) => (
                       <a key={s.nombre} href={s.url} target="_blank" rel="noopener noreferrer" style={{ ...pildora, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5 }}>
