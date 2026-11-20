@@ -1,6 +1,22 @@
 # WorshipFlow — Contexto del proyecto
 
 App de presentación y gestión para iglesias (competidor de OnStage/ProPresenter), construida por Eldin Mcfarlane.
+Es multi-iglesia: cada iglesia ve solo lo suyo. Web en worshipflowapp.com y la app en app.worshipflowapp.com.
+
+## Cómo trabajar con Eldin
+- Responder siempre en español, sin tecnicismos innecesarios. Explicar los cambios de forma sencilla.
+- Antes de un cambio grande, dar un plan corto y esperar su visto bueno.
+- **Publicar**: trabajar en una rama, correr `npm test` y `npm run build`; si pasan, Claude mismo une la rama a `main` y hace push (Vercel publica solo). NO abrir pull requests ni pedirle a Eldin que haga merge o le dé clic a nada: todo el merge y el push lo hace Claude. Cuando diga "publícalo", hacerlo de una vez. Si las pruebas o el build fallan, no publicar y avisarle.
+- **Base de datos**: cambios de estructura (tablas, columnas, políticas RLS) → darle el SQL y el enlace al editor SQL de Supabase para que él lo corra. Cambios de datos (canciones, setlists) sí se pueden hacer directo.
+- **Videos / capturas**: correr la app en el entorno propio con Supabase simulado y datos de demostración. Nunca usar datos reales ni tocar producción.
+
+## Reglas de producto
+- La edición de diapositivas y presentaciones (y su editor tipo PowerPoint) es SOLO para computadora, nunca para celular. En el celular el setlist muestra solo los cantos, no las diapositivas.
+- Listas de nombres y canciones siempre en orden alfabético.
+- En la app, los ministerios se llaman **"Grupos"**. Los roles son para permisos generales; el poder sobre un ministerio viene de ser líder del grupo (cada grupo define qué puede hacer su líder).
+- En Ajustes hay una sola lista de Miembros (invitar por correo, cambiar estado, todo ahí).
+- **Canciones**: nunca cambiar la letra (en las diapositivas solo se limpian alargamientos y "//"); cada diapositiva lleva 2 renglones; autor desconocido = "Unknown".
+- Planes: Gratis (20 canciones, 5 letras animadas básicas sin poder crear nuevas), Ministerio (75), Crecimiento (200), Iglesia (ilimitadas). Cobros por Paddle.
 
 ## Stack
 - React + Vite + Supabase + Vercel (mismo stack que Omega App)
