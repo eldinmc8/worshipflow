@@ -9,6 +9,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { Radio, Music, ListMusic, BookOpen, Users, Tv, Check, MessageCircle, Menu, X, Minus, Plus, Smartphone, Tablet, Monitor, Cast } from "lucide-react";
 import WorshipFlowIcon from "./WorshipFlowIcon.jsx";
+import CarruselPortada from "./CarruselPortada.jsx";
 import { PLANES, COMPARATIVO } from "./lib/planes.js";
 import { CORREO_SOPORTE, WHATSAPP_SOPORTE } from "./lib/soporte.js";
 import { direccionApp } from "./lib/portada.js";
@@ -249,44 +250,6 @@ const PREGUNTAS = [
   ["¿Hay prueba gratis?", "Sí. Cada iglesia nueva puede probar 30 días gratis el plan Iglesia completo. Para activar la prueba se registra una tarjeta; si cancelas antes de que terminen los 30 días, no se te cobra nada. Sin tarjeta puedes usar el plan Gratis para siempre."],
 ];
 
-// Maqueta de la consola en vivo (ilustración, no la app real). La letra es de un himno de dominio público.
-function MaquetaEnVivo() {
-  const orden = [["Bienvenida", "Slide"], ["Santo, Santo, Santo", "Canción · D"], ["Salmo 100", "Versículo · RVR1960"], ["Canción de respuesta", "Canción · G"], ["Anuncios", "Bloque"]];
-  return (
-    <div aria-hidden="true" style={{ background: NIEBLA, borderRadius: 16, padding: "clamp(14px, 3vw, 28px)" }}>
-      <div style={{ background: "#fff", borderRadius: 14, border: `1px solid ${LINEA}`, overflow: "hidden", display: "flex", flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 190px", borderRight: `1px solid ${NIEBLA}`, padding: "14px 0" }}>
-          <div style={{ padding: "0 14px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: TINTA }}>Culto del domingo</span>
-            <span style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", background: "#C23B32", borderRadius: 6, padding: "2px 6px" }}>EN VIVO</span>
-          </div>
-          {orden.map(([t, k], i) => (
-            <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", padding: "9px 14px", background: i === 1 ? "#FFF4E8" : "transparent", boxShadow: i === 1 ? `inset 3px 0 0 ${NARANJA}` : "none" }}>
-              <span style={{ fontSize: 11, color: "#8A96A8", width: 14 }}>{i + 1}</span>
-              <span style={{ minWidth: 0 }}>
-                <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: TINTA, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t}</span>
-                <span style={{ display: "block", fontSize: 11, color: SUAVE }}>{k}</span>
-              </span>
-            </div>
-          ))}
-        </div>
-        <div style={{ flex: "2 1 260px", padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: SUAVE, fontWeight: 500 }}><span>● AL AIRE</span><span>Coro 1 de 3</span></div>
-          <div style={{ aspectRatio: "16 / 9", background: OSCURO, borderRadius: 10, border: "2px solid #C23B32", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, color: "#fff", textAlign: "center", padding: 12 }}>
-            <span style={{ fontSize: "clamp(16px, 2vw, 22px)", fontWeight: 600 }}>Santo, Santo, Santo</span>
-            <span style={{ fontSize: "clamp(13px, 1.5vw, 16px)", color: "#B9C2D0" }}>Señor omnipotente</span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
-            {["Anterior", "Siguiente", "Negro"].map((b, i) => (
-              <span key={b} style={{ fontSize: 12, fontWeight: 600, textAlign: "center", padding: "8px 0", borderRadius: 8, background: i === 1 ? NARANJA : NIEBLA, color: i === 1 ? SOBRE_NARANJA : TINTA }}>{b}</span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function Inicio() {
   return (
     <>
@@ -308,7 +271,7 @@ function Inicio() {
             </div>
             <span style={{ fontSize: 13, color: SUAVE }}>Plan Gratis para siempre · 30 días gratis del plan Iglesia · Funciona en el navegador</span>
           </div>
-          <div style={{ flex: "1 1 480px", minWidth: 0 }}><MaquetaEnVivo /></div>
+          <div style={{ flex: "1 1 480px", minWidth: 0 }}><CarruselPortada /></div>
         </section>
 
         {/* Dispositivos */}
