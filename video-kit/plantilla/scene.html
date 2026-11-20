@@ -1,0 +1,135 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:P;src:url(file:///usr/share/fonts/truetype/google-fonts/Poppins-Bold.ttf);font-weight:700 900}
+@font-face{font-family:P;src:url(file:///usr/share/fonts/truetype/google-fonts/Poppins-Medium.ttf);font-weight:500 600}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1080px;height:1920px;overflow:hidden;background:#0b1828;font-family:P,'Noto Color Emoji',sans-serif;color:#fff}
+.abs{position:absolute}
+#bg{position:absolute;inset:0;background:radial-gradient(ellipse 90% 60% at 50% 40%,#1d4166 0%,#16324F 45%,#0b1828 100%)}
+#red{position:absolute;inset:0;background:radial-gradient(ellipse 80% 70% at 50% 45%,rgba(194,59,50,0) 30%,rgba(194,59,50,.75) 100%);opacity:0}
+.pill{background:#fff;color:#111;border-radius:40px;padding:18px 34px;font-weight:700;font-size:48px;box-shadow:0 10px 30px rgba(0,0,0,.35);white-space:nowrap}
+.cap{left:60px;width:960px;text-align:center;font-weight:800;font-size:56px;line-height:1.18;text-shadow:0 4px 18px rgba(0,0,0,.6)}
+.cap em{font-style:normal;color:#E8821E}
+.bub{position:absolute;background:#fff;color:#111;border-radius:24px;padding:16px 28px;font-size:42px;font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,.4);white-space:nowrap}
+.stamp{background:#C23B32;color:#fff;font-weight:800;font-size:46px;padding:16px 30px;border-radius:16px;border:5px solid #fff;box-shadow:0 10px 30px rgba(0,0,0,.4);white-space:nowrap}
+.msg{position:absolute;left:150px;width:780px;background:#e9edf2;color:#333;border-radius:18px;padding:14px 22px;font-size:32px;font-weight:600}
+.chip{border:4px solid #E8821E;border-radius:40px;padding:12px 30px;font-size:36px;font-weight:700;background:rgba(22,50,79,.85);white-space:nowrap}
+#chips{left:0;width:1080px;top:140px;display:flex;justify-content:center}
+#ph{left:250px;top:240px;width:580px;height:1236px;border-radius:64px;background:#111;padding:14px;box-shadow:0 30px 70px rgba(0,0,0,.6)}
+#scr{position:relative;width:552px;height:1208px;border-radius:52px;overflow:hidden;background:#fff}
+#in{position:absolute;left:0;top:0;width:552px;height:1195px;transform-origin:0 0}
+#in img{position:absolute;inset:0;width:552px;height:1195px;opacity:0}
+.ring{position:absolute;width:90px;height:90px;border-radius:50%;border:7px solid #E8821E;background:rgba(232,130,30,.25);transform:translate(-50%,-50%);opacity:0}
+#hoy{left:0;width:1080px;top:1500px;text-align:center}
+#hoy span{background:#1F8A73;border-radius:20px;padding:12px 30px;font-size:44px;font-weight:800}
+#bTxt1{left:0;width:1080px;top:700px;text-align:center;font-size:84px;font-weight:800}
+.note{left:0;width:1080px;text-align:center;font-size:110px;color:#E8821E}
+#bTxt2{left:0;width:1080px;top:1010px;text-align:center;font-size:100px;font-weight:800;line-height:1.05}
+#bTxt2 span,#dTxt span{color:#E8821E}
+#dTxt{left:0;width:1080px;top:640px;text-align:center;font-size:78px;font-weight:800;line-height:1.15}
+#wa{left:50%;top:1060px;transform:translateX(-50%);background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.18);border-radius:30px;padding:30px 60px;text-align:center;white-space:nowrap}
+#wa .s{font-size:40px;font-weight:500;color:#dbe4ee}#wa .n{font-size:62px;font-weight:800;margin-top:6px}
+#fade{position:absolute;inset:0;background:#0b1828;opacity:0}
+
+.logo svg{width:100%;height:100%}
+#brand{left:0;width:1080px;top:50px;display:flex;justify-content:center;align-items:center;gap:14px;font-size:46px;font-weight:800}
+#brand .logo{width:58px;height:70px}#brand span{color:#E8821E}
+#cm{left:90px;top:620px;width:900px;background:#fff;color:#111;border-radius:34px;padding:34px 40px;box-shadow:0 30px 70px rgba(0,0,0,.5)}
+#cm .u{font-size:34px;color:#777;font-weight:600}#cm .t{font-size:72px;font-weight:800;margin-top:8px}
+#o1{left:0;width:1080px;top:420px;text-align:center;font-size:84px;font-weight:800;line-height:1.15}
+#o1 span{color:#E8821E}
+#ics{left:0;width:1080px;top:760px;display:flex;justify-content:center;gap:40px}
+.ic{width:200px;padding:26px 0;border-radius:30px;background:rgba(255,255,255,.08);border:3px solid rgba(255,255,255,.18);text-align:center;font-size:90px}
+.ic div{font-size:32px;font-weight:700;margin-top:6px}
+#ph{left:250px;top:250px;width:580px;height:1236px;border-radius:64px;background:#111;padding:14px;box-shadow:0 30px 70px rgba(0,0,0,.6)}
+#scr{position:relative;width:552px;height:1208px;border-radius:52px;overflow:hidden;background:#fff}
+#scr img{position:absolute;left:0;top:0;width:552px;height:1195px;opacity:0}
+#lock{position:absolute;inset:0;background:linear-gradient(160deg,#2a4a6e,#0b1828);opacity:0}
+#lock .h{position:absolute;top:150px;width:100%;text-align:center;font-size:120px;font-weight:600;color:#fff}
+#lock .d{position:absolute;top:300px;width:100%;text-align:center;font-size:30px;color:#dbe4ee}
+#push{position:absolute;left:18px;width:516px;top:420px;background:rgba(255,255,255,.95);color:#111;border-radius:30px;padding:22px 24px;display:flex;gap:16px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+#push .ap{width:74px;height:74px;border-radius:18px;background:#18324F;flex-shrink:0;padding:10px}
+#push .tt{font-size:26px;font-weight:800}#push .bd{font-size:24px;color:#333;margin-top:4px;line-height:1.3}#push .ag{font-size:20px;color:#888;font-weight:600}
+#toca{left:50%;top:1500px}
+#eq{left:30px;top:420px;width:1020px;height:783px;border-radius:30px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.6)}
+#eq img{width:1020px}
+.tag{position:absolute;font-size:38px;font-weight:800;padding:10px 24px;border-radius:30px;white-space:nowrap;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.sv{background:#1F8A73}.nv{background:#C23B32}
+#tv{left:90px;top:600px;width:900px;height:506px;border:12px solid #0a0a0a;border-radius:10px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.6)}
+#tv img{width:100%;height:100%}
+#endL{left:410px;top:420px;width:260px;height:316px}
+#endT{left:0;width:1080px;top:800px;text-align:center;font-size:80px;font-weight:800;line-height:1.15}
+#endT span{color:#E8821E}
+#chips{top:150px !important}
+
+#chips{top:150px !important}
+#povt{left:70px;top:230px;width:940px;background:#fff;color:#111;border-radius:30px;padding:24px 34px;font-size:52px;font-weight:800;line-height:1.25;box-shadow:0 20px 50px rgba(0,0,0,.4);text-align:center}
+#clk{left:0;width:1080px;top:520px;text-align:center}
+#clk span{display:inline-block;background:#0b1828;border:6px solid #E8821E;border-radius:26px;padding:6px 40px;font-size:110px;font-weight:800;color:#fff}
+#clk div{font-size:40px;font-weight:700;margin-top:10px;color:#dbe4ee}
+#wf{left:0;width:1080px;top:820px;text-align:center}
+#wf .i{display:inline-block;position:relative;font-size:260px;line-height:1}
+#wf .i:after{content:"";position:absolute;left:-10px;right:-10px;top:50%;height:22px;background:#C23B32;border-radius:11px;transform:rotate(-35deg)}
+#wf .t{font-size:56px;font-weight:800;color:#ff6b5e;margin-top:20px}
+#bigL2{left:390px;top:500px;width:300px;height:365px}
+#ah{left:0;width:1080px;top:930px;text-align:center;font-size:96px;font-weight:800;line-height:1.1}
+#lap{left:30px;top:330px;width:1020px}
+#lapS{position:relative;width:1020px;height:850px;border:12px solid #111;border-radius:22px 22px 0 0;overflow:hidden;background:#fff}
+#lapS img{position:absolute;left:0;top:0;width:996px;opacity:0}
+#lapB{width:1120px;height:24px;margin-left:-50px;background:linear-gradient(#c9ced6,#8e949e);border-radius:0 0 30px 30px}
+#bn{left:30px;top:330px;width:1020px;border-radius:20px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.6)}
+#bn img{width:1020px;display:block}
+#tvL{left:90px;top:700px;width:900px;height:506px;border:12px solid #0a0a0a;border-radius:10px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.6)}
+#tvL img{width:100%;height:100%}
+#tvn{left:0;width:1080px;top:1220px;text-align:center;font-size:34px;font-weight:700;color:#cfe0f0}
+#ok{left:50%;top:1330px}.ok{background:#1F8A73 !important}
+#pre{left:90px;top:330px;width:900px;padding:46px 40px;border-radius:40px;background:#E8821E;text-align:center;box-shadow:0 30px 70px rgba(0,0,0,.5)}
+#pre .a{font-size:44px;font-weight:800;letter-spacing:3px}#pre .b{font-size:72px;font-weight:800;line-height:1.1;margin-top:10px}
+#ben{left:50%;top:840px}
+.ben{background:#fff;color:#16324F;border-radius:40px;padding:18px 40px;font-size:52px;font-weight:800;box-shadow:0 10px 30px rgba(0,0,0,.4);white-space:nowrap}
+#wa2{left:50%;top:1000px;transform:translateX(-50%);background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.18);border-radius:30px;padding:30px 60px;text-align:center;white-space:nowrap}
+#wa2 .s{font-size:40px;font-weight:500;color:#dbe4ee}#wa2 .n{font-size:66px;font-weight:800;margin-top:6px}
+#preL{left:450px;top:1270px;width:180px;height:219px}
+</style></head><body>
+<div id="bg"></div><div id="red"></div>
+<div id="brand" class="abs"><div class="logo"><svg viewBox="250 200 460 560" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke-linecap="round" stroke-width="24"><path d="M502 290 C 560 304, 594 292, 640 238" stroke="#E8821E"/><path d="M503 345 C 572 372, 612 354, 660 300" stroke="#E8821E" stroke-opacity="0.6"/><path d="M523 405 C 588 428, 628 410, 674 360" stroke="#E8821E" stroke-opacity="0.4"/></g><path d="M434 648 C 434 480, 446 370, 488 282" fill="none" stroke="#E8821E" stroke-width="36" stroke-linecap="round"/><ellipse cx="359" cy="664" rx="86" ry="58" transform="rotate(-18 359 664)" fill="#E8821E"/></svg></div><div>Worship<span>Flow</span></div></div>
+<div id="gA"><div id="povt" class="abs">POV: empieza el culto… y se fue el internet 😱</div>
+ <div id="clk" class="abs"><span>9:58</span><div>Domingo · 2 minutos para empezar</div></div>
+ <div id="wf" class="abs"><div class="i">📶</div><div class="t">Sin internet</div></div></div>
+<div id="gB"><div id="bigL2" class="abs logo"><svg viewBox="250 200 460 560" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke-linecap="round" stroke-width="24"><path d="M502 290 C 560 304, 594 292, 640 238" stroke="#E8821E"/><path d="M503 345 C 572 372, 612 354, 660 300" stroke="#E8821E" stroke-opacity="0.6"/><path d="M523 405 C 588 428, 628 410, 674 360" stroke="#E8821E" stroke-opacity="0.4"/></g><path d="M434 648 C 434 480, 446 370, 488 282" fill="none" stroke="#E8821E" stroke-width="36" stroke-linecap="round"/><ellipse cx="359" cy="664" rx="86" ry="58" transform="rotate(-18 359 664)" fill="#E8821E"/></svg></div><div id="ah" class="abs">Pero tranquilo 😌</div></div>
+<div id="chips" class="abs"><div id="chip" class="chip"></div></div>
+<div id="gC"><div id="lap" class="abs"><div id="lapS"><img id="i0" src="cap/p0.jpg"><img id="i1" src="cap/p1.jpg"><img id="i2" src="cap/p2.jpg"><div class="ring" id="ring"></div></div><div id="lapB"></div></div></div>
+<div id="gD"><div id="bn" class="abs"><img src="cap/banner.jpg"></div><div id="tvL" class="abs"><img src="cap/letra.jpg"></div><div id="tvn" class="abs">📽️ El proyector, conectado a la compu</div>
+ <div id="ok" class="abs stamp ok">✓ Funciona sin internet</div></div>
+<div id="gE"><div id="pre" class="abs"><div class="a">🚀 PRELANZAMIENTO</div><div class="b">Entra a la lista de lanzamiento</div></div>
+ <div id="ben" class="abs ben">🎁 Beneficios especiales</div>
+ <div id="wa2" class="abs"><div class="s">Escríbenos al WhatsApp</div><div class="n">+502 3981 6407</div></div>
+ <div id="preL" class="abs logo"><svg viewBox="250 200 460 560" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke-linecap="round" stroke-width="24"><path d="M502 290 C 560 304, 594 292, 640 238" stroke="#E8821E"/><path d="M503 345 C 572 372, 612 354, 660 300" stroke="#E8821E" stroke-opacity="0.6"/><path d="M523 405 C 588 428, 628 410, 674 360" stroke="#E8821E" stroke-opacity="0.4"/></g><path d="M434 648 C 434 480, 446 370, 488 282" fill="none" stroke="#E8821E" stroke-width="36" stroke-linecap="round"/><ellipse cx="359" cy="664" rx="86" ry="58" transform="rotate(-18 359 664)" fill="#E8821E"/></svg></div></div>
+<div id="cap" class="abs cap"></div><div id="fade"></div>
+<script>
+const $=id=>document.getElementById(id);
+const cl=(x,a=0,b=1)=>Math.max(a,Math.min(b,x)), p=(t,a,b)=>cl((t-a)/(b-a)), eo=x=>1-Math.pow(1-x,3);
+const back=x=>{const c1=1.70158,c3=c1+1;return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2)};
+function pop(el,t,t0,ex=''){const k=p(t,t0,t0+.35);el.style.opacity=k>0?1:0;el.style.transform=`${ex} scale(${k>0?.4+.6*back(k):.4})`;}
+function rise(el,t,t0){const k=eo(p(t,t0,t0+.4));el.style.opacity=k;el.style.transform=`translateY(${(1-k)*70}px)`;}
+const show=(id,on)=>$(id).style.display=on?'':'none';
+const DUR=DURV;
+const L=[[0.4,2.72,'Ser el de multimedia es <em>vivir esto</em>…'],[3.23,6.59,'Domingo, empieza el culto… y <em>se fue el internet</em> 😱'],
+[8.98,12.35,'El sábado tocas <em>"Preparar sin conexión"</em>'],[12.63,16.79,'Se guardan las canciones, el culto, los fondos y <em>la Biblia completa</em>'],
+[17.14,21.3,'Y el domingo, sin señal, <em>la letra sigue en el proyector</em>']];
+function render(t){
+  const A=t<7.9,B=t>=7.9&&t<9.0,C=t>=9.0&&t<17.1,D=t>=17.1&&t<21.7,E=t>=21.7;
+  show('gA',A);show('gB',B);show('gC',C);show('gD',D);show('gE',E);show('chips',C||D);show('brand',!B);
+  $('red').style.opacity=A&&t>5.2?(.5+.4*Math.abs(Math.sin((t-5.2)*4)))*p(t,5.2,5.5):0;
+  if(A){pop($('povt'),t,.15);pop($('clk'),t,3.2);pop($('wf'),t,5.2);}
+  if(B){pop($('bigL2'),t,7.95);pop($('ah'),t,8.15);}
+  $('chip').textContent=C?'EL SÁBADO, CON WI-FI 📶':'EL DOMINGO, SIN SEÑAL';
+  if(C){rise($('lap'),t,9.0);const st=t<12.4?0:t<15.3?1:2;['i0','i1','i2'].forEach((id,i)=>$(id).style.opacity=i===st?1:0);const z=1+.35*eo(p(t,15.4,16.0));$('i2').style.transformOrigin='0 20%';$('i2').style.transform=`scale(${z})`;
+    const r=$('ring');r.style.opacity=0;if(t>=11.9&&t<12.45){const rk=p(t,11.9,12.35);r.style.opacity=1-rk*.5;r.style.left='498px';r.style.top=(471-150)/740*996*0+((471*2-300)/740*0+0)+'px';}
+    if(t>=11.9&&t<12.45){const rk=p(t,11.9,12.35);r.style.left='498px';r.style.top=((942-300)*996/900)+'px';r.style.transform=`translate(-50%,-50%) scale(${.7+rk*.8})`;}}
+  if(D){rise($('bn'),t,17.1);rise($('tvL'),t,17.6);$('tvn').style.opacity=p(t,18.2,18.5);show('ok',t>=19.6);pop($('ok'),t,19.6,'translateX(-50%) rotate(-3deg)');}
+  if(E){rise($('pre'),t,21.75);pop($('preL'),t,22.0);$('preL').style.transform+=` rotate(${Math.sin(t*3)*4}deg)`;pop($('wa2'),t,23.4,'translateX(-50%)');pop($('ben'),t,25.9,'translateX(-50%)');}
+  const l=L.find(l=>t>=l[0]&&t<l[1]);$('cap').innerHTML=l?l[2]:'';$('cap').style.top='1640px';
+  $('fade').style.opacity=p(t,DUR-.6,DUR);
+}
+window.ready=Promise.all([...document.images].map(i=>i.decode().catch(()=>{}))).then(()=>document.fonts.ready);
+</script></body></html>
