@@ -1,12 +1,13 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { ChevronUp, ChevronDown, X, Plus, Pencil, Trash2, Repeat, Music, ListMusic } from "lucide-react";
+import { ChevronUp, ChevronDown, X, Plus, Pencil, Trash2, Repeat, Music, ListMusic, Keyboard, Hand, MoveHorizontal } from "lucide-react";
 import { useArrastreLista } from "../lib/arrastreLista.js";
 import { promptDialog, confirmDialog } from "../lib/confirm.js";
 import { acordeEn } from "../lib/preferencias.js";
 import { quitarAcordes, diapositivasDeLineas, distintivoDe } from "../lib/textoCancion.js";
 import {
   TIPOS_PARTE, ordenDe, partesUnicas, partesSinUsar, agregarParte, repetirParte, moverEnOrden, quitarDelOrden, borrarParte, renombrarParte,
-  textoDeParte, contenidoVaConLetra, escribirLetraParte, lineasParaAcordes, palabrasDe, ponerAcorde, quitarAcorde, agregarAcordeAlFinal, esLineaSoloAcordes,
+  textoDeParte, contenidoVaConLetra, escribirLetraParte, lineasParaAcordes, palabrasDe, ponerAcorde, quitarAcorde, agregarAcordeAlFinal,
+  partirPalabra, alargarLetra, acortarLetra, puedeAlargar, puedeAcortar, revisarTextoAcordes,
 } from "../lib/pasosCancion.js";
 
 // Pasos 2, 3 y 4 del asistente de canciones (ver lib/pasosCancion.js). Pensados primero para el
@@ -204,39 +205,112 @@ export function PasoLetra({ cancion, setCancion, colorDe, onIrAEstructura }) {
 }
 
 // ---------------- Paso 4: Acordes ----------------
-const acordesDe = (texto) => [...String(texto).matchAll(/\[([^\]]*)\]/g)].map((m) => m[1]);
+// Mejoras pedidas por Eldin (2026-11-20, pensando en multimedia y el líder de alabanza):
+// - La estrofa se ve corrida (los cortes de diapositiva son solo de la proyección).
+// - El acorde va en la letra exacta: al tocar una palabra, abajo sale letra por letra.
+// - "Alargar"/"Acortar": estira una letra SOLO para los músicos ("Dios" → "Diooos") para poner varios
+//   acordes en una nota larga; la diapositiva sigue diciendo "Dios".
+// - "+" al final de cada renglón para un acorde que cae después de la última palabra.
+// - "Escribir como texto" para quien escribe rápido: [G] a mano, pero sin poder cambiar la letra.
+const btnChico = { minHeight: 36, padding: "0 12px", borderRadius: 10, border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0 };
+
+// La palabra con sus acordes encima, cada acorde sobre su letra.
+function PalabraConAcordes({ texto }) {
+  const { plano, acordes } = partirPalabra(texto);
+  const cortes = [...new Set([0, ...acordes.map((a) => a.pos), plano.length])].sort((a, b) => a - b);
+  const trozos = [];
+  for (let j = 0; j < cortes.length - 1 || (j === 0 && cortes.length === 1); j++) {
+    const ini = cortes[j], fin = cortes[j + 1] ?? plano.length;
+    trozos.push({ texto: plano.slice(ini, fin), acordes: acordes.filter((a) => a.pos === ini).map((a) => a.acorde) });
+  }
+  return (
+    <span style={{ display: "inline-flex", alignItems: "flex-end" }}>
+      {trozos.map((t, j) => (
+        <span key={j} style={{ display: "inline-flex", flexDirection: "column" }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: "#1F8A73", minHeight: "1.3em", whiteSpace: "nowrap", paddingRight: t.acordes.length ? 3 : 0 }}>{t.acordes.length ? t.acordes.map((a) => acordeEn(a)).join(" ") : " "}</span>
+          <span style={{ fontSize: 16, color: "var(--wf-text)", whiteSpace: "pre" }}>{t.texto}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function CuadroTextoAcordes({ lineas, onListo }) {
+  const [texto, setTexto] = useState(() => lineas.filter((l) => String(l).trim()).join("\n"));
+  const [error, setError] = useState(null);
+  const ref = useRef(null);
+  useLayoutEffect(() => { const el = ref.current; if (el) { el.style.height = "auto"; el.style.height = `${Math.max(el.scrollHeight, 80)}px`; } }, [texto]);
+  const cambiar = (t) => {
+    setTexto(t);
+    // Mientras se escribe un acorde ("[G" sin cerrar) no se revisa todavía.
+    if ((t.match(/\[/g) || []).length !== (t.match(/\]/g) || []).length) return;
+    const r = revisarTextoAcordes(lineas, t);
+    if (r.ok) { setError(null); onListo(r.lineas.length ? r.lineas : [""]); } else setError(r);
+  };
+  return (
+    <div>
+      <textarea ref={ref} value={texto} onChange={(e) => cambiar(e.target.value)} spellCheck={false} aria-label="Acordes como texto"
+        style={{ width: "100%", boxSizing: "border-box", resize: "none", overflow: "hidden", border: `1px solid ${error ? "#C23B32" : "var(--wf-border)"}`, borderRadius: 12, padding: "10px 12px", fontSize: 15, lineHeight: 1.55, fontFamily: "'JetBrains Mono', monospace", background: "var(--wf-bg)", color: "var(--wf-text)", outline: "none" }} />
+      {error && (
+        <div role="alert" style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 6, background: "rgba(194,59,50,0.1)", borderRadius: 10, padding: "8px 10px", fontSize: 12.5, color: "var(--wf-text)" }}>
+          <span style={{ flex: 1 }}>En el renglón {error.renglon} cambió la letra{error.esperado ? <> (debe decir «{error.esperado}»)</> : " (sobra un renglón)"}. Aquí solo se ponen acordes: la letra se cambia en el paso Letra. Esto no se guarda hasta que la letra quede igual.</span>
+          <button type="button" onClick={() => { setTexto(lineas.filter((l) => String(l).trim()).join("\n")); setError(null); }} style={{ ...btnChico, minHeight: 30, background: "var(--wf-card)", color: "var(--wf-text)" }}>Deshacer</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function PasoAcordes({ cancion, setCancion, colorDe, grupos, abajo }) {
   const partes = partesUnicas(cancion);
-  const [sel, setSel] = useState(null); // { k, i, n } n = número de palabra o "fin" (agregar al final)
+  const [sel, setSel] = useState(null); // { k, i, n, pos } n = número de palabra o "fin"; pos = antes de qué letra
   const [otro, setOtro] = useState("");
+  const [comoTexto, setComoTexto] = useState(false);
 
   const lineasDe = (k) => {
-    const l = lineasParaAcordes(cancion, k);
-    return l.some((x) => String(x).trim()) ? l : [""];
+    const l = lineasParaAcordes(cancion, k).filter((x) => String(x).trim());
+    return l.length ? l : [""];
   };
   const cambiarLinea = (k, i, fn) => setCancion((c) => {
-    const lines = [...lineasParaAcordes(c, k)];
+    const lines = lineasParaAcordes(c, k).filter((x) => String(x).trim());
     if (!lines.length) lines.push("");
     lines[i] = fn(lines[i] || "");
     return { ...c, blocks: { ...c.blocks, [k]: { ...c.blocks[k], lines } } };
   });
+  const palabraSel = sel && sel.n !== "fin" ? palabrasDe(lineasDe(sel.k)[sel.i] || "")[sel.n] : null;
+  const partida = palabraSel ? partirPalabra(palabraSel.texto) : null;
+  const acordeEnPos = partida?.acordes.find((a) => a.pos === sel?.pos);
+
+  const elegirPalabra = (k, i, n, texto) => {
+    if (sel && sel.k === k && sel.i === i && sel.n === n) { setSel(null); return; }
+    const { acordes } = partirPalabra(texto || "");
+    setSel({ k, i, n, pos: n === "fin" ? 0 : (acordes[0]?.pos ?? 0) });
+  };
   const poner = (acorde) => {
     const a = String(acorde || "").trim();
     if (!sel || !a) return;
     if (sel.n === "fin") cambiarLinea(sel.k, sel.i, (l) => agregarAcordeAlFinal(l, a));
-    else cambiarLinea(sel.k, sel.i, (l) => ponerAcorde(l, sel.n, a));
+    else cambiarLinea(sel.k, sel.i, (l) => ponerAcorde(l, sel.n, a, sel.pos));
   };
   const quitar = () => {
-    if (!sel || sel.n === "fin") return;
+    if (!sel || sel.n === "fin" || !partida) return;
+    if (!partida.plano) { cambiarLinea(sel.k, sel.i, (l) => quitarAcorde(l, sel.n)); setSel(null); return; }
+    cambiarLinea(sel.k, sel.i, (l) => quitarAcorde(l, sel.n, sel.pos));
+  };
+  const alargar = () => sel && cambiarLinea(sel.k, sel.i, (l) => alargarLetra(l, sel.n, sel.pos));
+  const acortar = () => {
+    if (!sel || !partida) return;
     const linea = lineasDe(sel.k)[sel.i] || "";
-    const eraSoloAcorde = !quitarAcordes(palabrasDe(linea)[sel.n]?.texto || "");
-    cambiarLinea(sel.k, sel.i, (l) => quitarAcorde(l, sel.n));
-    if (eraSoloAcorde) setSel(null);
+    const nueva = acortarLetra(linea, sel.n, sel.pos);
+    cambiarLinea(sel.k, sel.i, () => nueva);
+    // Si la letra elegida se fue al acortar, queda elegida la última igual que sigue ahí.
+    const plano = partirPalabra(palabrasDe(nueva)[sel.n]?.texto || "").plano;
+    const base = (partida.plano[sel.pos] || "").toLowerCase().normalize("NFD")[0];
+    let pos = Math.min(sel.pos, plano.length - 1);
+    while (pos > 0 && plano[pos].toLowerCase().normalize("NFD")[0] !== base) pos--;
+    setSel({ ...sel, pos: Math.max(0, pos) });
   };
   const ponerBars = (k, v) => setCancion((c) => ({ ...c, blocks: { ...c.blocks, [k]: { ...c.blocks[k], bars: Math.max(1, parseInt(v, 10) || 1) } } }));
-
-  const palabraSel = sel && sel.n !== "fin" ? palabrasDe(lineasDe(sel.k)[sel.i] || "")[sel.n] : null;
   const esSel = (k, i, n) => sel && sel.k === k && sel.i === i && sel.n === n;
 
   if (partes.length === 0) {
@@ -248,9 +322,16 @@ export function PasoAcordes({ cancion, setCancion, colorDe, grupos, abajo }) {
     );
   }
   return (
-    <div style={{ paddingBottom: sel ? 190 : 0 }}>
-      <h2 style={tituloPaso}>Acordes <span style={{ fontSize: 13, fontWeight: 600, color: "var(--wf-muted)", fontFamily: "var(--wf-font-ui)" }}>· opcional</span></h2>
-      <p style={ayuda}><b>Toca una palabra</b> y luego el acorde que va ahí. La letra no se cambia aquí: para eso está el paso Letra.</p>
+    <div style={{ paddingBottom: sel && !comoTexto ? 290 : 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <h2 style={{ ...tituloPaso, flex: 1 }}>Acordes <span style={{ fontSize: 13, fontWeight: 600, color: "var(--wf-muted)", fontFamily: "var(--wf-font-ui)" }}>· opcional</span></h2>
+        <button type="button" onClick={() => { setComoTexto((v) => !v); setSel(null); }} style={{ ...btnChico, background: "var(--wf-hover)", color: "var(--wf-text)" }}>
+          {comoTexto ? <><Hand size={14} /> Tocar palabras</> : <><Keyboard size={14} /> Escribir como texto</>}
+        </button>
+      </div>
+      <p style={ayuda}>{comoTexto
+        ? <>Escribe cada acorde entre corchetes justo antes de la letra donde cae, ej. <code style={{ color: "#1F8A73" }}>[G]Santo es el [D]Señor</code>. Puedes alargar palabras ("Diooos"), pero la letra no se puede cambiar aquí.</>
+        : <><b>Toca una palabra</b>, elige la letra exacta donde cae el acorde y luego el acorde. La letra no se cambia aquí: para eso está el paso Letra.</>}</p>
       {partes.map((k) => {
         const b = cancion.blocks[k];
         const lines = lineasDe(k);
@@ -265,52 +346,73 @@ export function PasoAcordes({ cancion, setCancion, colorDe, grupos, abajo }) {
                 compases
               </label>
             </div>
-            {sinLetra && <div style={{ fontSize: 12.5, color: "var(--wf-muted)", marginBottom: 8 }}>Esta parte no tiene letra. Puedes poner sus acordes aquí:</div>}
-            {lines.map((linea, i) => {
-              if (!String(linea).trim() && !(sinLetra && lines.length === 1)) return <div key={i} style={{ height: 12 }} />;
-              const palabras = palabrasDe(linea);
-              const soloAcordes = sinLetra || esLineaSoloAcordes(linea);
-              return (
-                <div key={i} style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: soloAcordes ? 6 : 0, rowGap: soloAcordes ? 6 : 0, marginBottom: 6 }}>
-                  {palabras.map((p, n) => {
-                    const acs = acordesDe(p.texto);
-                    const plano = quitarAcordes(p.texto);
-                    const activo = esSel(k, i, n);
-                    return (
-                      <button key={n} type="button" onClick={() => setSel(activo ? null : { k, i, n })}
-                        style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", minHeight: 40, justifyContent: "flex-end", padding: "2px 5px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-                          background: activo ? "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)" : soloAcordes ? "var(--wf-hover)" : "transparent", outline: activo ? "2px solid var(--wf-brand-accent)" : "none" }}>
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: "#1F8A73", minHeight: "1.3em", whiteSpace: "nowrap" }}>{acs.length ? acs.map((a) => acordeEn(a)).join(" ") : " "}</span>
-                        {plano && <span style={{ fontSize: 16, color: "var(--wf-text)", whiteSpace: "nowrap" }}>{plano}</span>}
+            {comoTexto ? (
+              <CuadroTextoAcordes key={`${k}-texto`} lineas={lines} onListo={(nuevas) => setCancion((c) => ({ ...c, blocks: { ...c.blocks, [k]: { ...c.blocks[k], lines: nuevas } } }))} />
+            ) : (
+              <>
+                {sinLetra && <div style={{ fontSize: 12.5, color: "var(--wf-muted)", marginBottom: 8 }}>Esta parte no tiene letra. Puedes poner sus acordes aquí:</div>}
+                {lines.map((linea, i) => {
+                  const palabras = palabrasDe(linea);
+                  return (
+                    <div key={i} style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 0, rowGap: 2, marginBottom: 6 }}>
+                      {palabras.map((p, n) => {
+                        const { plano } = partirPalabra(p.texto);
+                        const activo = esSel(k, i, n);
+                        return (
+                          <button key={n} type="button" onClick={() => elegirPalabra(k, i, n, p.texto)}
+                            style={{ display: "inline-flex", alignItems: "flex-end", minHeight: 40, padding: "2px 5px", margin: plano ? 0 : "0 3px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                              background: activo ? "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)" : plano ? "transparent" : "var(--wf-hover)", outline: activo ? "2px solid var(--wf-brand-accent)" : "none" }}>
+                            <PalabraConAcordes texto={p.texto} />
+                          </button>
+                        );
+                      })}
+                      <button type="button" aria-label={sinLetra ? "Agregar acorde" : "Agregar acorde al final del renglón"} title="Acorde al final del renglón" onClick={() => elegirPalabra(k, i, "fin")}
+                        style={{ minHeight: 34, minWidth: 34, marginLeft: 4, borderRadius: 8, border: "1.5px dashed var(--wf-border)", background: esSel(k, i, "fin") ? "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)" : "transparent", color: "var(--wf-faint)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, fontSize: 13, fontWeight: 700, padding: sinLetra ? "0 10px" : 0, fontFamily: "inherit", alignSelf: "flex-end" }}>
+                        <Plus size={14} />{sinLetra && " Acorde"}
                       </button>
-                    );
-                  })}
-                  {soloAcordes && (
-                    <button type="button" aria-label="Agregar acorde" onClick={() => setSel(esSel(k, i, "fin") ? null : { k, i, n: "fin" })}
-                      style={{ minHeight: 40, minWidth: 44, borderRadius: 8, border: "1.5px dashed var(--wf-border)", background: esSel(k, i, "fin") ? "color-mix(in srgb, var(--wf-brand-accent) 22%, transparent)" : "transparent", color: "var(--wf-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, fontSize: 13, fontWeight: 700, padding: "0 10px", fontFamily: "inherit" }}>
-                      <Plus size={15} /> Acorde
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </div>
         );
       })}
 
-      {sel && (
+      {sel && !comoTexto && (
         <div style={{ position: "fixed", left: 0, right: 0, bottom: abajo, background: "var(--wf-card)", borderTop: "1px solid var(--wf-divider)", boxShadow: "0 -4px 14px rgba(22,50,79,0.12)", padding: "10px 0 12px", zIndex: 46 }}>
           <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 12px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <Music size={14} color="#1F8A73" />
               <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {sel.n === "fin" ? "Agregar un acorde" : <>Acorde para «{quitarAcordes(palabraSel?.texto || "") || acordesDe(palabraSel?.texto || "").join(" ")}»</>}
+                {sel.n === "fin" ? "Acorde al final del renglón" : partida?.plano ? "Toca la letra donde cae el acorde" : "Cambiar este acorde"}
               </span>
-              {palabraSel && acordesDe(palabraSel.texto).length > 0 && (
-                <button type="button" onClick={quitar} style={{ minHeight: 34, padding: "0 12px", borderRadius: 10, border: "none", background: "rgba(194,59,50,0.12)", color: "#C23B32", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Quitar</button>
-              )}
               <BotonIcono etiqueta="Cerrar acordes" onClick={() => setSel(null)}><X size={18} /></BotonIcono>
             </div>
+            {partida?.plano && (
+              <>
+                <div className="chordbar-scroll" style={{ display: "flex", gap: 3, overflowX: "auto", paddingBottom: 4, marginBottom: 6 }}>
+                  {[...partida.plano].map((letra, j) => {
+                    const ac = partida.acordes.filter((a) => a.pos === j);
+                    const elegida = sel.pos === j;
+                    return (
+                      <button key={j} type="button" aria-label={`Letra ${j + 1}: ${letra}`} onClick={() => setSel({ ...sel, pos: j })}
+                        style={{ flexShrink: 0, minWidth: 34, height: 54, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 1, padding: "3px 4px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+                          border: elegida ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", background: elegida ? "color-mix(in srgb, var(--wf-brand-accent) 16%, var(--wf-card))" : "var(--wf-hover)" }}>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#1F8A73", minHeight: 14, whiteSpace: "nowrap" }}>{ac.map((a) => acordeEn(a.acorde)).join(" ")}</span>
+                        <span style={{ fontSize: 18, fontWeight: 600, color: "var(--wf-text)", lineHeight: 1.1 }}>{letra}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                  <button type="button" onClick={alargar} disabled={!puedeAlargar(palabraSel.texto, sel.pos)} title="Estira esta letra solo para los músicos" style={{ ...btnChico, background: "var(--wf-hover)", color: "var(--wf-text)", opacity: puedeAlargar(palabraSel.texto, sel.pos) ? 1 : 0.35 }}><MoveHorizontal size={14} /> Alargar</button>
+                  <button type="button" onClick={acortar} disabled={!puedeAcortar(palabraSel.texto, sel.pos)} style={{ ...btnChico, background: "var(--wf-hover)", color: "var(--wf-text)", opacity: puedeAcortar(palabraSel.texto, sel.pos) ? 1 : 0.35 }}>Acortar</button>
+                  {acordeEnPos && <button type="button" onClick={quitar} style={{ ...btnChico, background: "rgba(194,59,50,0.12)", color: "#C23B32" }}>Quitar {acordeEn(acordeEnPos.acorde)}</button>}
+                </div>
+              </>
+            )}
+            {partida && !partida.plano && <div style={{ marginBottom: 8 }}><button type="button" onClick={quitar} style={{ ...btnChico, background: "rgba(194,59,50,0.12)", color: "#C23B32" }}>Quitar acorde</button></div>}
             <div className="chordbar-scroll" style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", alignItems: "stretch" }}>
               {grupos.map((g, gi) => (
                 <div key={g.titulo} style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "stretch", paddingLeft: gi === 0 ? 0 : 8, borderLeft: gi === 0 ? "none" : "1px solid var(--wf-divider)" }}>
@@ -334,4 +436,3 @@ export function PasoAcordes({ cancion, setCancion, colorDe, grupos, abajo }) {
     </div>
   );
 }
-

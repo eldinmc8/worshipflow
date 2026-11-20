@@ -3,6 +3,7 @@ import {
   agregarParte, repetirParte, quitarDelOrden, moverEnOrden, ordenDe, partesUnicas, partesSinUsar,
   escribirLetraParte, textoDeParte, contenidoVaConLetra, pasarAcordes, lineasParaAcordes,
   palabrasDe, ponerAcorde, quitarAcorde, agregarAcordeAlFinal, tieneAcordes,
+  alargarLetra, acortarLetra, puedeAlargar, revisarTextoAcordes,
 } from "../pasosCancion.js";
 
 const vacia = () => ({ title: "", key: "G", artist: "", blocks: {}, letra: {}, defaultStructure: [] });
@@ -41,12 +42,12 @@ describe("Estructura", () => {
 });
 
 describe("Letra", () => {
-  it("renglón vacío = nueva diapositiva y llena lo que ven los músicos", () => {
+  it("renglón vacío = nueva diapositiva; los músicos ven la estrofa corrida", () => {
     let c = agregarParte(vacia(), "coro");
     const [k] = ordenDe(c);
     c = escribirLetraParte(c, k, "Porque tú eres Rey\nde reyes\n\nY por siempre\nreinarás");
     expect(c.letra[k]).toEqual([["Porque tú eres Rey", "de reyes"], ["Y por siempre", "reinarás"]]);
-    expect(c.blocks[k].lines).toEqual(["Porque tú eres Rey", "de reyes", "", "Y por siempre", "reinarás"]);
+    expect(c.blocks[k].lines).toEqual(["Porque tú eres Rey", "de reyes", "Y por siempre", "reinarás"]);
     expect(textoDeParte(c, k)).toBe("Porque tú eres Rey\nde reyes\n\nY por siempre\nreinarás");
   });
 
@@ -89,7 +90,9 @@ describe("Acordes", () => {
     l = ponerAcorde(l, 0, "Em");
     expect(l).toBe("[Em]Santo es el [D]Señor");
     expect(palabrasDe(l)).toHaveLength(4);
-    expect(ponerAcorde("El firma[G]mento", 1, "C")).toBe("El firma[C]mento");
+    expect(ponerAcorde("El firma[G]mento", 1, "C", 5)).toBe("El firma[C]mento");
+    expect(ponerAcorde("firmamento", 0, "D", 5)).toBe("firma[D]mento");
+    expect(ponerAcorde("[G]Dios", 0, "D", 3)).toBe("[G]Dio[D]s");
   });
 
   it("quitar acorde deja la palabra; un acorde suelto se va entero", () => {
@@ -104,7 +107,44 @@ describe("Acordes", () => {
 
   it("sin texto de músicos, se usa la letra escrita", () => {
     const c = { ...vacia(), blocks: { a: { label: "Coro", badge: "C", lines: [""] } }, letra: { a: [["uno", "dos"], ["tres"]] } };
-    expect(lineasParaAcordes(c, "a")).toEqual(["uno", "dos", "", "tres"]);
+    expect(lineasParaAcordes(c, "a")).toEqual(["uno", "dos", "tres"]);
     expect(tieneAcordes(c)).toBe(false);
+  });
+
+  it("alargar una letra es solo para los músicos: la diapositiva no cambia", () => {
+    let c = agregarParte(vacia(), "coro");
+    const [k] = ordenDe(c);
+    c = escribirLetraParte(c, k, "Santo Dios");
+    let linea = c.blocks[k].lines[0];
+    linea = alargarLetra(linea, 1, 2); // la "o" de Dios
+    expect(linea).toBe("Santo Diooos");
+    linea = ponerAcorde(linea, 1, "G", 3);
+    linea = ponerAcorde(linea, 1, "D", 5);
+    expect(linea).toBe("Santo Dio[G]oo[D]s");
+    linea = alargarLetra(linea, 1, 3);
+    expect(linea).toBe("Santo Dio[G]ooo[D]s");
+    c = { ...c, blocks: { ...c.blocks, [k]: { ...c.blocks[k], lines: [linea] } } };
+    expect(contenidoVaConLetra(c, k)).toBe(true);
+    // Multimedia vuelve a escribir la misma letra: los acordes y el alargamiento se quedan.
+    c = escribirLetraParte(c, k, "Santo Dios", true);
+    expect(c.blocks[k].lines).toEqual(["Santo Dio[G]ooo[D]s"]);
+    expect(c.letra[k]).toEqual([["Santo Dios"]]);
+  });
+
+  it("acortar regresa la letra; las letras dobles de verdad no se alargan", () => {
+    expect(acortarLetra("Diooos", 0, 2)).toBe("Dios");
+    expect(acortarLetra("Dioooos", 0, 2)).toBe("Diooos");
+    expect(alargarLetra("Dios", 0, 0)).toBe("Dddios");
+    expect(puedeAlargar("creer", 2)).toBe(false);
+    expect(alargarLetra("Dió", 0, 2)).toBe("Dióoo");
+    expect(acortarLetra("Dióoo", 0, 2)).toBe("Dió");
+  });
+
+  it("escribir como texto: se aceptan acordes y alargamientos, no cambios de letra", () => {
+    const r = revisarTextoAcordes(["Santo es el Señor"], "[G]Saaanto es el [D]Señor\n[A] [E]");
+    expect(r.ok).toBe(true);
+    expect(r.lineas).toEqual(["[G]Saaanto es el [D]Señor", "[A] [E]"]);
+    const mal = revisarTextoAcordes(["Santo es el Señor", "Digno"], "[G]Santo es mi Señor\nDigno");
+    expect(mal).toMatchObject({ ok: false, renglon: 1, esperado: "Santo es el Señor" });
   });
 });

@@ -1259,7 +1259,9 @@ export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChang
   };
   const pasoIdx = PASOS_CANCION.findIndex(([v]) => v === subTab);
   const aplicarPegado = ({ blocks, letra, defaultStructure, key, title }) => {
-    setDraft((d) => ({ ...d, blocks, letra, defaultStructure: defaultStructure?.length ? defaultStructure : Object.keys(blocks), key: d.key || key || "", title: d.title.trim() ? d.title : (title || ""), artist: d.artist.trim() ? d.artist : "Unknown" }));
+    // Los renglones vacíos solo cortan diapositivas: a los músicos les queda la estrofa corrida.
+    const corridos = Object.fromEntries(Object.entries(blocks).map(([k, b]) => { const l = (b.lines || []).filter((x) => String(x).trim()); return [k, { ...b, lines: l.length ? l : [""] }]; }));
+    setDraft((d) => ({ ...d, blocks: corridos, letra, defaultStructure: defaultStructure?.length ? defaultStructure : Object.keys(blocks), key: d.key || key || "", title: d.title.trim() ? d.title : (title || ""), artist: d.artist.trim() ? d.artist : "Unknown" }));
     setPegando(false);
     irA("letra");
   };

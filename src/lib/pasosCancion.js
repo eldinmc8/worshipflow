@@ -121,13 +121,9 @@ export function contenidoVaConLetra(cancion, k) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-// Texto para el cuadro de la parte: el de los músicos sin acordes (conserva los renglones vacíos tal
-// como se escribieron) o, si no va de la mano, el de las diapositivas.
+// Texto para el cuadro de la parte: la letra de las diapositivas, con un renglón vacío entre una y otra.
+// (Lo que ven los músicos puede traer alargamientos o "//": eso no le toca a quien escribe la letra.)
 export function textoDeParte(cancion, k) {
-  const lines = cancion.blocks[k]?.lines || [];
-  if (lines.some((l) => String(l).trim()) && contenidoVaConLetra(cancion, k)) {
-    return lines.filter((l) => String(l).trim() === "" || quitarAcordes(l).trim()).map((l) => quitarAcordes(l).replace(/\s+$/, "")).join("\n").replace(/^\n+|\n+$/g, "");
-  }
   return (cancion.letra?.[k] || []).map((s) => (s || []).join("\n")).filter((s) => s.trim()).join("\n\n");
 }
 
@@ -166,12 +162,14 @@ export function pasarAcordes(lineasViejas, lineasNuevas) {
 }
 
 // Escribir la letra de una parte. vaConLetra se decide al abrir el paso (no a cada tecla).
+// Los renglones vacíos solo cortan diapositivas: los músicos ven la estrofa corrida (2026-11-20).
 export function escribirLetraParte(cancion, k, texto, vaConLetra = true) {
   const b = cancion.blocks[k];
   if (!b) return cancion;
   const lineas = String(texto || "").replace(/\r\n?/g, "\n").split("\n");
   const letra = { ...(cancion.letra || {}), [k]: diapositivasDeLineas(lineas) };
-  const blocks = vaConLetra ? { ...cancion.blocks, [k]: { ...b, lines: pasarAcordes(b.lines, lineas.map((l) => quitarAcordes(l))) } } : cancion.blocks;
+  const corridas = lineas.map((l) => quitarAcordes(l)).filter((l) => l.trim());
+  const blocks = vaConLetra ? { ...cancion.blocks, [k]: { ...b, lines: pasarAcordes(b.lines, corridas) } } : cancion.blocks;
   return { ...cancion, blocks, letra };
 }
 
@@ -180,8 +178,7 @@ export function escribirLetraParte(cancion, k, texto, vaConLetra = true) {
 export function lineasParaAcordes(cancion, k) {
   const lines = cancion.blocks[k]?.lines || [];
   if (lines.some((l) => String(l).trim())) return lines;
-  const slides = cancion.letra?.[k] || [];
-  return slides.flatMap((s, i) => (i ? ["", ...s] : s));
+  return (cancion.letra?.[k] || []).flat();
 }
 
 // Palabras de un renglón, cada una con su texto (con acordes) y su posición en el renglón.
@@ -193,22 +190,131 @@ export function palabrasDe(linea) {
   return out;
 }
 
-// Pone el acorde al principio de la palabra n; si la palabra ya tenía uno (aunque esté a media
-// palabra, ej. "firma[G]mento"), lo cambia ahí mismo. La letra no cambia.
-export function ponerAcorde(linea, n, acorde) {
+// ---- Una palabra por dentro: letra sin acordes + acordes con su posición (antes de qué letra) ----
+export function partirPalabra(texto) {
+  let plano = "";
+  const acordes = [];
+  const re = /\[([^\]]*)\]/g;
+  let ultimo = 0, m;
+  while ((m = re.exec(texto))) {
+    plano += texto.slice(ultimo, m.index);
+    acordes.push({ pos: plano.length, acorde: m[1] });
+    ultimo = re.lastIndex;
+  }
+  plano += texto.slice(ultimo);
+  return { plano, acordes };
+}
+export function armarPalabra(plano, acordes) {
+  const orden = [...acordes].sort((a, b) => a.pos - b.pos);
+  let out = "", ultimo = 0;
+  orden.forEach(({ pos, acorde }) => { const p = Math.min(Math.max(pos, 0), plano.length); out += plano.slice(ultimo, p) + `[${acorde}]`; ultimo = p; });
+  return out + plano.slice(ultimo);
+}
+const cambiarPalabra = (linea, n, fn) => {
   const p = palabrasDe(linea)[n];
   if (!p) return linea;
-  const nueva = /\[[^\]]*\]/.test(p.texto) ? p.texto.replace(/\[[^\]]*\]/, `[${acorde}]`) : `[${acorde}]${p.texto}`;
+  const nueva = fn(p.texto);
+  if (!nueva) return (linea.slice(0, p.inicio) + linea.slice(p.inicio + p.texto.length)).replace(/\s{2,}/g, " ").trim();
   return linea.slice(0, p.inicio) + nueva + linea.slice(p.inicio + p.texto.length);
+};
+
+// Pone (o cambia) el acorde antes de la letra número pos de la palabra n. La letra no cambia.
+// Una "palabra" que es solo un acorde se cambia entera.
+export function ponerAcorde(linea, n, acorde, pos = 0) {
+  return cambiarPalabra(linea, n, (texto) => {
+    const { plano, acordes } = partirPalabra(texto);
+    if (!plano) return `[${acorde}]`;
+    return armarPalabra(plano, [...acordes.filter((a) => a.pos !== pos), { pos, acorde }]);
+  });
 }
-// Quita los acordes de la palabra n. Si la "palabra" era solo un acorde, se va entera.
-export function quitarAcorde(linea, n) {
-  const p = palabrasDe(linea)[n];
-  if (!p) return linea;
-  const sin = quitarAcordes(p.texto);
-  if (!sin) return (linea.slice(0, p.inicio) + linea.slice(p.inicio + p.texto.length)).replace(/\s{2,}/g, " ").trim();
-  return linea.slice(0, p.inicio) + sin + linea.slice(p.inicio + p.texto.length);
+// Quita el acorde de esa letra (sin pos: todos los de la palabra). Un acorde suelto se va entero.
+export function quitarAcorde(linea, n, pos = null) {
+  return cambiarPalabra(linea, n, (texto) => {
+    const { plano, acordes } = partirPalabra(texto);
+    if (!plano) return "";
+    return armarPalabra(plano, pos === null ? [] : acordes.filter((a) => a.pos !== pos));
+  });
 }
+
+// ---- Alargar una letra (solo para los músicos: "Dios" → "Diooos") ----
+// En las diapositivas los alargamientos se limpian solos cuando la letra se repite 3 veces o más
+// (o una vocal se repite después de su vocal con tilde: "Dióoos"). Por eso el primer toque pone
+// tres de una vez, y una letra que ya viene doble en la palabra ("creer", "llamar") no se alarga:
+// la proyección la confundiría con un alargamiento y la cortaría.
+const TILDES = { á: "a", é: "e", í: "i", ó: "o", ú: "u", Á: "A", É: "E", Í: "I", Ó: "O", Ú: "U" };
+const esLetra = (c) => /\p{L}/u.test(c || "");
+function tramo(plano, pos) {
+  const c = plano[pos];
+  if (!esLetra(c)) return null;
+  const base = TILDES[c] ? null : c.toLowerCase();
+  // Con tilde: la "ó" y las "o" sin tilde que le siguen.
+  if (TILDES[c]) {
+    let fin = pos + 1;
+    while (fin < plano.length && plano[fin].toLowerCase() === TILDES[c].toLowerCase()) fin++;
+    return { ini: pos, fin, letra: TILDES[c].toLowerCase(), tilde: true };
+  }
+  let ini = pos, fin = pos + 1;
+  while (ini > 0 && plano[ini - 1].toLowerCase() === base) ini--;
+  while (fin < plano.length && plano[fin].toLowerCase() === base) fin++;
+  // Si antes viene la misma vocal con tilde, el tramo empieza en ella.
+  if (ini > 0 && TILDES[plano[ini - 1]] && TILDES[plano[ini - 1]].toLowerCase() === base) return { ini: ini - 1, fin, letra: base, tilde: true };
+  return { ini, fin, letra: base, tilde: false };
+}
+const largo = (t) => t.fin - t.ini - (t.tilde ? 1 : 0); // cuántas letras iguales hay (sin contar la de tilde)
+export function puedeAlargar(texto, pos) {
+  const { plano } = partirPalabra(texto);
+  const t = tramo(plano, pos);
+  return !!t && (t.tilde || largo(t) !== 2);
+}
+export function puedeAcortar(texto, pos) {
+  const { plano } = partirPalabra(texto);
+  const t = tramo(plano, pos);
+  return !!t && (t.tilde ? largo(t) >= 1 : largo(t) >= 3);
+}
+function moverLetras(texto, pos, cuantas) {
+  const { plano, acordes } = partirPalabra(texto);
+  const t = tramo(plano, pos);
+  if (!t || !cuantas) return texto;
+  if (cuantas > 0) {
+    const nuevo = plano.slice(0, t.fin) + t.letra.repeat(cuantas) + plano.slice(t.fin);
+    return armarPalabra(nuevo, acordes.map((a) => (a.pos >= t.fin ? { ...a, pos: a.pos + cuantas } : a)));
+  }
+  const quitar = -cuantas;
+  const desde = t.fin - quitar;
+  const nuevo = plano.slice(0, desde) + plano.slice(t.fin);
+  return armarPalabra(nuevo, acordes.map((a) => (a.pos >= t.fin ? { ...a, pos: a.pos - quitar } : a.pos > desde ? { ...a, pos: desde } : a)));
+}
+export function alargarLetra(linea, n, pos) {
+  return cambiarPalabra(linea, n, (texto) => {
+    if (!puedeAlargar(texto, pos)) return texto;
+    const t = tramo(partirPalabra(texto).plano, pos);
+    return moverLetras(texto, pos, t.tilde ? (largo(t) === 0 ? 2 : 1) : largo(t) === 1 ? 2 : 1);
+  });
+}
+export function acortarLetra(linea, n, pos) {
+  return cambiarPalabra(linea, n, (texto) => {
+    if (!puedeAcortar(texto, pos)) return texto;
+    const t = tramo(partirPalabra(texto).plano, pos);
+    const l = largo(t);
+    return moverLetras(texto, pos, t.tilde ? (l <= 2 ? -l : -1) : l === 3 ? -2 : -1);
+  });
+}
+
+// ---- Escribir los acordes como texto (para quien escribe rápido en la computadora) ----
+// Se puede escribir [G] donde sea y alargar palabras, pero la letra tiene que seguir siendo la misma:
+// si cambió, se dice en qué renglón y no se guarda.
+const letraDeRenglones = (lineas) => lineas.map((l) => limpiarParaProyectar(l)).filter(Boolean);
+export function revisarTextoAcordes(original, texto) {
+  const nuevas = String(texto || "").replace(/\r\n?/g, "\n").split("\n");
+  const antes = letraDeRenglones(original || []);
+  const despues = letraDeRenglones(nuevas);
+  const n = Math.max(antes.length, despues.length);
+  for (let i = 0; i < n; i++) {
+    if (antes[i] !== despues[i]) return { ok: false, renglon: i + 1, esperado: antes[i] || "", escrito: despues[i] || "" };
+  }
+  return { ok: true, lineas: nuevas.filter((l) => l.trim()).map((l) => l.replace(/\s+$/, "")) };
+}
+
 // Renglón de solo acordes (entradas, instrumentales): agrega uno al final.
 export const agregarAcordeAlFinal = (linea, acorde) => `${String(linea || "").replace(/\s+$/, "")}${String(linea || "").trim() ? " " : ""}[${acorde}]`;
 export const esLineaSoloAcordes = (linea) => /\[[^\]]*\]/.test(linea) && !quitarAcordes(linea).trim();
