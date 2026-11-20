@@ -5,7 +5,12 @@ import { render, cleanup, screen } from "@testing-library/react";
 vi.mock("../lib/supabaseClient.js", () => ({ supabase: {}, callUsersFunction: vi.fn() }));
 import SitioWeb from "../SitioWeb.jsx";
 import { CORREO_SOPORTE } from "../lib/soporte.js";
-afterEach(cleanup);
+import { MOMENTO_LANZAMIENTO } from "../lib/lanzamiento.js";
+afterEach(() => { cleanup(); vi.useRealTimers(); });
+// Pone el reloj antes o después del lanzamiento oficial (solo la fecha; los setInterval siguen reales).
+const reloj = (ms) => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(ms); };
+const despues = () => reloj(MOMENTO_LANZAMIENTO + 60_000);
+const antes = () => reloj(MOMENTO_LANZAMIENTO - (2 * 86400 + 3 * 3600) * 1000);
 
 const abrir = (ruta) => { window.history.pushState({}, "", ruta); return render(<SitioWeb />); };
 
@@ -55,6 +60,7 @@ describe("página de pago", () => {
 // "Al darle pagar al plan sigue enviando a WhatsApp" (2026-11-18): "Elegir plan" lleva a la app con ?planes=1.
 describe("botón Elegir plan", () => {
   it("los planes pagados llevan a la app (no a WhatsApp) y ofrecen crear la iglesia a quien no tiene cuenta", () => {
+    despues();
     abrir("/web/precios");
     const botones = screen.getAllByText("Elegir plan").map((b) => b.closest("a"));
     expect(botones.length).toBe(3);
@@ -69,11 +75,36 @@ describe("botón Elegir plan", () => {
 // Registro abierto (2026-11-18): el primer botón es "Crear mi iglesia gratis", ya no "Pedir mi código".
 describe("registro abierto", () => {
   it("la portada empieza con Crear mi iglesia y lleva al alta en la app", () => {
+    despues();
     const { container } = abrir("/web");
     const crear = screen.getAllByText("Crear mi iglesia gratis")[0].closest("a");
     expect(crear.getAttribute("href")).toMatch(/[?&]crear-iglesia$/);
     expect(container.textContent).not.toMatch(/Pedir mi código/);
     expect(container.textContent).not.toMatch(/14 días del plan Iglesia/);
     expect(container.textContent).toMatch(/30 días gratis del plan Iglesia/);
+  });
+});
+
+// Cuenta regresiva (2026-11-19): antes del lanzamiento se ven precios e información, pero no se crea iglesia.
+describe("cuenta regresiva del lanzamiento", () => {
+  it("antes del lanzamiento la portada muestra la cuenta y no enlaza al alta", () => {
+    antes();
+    const { container } = abrir("/web");
+    expect(screen.getAllByRole("timer").length).toBeGreaterThan(0);
+    expect(container.textContent).toMatch(/Lanzamiento oficial en 2 días, 3 h/);
+    expect([...container.querySelectorAll("a")].some((a) => /crear-iglesia/.test(a.getAttribute("href") || ""))).toBe(false);
+    expect(screen.getAllByText("Avísame del lanzamiento").length).toBeGreaterThan(0);
+  });
+  it("antes del lanzamiento los precios se ven completos pero sin botones de pago", () => {
+    antes();
+    const { container } = abrir("/web/precios");
+    expect(container.textContent).toMatch(/\$29\.99/);
+    expect(screen.queryAllByText("Elegir plan").length).toBe(0);
+    expect([...container.querySelectorAll("a")].some((a) => /planes=1|crear-iglesia/.test(a.getAttribute("href") || ""))).toBe(false);
+  });
+  it("después del lanzamiento ya no hay cuenta regresiva", () => {
+    despues();
+    abrir("/web");
+    expect(screen.queryAllByRole("timer").length).toBe(0);
   });
 });
