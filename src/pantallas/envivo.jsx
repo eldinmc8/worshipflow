@@ -310,7 +310,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   // Historial de versículos POR EVENTO (pedido de Eldin, 2026-10-11): solo los que se usaron en este
   // culto, no todos los de siempre. La consola se vuelve a montar al cambiar de evento (key).
   const claveHistorial = `bible_historial_${eventoId || "libre"}`;
-  const [bibleHistory, setBibleHistory] = useState(() => loadCache(claveHistorial) || []);
+  // Solo entradas válidas: un historial guardado a medias (se fue la luz) no debe tumbar la consola.
+  const [bibleHistory, setBibleHistory] = useState(() => { const h = loadCache(claveHistorial); return Array.isArray(h) ? h.filter((x) => x && typeof x === "object" && x.ref) : []; });
   useEffect(() => { saveCache("bible_version", bibleVersion); }, [bibleVersion]);
   useEffect(() => { saveCache(claveHistorial, bibleHistory); }, [bibleHistory, claveHistorial]);
   const [showAdHocSong, setShowAdHocSong] = useState(false);

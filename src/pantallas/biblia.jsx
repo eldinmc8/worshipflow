@@ -8,7 +8,7 @@ import { crearIndice, buscarEnIndice, filtrarResultadosApi } from "../lib/buscar
 import { stripBibleSearchMarkup } from "../lib/textoBiblia.js";
 import { leerCita, normalizar as normalizarBusqueda } from "../lib/busqueda.js";
 import { partesDeVersiculo } from "../lib/dividirTexto.js";
-import { fetchBibleBooks, fetchBibleChapter, BIBLE_VERSIONS, SelectorVersionBiblia, versionBiblia, addBtnStyle, inputStyle, primaryBtn, ModalShell, iconGhost } from "./compartido.jsx";
+import { fetchBibleBooks, fetchBibleChapter, BIBLE_VERSIONS, CAPITULOS_POR_LIBRO, SelectorVersionBiblia, versionBiblia, addBtnStyle, inputStyle, primaryBtn, ModalShell, iconGhost } from "./compartido.jsx";
 
 const BIBLE_QUICK = [
   { ref: "Salmos 100:1-2", version: "RV1960", text: "Toda la tierra celebra con gozo la presencia del Señor y sirve delante de él con alegría." },
@@ -429,8 +429,20 @@ export function BibleLivePanel({ version, setVersion, history, setHistory, onPro
 
   useEffect(() => {
     setLoadError("");
-    fetchBibleBooks(version).then(setBooks).catch((e) => setLoadError(e.message));
+    let vigente = true;
+    const cargar = () => fetchBibleBooks(version).then((l) => { if (vigente) { setBooks(l); setLoadError(""); } }).catch((e) => { if (vigente) setLoadError(e.message); });
+    cargar();
+    // Si no cargó (se fue la luz/el internet y la lista no estaba guardada), vuelve a intentar sola en
+    // cuanto regresa la conexión, sin tener que recargar la app.
+    window.addEventListener("online", cargar);
+    return () => { vigente = false; window.removeEventListener("online", cargar); };
   }, [version]);
+  // Con la lista de libros ya cargada, cambia el libro "provisional" (ver libroDe) por el de la lista.
+  useEffect(() => {
+    if (!books || !selectedBook) return;
+    const deLista = books.find((b) => b.bookid === selectedBook.bookid);
+    if (deLista && deLista !== selectedBook) setSelectedBook(deLista);
+  }, [books, selectedBook]);
 
   // Con al menos 3 caracteres busca la frase completa en el texto de los versículos — con menos, se
   // asume que todavía está escribiendo el nombre de un libro y no vale la pena golpear la API.
@@ -457,7 +469,15 @@ export function BibleLivePanel({ version, setVersion, history, setHistory, onPro
   };
   // Elegir un libro/capítulo a mano siempre gana sobre una búsqueda de frase que haya quedado pendiente.
   const openBook = (book) => { setSearchResults(null); setSelectedBook(book); setSelectedChapter(1); loadChapter(book.bookid, 1); };
-  const openChapter = (chapter) => { setSearchResults(null); setSelectedChapter(chapter); loadChapter(selectedBook.bookid, chapter); };
+  const openChapter = (chapter) => { if (!selectedBook) return; setSearchResults(null); setSelectedChapter(chapter); loadChapter(selectedBook.bookid, chapter); };
+  // El libro de un versículo del historial o de una búsqueda. Si la lista de libros todavía no cargó
+  // (pasó en una iglesia: se fue la luz y al volver no había internet), se arma uno provisional con lo
+  // que trae el versículo, para que la pantalla no se caiga con "Cannot read properties of null".
+  const libroDe = (bookId, nombre) => {
+    const id = Number(bookId);
+    if (!id) return null;
+    return books?.find((b) => b.bookid === id) || { bookid: id, name: nombre || `Libro ${id}`, chapters: CAPITULOS_POR_LIBRO[id - 1] || 1 };
+  };
   const changeVersion = (v) => { setVersion(v); if (selectedBook) loadChapter(selectedBook.bookid, selectedChapter, v); };
 
   const rememberAndProject = (entry) => {
@@ -467,6 +487,7 @@ export function BibleLivePanel({ version, setVersion, history, setHistory, onPro
   };
   // parte: en un versículo largo, en cuál de sus partes arrancar (ver la lista de abajo).
   const pickVerse = (v, parte = 0) => {
+    if (!selectedBook) return;
     rememberAndProject({
       ref: `${selectedBook.name} ${selectedChapter}:${v.verse}`, version, text: stripBibleSearchMarkup(v.text),
       bookId: selectedBook.bookid, bookName: selectedBook.name, chapter: selectedChapter, verseStart: v.verse, verseEnd: v.verse, parte,
@@ -478,16 +499,18 @@ export function BibleLivePanel({ version, setVersion, history, setHistory, onPro
     // limpia — si no, la columna 3 se quedaba mostrando esos resultados viejos en vez del capítulo
     // completo del versículo que se acaba de elegir del historial.
     setBookFilter(""); setSearchResults(null);
-    const book = books?.find((b) => b.bookid === entry.bookId);
-    if (book) setSelectedBook(book);
+    const book = libroDe(entry.bookId, entry.bookName);
+    if (entry.version && entry.version !== version) setVersion(entry.version);
+    // Un versículo escrito a mano (sin libro/capítulo) solo se proyecta: no hay capítulo que abrir.
+    if (!book || !entry.chapter) return;
+    setSelectedBook(book);
     setSelectedChapter(entry.chapter);
-    if (entry.version !== version) setVersion(entry.version);
-    loadChapter(entry.bookId, entry.chapter, entry.version);
+    loadChapter(book.bookid, entry.chapter, entry.version);
   };
   // Elegir un resultado de búsqueda: proyecta ese versículo Y salta a su capítulo completo (limpiando la
   // búsqueda), para poder seguir leyendo alrededor de ese versículo con la vista normal de capítulo.
   const pickSearchResult = async (r) => {
-    const book = books?.find((b) => b.bookid === r.book);
+    const book = libroDe(r.book);
     const bookName = book?.name || `Libro ${r.book}`;
     // Encontrado en otra versión: se proyecta el MISMO versículo en la versión elegida.
     let texto = stripBibleSearchMarkup(r.text);
@@ -631,7 +654,7 @@ export function BibleLivePanel({ version, setVersion, history, setHistory, onPro
             {!loadingChapter && verses && vistaVersiculos === "numeros" && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(44px, 1fr))", gap: 4 }}>
                 {verses.map((v) => {
-                  const isLive = liveVerse && liveVerse.bookId === selectedBook.bookid && liveVerse.chapter === selectedChapter && liveVerse.verseStart === v.verse && liveVerse.version === version;
+                  const isLive = liveVerse && liveVerse.bookId === selectedBook?.bookid && liveVerse.chapter === selectedChapter && liveVerse.verseStart === v.verse && liveVerse.version === version;
                   return (
                     <button key={v.verse} onClick={() => pickVerse(v)} title={stripBibleSearchMarkup(v.text)} style={{ padding: "8px 0", borderRadius: 10, border: "none", background: isLive ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: isLive ? "var(--wf-brand-primary)" : "var(--wf-text)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{v.verse}</button>
                   );
@@ -641,7 +664,7 @@ export function BibleLivePanel({ version, setVersion, history, setHistory, onPro
             {!loadingChapter && verses && vistaVersiculos === "texto" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 {verses.map((v) => {
-                  const isLive = liveVerse && liveVerse.bookId === selectedBook.bookid && liveVerse.chapter === selectedChapter && liveVerse.verseStart === v.verse && liveVerse.version === version;
+                  const isLive = liveVerse && liveVerse.bookId === selectedBook?.bookid && liveVerse.chapter === selectedChapter && liveVerse.verseStart === v.verse && liveVerse.version === version;
                   // Versículo largo (pedido de Eldin, 2026-10-08): cada parte aparece en la lista como
                   // si fuera su propio versículo — "9 (1/2)", "9 (2/2)" — para tocar directo la que
                   // toque; las flechas siguen avanzando parte por parte. Mismo corte que la proyección.
