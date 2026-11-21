@@ -13,6 +13,7 @@
   "dependencies": {
     "@sentry/react": "^8.55.2",
     "@supabase/supabase-js": "^2.110.2",
+    "@vercel/analytics": "^2.0.1",
     "lucide-react": "^1.24.0",
     "mammoth": "^1.13.0",
     "pdfjs-dist": "^6.4.299",

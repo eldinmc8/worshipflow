@@ -8,6 +8,7 @@
 // Los planes, precios y la tabla salen de lib/planes.js: no se escriben a mano aquí.
 import { createContext, useContext, useEffect, useState } from "react";
 import { Radio, Music, ListMusic, BookOpen, Users, Tv, Check, MessageCircle, Menu, X, Minus, Plus, Smartphone, Tablet, Monitor, Cast } from "lucide-react";
+import { Analytics } from "@vercel/analytics/react";
 import WorshipFlowIcon from "./WorshipFlowIcon.jsx";
 import CarruselPortada from "./CarruselPortada.jsx";
 import { PLANES, COMPARATIVO } from "./lib/planes.js";
@@ -715,6 +716,8 @@ export default function SitioWeb() {
         @media (max-width: 760px) { .sw-escritorio { display: none !important; } .sw-celular { display: flex !important; } }
       `}</style>
       <Lanzamiento.Provider value={lanzamiento}>{pagina}</Lanzamiento.Provider>
+      {/* Cuenta visitas de la página web (Vercel Web Analytics, sin cookies). Solo aquí, no en la app. */}
+      <Analytics />
     </div>
   );
 }
