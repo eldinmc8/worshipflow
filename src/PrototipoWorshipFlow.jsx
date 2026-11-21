@@ -732,7 +732,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         soloIds = new Set(nuevoOrden.filter((it, i) => antes.get(it.id) !== `${i}|${JSON.stringify(it)}`).map((it) => it.id));
       }
       pendingSavesRef.current++;
-      sincronizarServiceOrder(selectedEventId, nuevoOrden, { soloIds }).catch((err) => notifyError("No se pudo guardar el setlist", err)).finally(() => pendingSavesRef.current--);
+      const eventoId = selectedEventId;
+      sincronizarServiceOrder(eventoId, nuevoOrden, { soloIds }).catch((err) => { marcarFalloGuardado(eventoId); notifyError("No se pudo guardar el setlist", err); }).finally(() => pendingSavesRef.current--);
     }
   };
   // ---- Editor de diapositivas (escritorio, ver EditorDiapositivas.jsx) ----
@@ -749,7 +750,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     }));
     if (nuevoOrden) {
       pendingSavesRef.current++;
-      sincronizarServiceOrder(origen, nuevoOrden).catch((err) => notifyError("No se pudo guardar el setlist", err)).finally(() => pendingSavesRef.current--);
+      sincronizarServiceOrder(origen, nuevoOrden).catch((err) => { marcarFalloGuardado(origen); notifyError("No se pudo guardar el setlist", err); }).finally(() => pendingSavesRef.current--);
     }
   };
   const guardarEditorDiap = (diapositivas, titulo) => {
@@ -911,7 +912,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     }));
     if (nuevo) {
       pendingSavesRef.current++;
-      sincronizarWorshipRoles(selectedEventId, nuevo).catch((err) => notifyError("No se pudo guardar el equipo de alabanza", err)).finally(() => pendingSavesRef.current--);
+      const eventoId = selectedEventId;
+      sincronizarWorshipRoles(eventoId, nuevo).catch((err) => { marcarFalloGuardado(eventoId); notifyError("No se pudo guardar el equipo de alabanza", err); }).finally(() => pendingSavesRef.current--);
     }
   };
   const addWorshipRole = (name) => {
@@ -1359,7 +1361,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     }));
     if (nuevo) {
       pendingSavesRef.current++;
-      sincronizarRecordatorios(eventId, nuevo.reminders).catch((e) => notifyError("No se pudo guardar el recordatorio", e)).finally(() => pendingSavesRef.current--);
+      sincronizarRecordatorios(eventId, nuevo.reminders).catch((e) => { marcarFalloGuardado(eventId); notifyError("No se pudo guardar el recordatorio", e); }).finally(() => pendingSavesRef.current--);
     }
   };
   const addReminder = (eventId, cantidad, unidad) => updateEventReminders(eventId, (e) => ({ ...e, reminders: [...(e.reminders || []), { id: nextId(), cantidad, unidad, enviado: false }] }));
@@ -1379,8 +1381,38 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // una plantilla ya armada.
   const updateEventDetails = (eventId, { title, dateLabel, date, hora, location }) => {
     setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, title, dateLabel: dateLabel || "", date: date || null, hora: hora || null, location: location || "" } : e)));
-    updateEvento(eventId, { titulo: title, fecha_label: dateLabel || null, fecha: date || null, hora: hora || null, ubicacion: location || null })
-      .catch((e) => notifyError("No se pudo guardar el evento", e));
+    return updateEvento(eventId, { titulo: title, fecha_label: dateLabel || null, fecha: date || null, hora: hora || null, ubicacion: location || null });
+  };
+  // Botón "Guardar" del evento/la plantilla (pedido de Eldin, 2026-11-21: "me reportan que no se guardan
+  // las cosas"). Los cambios del Setlist ya se guardaban solos, pero si uno fallaba (ej. la base
+  // rechazaba una diapositiva con fondo de imagen) solo salía un aviso pasajero y nadie se enteraba.
+  // Ahora: cualquier guardado que falle deja el evento marcado (falloGuardado) y el botón lo dice; y
+  // "Guardar" vuelve a mandar TODO el evento (datos, Setlist, equipo, recordatorios) y espera la respuesta
+  // real de la base antes de decir "Guardado".
+  const [falloGuardado, setFalloGuardado] = useState(null); // id del evento con un guardado fallido
+  const marcarFalloGuardado = (eventoId) => setFalloGuardado(eventoId);
+  const guardarEventoCompleto = async (eventId, detalles) => {
+    const ev = eventsRef.current.find((e) => e.id === eventId);
+    if (!ev) return;
+    const tareas = [];
+    if (detalles) tareas.push(updateEventDetails(eventId, detalles));
+    // Quien no edita el Setlist completo no reenvía todo (la base le rechazaría filas que no puede tocar).
+    if (puedeEditarSetlistEvento) tareas.push(sincronizarServiceOrder(eventId, ev.serviceOrder || []));
+    if (puedeGestionarEventoAbierto) {
+      tareas.push(sincronizarWorshipRoles(eventId, ev.worshipRoles || []));
+      tareas.push(sincronizarRecordatorios(eventId, ev.reminders || []));
+    }
+    pendingSavesRef.current++;
+    try {
+      await Promise.all(tareas);
+      setFalloGuardado((f) => (f === eventId ? null : f));
+    } catch (e) {
+      marcarFalloGuardado(eventId);
+      notifyError("No se pudo guardar", e);
+      throw e;
+    } finally {
+      pendingSavesRef.current--;
+    }
   };
 
   const favoritesCount = library.filter((s) => s.favorite).length;
@@ -2628,7 +2660,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onRemoveReminder={(reminderId) => removeReminder(selectedEvent.id, reminderId)}
           onSetHora={(hora) => setEventHora(selectedEvent.id, hora)}
           onSetEnsayo={(datos) => setEventEnsayo(selectedEvent.id, datos)}
-          onUpdateEventDetails={(details) => updateEventDetails(selectedEvent.id, details)}
+          onGuardar={(detalles) => guardarEventoCompleto(selectedEvent.id, detalles)}
+          huboErrorAlGuardar={falloGuardado === selectedEvent.id}
           onMarkVisto={confirmarAsignacionVista}
           showBibleForm={showBibleForm} setShowBibleForm={setShowBibleForm} addBible={addBible}
           showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}

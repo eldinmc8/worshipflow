@@ -202,3 +202,32 @@ describe("animación de una canción solo en este evento", () => {
     expect("animacion" in fila).toBe(false);
   });
 });
+
+describe("Setlist con diapositiva de fondo de imagen (2026-11-21)", () => {
+  it("si la base aún no acepta fondo 'imagen', guarda lo demás igual en vez de perder todo", async () => {
+    const eventoId = "plantilla-1";
+    fake.db.eventos = [{ id: eventoId, titulo: "Servicio General Miércoles", es_plantilla: true }];
+    // Simula la restricción vieja de producción: solo color/video.
+    const fromOriginal = fake.client.from.bind(fake.client);
+    fake.client.from = (tabla) => {
+      const b = fromOriginal(tabla);
+      if (tabla !== "items_servicio") return b;
+      const upsertOriginal = b.upsert.bind(b);
+      b.upsert = (filas, op) => {
+        if ((Array.isArray(filas) ? filas : [filas]).some((f) => f.fondo_tipo === "imagen")) {
+          return Promise.resolve({ data: null, error: { code: "23514", message: 'new row for relation "items_servicio" violates check constraint "items_servicio_fondo_tipo_check"' } });
+        }
+        return upsertOriginal(filas, op);
+      };
+      return b;
+    };
+    await eventos.sincronizarServiceOrder(eventoId, [
+      { id: "b1", type: "seccion", title: "Bienvenida", description: "Saludo" },
+      { id: "s1", type: "slide", title: "Bienvenida", bgType: "imagen", imageUrl: "https://x/fondo.jpg" },
+    ]);
+    const filas = fake.db.items_servicio.filter((i) => i.evento_id === eventoId);
+    expect(filas.map((f) => f.id).sort()).toEqual(["b1", "s1"]);
+    expect(filas.find((f) => f.id === "b1").descripcion).toBe("Saludo");
+    expect(filas.find((f) => f.id === "s1").fondo_imagen_url).toBe("https://x/fondo.jpg");
+  });
+});

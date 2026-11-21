@@ -356,6 +356,13 @@ async function sincronizarServiceOrderInterno(eventoId, serviceOrder, soloIds = 
     if (error && (error.code === "PGRST204" || error.code === "42703") && /animacion/.test(error.message || "")) {
       ({ error } = await supabase.from("items_servicio").upsert(filas.map(({ animacion: _a, ...resto }) => resto)));
     }
+    // La base todavía solo acepta fondo "color"/"video" (falta el SQL 20261009000000_fondo_tipo_imagen):
+    // una sola diapositiva con fondo de imagen hacía fallar el Setlist COMPLETO, así que nada de ese
+    // evento o plantilla se guardaba (2026-11-21). Se reintenta guardando esa diapositiva como "color"
+    // (la dirección de la imagen se guarda igual) para que todo lo demás sí quede guardado.
+    if (error && error.code === "23514" && /fondo_tipo/.test(error.message || "")) {
+      ({ error } = await supabase.from("items_servicio").upsert(filas.map((f) => (f.fondo_tipo === "imagen" ? { ...f, fondo_tipo: "color" } : f))));
+    }
     if (error) throw error;
   }
   if (encargadosRows.length) {

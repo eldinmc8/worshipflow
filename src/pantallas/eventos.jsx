@@ -1,6 +1,6 @@
 // Eventos: calendario y lista, detalle del evento y su Setlist (bloques, encargados, equipo de alabanza, bosquejo). Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import ConPlan from "../components/ConPlan.jsx";
-import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Music, ArrowLeft, Trash2, Bell, X, Settings, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy, Timer, CalendarRange } from "lucide-react";
+import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Music, ArrowLeft, Trash2, Bell, X, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy, Timer, CalendarRange } from "lucide-react";
 import { bosquejoTieneCambiosSinEnviar, esBloquePredicacion } from "../lib/bosquejos.js";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { todayLocal, monthKey, monthLabelFromKey, parseIsoDateLocal, isUpcoming, compareByDay, MONTH_ABBR, formatFullDate, horaDeEvento } from "../lib/dates.js";
@@ -575,23 +575,50 @@ export function EventDetail({
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, verDiapositivas = true,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
-  onViewMinistry, onOpenSong, onAddReminder, onRemoveReminder, onUpdateEventDetails, onMarkVisto, onSetEnsayo,
+  onViewMinistry, onOpenSong, onAddReminder, onRemoveReminder, onGuardar, huboErrorAlGuardar = false, onMarkVisto, onSetEnsayo,
   showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide,
   showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint,
 }) {
-  const [showReminderForm, setShowReminderForm] = useState(false);
+  const [showAlertas, setShowAlertas] = useState(false);
   const [reminderDraft, setReminderDraft] = useState({ cantidad: 1, unidad: "dias" });
   const confirmAddReminder = () => {
     onAddReminder(Math.max(1, Number(reminderDraft.cantidad) || 1), reminderDraft.unidad);
     setReminderDraft({ cantidad: 1, unidad: "dias" });
-    setShowReminderForm(false);
   };
-  // Editar título/fecha/hora/ubicación DESPUÉS de creado — antes solo se fijaban una vez al crear el
-  // evento/la plantilla y no había forma de corregirlos. Pantalla completa "Ajustes del evento"
-  // (separada del Setlist), guarda en vivo campo por campo — mismo patrón que ya usa el título de
-  // cada bloque del Setlist (onChange directo, sin botón "Guardar" ni validación bloqueante).
-  const [showEventSettings, setShowEventSettings] = useState(false);
-  const patchEvent = (patch) => onUpdateEventDetails({ title: event.title, dateLabel: event.dateLabel || "", date: event.date || null, hora: event.hora || null, location: event.location || "", ...patch });
+  // Nombre (y en un evento: fecha, hora, lugar) se editan AQUÍ MISMO, debajo de PLANTILLA / la fecha
+  // (pedido de Eldin, 2026-11-21). Antes vivían en una pantalla aparte "Ajustes del evento" que guardaba
+  // letra por letra sin decir nada; ahora es un borrador que se guarda con el botón "Guardar", que espera
+  // la respuesta real de la base y dice "Guardado ✓" o "No se guardó". La tuerca se volvió el botón
+  // "Configurar alertas" (lo único que quedaba en esa pantalla eran los recordatorios).
+  const [borrador, setBorrador] = useState(null); // null = sin cambios sin guardar
+  const [estadoGuardar, setEstadoGuardar] = useState("listo"); // listo | guardando | guardado | error
+  useEffect(() => { setBorrador(null); setEstadoGuardar("listo"); }, [event.id]);
+  useEffect(() => {
+    if (estadoGuardar !== "guardado") return undefined;
+    const t = setTimeout(() => setEstadoGuardar("listo"), 4000);
+    return () => clearTimeout(t);
+  }, [estadoGuardar]);
+  const datos = borrador || { title: event.title || "", date: event.date || "", hora: event.hora || "", location: event.location || "" };
+  const cambiar = (patch) => { setBorrador({ ...datos, ...patch }); if (estadoGuardar !== "guardando") setEstadoGuardar("listo"); };
+  const sinNombre = !datos.title.trim();
+  const guardar = async () => {
+    if (sinNombre || estadoGuardar === "guardando") return;
+    setEstadoGuardar("guardando");
+    const detalles = borrador
+      ? { title: borrador.title.trim(), dateLabel: event.dateLabel || "", date: borrador.date || null, hora: borrador.hora || null, location: borrador.location || "" }
+      : null;
+    try {
+      await onGuardar(detalles);
+      setBorrador(null);
+      setEstadoGuardar("guardado");
+    } catch {
+      setEstadoGuardar("error");
+    }
+  };
+  const mostrarError = estadoGuardar === "error" || (huboErrorAlGuardar && estadoGuardar !== "guardando" && estadoGuardar !== "guardado");
+  const hayCambios = !!borrador;
+  const campoClaro = { width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 12, padding: "9px 12px", fontSize: 14, color: "#fff", outline: "none", boxSizing: "border-box", fontFamily: "inherit", colorScheme: "dark" };
+  const etiquetaClara = { display: "block", fontSize: 11.5, fontWeight: 600, color: "#C8CDD6", marginBottom: 4 };
 
   // "Ya vi mis asignaciones de este evento" — a propósito NO se marca solo con abrir el evento (eso
   // marcaba a alguien como "visto" aunque hubiera entrado por otra razón y nunca se hubiera fijado en
@@ -610,119 +637,88 @@ export function EventDetail({
     onMarkVisto(event.id);
   };
 
-  if (showEventSettings) {
-    return (
-      <div className="screen-enter" style={{ width: "100%", flex: 1, minHeight: 0, overflowY: "auto" }}>
-        <div style={{ padding: 20, maxWidth: 640, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-            <button onClick={() => setShowEventSettings(false)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: "4px 6px 4px 0", borderRadius: 12 }}>
-              <ArrowLeft size={18} color="var(--wf-text)" />
-              <span style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 19, fontWeight: 600, color: "var(--wf-text)" }}>Ajustes del evento</span>
-            </button>
-            {isAdminViewer && (
-              <button onClick={() => onDelete(event)} title="Eliminar evento" style={iconGhost}>
-                <Trash2 size={16} color="#C23B32" />
-              </button>
-            )}
-          </div>
-
-          <Field label={event.esPlantilla ? "Nombre de la plantilla" : "Nombre del evento"}>
-            <input value={event.title} onChange={(e) => patchEvent({ title: e.target.value })} style={inputStyle} />
-          </Field>
-
-          {!event.esPlantilla && (
-            <>
-              <div style={{ marginTop: 14 }}>
-                <Field label="Ubicación del evento">
-                  <input value={event.location || ""} onChange={(e) => patchEvent({ location: e.target.value })} placeholder="Ej. Pastores, Sacatepéquez" style={inputStyle} />
-                </Field>
-              </div>
-              <div style={{ display: "flex", gap: 12, marginTop: 14 }}>
-                <div style={{ flex: 1 }}>
-                  <Field label="Fecha">
-                    <input type="date" value={event.date || ""} onChange={(e) => patchEvent({ date: e.target.value || null })} style={inputStyle} />
-                  </Field>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <Field label="Hora">
-                    <input type="time" value={event.hora || ""} onChange={(e) => patchEvent({ hora: e.target.value || null })} style={inputStyle} />
-                  </Field>
-                </div>
-              </div>
-            </>
-          )}
-
-          {isAdminViewer && (
-            <div style={{ marginTop: 22, background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 16, padding: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}><Bell size={14} color="var(--wf-brand-accent)" /> Recordatorios</div>
-                <button onClick={() => setShowReminderForm(true)} className="hoverable" style={miniBtnStyle}><Plus size={12} /> Agregar</button>
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: event.esPlantilla ? 0 : 10 }}>
-                {(event.reminders || []).length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12 }}>Sin recordatorios configurados{event.esPlantilla ? " en esta plantilla" : ""}.</div>}
-                {(event.reminders || []).map((r) => (
-                  <span key={r.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", borderRadius: 20, padding: "5px 6px 5px 12px", fontSize: 12, fontWeight: 600 }}>
-                    {r.cantidad} {r.unidad === "horas" ? (r.cantidad === 1 ? "hora" : "horas") : (r.cantidad === 1 ? "día" : "días")} antes
-                    <button onClick={() => onRemoveReminder(r.id)} style={{ ...iconGhost, width: 18, height: 18 }}><X size={11} /></button>
-                  </span>
-                ))}
-              </div>
-              {!event.esPlantilla && (
-                <>
-                  {/* La hora se elige una sola vez, arriba en "Hora" (quitado el selector repetido, 2026-11-20). */}
-                  {!event.hora && <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Sin hora definida (arriba, en "Hora"), los recordatorios "por horas" no se pueden calcular con precisión.</div>}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-
-        {showReminderForm && (
-          <ModalShell title="Agregar recordatorio" icon={Bell} color="var(--wf-brand-accent)" onClose={() => setShowReminderForm(false)}>
-            <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-              <Field label="Cantidad">
-                <input type="number" min={1} value={reminderDraft.cantidad} onChange={(e) => setReminderDraft({ ...reminderDraft, cantidad: e.target.value })} style={inputStyle} />
-              </Field>
-              <Field label="Unidad">
-                <select value={reminderDraft.unidad} onChange={(e) => setReminderDraft({ ...reminderDraft, unidad: e.target.value })} style={inputStyle}>
-                  <option value="dias">Días antes</option>
-                  <option value="horas">Horas antes</option>
-                </select>
-              </Field>
-            </div>
-            {reminderDraft.unidad === "horas" && !event.hora && (
-              <div style={{ fontSize: 11, color: "#C23B32", marginTop: 8 }}>Este evento todavía no tiene hora definida — este recordatorio no se enviará hasta que se le asigne una.</div>
-            )}
-            <button onClick={confirmAddReminder} style={{ ...primaryBtn, marginTop: 14 }}>Agregar recordatorio</button>
-          </ModalShell>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="screen-enter" style={{ width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "20px 20px 0", maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <button onClick={onBack} style={iconGhost}><ArrowLeft size={16} /></button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+          <button onClick={onBack} style={iconGhost} title="Volver"><ArrowLeft size={16} /></button>
           {isAdminViewer && (
-            <div style={{ display: "flex", gap: 8 }}>
-              <button data-tour="evento-ajustes" onClick={() => setShowEventSettings(true)} title={event.esPlantilla ? "Ajustes de la plantilla" : "Ajustes del evento"} style={iconGhost}>
-                <Settings size={16} color="var(--wf-heading)" />
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button data-tour="evento-alertas" onClick={() => setShowAlertas(true)} className="hoverable"
+                style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 20, padding: "7px 12px", fontSize: 13, fontWeight: 600, color: "var(--wf-heading)", cursor: "pointer", fontFamily: "inherit" }}>
+                <Bell size={14} color="var(--wf-brand-accent)" /> Configurar alertas
+                {(event.reminders || []).length > 0 && <span style={{ background: "var(--wf-brand-accent)", color: "#fff", borderRadius: 10, fontSize: 11, fontWeight: 700, padding: "1px 6px" }}>{event.reminders.length}</span>}
               </button>
-              <button onClick={() => onDelete(event)} title="Eliminar evento" style={iconGhost}>
+              <button onClick={() => onDelete(event)} title={event.esPlantilla ? "Eliminar plantilla" : "Eliminar evento"} style={iconGhost}>
                 <Trash2 size={16} color="#C23B32" />
               </button>
             </div>
           )}
         </div>
-        <div style={{ borderRadius: 16, background: "linear-gradient(135deg, #2A3B4D, var(--wf-hover))", padding: 20, marginBottom: 16 }}>
+        <div data-tour="evento-ajustes" style={{ borderRadius: 16, background: "linear-gradient(135deg, #2A3B4D, var(--wf-hover))", padding: 20, marginBottom: isAdminViewer ? 10 : 16, color: "#fff" }}>
           <div style={{ display: "inline-block", background: event.esPlantilla ? "#5661B3" : "rgba(0,0,0,0.35)", borderRadius: 20, padding: "4px 12px", fontSize: 12, marginBottom: 10 }}>
             {event.esPlantilla ? "PLANTILLA" : (formatFullDate(event.date) || "Sin fecha") + (horaDeEvento(event) ? ` · ${horaDeEvento(event)}` : "")}
           </div>
-          <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 24, fontWeight: 600, marginBottom: 4 }}>{event.title}</div>
-          {!event.esPlantilla && <div style={{ fontSize: 13, color: "#C8CDD6" }}>{event.location}</div>}
+          {isAdminViewer ? (
+            <>
+              <label style={etiquetaClara} htmlFor="wf-evento-nombre">{event.esPlantilla ? "Nombre de la plantilla" : "Nombre del evento"}</label>
+              <input id="wf-evento-nombre" value={datos.title} onChange={(e) => cambiar({ title: e.target.value })} placeholder="Escribe un nombre"
+                style={{ ...campoClaro, fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 20, fontWeight: 600 }} />
+              {!event.esPlantilla && (
+                <>
+                  <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <label style={etiquetaClara} htmlFor="wf-evento-fecha">Fecha</label>
+                      <input id="wf-evento-fecha" type="date" value={datos.date || ""} onChange={(e) => cambiar({ date: e.target.value })} style={campoClaro} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <label style={etiquetaClara} htmlFor="wf-evento-hora">Hora</label>
+                      <input id="wf-evento-hora" type="time" value={datos.hora || ""} onChange={(e) => cambiar({ hora: e.target.value })} style={campoClaro} />
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 10 }}>
+                    <label style={etiquetaClara} htmlFor="wf-evento-lugar">Lugar</label>
+                    <input id="wf-evento-lugar" value={datos.location || ""} onChange={(e) => cambiar({ location: e.target.value })} placeholder="Ej. Pastores, Sacatepéquez" style={campoClaro} />
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 24, fontWeight: 600, marginBottom: 4 }}>{event.title}</div>
+              {!event.esPlantilla && <div style={{ fontSize: 13, color: "#C8CDD6" }}>{event.location}</div>}
+            </>
+          )}
         </div>
+        {isAdminViewer && (
+          <div style={{ marginBottom: 16 }}>
+            <button data-tour="evento-guardar" onClick={guardar} disabled={sinNombre || estadoGuardar === "guardando"} className="hoverable"
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 15, fontWeight: 700, padding: "12px 14px", borderRadius: 14, cursor: sinNombre ? "not-allowed" : "pointer", fontFamily: "inherit",
+                ...(estadoGuardar === "guardado"
+                  ? { background: "#1F8A73", border: "none", color: "#fff" }
+                  : mostrarError
+                    ? { background: "transparent", border: "1.5px solid #C23B32", color: "#C23B32" }
+                    : hayCambios
+                      ? { background: "var(--wf-brand-accent)", border: "none", color: "#fff" }
+                      : { background: "var(--wf-card)", border: "1px solid var(--wf-border)", color: "var(--wf-heading)" }),
+                opacity: sinNombre ? 0.6 : 1,
+              }}>
+              {estadoGuardar === "guardando" ? "Guardando…"
+                : estadoGuardar === "guardado" ? <><Check size={16} /> Guardado</>
+                : mostrarError ? "No se guardó · Toca para intentar de nuevo"
+                : sinNombre ? "Escribe un nombre para guardar"
+                : <><Check size={16} /> {hayCambios ? "Guardar cambios" : "Guardar"}</>}
+            </button>
+            <div role="status" style={{ fontSize: 12, color: mostrarError ? "#C23B32" : "var(--wf-faint)", marginTop: 6, textAlign: "center" }}>
+              {mostrarError
+                ? "Algo no se pudo guardar. Revisa tu internet y toca el botón otra vez."
+                : hayCambios
+                  ? "Tienes cambios sin guardar en el nombre."
+                  : "El Setlist se guarda solo. Toca Guardar para confirmar que todo quedó guardado."}
+            </div>
+          </div>
+        )}
 
         {/* Solo para quien tiene algo asignado en este evento — tocarlo (no basta con solo abrir el
             evento) es lo que le avisa al admin que la persona de verdad se fijó en su propio cargo, no
@@ -849,6 +845,40 @@ export function EventDetail({
         showSlideForm={showSlideForm} setShowSlideForm={setShowSlideForm} slideDraft={slideDraft} setSlideDraft={setSlideDraft} addSlide={addSlide}
         showSermonForm={showSermonForm} setShowSermonForm={setShowSermonForm} sermonPointText={sermonPointText} setSermonPointText={setSermonPointText} addSermonPoint={addSermonPoint}
       />
+      {showAlertas && (
+        <ModalShell title="Configurar alertas" icon={Bell} color="var(--wf-brand-accent)" onClose={() => setShowAlertas(false)}>
+          <div style={{ fontSize: 13, color: "var(--wf-text-2)", marginBottom: 12 }}>
+            {event.esPlantilla
+              ? "Recordatorios para el equipo. Cada evento que crees con esta plantilla los trae ya puestos."
+              : "Recordatorios que le llegan al equipo antes del evento."}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {(event.reminders || []).length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12 }}>Todavía no hay alertas.</div>}
+            {(event.reminders || []).map((r) => (
+              <span key={r.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", borderRadius: 20, padding: "5px 6px 5px 12px", fontSize: 12, fontWeight: 600 }}>
+                {r.cantidad} {r.unidad === "horas" ? (r.cantidad === 1 ? "hora" : "horas") : (r.cantidad === 1 ? "día" : "días")} antes
+                <button onClick={() => onRemoveReminder(r.id)} title="Quitar alerta" style={{ ...iconGhost, width: 18, height: 18 }}><X size={11} /></button>
+              </span>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+            <Field label="Cantidad">
+              <input type="number" min={1} value={reminderDraft.cantidad} onChange={(e) => setReminderDraft({ ...reminderDraft, cantidad: e.target.value })} style={inputStyle} />
+            </Field>
+            <Field label="Cuándo">
+              <select value={reminderDraft.unidad} onChange={(e) => setReminderDraft({ ...reminderDraft, unidad: e.target.value })} style={inputStyle}>
+                <option value="dias">Días antes</option>
+                <option value="horas">Horas antes</option>
+              </select>
+            </Field>
+          </div>
+          {reminderDraft.unidad === "horas" && !event.esPlantilla && !event.hora && (
+            <div style={{ fontSize: 11, color: "#C23B32", marginTop: 8 }}>Este evento todavía no tiene hora. Esta alerta no se enviará hasta que le pongas una.</div>
+          )}
+          <button onClick={confirmAddReminder} style={{ ...primaryBtn, marginTop: 14, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Plus size={15} /> Agregar alerta</button>
+          <div style={{ fontSize: 11.5, color: "var(--wf-faint)", marginTop: 8, textAlign: "center" }}>Las alertas se guardan solas al agregarlas o quitarlas.</div>
+        </ModalShell>
+      )}
     </div>
   );
 }
