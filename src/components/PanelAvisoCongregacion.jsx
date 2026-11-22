@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Megaphone, Send, Trash2 } from "lucide-react";
+import { X, Megaphone, Send, Trash2, MessageSquare } from "lucide-react";
 import { useCerrarConAtras } from "../lib/atras.js";
 import { MENSAJES_AVISO, DURACIONES_AVISO, DURACION_AVISO_DEFECTO, MAX_LETRAS_AVISO, crearAviso } from "../lib/avisoCongregacion.js";
 
 // Ventana "Mensaje" de la consola de Multimedia (2026-11-22): escribe un aviso corto para la congregación,
 // elige cuántos segundos dura y lo manda al proyector (ver lib/avisoCongregacion.js).
-export default function PanelAvisoCongregacion({ avisoActual = null, segundosRestantes = 0, onEnviar, onQuitar, onCerrar }) {
+export default function PanelAvisoCongregacion({ avisoActual = null, segundosRestantes = 0, onEnviar, onQuitar, onCerrar, onIrAEscenario = null }) {
   useCerrarConAtras(true, onCerrar);
   const [texto, setTexto] = useState("");
   const [duracion, setDuracion] = useState(DURACION_AVISO_DEFECTO);
@@ -31,6 +31,15 @@ export default function PanelAvisoCongregacion({ avisoActual = null, segundosRes
           <button type="button" onClick={onCerrar} aria-label="Cerrar" style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--wf-muted)", display: "flex" }}><X size={18} /></button>
         </div>
         <p style={{ fontSize: 13, color: "var(--wf-muted)", lineHeight: 1.5, margin: "0 0 4px" }}>Sale en una franja abajo del proyector, encima de lo que esté al aire, y se quita sola.</p>
+        {/* Esta ventana es para el público. Un aviso al predicador o a la banda va por Escenario (2026-11-22:
+            se mandaba aquí y en la pantalla de escenario no salía nada). */}
+        {onIrAEscenario && (
+          <button type="button" onClick={onIrAEscenario} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, textAlign: "left", background: "rgba(232,130,30,0.12)", border: "none", borderRadius: 12, padding: "10px 12px", margin: "8px 0 0", cursor: "pointer", fontFamily: "inherit", color: "var(--wf-text)" }}>
+            <MessageSquare size={18} color="#E8821E" style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: 13, lineHeight: 1.4 }}><b>¿Es para el predicador o la banda?</b> Mándalo por Escenario: sale en grande en su pantalla y el público no lo ve.</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#E8821E", flexShrink: 0 }}>Ir a Escenario</span>
+          </button>
+        )}
 
         {avisoActual && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", borderRadius: 12, padding: "10px 12px", margin: "10px 0 0", boxShadow: "0 2px 8px rgba(22,50,79,0.08)" }}>

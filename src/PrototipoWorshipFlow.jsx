@@ -1772,7 +1772,11 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     }
     const alAireBase = (fijada || current) || null;
     const alAire = alAireBase && controlVideo && esVideoSolo(alAireBase) ? { ...alAireBase, video: controlVideo } : alAireBase;
-    const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: alAire ? { ...alAire, ...(escenario ? { escenario } : {}), equipo: idEquipo() } : null, blanked, estilo_en_vivo: liveStyle, ad_hoc_label: adHoc?.label || null, libre: liveLibre };
+    // Sin nada al aire (ej. el predicador hablando sin diapositiva), el resumen del escenario —mensaje,
+    // temporizador, reloj del culto— viaja en estilo_en_vivo.escenarioSinDiapositiva; antes se perdía y
+    // el mensaje de Multimedia no llegaba a la pantalla de escenario (2026-11-22).
+    const estiloFila = !alAire && escenario ? { ...liveStyle, escenarioSinDiapositiva: escenario } : liveStyle;
+    const fila = { evento_id: liveEventId, liderado_por: userId, slide_actual: alAire ? { ...alAire, ...(escenario ? { escenario } : {}), equipo: idEquipo() } : null, blanked, estilo_en_vivo: estiloFila, ad_hoc_label: adHoc?.label || null, libre: liveLibre };
     // Se manda por las dos vías a la vez: BroadcastChannel llega al instante si la pantalla de
     // proyección está en la MISMA computadora (caso típico: TV por HDMI como segunda pantalla) — así el
     // cambio de diapositiva no depende del internet del lugar, igual que un presentador local. Supabase
