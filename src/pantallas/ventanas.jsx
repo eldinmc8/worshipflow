@@ -14,7 +14,7 @@ import { notifyError, showToast, esFalloDeConexion } from "../lib/toast.js";
 import { ModalShell, Field, primaryBtn, inputStyle, addBtnStyle, LIVE_FONTS } from "./compartido.jsx";
 import { avisoDeEnlace } from "../lib/videoEnlace.js";
 import { nombreDeAudio, avisoEnlaceAudio } from "../lib/audioCulto.js";
-import { colorPropioDe, fondoFijo, tipoDeFondo, COLORES_LISOS } from "../lib/fondoDiapositiva.js";
+import { colorPropioDe, fondoFijo, tipoDeFondo, COLORES_LISOS, COLORES_LETRA, colorLetraValido } from "../lib/fondoDiapositiva.js";
 import GaleriaDisenos from "../components/GaleriaDisenos.jsx";
 
 // +502 4054 4813, sin "+" ni espacios para wa.me
@@ -487,8 +487,12 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
   // Diapositiva de audio (2026-11-22): el audio suena en la consola mientras se ve este texto o imagen.
   const audio = draft.audio || null;
   const setAudio = (patch) => setDraft({ ...draft, audio: { ...audio, ...patch } });
-  return (
-    <ModalShell title={title} icon={audio ? Music : ImgIcon} color={audio ? "#1F8A73" : "#B15EA0"} onClose={onClose}>
+  // Horizontal en computadora (pedido de Eldin, 2026-11-22): la vista previa y el contenido quedan fijos a
+  // la izquierda y las opciones (fondo, letra, color...) a la derecha, para ver cómo queda mientras se baja.
+  const horizontal = !!vistaPrevia && !(typeof window !== "undefined" && window.innerWidth < 900);
+  const colorLetra = colorLetraValido(draft.colorLetra);
+  const seccionAudio = (
+    <>
       {audio && (
         <div data-testid="seccion-audio" style={{ marginBottom: 14 }}>
           <label style={etiquetaCampo}>Audio · lo que va a sonar</label>
@@ -509,6 +513,10 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
           <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6, lineHeight: 1.4 }}>Empieza solo cuando esta diapositiva sale en pantalla. Suena en la computadora de la consola, por la salida de audio elegida en Ajustes. Si no marcas lo de arriba, al pasar a otra cosa el audio se baja poco a poco.</div>
         </div>
       )}
+    </>
+  );
+  const seccionDisenos = (
+    <>
       {/* Galería de diseños listos (pedido de Eldin, 2026-11-22): tocar uno abre el editor de
           diapositivas con ese diseño puesto, para cambiar el texto y agregarlo con "Listo". */}
       {verDisenos && !audio && (
@@ -526,11 +534,19 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
           )}
         </div>
       )}
+    </>
+  );
+  const seccionPrevia = (
+    <>
       {vistaPrevia && (
         <div data-testid="vista-previa-diapositiva" style={{ width: "100%", aspectRatio: "16/9", borderRadius: 12, overflow: "hidden", marginBottom: 12, boxShadow: "0 1px 3px rgba(22,50,79,0.08)" }}>
           {vistaPrevia(draft)}
         </div>
       )}
+    </>
+  );
+  const seccionContenido = (
+    <>
       {/* Textarea, no input: para un texto largo se puede tocar Enter y armar el salto de línea a mano
           (dónde se corta cada línea en la proyección), en vez de dejarlo todo al ajuste automático. */}
       {/* Contenido (lo que se proyecta) separado del NOMBRE (cómo aparece en la lista y en la miniatura)
@@ -546,6 +562,10 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
           <input type="range" min={0.4} max={0.9} step={0.05} value={draft.escalaSubtitulo ?? 0.65} onChange={(e) => setDraft({ ...draft, escalaSubtitulo: parseFloat(e.target.value) })} style={{ width: "100%", accentColor: "var(--wf-brand-accent)" }} />
         </div>
       )}
+    </>
+  );
+  const seccionOpciones = (
+    <>
       <label style={{ ...etiquetaCampo, marginTop: 14 }}>Fondo</label>
       <div role="radiogroup" aria-label="Fondo de la diapositiva" style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 10 }}>
         {[["estilo", "El de Estilo"], ["liso", "Color liso"], ["imagen", "Imagen"], ...(audio ? [] : [["video", "Video"]])].map(([val, label]) => (
@@ -596,10 +616,50 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
         })}
       </div>
       {!draft.fuente && <div style={{ fontSize: 11.5, color: "var(--wf-muted)", lineHeight: 1.4, marginTop: 6 }}>Sale con la letra que esté puesta en <b>Estilo</b> (la misma de las canciones). Elige otra para cambiar solo esta diapositiva.</div>}
+      {/* Color de letra propio (pedido de Eldin, 2026-11-22): sin elegir, el de Estilo. Viaja en estructura.colorLetra. */}
+      <label style={{ ...etiquetaCampo, marginTop: 14 }}>Color de la letra</label>
+      <div role="radiogroup" aria-label="Color de la letra" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <button type="button" role="radio" aria-checked={!colorLetra} aria-label="Color de letra de Estilo" onClick={() => setDraft({ ...draft, colorLetra: undefined })}
+          style={{ fontSize: 12, fontWeight: 700, height: 34, padding: "0 10px", borderRadius: 12, cursor: "pointer", border: !colorLetra ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", background: !colorLetra ? "var(--wf-hover)" : "var(--wf-card, #fff)", color: "var(--wf-text)" }}>El de Estilo</button>
+        {COLORES_LETRA.map((c) => {
+          const activo = colorLetra?.toLowerCase() === c.toLowerCase();
+          return <button key={c} type="button" role="radio" aria-checked={activo} aria-label={`Letra ${c}`} title={c} onClick={() => setDraft({ ...draft, colorLetra: c })}
+            style={{ width: 34, height: 34, borderRadius: 12, background: c, border: activo ? "3px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0, boxSizing: "border-box" }} />;
+        })}
+        <label title="Elegir otro color de letra" style={{ width: 34, height: 34, borderRadius: 12, border: colorLetra && !COLORES_LETRA.some((c) => c.toLowerCase() === colorLetra.toLowerCase()) ? "3px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", cursor: "pointer", position: "relative", overflow: "hidden", background: "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)", display: "flex", boxSizing: "border-box" }}>
+          <input type="color" aria-label="Otro color de letra" value={colorLetra || "#FFFFFF"} onChange={(e) => setDraft({ ...draft, colorLetra: e.target.value })} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+        </label>
+      </div>
       <label style={{ ...etiquetaCampo, marginTop: 14 }}>Nombre de la diapositiva · no se proyecta</label>
       <input placeholder={`Ej. "Anuncio de ayuno" — así sale en el orden del culto y en la miniatura`} value={draft.name || ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={inputStyle} />
       <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 5 }}>Si lo dejas vacío, se usa el contenido como nombre.</div>
       <button onClick={onAdd} style={{ ...primaryBtn, marginTop: 14 }}>{submitLabel}</button>
+    </>
+  );
+  if (horizontal) {
+    return (
+    <ModalShell title={title} icon={audio ? Music : ImgIcon} color={audio ? "#1F8A73" : "#B15EA0"} onClose={onClose} ancho>
+        <div data-testid="ventana-horizontal" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 1fr)", gap: 22, alignItems: "start" }}>
+          <div style={{ position: "sticky", top: 0, alignSelf: "start", background: "var(--wf-card)", paddingBottom: 4 }}>
+            {seccionPrevia}
+            {seccionContenido}
+          </div>
+          <div>
+            {seccionAudio}
+            {seccionDisenos}
+            {seccionOpciones}
+          </div>
+        </div>
+      </ModalShell>
+    );
+  }
+  return (
+    <ModalShell title={title} icon={audio ? Music : ImgIcon} color={audio ? "#1F8A73" : "#B15EA0"} onClose={onClose}>
+      {seccionAudio}
+      {seccionDisenos}
+      {seccionPrevia}
+      {seccionContenido}
+      {seccionOpciones}
     </ModalShell>
   );
 }

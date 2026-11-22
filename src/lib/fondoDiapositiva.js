@@ -37,3 +37,10 @@ export function fondoParaRecordar(draft) {
 
 // Colores lisos sugeridos: oscuros, para que la letra clara se lea.
 export const COLORES_LISOS = ["#000000", "#0B0F17", "#16324F", "#1F2A2C", "#2A1F33", "#332420", "#5A1E1A"];
+
+// Color de letra propio de una diapositiva de texto (pedido de Eldin, 2026-11-22). Solo "#RRGGBB";
+// cualquier otra cosa (vacío, null, viejo) = el color de Estilo.
+export const colorLetraValido = (c) => (typeof c === "string" && HEX.test(c) ? c : null);
+
+// Colores de letra sugeridos: claros y cálidos para leerse sobre fondos oscuros, y dos oscuros.
+export const COLORES_LETRA = ["#FFFFFF", "#F5E6B8", "#F2C14E", "#E8821E", "#9ED8F0", "#B9E4C9", "#16324F", "#000000"];

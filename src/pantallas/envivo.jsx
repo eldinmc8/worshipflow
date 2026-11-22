@@ -16,7 +16,7 @@ import { letraEfectiva } from "../lib/letraEnVivo.js";
 import { pasosDeDiapositiva } from "../lib/animaciones.js";
 import { useArrastreLista } from "../lib/arrastreLista.js";
 import { anclaDeBloque, bloquesDelCulto, finDeBloque } from "../lib/ordenCulto.js";
-import { fondoParaRecordar } from "../lib/fondoDiapositiva.js";
+import { fondoParaRecordar, colorLetraValido } from "../lib/fondoDiapositiva.js";
 import { tituloBase } from "../lib/diapositivas.js";
 import { useArrastreGrid } from "../lib/arrastreGrid.js";
 import { esPaginaPresentacion } from "../lib/importarPresentacion.js";
@@ -396,7 +396,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     setEditDraft(
       s.type === "biblia" ? { reference: s.baseReference ?? s.reference, text: s.baseText ?? s.text }
       : s.type === "cancion" ? { text: (s.baseLines || s.lines).join("\n") }
-      : { title: s.title, subtitle: s.subtitle || "", name: s.nombre || "", escalaSubtitulo: s.escalaSubtitulo, fuente: s.fuente, bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "", ...(s.audio ? { audio: s.audio } : {}) }
+      : { title: s.title, subtitle: s.subtitle || "", name: s.nombre || "", escalaSubtitulo: s.escalaSubtitulo, fuente: s.fuente, colorLetra: s.colorLetra, bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "", ...(s.audio ? { audio: s.audio } : {}) }
     );
   };
   const saveSlideEdit = () => {
@@ -1014,13 +1014,13 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   // hoja del Setlist, para que alguien nuevo vea de una vez cómo meter algo al culto en vivo. ----
   // El texto rápido empieza con el fondo del último que se hizo en esta computadora (2026-11-14): si la
   // iglesia usa siempre un color liso o una imagen para los avisos, no hay que elegirlo cada vez.
-  const nuevaDiapositivaTexto = () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "", ...(loadCache("texto_rapido_fondo") || {}), ...(LIVE_FONTS[loadCache("texto_rapido_fuente")] ? { fuente: loadCache("texto_rapido_fuente") } : {}) }); setShowAddSlide(true); };
+  const nuevaDiapositivaTexto = () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "color", videoUrl: "", imageUrl: "", ...(loadCache("texto_rapido_fondo") || {}), ...(LIVE_FONTS[loadCache("texto_rapido_fuente")] ? { fuente: loadCache("texto_rapido_fuente") } : {}), ...(colorLetraValido(loadCache("texto_rapido_color")) ? { colorLetra: loadCache("texto_rapido_color") } : {}) }); setShowAddSlide(true); };
   // "Imagen": la misma ventana, ya en Imagen y con la biblioteca abierta.
   const nuevaDiapositivaImagen = () => { setNewSlideDraft({ title: "", subtitle: "", bg: "#1B2029", bgType: "imagen", videoUrl: "", imageUrl: "" }); setShowAddSlide("imagen"); };
   // Mini pantalla dentro de la ventana de la diapositiva: cómo se va a ver con el estilo de ahora.
   const vistaPreviaDiapositiva = (d) => {
     const soloFondo = (d.bgType === "imagen" && d.imageUrl) || (d.bgType === "video" && d.videoUrl);
-    return <ProjectionPanel slide={{ slideId: "vista-previa", type: "slide", title: d.title || (soloFondo ? "" : "Tu texto aquí"), subtitle: d.subtitle || "", escalaSubtitulo: d.escalaSubtitulo, fuente: d.fuente, bg: d.bg, bgType: d.bgType, videoUrl: d.videoUrl, imageUrl: d.imageUrl }} blanked={false} split={false} liveStyle={estiloCompleto} thumbnail />;
+    return <ProjectionPanel slide={{ slideId: "vista-previa", type: "slide", title: d.title || (soloFondo ? "" : "Tu texto aquí"), subtitle: d.subtitle || "", escalaSubtitulo: d.escalaSubtitulo, fuente: d.fuente, colorLetra: d.colorLetra, bg: d.bg, bgType: d.bgType, videoUrl: d.videoUrl, imageUrl: d.imageUrl }} blanked={false} split={false} liveStyle={estiloCompleto} thumbnail />;
   };
   const opcionesAgregarConsola = [
     { clave: "proyectar", Icon: Radio, color: "var(--wf-brand-accent)", titulo: "Proyectar desde biblioteca", detalle: "Busca una canción y sale en pantalla de una vez", accion: () => setShowAdHocSong("proyectar") },
@@ -1854,7 +1854,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               return;
             }
             if (!newSlideDraft.title && !(newSlideDraft.bgType === "video" && newSlideDraft.videoUrl) && !(newSlideDraft.bgType === "imagen" && newSlideDraft.imageUrl)) { showToast(newSlideDraft.bgType === "imagen" ? "Elige una imagen o escribe un texto." : "Escribe el texto que se va a proyectar.", "info"); return; }
-            if (showAddSlide !== "imagen") { saveCache("texto_rapido_fondo", fondoParaRecordar(newSlideDraft)); saveCache("texto_rapido_fuente", newSlideDraft.fuente || ""); }
+            if (showAddSlide !== "imagen") { saveCache("texto_rapido_fondo", fondoParaRecordar(newSlideDraft)); saveCache("texto_rapido_fuente", newSlideDraft.fuente || ""); saveCache("texto_rapido_color", colorLetraValido(newSlideDraft.colorLetra) || ""); }
             onAddLiveSlide(newSlideDraft, anclaParaAgregar()?.id); setShowAddSlide(false);
           }}
         />

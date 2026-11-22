@@ -388,7 +388,7 @@ export function ElegirParteDelCulto({ orden, valor, onCambiar, textoSinElegir })
   );
 }
 
-export function ModalShell({ title, icon: Icon, color, onClose, children, alto = false }) {
+export function ModalShell({ title, icon: Icon, color, onClose, children, alto = false, ancho = false }) {
   useCerrarConAtras(true, onClose); // atrás del teléfono cierra esta ventana (ver lib/atras.js)
   // Portal a document.body (no un <div> normal en el sitio donde se usa <ModalShell>) — "position:
   // fixed" por sí solo no basta: si algún ancestro tiene un transform activo (ej. SongView, que anima
@@ -399,7 +399,10 @@ export function ModalShell({ title, icon: Icon, color, onClose, children, alto =
   return createPortal(
     <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,14,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
       {/* alto: usa casi toda la pantalla y deja que una lista de adentro (flex: 1) llene el espacio. */}
-      <div style={alto
+      {/* ancho: ventana horizontal de computadora (dos columnas), p. ej. el texto rápido con su vista previa. */}
+      <div style={ancho
+        ? { background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 16, padding: 20, width: "min(1000px, calc(100vw - 32px))", maxHeight: "90vh", overflowY: "auto", boxSizing: "border-box" }
+        : alto
         ? { background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 16, padding: 18, width: "min(440px, calc(100vw - 20px))", height: "calc(100dvh - 24px)", maxHeight: "calc(100vh - 24px)", boxSizing: "border-box", display: "flex", flexDirection: "column", overflow: "hidden" }
         : { background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 16, padding: 20, width: 360, maxHeight: "80vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>

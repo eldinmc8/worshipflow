@@ -130,6 +130,22 @@ describe("Fondo e imágenes a la mano", () => {
     fireEvent.click(enLaCinta(/^Texto rápido/));
     expect(screen.getByRole("radio", { name: "Impacto" }).getAttribute("aria-checked")).toBe("true");
   });
+  it("el texto rápido puede llevar su propio color de letra, en una ventana horizontal con la vista previa a un lado", () => {
+    const onAgregar = vi.fn();
+    render(<Consola onAgregar={onAgregar} />);
+    modoCompleto();
+    fireEvent.click(screen.getByText("Insertar"));
+    fireEvent.click(enLaCinta(/^Texto rápido/));
+    expect(screen.getByTestId("ventana-horizontal")).toBeTruthy();
+    expect(screen.getByRole("radiogroup", { name: "Color de la letra" })).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Letra #F2C14E"));
+    fireEvent.change(screen.getByPlaceholderText(/Escribe el texto que se va a proyectar/), { target: { value: "Bienvenidos" } });
+    expect(screen.getByTestId("vista-previa-diapositiva").innerHTML.toLowerCase()).toContain("rgb(242, 193, 78)");
+    fireEvent.click(screen.getByText("Agregar al culto"));
+    expect(onAgregar.mock.calls[0][0]).toMatchObject({ title: "Bienvenidos", colorLetra: "#F2C14E" });
+    fireEvent.click(enLaCinta(/^Texto rápido/));
+    expect(screen.getByLabelText("Letra #F2C14E").getAttribute("aria-checked")).toBe("true");
+  });
   it("la diapositiva de texto que se ve al centro tiene 'Texto y fondo' a un clic", () => {
     render(<Consola />);
     fireEvent.click(screen.getByText("Texto y fondo"));

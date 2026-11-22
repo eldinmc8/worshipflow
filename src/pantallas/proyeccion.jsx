@@ -12,7 +12,7 @@ import RelojCuentaRegresiva from "../components/RelojCuentaRegresiva.jsx";
 import VideoProyectado from "../components/VideoProyectado.jsx";
 import AvisoCongregacion from "../components/AvisoCongregacion.jsx";
 import { esVideoSolo } from "../lib/videoEnlace.js";
-import { colorPropioDe } from "../lib/fondoDiapositiva.js";
+import { colorPropioDe, colorLetraValido } from "../lib/fondoDiapositiva.js";
 import { LIVE_FONTS, LIVE_THEMES, LIVE_SOMBRAS, LIVE_ALINEACIONES, LIVE_POSICIONES, TYPE_META } from "./compartido.jsx";
 
 // ---------- Estilo en vivo de la proyección: fondo y tipografía, ajustables por multimedia mientras transmite ----------
@@ -121,6 +121,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
   const bibliaRatio = 0.155 * scale;
   const slideRatio = 0.18 * scale;
   const textColor = liveStyle?.textColor || "#FFFFFF";
+  const colorBase = textColor; // una diapositiva de texto puede traer su propio color (slide.colorLetra)
   // Ajustes finos (ver LIVE_SOMBRAS y compañía) — sin valor, como siempre.
   const espaciadoLetras = liveStyle?.espaciado != null ? `${liveStyle.espaciado}em` : font.tracking;
   const sombraTexto = (LIVE_SOMBRAS[liveStyle?.sombra] || LIVE_SOMBRAS.ninguna).css;
@@ -350,7 +351,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
               </div>
             </>
           )}
-          {slide.type === "slide" && (() => { const font = (slide.fuente && LIVE_FONTS[slide.fuente]) || fuenteBase; return (
+          {slide.type === "slide" && (() => { const font = (slide.fuente && LIVE_FONTS[slide.fuente]) || fuenteBase; const textColor = colorLetraValido(slide.colorLetra) || colorBase; return (
             <div style={{ textAlign: "center", zIndex: 1, width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               <AutoFitText
                 // Un renglón vacío se proyecta como espacio (pedido de Eldin, 2026-10-11): una línea "" medía

@@ -221,6 +221,24 @@ describe("diapositiva de audio", () => {
   });
 });
 
+describe("color de letra propio de un texto rápido", () => {
+  it("se guarda en estructura.colorLetra, vuelve al cargar y sin él la estructura queda vacía (nunca null)", async () => {
+    const eventoId = "evento-color";
+    fake.db.eventos = [{ id: eventoId, titulo: "Domingo" }];
+    fake.db.items_servicio = [];
+    fake.db.miembros_rol = [];
+    const item = { id: "t2", type: "slide", title: "Aviso", subtitle: "", bg: "#1B2029", bgType: "color", colorLetra: "#F2C14E", encargados: [] };
+    await eventos.sincronizarServiceOrder(eventoId, [item]);
+    const fila = () => fake.db.items_servicio.find((i) => i.id === "t2");
+    expect(fila().estructura).toEqual({ colorLetra: "#F2C14E" });
+    const cargar = () => eventos.eventoCompletoAFormatoEditor({ evento: fake.db.eventos[0], items: fake.db.items_servicio, encargados: [], roles: [], roleMembers: [], recordatorios: [], vistas: [] });
+    expect(cargar().serviceOrder[0].colorLetra).toBe("#F2C14E");
+    await eventos.sincronizarServiceOrder(eventoId, [{ ...item, colorLetra: undefined }]);
+    expect(fila().estructura).toEqual([]);
+    expect(cargar().serviceOrder[0].colorLetra).toBeUndefined();
+  });
+});
+
 describe("animación de una canción solo en este evento", () => {
   it("viaja en items_servicio.animacion y vuelve al cargar; sin la columna se guarda sin ella", async () => {
     const eventoId = "evento-anim";
