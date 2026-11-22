@@ -156,11 +156,13 @@ function itemServicioAFila(item, eventoId, orden) {
   if (item.bosquejoDe) base.estructura = marcaBosquejo(item);
   if (item.type === "biblia") return { ...base, tipo: "biblia", referencia: item.reference, version_biblia: item.version, texto_biblia: item.text, libro_id: item.bookId ?? null, libro_nombre: item.bookName ?? null, capitulo: item.chapter ?? null, versiculo_inicio: item.verseStart ?? null, versiculo_fin: item.verseEnd ?? null };
   // escalaSubtitulo (tamaño del texto pequeño de una diapositiva de texto) y fuente (su letra propia,
-  // 2026-11-22) viajan en estructura, que las diapositivas de texto no usaban.
+  // 2026-11-22) viajan en estructura, que las diapositivas de texto no usaban. Sin ninguna de las dos va
+  // [] (vacío), NUNCA null: la columna es NOT NULL y un null hacía fallar el guardado del Setlist
+  // COMPLETO de cualquier culto con una diapositiva de texto ("No se guardó", 2026-11-22).
   const marca = item.bosquejoDe ? marcaBosquejo(item) : {};
   // Cuenta regresiva (2026-11-05): su configuración también viaja en estructura.
   if (item.cuentaRegresiva) return { ...base, estructura: { cuentaRegresiva: item.cuentaRegresiva }, tipo: "slide", titulo: item.title || "Cuenta regresiva", descripcion: item.name || "", subtitulo: "", fondo_color: item.bg || "#0B0F17", fondo_video_url: null, fondo_imagen_url: null };
-  return { ...base, ...(item.diapositivas?.length ? { estructura: { diapositivas: item.diapositivas, ...marca } } : item.escalaSubtitulo || item.fuente ? { estructura: { ...(item.escalaSubtitulo ? { escalaSubtitulo: item.escalaSubtitulo } : {}), ...(item.fuente ? { fuente: item.fuente } : {}), ...marca } } : item.bosquejoDe ? {} : { estructura: null }), tipo: "slide", titulo: item.title || "", descripcion: item.name || "", subtitulo: item.subtitle || "", fondo_color: item.bg || "#1B2029", fondo_video_url: item.videoUrl || null, fondo_imagen_url: item.imageUrl || null };
+  return { ...base, ...(item.diapositivas?.length ? { estructura: { diapositivas: item.diapositivas, ...marca } } : item.escalaSubtitulo || item.fuente ? { estructura: { ...(item.escalaSubtitulo ? { escalaSubtitulo: item.escalaSubtitulo } : {}), ...(item.fuente ? { fuente: item.fuente } : {}), ...marca } } : item.bosquejoDe ? {} : { estructura: [] }), tipo: "slide", titulo: item.title || "", descripcion: item.name || "", subtitulo: item.subtitle || "", fondo_color: item.bg || "#1B2029", fondo_video_url: item.videoUrl || null, fondo_imagen_url: item.imageUrl || null };
 }
 
 // "Encargados" de un ítem del Setlist (bloque, canción, versículo o slide) — reemplaza el antiguo roster
