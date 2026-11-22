@@ -10,6 +10,7 @@ import AutoFitText from "../components/AutoFitText.jsx";
 import { efectoPantallaDe } from "../lib/animacionCancion.js";
 import RelojCuentaRegresiva from "../components/RelojCuentaRegresiva.jsx";
 import VideoProyectado from "../components/VideoProyectado.jsx";
+import AvisoCongregacion from "../components/AvisoCongregacion.jsx";
 import { esVideoSolo } from "../lib/videoEnlace.js";
 import { colorPropioDe } from "../lib/fondoDiapositiva.js";
 import { LIVE_FONTS, LIVE_THEMES, LIVE_SOMBRAS, LIVE_ALINEACIONES, LIVE_POSICIONES, TYPE_META } from "./compartido.jsx";
@@ -39,7 +40,7 @@ export function colorLegibleAnimada(color) {
 // onEstadoVideo: solo la pantalla de proyección real — reporta a la consola cómo va el video (ver VideoProyectado).
 // transicion: si lo nuevo entra con la transición elegida (ver lib/transiciones.js). Por defecto solo en
 // la pantalla real; la consola la enciende también en su vista "Al aire" (no en las miniaturas).
-export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloCompleto, compactHeight, thumbnail, onEstadoVideo = null, transicion = !thumbnail }) {
+export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloCompleto, compactHeight, thumbnail, onEstadoVideo = null, transicion = !thumbnail, aviso = !thumbnail }) {
   // Versículos con su propio estilo (sin letra animada); el resto con el de las canciones. Ver lib/estiloBiblia.js.
   const liveStyle = estiloParaDiapositiva(estiloCompleto, slide);
   const font = LIVE_FONTS[liveStyle?.font || "elegante"];
@@ -188,11 +189,15 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
   // esconde: aquí la imagen ES el contenido, no un fondo.
   // Cuenta regresiva (2026-11-05) con el fondo de su propio estilo. Con el fondo de Estilo se dibuja más
   // abajo, sobre el fondo de siempre (tema, imagen o video).
+  // Mensaje para la congregación (2026-11-22): franja encima de lo que esté al aire. En la proyección
+  // real siempre; en miniaturas solo donde se pide (la vista "Al aire" de la consola).
+  const capaAviso = aviso ? <AvisoCongregacion aviso={estiloCompleto?.avisoCongregacion} miniatura={!!thumbnail} /> : null;
   if (slide?.cuenta && slide.cuenta.fondo !== "estilo") {
     return (
       <div style={{ ...estiloRaiz, background: "#000", padding: 0 }}>
         {blanked ? <div style={{ color: "#2A3140" }}><Mic2 size={thumbnail ? 20 : 40} /></div> : <RelojCuentaRegresiva cuenta={slide.cuenta} quieto={!!thumbnail} />}
-      </div>
+        {capaAviso}
+    </div>
     );
   }
   // Diapositiva con diseño propio (editor de diapositivas / presentación agrupada): se dibuja tal cual.
@@ -200,7 +205,8 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
     return (
       <div style={{ ...estiloRaiz, background: "#000", padding: 0 }}>
         <DiapositivaDisenada diapositiva={slide.diseno} blanked={blanked} animar={!thumbnail} paso={slide.paso ?? 0} />
-      </div>
+        {capaAviso}
+    </div>
     );
   }
   if (esPaginaPresentacion(slide)) {
@@ -208,7 +214,8 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
       <div style={{ ...estiloRaiz, background: "#000", padding: 0 }}>
         {blanked ? <div style={{ color: "#2A3140" }}><Mic2 size={thumbnail ? 20 : 40} /></div>
           : <img key={claveTrans} className={animTrans ? "wf-trans" : undefined} src={slide.imageUrl} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", animation: animTrans || undefined }} />}
-      </div>
+        {capaAviso}
+    </div>
     );
   }
   return (
@@ -367,6 +374,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
           ); })()}
         </CapaTransicion>
       )}
+      {capaAviso}
     </div>
   );
 }

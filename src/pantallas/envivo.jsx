@@ -3,7 +3,7 @@ import ConPlan from "../components/ConPlan.jsx";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
 import { Pause, Square, Volume2, VolumeX, Speaker } from "lucide-react";
-import { Music, Search, Image as ImgIcon, ChevronLeft, ChevronRight, MonitorOff, Radio, BookOpen, Type, PenTool, FileUp, Plus, Pencil, MoreHorizontal, Trash2, GraduationCap, Pin, MessageSquare, AlertTriangle, PinOff, ListMusic, Palette, Play, SkipBack, SkipForward, X, Sparkles, Tv, EyeOff, Eye, ArrowRightLeft, CopyPlus, Ungroup, Timer, RotateCcw } from "lucide-react";
+import { Music, Search, Image as ImgIcon, ChevronLeft, ChevronRight, MonitorOff, Radio, BookOpen, Type, PenTool, FileUp, Plus, Pencil, MoreHorizontal, Trash2, GraduationCap, Pin, MessageSquare, AlertTriangle, PinOff, ListMusic, Palette, Play, SkipBack, SkipForward, X, Sparkles, Tv, EyeOff, Eye, ArrowRightLeft, CopyPlus, Ungroup, Timer, RotateCcw, Megaphone } from "lucide-react";
 import { acordeEn } from "../lib/preferencias.js";
 import { loadCache, saveCache } from "../lib/offlineCache.js";
 import { escucharProyeccion } from "../lib/liveSession.js";
@@ -26,6 +26,8 @@ import SelectorAnimacion, { SelectorFondoMovimiento } from "../components/Select
 import CintaAdaptable from "../components/CintaAdaptable.jsx";
 import PantallaOtroEquipo from "../components/PantallaOtroEquipo.jsx";
 import PanelEscenario from "../components/PanelEscenario.jsx";
+import PanelAvisoCongregacion from "../components/PanelAvisoCongregacion.jsx";
+import { avisoValido, segundosRestantesAviso, conAviso } from "../lib/avisoCongregacion.js";
 import ImportarPresentacion from "../components/ImportarPresentacion.jsx";
 import CuentaRegresivaModal from "../components/CuentaRegresivaModal.jsx";
 import { cuentaPorMinutos } from "../lib/cuentaRegresiva.js";
@@ -282,6 +284,21 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   // (conectar una Smart TV con número, o abrir en otro equipo con QR) en vez de un aviso sin salida.
   const abrirProyeccion = () => (!isCompact && typeof window !== "undefined" && "getScreenDetails" in window ? onOpenPublicScreen() : setShowOtroEquipo(true));
   const [showEscenario, setShowEscenario] = useState(false); // Pantalla de escenario: mensaje + enlace (ver PanelEscenario)
+  // Mensaje para la congregación (2026-11-22, ver lib/avisoCongregacion.js): franja en el proyector que se
+  // quita sola. Viaja en el estilo en vivo; aquí se cuenta el tiempo y se borra al terminar.
+  const [showAviso, setShowAviso] = useState(false);
+  const avisoCong = avisoValido(estiloCompleto?.avisoCongregacion) ? estiloCompleto.avisoCongregacion : null;
+  const [, setTicAviso] = useState(0);
+  const quitarAviso = (id = null) => setEstiloCompleto((st) => (st?.avisoCongregacion && (!id || st.avisoCongregacion.id === id) ? conAviso(st, null) : st));
+  useEffect(() => {
+    if (!avisoCong) return undefined;
+    const t = setInterval(() => {
+      if (segundosRestantesAviso(avisoCong) <= 0) quitarAviso(avisoCong.id);
+      else setTicAviso((n) => n + 1);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [avisoCong?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const segAviso = avisoCong ? segundosRestantesAviso(avisoCong) : 0;
   // Al poner un fondo propio con letras animadas, se avisa una vez que la letra irá sobre ese fondo (oscurecido para que se lea).
   const avisarFondoPropioAnimada = () => {
     if (animacionActiva(liveStyle) && liveStyle.animFondo !== "propio") showToast("La letra animada ahora va sobre tu fondo, un poco oscurecido para que se lea. Para volver al fondo del estilo: Letras animadas → Fondo animado del estilo.", "info");
@@ -1103,6 +1120,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     <>
       {enPractica && franja("#1F8A73", "#fff", <GraduationCap size={17} />, <>MODO PRÁCTICA · nada de esto sale en la pantalla de la iglesia. Toca, avanza y equivócate tranquilo.</>, botonFranja("Salir de la práctica", onEnd))}
       {fijada && franja("#7B3FA0", "#fff", <Pin size={17} />, <>Pantalla FIJADA en "{fijada.type === "cancion" ? `${fijada.songTitle} · ${fijada.blockLabel}` : fijada.type === "biblia" ? fijada.reference : fijada.nombre || fijada.title || "Diapositiva"}" · puedes tocar y moverte, nada sale en la pantalla</>, botonFranja("Soltar y proyectar lo que veo", onSoltar))}
+      {avisoCong && segAviso > 0 && franja("#16324F", "#fff", <Megaphone size={17} />, <>En el PROYECTOR: «{avisoCong.texto}» · se quita en {segAviso} s</>, botonFranja("Quitar ya", () => quitarAviso()))}
       {mensajeEscenario && onMensajeEscenario && franja("#E8821E", "#16233A", <MessageSquare size={17} />, <>En el ESCENARIO: «{mensajeEscenario}» · el público no lo ve</>, botonFranja("Quitar", () => onMensajeEscenario("")))}
       {blanked && franja("#C23B32", "#fff", <MonitorOff size={17} />, <>La pantalla está en NEGRO · la iglesia no ve nada</>, botonFranja("Volver a mostrar", () => setBlanked(false)))}
       {mostrarAvisoProyeccion && franja("#F6C344", "#16324F", <AlertTriangle size={17} />, <>La pantalla de proyección no está abierta · lo que pases aquí no se ve en el proyector</>, <>
@@ -1168,6 +1186,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       {/* Barra de herramientas: pantalla 2, negro */}
       <div style={{ display: "flex", gap: 8, padding: "8px 16px 10px", flexWrap: "wrap" }}>
         <button data-tour="envivo-proyeccion" onClick={abrirProyeccion} style={{ ...ctrlBtn, background: "var(--wf-brand-primary)", color: "var(--wf-on-brand-primary)" }}><Tv size={14} /> Pantallas y TV</button>
+        {!enPractica && <button onClick={() => setShowAviso(true)} title="Mensaje para la congregación: una franja en el proyector que se quita sola" style={{ ...ctrlBtn, ...(avisoCong ? { background: "#E8821E", color: "#16233A", border: "none" } : {}) }}><Megaphone size={14} /> Mensaje</button>}
         {onMensajeEscenario && <button onClick={() => setShowEscenario(true)} style={{ ...ctrlBtn, ...(mensajeEscenario || temporizadorActivo(temporizador) ? { background: "#E8821E", color: "#16233A", border: "none" } : {}) }}><MessageSquare size={14} /> Escenario</button>}
         <button data-tour="envivo-negro" onClick={() => setBlanked((b) => !b)} style={{ ...ctrlBtn, background: blanked ? "#C23B32" : "var(--wf-hover)", color: blanked ? "#fff" : "var(--wf-text)" }}><MonitorOff size={14} /> {blanked ? "Reanudar" : "Pantalla en negro"}</button>
         <div style={{ flex: 1 }} />
@@ -1364,6 +1383,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         {/* Pantallas, a la mano y siempre en el mismo lugar (antes en la cinta de Transmisión). */}
         <button data-tour="envivo-proyeccion" onClick={abrirProyeccion} className="hoverable" title="Abrir o reabrir la pantalla de proyección" style={{ display: "flex", alignItems: "center", gap: 6, height: 32, fontSize: 12, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 16, padding: "0 12px", cursor: "pointer", marginRight: 6, flexShrink: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}><Radio size={14} /> Proyección</button>
         <button onClick={() => setShowOtroEquipo(true)} className="hoverable" title="Conectar un Smart TV con número, o abrir en celular/tablet con QR" style={{ display: "flex", alignItems: "center", gap: 6, height: 32, fontSize: 12, fontWeight: 700, color: "var(--wf-text)", background: "var(--wf-hover)", border: "none", borderRadius: 16, padding: "0 12px", cursor: "pointer", marginRight: 6, flexShrink: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}><Tv size={14} /> Pantallas y TV</button>
+        {!enPractica && <button onClick={() => setShowAviso(true)} className="hoverable" title="Mensaje para la congregación: una franja en el proyector que se quita sola" style={{ display: "flex", alignItems: "center", gap: 6, height: 32, fontSize: 12, fontWeight: 700, color: "var(--wf-text)", background: avisoCong ? "#E8821E" : "var(--wf-hover)", border: "none", borderRadius: 16, padding: "0 12px", cursor: "pointer", marginRight: 6, flexShrink: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}><Megaphone size={14} /> Mensaje</button>}
         {onMensajeEscenario && <button onClick={() => setShowEscenario(true)} className="hoverable" title="Pantalla de escenario: mensajes, temporizador del mensaje y enlace del monitor" style={{ display: "flex", alignItems: "center", gap: 6, height: 32, fontSize: 12, fontWeight: 700, color: "var(--wf-text)", background: mensajeEscenario || temporizadorActivo(temporizador) ? "#E8821E" : "var(--wf-hover)", border: "none", borderRadius: 16, padding: "0 12px", cursor: "pointer", marginRight: 6, flexShrink: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}><MessageSquare size={14} /> Escenario</button>}
         <div style={{ width: 1, height: 22, background: "var(--wf-divider)", margin: "0 8px 0 2px", flexShrink: 0 }} />
         {onAyuda && (
@@ -1428,6 +1448,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         </ModalShell>
       )}
       {showOtroEquipo && <PantallaOtroEquipo iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipo(false)} />}
+      {showAviso && <PanelAvisoCongregacion avisoActual={avisoCong} segundosRestantes={segAviso} onEnviar={(a) => setEstiloCompleto((st) => conAviso(st, a))} onQuitar={() => quitarAviso()} onCerrar={() => setShowAviso(false)} />}
       {showEscenario && onMensajeEscenario && <PanelEscenario mensaje={mensajeEscenario} onMensaje={onMensajeEscenario} iglesiaId={myIglesiaId} slug={iglesiaSlug} onCerrar={() => setShowEscenario(false)}
         temporizador={temporizador} onTemporizador={onTemporizador} autoTemporizador={autoTemporizador} onAutoTemporizador={onAutoTemporizador} />}
 
@@ -1595,7 +1616,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             {alAire && <span style={{ fontSize: 11, color: "var(--wf-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{blanked ? "Pantalla en negro" : alAire.type === "cancion" ? `${alAire.songTitle} · ${alAire.blockLabel}` : alAire.type === "biblia" ? alAire.reference : alAire.nombre || alAire.title}</span>}
           </div>
           <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 12px rgba(22,50,79,0.18)", border: "2px solid #C23B32", flexShrink: 0 }}>
-            <ProjectionPanel slide={alAire} blanked={blanked} split={false} liveStyle={estiloCompleto} thumbnail transicion />
+            <ProjectionPanel slide={alAire} blanked={blanked} split={false} liveStyle={estiloCompleto} thumbnail transicion aviso />
           </div>
           {muestraEstilo()}
           {botonReiniciarCuenta}

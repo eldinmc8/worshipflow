@@ -517,3 +517,6 @@ img, svg {
 /* Barra de mando de la consola En vivo: en pantallas angostas (tablet, sin teclado) los atajos del
    teclado no se muestran, para que Anterior/Siguiente/Negro/Fijar quepan en una sola fila. */
 @media (max-width: 1240px) { .wf-mando-teclas { display: none; } }
+
+/* Mensaje para la congregación (components/AvisoCongregacion.jsx): entra desde abajo. */
+@keyframes wfAvisoEntra { from { opacity: 0; transform: translateY(40%); } to { opacity: 1; transform: translateY(0); } }
