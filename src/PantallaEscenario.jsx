@@ -25,6 +25,9 @@ const TAMANOS = [0.7, 0.8, 0.9, 1, 1.1, 1.25];
 const CLAVE_TAMANO = "worshipflow_escenario_tamano";
 const CLAVE_VISTA = "worshipflow_escenario_vista";
 const TEAL = "#1F8A73";
+// Cada mensaje nuevo de Multimedia ocupa TODA la pantalla estos segundos (pedido de Eldin, 2026-11-22:
+// "enviamos un mensaje y ni lo vio"). Después queda como franja arriba hasta que Multimedia lo quite.
+const ALERTA_SEG = 12;
 
 function leerVistaGuardada() {
   try { return localStorage.getItem(CLAVE_VISTA); } catch { return null; }
@@ -81,6 +84,8 @@ export default function PantallaEscenario() {
   // Diseño de esta pantalla (2026-11-22): cada monitor elige el suyo. El enlace (?vista=) manda sobre lo guardado.
   const [vista, setVista] = useState(() => vistaInicial(typeof window !== "undefined" ? window.location.search : "", leerVistaGuardada()));
   const [menuVista, setMenuVista] = useState(false);
+  const [alerta, setAlerta] = useState(null); // { texto, hasta } mientras el mensaje ocupa toda la pantalla
+  const ultimoMensajeRef = useRef("");
   const idleRef = useRef(null);
 
   // Iglesia y código secreto vienen del enlace (/e/<iglesia>/<código>); el código vence al finalizar cada
@@ -121,6 +126,13 @@ export default function PantallaEscenario() {
 
   const slide = fila?.slide_actual || null;
   const esc = slide?.escenario || null;
+  const mensajeActual = esc?.mensaje || "";
+  useEffect(() => {
+    if (mensajeActual && mensajeActual !== ultimoMensajeRef.current) setAlerta({ texto: mensajeActual, hasta: Date.now() + ALERTA_SEG * 1000 });
+    if (!mensajeActual) setAlerta(null);
+    ultimoMensajeRef.current = mensajeActual;
+  }, [mensajeActual]);
+  const alertaVisible = alerta && alerta.texto === mensajeActual && ahora < alerta.hasta ? alerta : null;
   const enVivo = !!(fila?.evento_id || fila?.libre);
   const reloj = new Date(ahora).toLocaleTimeString("es", { hour: "numeric", minute: "2-digit" });
   const transcurrido = esc?.inicio ? tiempoTranscurrido(esc.inicio, ahora) : "";
@@ -411,8 +423,21 @@ export default function PantallaEscenario() {
           <button type="button" onClick={() => { salirDePantallaCompleta(); window.location.href = window.location.origin + "/"; }} style={botonControl} aria-label="Salir de la pantalla de escenario" title="Salir"><X size={18} /></button>
         </div>
       )}
+      {/* Mensaje nuevo de Multimedia: a pantalla completa, imposible de no ver. Tocar lo achica. */}
+      {alertaVisible && (
+        <div role="alert" onClick={() => setAlerta(null)} style={{ position: "fixed", inset: 0, zIndex: 30, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "3vh", padding: "5vh 5vw", boxSizing: "border-box", textAlign: "center", color: "#16233A", background: NARANJA, animation: "wfEscenarioAlerta 1.2s ease-in-out infinite", cursor: "pointer" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "1vw", fontSize: "clamp(16px, 3.4vh, 40px)", fontWeight: 800, letterSpacing: 2, textTransform: "uppercase" }}>
+            <MessageSquare size={36} style={{ flexShrink: 0 }} />Mensaje de Multimedia
+          </div>
+          <div style={{ fontSize: `calc(min(18vh, ${Math.max(6, Math.min(14, 150 / Math.max(1, alertaVisible.texto.length)))}vw) * ${tamano})`, fontWeight: 900, lineHeight: 1.05, maxWidth: "100%", overflowWrap: "anywhere" }}>{alertaVisible.texto}</div>
+          <div style={{ width: "min(60vw, 700px)", height: 8, borderRadius: 4, background: "rgba(22,35,58,0.2)", overflow: "hidden" }}>
+            <div style={{ height: "100%", background: "#16233A", width: `${Math.max(0, Math.min(100, ((alertaVisible.hasta - ahora) / (ALERTA_SEG * 1000)) * 100))}%`, transition: "width 1s linear" }} />
+          </div>
+          <div style={{ fontSize: "clamp(12px, 2vh, 22px)", fontWeight: 600, opacity: 0.75 }}>Toca la pantalla para achicarlo · queda arriba hasta que Multimedia lo quite</div>
+        </div>
+      )}
       <AvisoIphone />
-      <style>{"@keyframes wfEscenarioPulso { 0%, 100% { opacity: 1 } 50% { opacity: .82 } }"}</style>
+      <style>{"@keyframes wfEscenarioPulso { 0%, 100% { opacity: 1 } 50% { opacity: .82 } } @keyframes wfEscenarioAlerta { 0%, 100% { background: #E8821E } 50% { background: #FFB347 } }"}</style>
     </div>
   );
 }
