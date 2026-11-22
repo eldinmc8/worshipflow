@@ -138,3 +138,30 @@ describe("temporizador del mensaje", () => {
     expect(textoTemporizador(3725)).toBe("1:02:05");
   });
 });
+
+describe("diseños de la pantalla de escenario", () => {
+  it("el enlace manda sobre lo guardado y por defecto es Actual y siguiente", async () => {
+    const { vistaInicial, VISTAS_ESCENARIO } = await import("../escenario.js");
+    expect(VISTAS_ESCENARIO.map((v) => v.id)).toEqual(["actual", "banda", "predicador", "reloj"]);
+    expect(vistaInicial("", null)).toBe("actual");
+    expect(vistaInicial("", "reloj")).toBe("reloj");
+    expect(vistaInicial("?vista=banda", "reloj")).toBe("banda");
+    expect(vistaInicial("?vista=otra", "nada")).toBe("actual");
+  });
+
+  it("manda la parte al aire y la que sigue con acordes, en el tono del culto, sin renglones vacíos", () => {
+    const conAcordes = [{ ...library[0], blocks: {
+      "Verso 1": { label: "Verso 1", lines: ["[E]Aquí estás", "", "[A]obrando"] },
+      Coro: { label: "Coro", lines: ["[B]Milagroso"] },
+    } }, library[1]];
+    const e = armarEscenario({ slides, indice: 1, serviceOrder, library: conAcordes });
+    // La canción está en E y el culto la pone en G (+3 semitonos).
+    expect(e.acordes.ahora).toMatchObject({ etiqueta: "Verso 1", lineas: ["[G]Aquí estás", "[C]obrando"] });
+    expect(e.acordes.sigue).toMatchObject({ etiqueta: "Coro", lineas: ["[D]Milagroso"] });
+  });
+
+  it("sin canción al aire no hay acordes", () => {
+    const e = armarEscenario({ slides, indice: 5, serviceOrder, library });
+    expect(e.acordes).toBeNull();
+  });
+});
