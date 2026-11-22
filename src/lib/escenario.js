@@ -7,6 +7,37 @@
 // pantalla de escenario, que no tiene sesión iniciada, no necesita leer el Setlist: todo le llega listo.
 
 import { esBloquePredicacion } from "./predicacion.js";
+import { semitoneShift, transposeLine } from "./musicTheory.js";
+
+// ---------- Diseños de la pantalla de escenario (2026-11-22) ----------
+// Cada monitor elige qué mostrar (idea sacada de RW Presenter). Se guarda en ese equipo y también se
+// puede dejar fijo en el enlace con ?vista=<id> (útil para un TV que siempre debe abrir igual).
+export const VISTAS_ESCENARIO = [
+  { id: "actual", nombre: "Actual y siguiente", detalle: "La letra al aire, lo que sigue y lo que viene" },
+  { id: "banda", nombre: "Banda con acordes", detalle: "La parte completa con acordes, en el tono del culto" },
+  { id: "predicador", nombre: "Predicador con notas y tiempo", detalle: "Temporizador, punto del bosquejo y tu nota" },
+  { id: "reloj", nombre: "Solo reloj", detalle: "La hora en grande y los mensajes de Multimedia" },
+];
+export const VISTA_POR_DEFECTO = "actual";
+
+export function vistaValida(id) {
+  return VISTAS_ESCENARIO.some((v) => v.id === id) ? id : null;
+}
+
+// El enlace manda sobre lo guardado en el equipo; si ninguno sirve, "Actual y siguiente".
+export function vistaInicial(search, guardada) {
+  const deUrl = new URLSearchParams(search || "").get("vista");
+  return vistaValida(deUrl) || vistaValida(guardada) || VISTA_POR_DEFECTO;
+}
+
+// Renglones de una parte para los músicos: con sus acordes [G] ya pasados al tono del culto y sin
+// renglones vacíos (esos solo cortan diapositivas). La letra no se toca.
+export function acordesDeParte(cancion, clave, semitonos = 0) {
+  const b = cancion?.blocks?.[clave];
+  if (!b) return null;
+  const lineas = (b.lines || []).filter((l) => l && l.trim()).map((l) => transposeLine(l, semitonos));
+  return { etiqueta: b.label || clave, lineas, compases: b.bars || null };
+}
 
 // ¿Esta diapositiva es de este elemento del Setlist? Mismo criterio que la consola (perteneceA):
 // canción "<id>-<parte>-<n>", versículo partido "<id>~<k>", diapositiva de un grupo "<id>~<id>".
@@ -48,10 +79,10 @@ function partesDeCancion(slides, indice, itemId) {
     const resto = String(s.slideId).slice(itemId.length + 1);
     const posicion = /^(\d+)-/.exec(resto)?.[1] ?? s.blockKey;
     const ultima = partes[partes.length - 1];
-    if (!ultima || ultima.posicion !== posicion) partes.push({ posicion, nombre: s.sectionLabel || s.blockKey || "", corto: abreviarParte(s.sectionLabel || s.blockKey) });
+    if (!ultima || ultima.posicion !== posicion) partes.push({ posicion, clave: s.blockKey, nombre: s.sectionLabel || s.blockKey || "", corto: abreviarParte(s.sectionLabel || s.blockKey) });
     if (k === indice || s === actual) parteActual = partes.length - 1;
   });
-  return { partes: partes.map(({ nombre, corto }) => ({ nombre, corto })), parteActual };
+  return { partes: partes.map(({ nombre, corto }) => ({ nombre, corto })), claves: partes.map((p) => p.clave), parteActual };
 }
 
 function tituloDeItem(it, library) {
@@ -75,9 +106,20 @@ export function armarEscenario({ slides = [], indice = -1, alAire = null, servic
   const item = actual ? serviceOrder.find((it) => it.type !== "seccion" && perteneceA(actual, it.id)) || null : null;
   const siguienteDiapositiva = indice >= 0 ? slides[indice + 1] || null : null;
 
-  let partes = [], parteActual = -1;
-  if (item?.type === "cancion" && indice >= 0) ({ partes, parteActual } = partesDeCancion(slides, indice, item.id));
+  let partes = [], claves = [], parteActual = -1;
+  if (item?.type === "cancion" && indice >= 0) ({ partes, claves, parteActual } = partesDeCancion(slides, indice, item.id));
   const siguienteParte = parteActual >= 0 && parteActual + 1 < partes.length ? partes[parteActual + 1].nombre : "";
+
+  // Para el diseño "Banda con acordes": la parte al aire completa y la que sigue, con acordes.
+  let acordes = null;
+  if (item?.type === "cancion" && actual?.type === "cancion") {
+    const cancion = library.find((s) => s.id === item.songId);
+    const semitonos = item.keyOverride && cancion?.key ? semitoneShift(cancion.key, item.keyOverride) : 0;
+    const ahora = acordesDeParte(cancion, actual.blockKey, semitonos);
+    const claveSig = parteActual >= 0 ? claves[parteActual + 1] : null;
+    const sigue = claveSig ? acordesDeParte(cancion, claveSig, semitonos) : null;
+    if (ahora || sigue) acordes = { ahora, sigue };
+  }
 
   // Lo que viene en el orden del culto después del elemento al aire.
   const desde = item ? serviceOrder.findIndex((it) => it.id === item.id) + 1 : 0;
@@ -90,7 +132,7 @@ export function armarEscenario({ slides = [], indice = -1, alAire = null, servic
     // Si la siguiente diapositiva ya es de OTRO elemento, se avisa (cambio de canción/lectura).
     siguienteEsOtro: !!(siguienteDiapositiva && item && !perteneceA(siguienteDiapositiva, item.id)),
     cancion: item?.type === "cancion" ? { titulo: tituloDeItem(item, library), tono: tonoDeItem(item, library) } : null,
-    partes, parteActual, siguienteParte,
+    partes, parteActual, siguienteParte, acordes,
     siguienteCancion: sigCancion ? { titulo: tituloDeItem(sigCancion, library), tono: tonoDeItem(sigCancion, library) } : null,
     proximos,
     mensaje: (mensaje || "").trim(),
