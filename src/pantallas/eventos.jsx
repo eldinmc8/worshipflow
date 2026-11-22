@@ -589,38 +589,45 @@ export function EventDetail({
     onAddReminder(Math.max(1, Number(reminderDraft.cantidad) || 1), reminderDraft.unidad);
     setReminderDraft({ cantidad: 1, unidad: "dias" });
   };
-  // Nombre (y en un evento: fecha, hora, lugar) se editan AQUÍ MISMO, debajo de PLANTILLA / la fecha
-  // (pedido de Eldin, 2026-11-21). Antes vivían en una pantalla aparte "Ajustes del evento" que guardaba
-  // letra por letra sin decir nada; ahora es un borrador que se guarda con el botón "Guardar", que espera
-  // la respuesta real de la base y dice "Guardado ✓" o "No se guardó". La tuerca se volvió el botón
-  // "Configurar alertas" (lo único que quedaba en esa pantalla eran los recordatorios).
-  const [borrador, setBorrador] = useState(null); // null = sin cambios sin guardar
+  // Encabezado del evento (pedido de Eldin, 2026-11-22): el nombre, la fecha, la hora y el lugar se ven
+  // LIMPIOS, solo para leer, y quien administra tiene un botón "Editar" que abre los campos ahí mismo
+  // con "Guardar" y "Cancelar". Antes el formulario salía abierto en cada culto con un botón "Guardar"
+  // grande debajo. El aviso rojo solo sale si de verdad algo no se guardó (con "Reintentar").
+  const [editando, setEditando] = useState(false);
+  const [borrador, setBorrador] = useState(null);
   const [estadoGuardar, setEstadoGuardar] = useState("listo"); // listo | guardando | guardado | error
-  useEffect(() => { setBorrador(null); setEstadoGuardar("listo"); }, [event.id]);
+  useEffect(() => { setEditando(false); setBorrador(null); setEstadoGuardar("listo"); }, [event.id]);
   useEffect(() => {
     if (estadoGuardar !== "guardado") return undefined;
-    const t = setTimeout(() => setEstadoGuardar("listo"), 4000);
+    const t = setTimeout(() => setEstadoGuardar("listo"), 3000);
     return () => clearTimeout(t);
   }, [estadoGuardar]);
-  const datos = borrador || { title: event.title || "", date: event.date || "", hora: event.hora || "", location: event.location || "" };
-  const cambiar = (patch) => { setBorrador({ ...datos, ...patch }); if (estadoGuardar !== "guardando") setEstadoGuardar("listo"); };
+  const datosEvento = { title: event.title || "", date: event.date || "", hora: event.hora || "", location: event.location || "" };
+  const datos = borrador || datosEvento;
+  const abrirEdicion = () => { setBorrador(datosEvento); setEditando(true); setEstadoGuardar("listo"); };
+  const cancelarEdicion = () => { setEditando(false); setBorrador(null); setEstadoGuardar("listo"); };
+  const cambiar = (patch) => { setBorrador({ ...datos, ...patch }); if (estadoGuardar === "error") setEstadoGuardar("listo"); };
   const sinNombre = !datos.title.trim();
   const guardar = async () => {
     if (sinNombre || estadoGuardar === "guardando") return;
     setEstadoGuardar("guardando");
-    const detalles = borrador
-      ? { title: borrador.title.trim(), dateLabel: event.dateLabel || "", date: borrador.date || null, hora: borrador.hora || null, location: borrador.location || "" }
-      : null;
     try {
-      await onGuardar(detalles);
+      await onGuardar({ title: datos.title.trim(), dateLabel: event.dateLabel || "", date: datos.date || null, hora: datos.hora || null, location: datos.location || "" });
+      setEditando(false);
       setBorrador(null);
       setEstadoGuardar("guardado");
     } catch {
       setEstadoGuardar("error");
     }
   };
-  const mostrarError = estadoGuardar === "error" || (huboErrorAlGuardar && estadoGuardar !== "guardando" && estadoGuardar !== "guardado");
-  const hayCambios = !!borrador;
+  // Un guardado automático (Setlist, equipo, alertas) que falló: aviso pequeño con "Reintentar", que
+  // vuelve a mandar todo el evento.
+  const reintentar = async () => {
+    if (estadoGuardar === "guardando") return;
+    setEstadoGuardar("guardando");
+    try { await onGuardar(null); setEstadoGuardar("guardado"); } catch { setEstadoGuardar("listo"); }
+  };
+  const mostrarFalloAuto = isAdminViewer && !editando && huboErrorAlGuardar && estadoGuardar !== "guardado";
   const campoClaro = { width: "100%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 12, padding: "9px 12px", fontSize: 14, color: "#fff", outline: "none", boxSizing: "border-box", fontFamily: "inherit", colorScheme: "dark" };
   const etiquetaClara = { display: "block", fontSize: 11.5, fontWeight: 600, color: "#C8CDD6", marginBottom: 4 };
 
@@ -659,14 +666,24 @@ export function EventDetail({
             </div>
           )}
         </div>
-        <div data-tour="evento-ajustes" style={{ borderRadius: 16, background: "linear-gradient(135deg, #2A3B4D, var(--wf-hover))", padding: 20, marginBottom: isAdminViewer ? 10 : 16, color: "#fff" }}>
-          <div style={{ display: "inline-block", background: event.esPlantilla ? "#5661B3" : "rgba(0,0,0,0.35)", borderRadius: 20, padding: "4px 12px", fontSize: 12, marginBottom: 10 }}>
-            {event.esPlantilla ? "PLANTILLA" : (formatFullDate(event.date) || "Sin fecha") + (horaDeEvento(event) ? ` · ${horaDeEvento(event)}` : "")}
+        <div data-tour="evento-ajustes" style={{ borderRadius: 16, background: "linear-gradient(135deg, #2A3B4D, var(--wf-hover))", padding: 20, marginBottom: mostrarFalloAuto ? 10 : 16, color: "#fff" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+            <div style={{ display: "inline-block", background: event.esPlantilla ? "#5661B3" : "rgba(0,0,0,0.35)", borderRadius: 20, padding: "4px 12px", fontSize: 12 }}>
+              {event.esPlantilla ? "PLANTILLA" : (formatFullDate(event.date) || "Sin fecha") + (horaDeEvento(event) ? ` · ${horaDeEvento(event)}` : "")}
+            </div>
+            {isAdminViewer && !editando && (
+              estadoGuardar === "guardado"
+                ? <span role="status" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600, color: "#7FE0C6" }}><Check size={14} /> Guardado</span>
+                : <button onClick={abrirEdicion} className="hoverable" aria-label="Editar"
+                    style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", borderRadius: 20, padding: "5px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                    <Pencil size={13} /> Editar
+                  </button>
+            )}
           </div>
-          {isAdminViewer ? (
+          {editando ? (
             <>
               <label style={etiquetaClara} htmlFor="wf-evento-nombre">{event.esPlantilla ? "Nombre de la plantilla" : "Nombre del evento"}</label>
-              <input id="wf-evento-nombre" value={datos.title} onChange={(e) => cambiar({ title: e.target.value })} placeholder="Escribe un nombre"
+              <input id="wf-evento-nombre" value={datos.title} autoFocus onChange={(e) => cambiar({ title: e.target.value })} placeholder="Escribe un nombre"
                 style={{ ...campoClaro, fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 20, fontWeight: 600 }} />
               {!event.esPlantilla && (
                 <>
@@ -686,41 +703,36 @@ export function EventDetail({
                   </div>
                 </>
               )}
+              {estadoGuardar === "error" && (
+                <div role="status" style={{ marginTop: 12, fontSize: 12.5, fontWeight: 600, color: "#FFB4AE" }}>No se guardó. Revisa tu internet y toca Guardar otra vez.</div>
+              )}
+              <div style={{ display: "flex", gap: 8, marginTop: 14, justifyContent: "flex-end" }}>
+                <button onClick={cancelarEdicion} disabled={estadoGuardar === "guardando"} className="hoverable"
+                  style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 12, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  Cancelar
+                </button>
+                <button onClick={guardar} disabled={sinNombre || estadoGuardar === "guardando"} className="hoverable"
+                  style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-brand-accent)", border: "none", color: "#fff", borderRadius: 12, padding: "9px 18px", fontSize: 14, fontWeight: 700, cursor: sinNombre ? "not-allowed" : "pointer", opacity: sinNombre ? 0.6 : 1, fontFamily: "inherit" }}>
+                  {estadoGuardar === "guardando" ? "Guardando…" : sinNombre ? "Escribe un nombre" : <><Check size={15} /> Guardar</>}
+                </button>
+              </div>
             </>
           ) : (
             <>
-              <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 24, fontWeight: 600, marginBottom: 4 }}>{event.title}</div>
-              {!event.esPlantilla && <div style={{ fontSize: 13, color: "#C8CDD6" }}>{event.location}</div>}
+              <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 24, fontWeight: 600, lineHeight: 1.2 }}>{event.title || "Sin nombre"}</div>
+              {!event.esPlantilla && event.location && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#C8CDD6", marginTop: 6 }}><MapPin size={13} /> {event.location}</div>
+              )}
             </>
           )}
         </div>
-        {isAdminViewer && (
-          <div style={{ marginBottom: 16 }}>
-            <button data-tour="evento-guardar" onClick={guardar} disabled={sinNombre || estadoGuardar === "guardando"} className="hoverable"
-              style={{
-                width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 15, fontWeight: 700, padding: "12px 14px", borderRadius: 14, cursor: sinNombre ? "not-allowed" : "pointer", fontFamily: "inherit",
-                ...(estadoGuardar === "guardado"
-                  ? { background: "#1F8A73", border: "none", color: "#fff" }
-                  : mostrarError
-                    ? { background: "transparent", border: "1.5px solid #C23B32", color: "#C23B32" }
-                    : hayCambios
-                      ? { background: "var(--wf-brand-accent)", border: "none", color: "#fff" }
-                      : { background: "var(--wf-card)", border: "1px solid var(--wf-border)", color: "var(--wf-heading)" }),
-                opacity: sinNombre ? 0.6 : 1,
-              }}>
-              {estadoGuardar === "guardando" ? "Guardando…"
-                : estadoGuardar === "guardado" ? <><Check size={16} /> Guardado</>
-                : mostrarError ? "No se guardó · Toca para intentar de nuevo"
-                : sinNombre ? "Escribe un nombre para guardar"
-                : <><Check size={16} /> {hayCambios ? "Guardar cambios" : "Guardar"}</>}
+        {mostrarFalloAuto && (
+          <div role="status" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 16, padding: "10px 14px", borderRadius: 12, background: "rgba(194,59,50,0.08)", color: "#C23B32", fontSize: 13, fontWeight: 600 }}>
+            <span>Algo de este culto no se guardó.</span>
+            <button onClick={reintentar} disabled={estadoGuardar === "guardando"} className="hoverable"
+              style={{ background: "#C23B32", border: "none", color: "#fff", borderRadius: 10, padding: "6px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+              {estadoGuardar === "guardando" ? "Guardando…" : "Reintentar"}
             </button>
-            <div role="status" style={{ fontSize: 12, color: mostrarError ? "#C23B32" : "var(--wf-faint)", marginTop: 6, textAlign: "center" }}>
-              {mostrarError
-                ? "Algo no se pudo guardar. Revisa tu internet y toca el botón otra vez."
-                : hayCambios
-                  ? "Tienes cambios sin guardar en el nombre."
-                  : "El Setlist se guarda solo. Toca Guardar para confirmar que todo quedó guardado."}
-            </div>
           </div>
         )}
 
@@ -1638,7 +1650,8 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
         />
       )}
       {showBibleForm && <BibleModal onClose={() => setShowBibleForm(false)} onAdd={addBible} splitVersesIndividually />}
-      {showSlideForm && <SlideModal iglesiaId={myIglesiaId} draft={slideDraft} setDraft={setSlideDraft} onClose={() => setShowSlideForm(false)} onAdd={addSlide} />}
+      {showSlideForm && <SlideModal iglesiaId={myIglesiaId} draft={slideDraft} setDraft={setSlideDraft} onClose={() => setShowSlideForm(false)} onAdd={addSlide}
+        onDiseno={isAdminViewer && onDisenarNueva && !isCompact ? (d) => { setShowSlideForm(false); onDisenarNueva(destinoAgregar ? anclaDeBloque(event.serviceOrder, destinoAgregar)?.id : undefined, d); } : null} />}
       {videoModal && (
         <VideoModal iglesiaId={myIglesiaId} inicial={videoModal.item || null} onClose={() => setVideoModal(null)}
           onAdd={({ videoUrl, name }) => {

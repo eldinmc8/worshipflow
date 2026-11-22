@@ -790,8 +790,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   };
   // Diseñar una diapositiva desde cero: el editor abre en blanco con las plantillas a la vista y, al
   // tocar Listo, entra al orden del culto (después de despuesDe, o al final).
-  const abrirEditorNuevo = (origen, despuesDe = null) => {
-    setEditorDiap({ origen, nuevo: true, despuesDe, eventoId: origen === "vivo" ? (liveLibre ? null : liveEventId) : origen, itemId: null, indice: 0, titulo: "Diapositiva", diapositivas: [nuevaDiapositiva()] });
+  // diseno: uno de la galería de diseños listos (lib/galeriaDisenos.js) — el editor abre ya con él puesto.
+  const abrirEditorNuevo = (origen, despuesDe = null, diseno = null) => {
+    setEditorDiap({ origen, nuevo: true, despuesDe, conDiseno: !!diseno, eventoId: origen === "vivo" ? (liveLibre ? null : liveEventId) : origen, itemId: null, indice: 0, titulo: diseno?.nombre || "Diapositiva", diapositivas: [diseno ? diseno.crear() : nuevaDiapositiva()] });
   };
   const editorAlAire = !!(editorDiap && editorDiap.origen === "vivo" && !adHoc && current && (current.grupoId === editorDiap.itemId || current.slideId === editorDiap.itemId));
   // Mover / copiar / sacar diapositivas entre grupos (menú de clic derecho en la consola En vivo).
@@ -2423,6 +2424,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             alAire={editorAlAire}
             iglesiaId={myIglesiaId}
             nueva={!!editorDiap.nuevo}
+            abrirPlantillas={!editorDiap.conDiseno}
             onGuardar={guardarEditorDiap}
             onCerrar={() => setEditorDiap(null)}
           />
@@ -2685,7 +2687,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       {tab === "eventos" && selectedEvent && !openSong && (
         <EventDetail
           onAbrirEditor={(itemId) => abrirEditorDiap(selectedEvent.id, itemId, 0)}
-          onDisenarNueva={(despuesDe) => abrirEditorNuevo(selectedEvent.id, typeof despuesDe === "string" ? despuesDe : null)}
+          onDisenarNueva={(despuesDe, diseno) => abrirEditorNuevo(selectedEvent.id, typeof despuesDe === "string" ? despuesDe : null, diseno || null)}
           myIglesiaId={myIglesiaId}
           event={selectedEvent} library={library} ministries={ministries} isCompact={isCompact}
           isLive={selectedEvent.id === liveEventId} canStartLive={canStartLive} isAdminViewer={puedeGestionarEventoAbierto}
@@ -2841,7 +2843,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             onAgregarCancion={agregarCancionEnVivo} onReordenarOrden={reordenarOrdenEnVivo} onQuitarDelOrden={quitarDelOrdenEnVivo} onInsertarItems={insertarItemsEnVivo}
             ocultos={idsOcultosConsola} onOcultar={ocultarEnConsola} onMostrarOcultos={mostrarOcultosConsola}
             onAbrirEditor={enPractica ? undefined : (itemId, indice) => abrirEditorDiap("vivo", itemId, indice)}
-            onDisenarNueva={enPractica ? undefined : (despuesDe) => abrirEditorNuevo("vivo", despuesDe)}
+            onDisenarNueva={enPractica ? undefined : (despuesDe, diseno) => abrirEditorNuevo("vivo", despuesDe, diseno || null)}
             onMoverDiapositiva={moverDiapositivaEnVivo} onQuitarDiapositivaGrupo={quitarDiapositivaEnVivo}
             onReordenarEnGrupo={(itemId, desde, hacia) => cambiarOrdenEnVivo((o) => reordenarEnGrupo(o, itemId, desde, hacia))}
           />

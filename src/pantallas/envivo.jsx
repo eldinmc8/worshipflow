@@ -1846,6 +1846,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           iglesiaId={myIglesiaId} title={showAddSlide === "imagen" ? "Imagen" : showAddSlide === "audio" ? "Diapositiva de audio" : "Texto rápido"} vistaPrevia={vistaPreviaDiapositiva}
           draft={newSlideDraft} setDraft={setNewSlideDraft}
           onClose={() => setShowAddSlide(false)}
+          onDiseno={!isCompact && onDisenarNueva && showAddSlide !== "imagen" ? (d) => { setShowAddSlide(false); onDisenarNueva(anclaParaAgregar()?.id || null, d); } : null}
           onAdd={() => {
             if (showAddSlide === "audio") {
               if (!audioValido(newSlideDraft.audio?.url)) { showToast("Elige el audio: súbelo o pega su enlace.", "info"); return; }

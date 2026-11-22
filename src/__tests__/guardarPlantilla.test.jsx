@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-// Pantalla de una plantilla/evento (2026-11-21): el nombre se edita ahí mismo, botón "Guardar" que
-// espera a la base y dice "Guardado" o "No se guardó", y la tuerca pasó a ser "Configurar alertas".
+// Pantalla de una plantilla/evento (2026-11-22): encabezado limpio de solo lectura con botón "Editar"
+// (Guardar / Cancelar), aviso con "Reintentar" si un guardado automático falló, y "Configurar alertas".
 import React from "react"; // eslint-disable-line no-unused-vars
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
@@ -17,31 +17,54 @@ const pintar = (props = {}) => render(
 );
 
 describe("Guardar plantilla", () => {
-  it("edita el nombre debajo de PLANTILLA y lo guarda con el botón", async () => {
+  it("el encabezado se ve limpio, sin formulario, con un botón Editar", () => {
+    pintar();
+    expect(screen.getByText("PLANTILLA")).toBeTruthy();
+    expect(screen.getAllByText("Servicio General Miércoles").length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText("Nombre de la plantilla")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Guardar/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Editar" })).toBeTruthy();
+  });
+
+  it("Editar abre el nombre y Guardar lo guarda y vuelve a cerrarse", async () => {
     const onGuardar = vi.fn(async () => {});
     pintar({ onGuardar });
-    expect(screen.getByText("PLANTILLA")).toBeTruthy();
-    expect(screen.queryByText("Ajustes del evento")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
     fireEvent.change(screen.getByLabelText("Nombre de la plantilla"), { target: { value: "Culto de Miércoles" } });
-    expect(screen.getByRole("button", { name: /Guardar cambios/ })).toBeTruthy();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Guardar cambios/ })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Guardar/ })); });
     expect(onGuardar).toHaveBeenCalledWith(expect.objectContaining({ title: "Culto de Miércoles" }));
-    expect(screen.getByRole("button", { name: /Guardado/ })).toBeTruthy();
+    expect(screen.queryByLabelText("Nombre de la plantilla")).toBeNull();
+    expect(screen.getByText("Guardado")).toBeTruthy();
   });
 
-  it("si la base no guarda, lo dice en el botón", async () => {
+  it("Cancelar cierra sin guardar", () => {
+    const onGuardar = vi.fn(async () => {});
+    pintar({ onGuardar });
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(onGuardar).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Nombre de la plantilla")).toBeNull();
+  });
+
+  it("si la base no guarda, lo dice y deja los campos abiertos", async () => {
     pintar({ onGuardar: vi.fn(async () => { throw new Error("400"); }) });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /^Guardar$/ })); });
-    expect(screen.getByRole("button", { name: /No se guardó/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Guardar/ })); });
+    expect(screen.getByText(/No se guardó/)).toBeTruthy();
+    expect(screen.getByLabelText("Nombre de la plantilla")).toBeTruthy();
   });
 
-  it("un guardado automático que falló también se muestra", () => {
-    pintar({ huboErrorAlGuardar: true });
-    expect(screen.getByRole("button", { name: /No se guardó/ })).toBeTruthy();
+  it("un guardado automático que falló sale como aviso con Reintentar", async () => {
+    const onGuardar = vi.fn(async () => {});
+    pintar({ huboErrorAlGuardar: true, onGuardar });
+    expect(screen.getByText(/no se guardó/)).toBeTruthy();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Reintentar" })); });
+    expect(onGuardar).toHaveBeenCalledWith(null);
   });
 
   it("no deja guardar sin nombre", () => {
     pintar();
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
     fireEvent.change(screen.getByLabelText("Nombre de la plantilla"), { target: { value: "  " } });
     expect(screen.getByRole("button", { name: /Escribe un nombre/ }).disabled).toBe(true);
   });
