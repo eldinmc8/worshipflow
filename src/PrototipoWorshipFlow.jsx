@@ -18,6 +18,7 @@ import { insertarEnBloque } from "./lib/ordenCulto.js";
 import { estiloDeBiblia } from "./lib/estiloBiblia.js";
 import { esBloquePredicacion, guardarBosquejo, aplicarBosquejoAlOrden, bosquejoAItems, eliminarBosquejo, quitarBosquejoDelOrden, completarVersosBosquejo, subtituloProyectable } from "./lib/bosquejos.js";
 import { animacionEfectiva, estiloDeParte } from "./lib/animacionCancion.js";
+import { reproducirAudio, bajarAudio, detenerAudio, estadoAudio, tieneAudio } from "./lib/audioCulto.js";
 import { esCuentaRegresiva, slideCuentaRegresiva, conHoraFinal, arrancarSiHaceFalta, slideCuentaAlMomento, normalizarCuenta, itemCuentaRegresiva } from "./lib/cuentaRegresiva.js";
 import { confirmDialog } from "./lib/confirm.js";
 import { updateMusicoLive, clearMusicoLive, getMusicoLive, subscribeMusicoLive } from "./lib/musicoLive.js";
@@ -196,7 +197,7 @@ function buildSlides(serviceOrder, library) {
       // Presentación agrupada o diapositiva diseñada en el editor: cada diapositiva con su diseño.
       slides.push(...slidesDeGrupo(item));
     } else if (item.type === "slide") {
-      slides.push({ slideId: item.id, type: "slide", title: item.title, nombre: item.name || "", subtitle: subtituloProyectable(item), escalaSubtitulo: item.escalaSubtitulo, fuente: item.fuente, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl, imageUrl: item.imageUrl });
+      slides.push({ slideId: item.id, type: "slide", title: item.title, nombre: item.name || "", subtitle: subtituloProyectable(item), escalaSubtitulo: item.escalaSubtitulo, fuente: item.fuente, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl, imageUrl: item.imageUrl, ...(tieneAudio(item) ? { audio: item.audio } : {}) });
     }
   });
   return slides;
@@ -1743,6 +1744,31 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [llevoLaTransmision, current?.slideId, current?.cuenta?.hasta, fijada, activeIdx, adHocIdx]);
+
+  // ---- Diapositiva de audio (2026-11-22, ver lib/audioCulto.js): al salir al aire, su audio suena en ESTA
+  // computadora (la que lleva la transmisión, o la práctica); al pasar a otra cosa se baja poco a poco,
+  // salvo que diga "seguir sonando". Con "pasar a lo siguiente", al terminar el audio la consola avanza. ----
+  const sueneAudioAqui = llevoLaTransmision || enPractica;
+  const alAireAudio = (() => { const a = fijada || current || null; return a && tieneAudio(a) ? a : null; })();
+  const claveAudio = alAireAudio ? `${alAireAudio.slideId}|${alAireAudio.audio.url}` : null;
+  const avanzarTrasAudioRef = useRef(null);
+  avanzarTrasAudioRef.current = (slideId) => {
+    if (fijada) return;
+    if (adHoc) return;
+    if (slides[activeIdx]?.slideId === slideId && activeIdx < slides.length - 1) goto(activeIdx + 1);
+  };
+  useEffect(() => {
+    if (!sueneAudioAqui) { detenerAudio(); return; }
+    if (alAireAudio) {
+      const { url, nombre, repetir, seguir, alTerminar } = alAireAudio.audio;
+      const id = alAireAudio.slideId;
+      reproducirAudio({ url, nombre, origen: "diapositiva", clave: claveAudio, repetir, seguir, onTerminar: alTerminar === "avanzar" && !repetir ? () => avanzarTrasAudioRef.current?.(id) : null });
+    } else if (estadoAudio().origen === "diapositiva" && !estadoAudio().seguir) {
+      bajarAudio();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claveAudio, sueneAudioAqui]);
+  useEffect(() => () => detenerAudio(), []);
 
   // ---- Control del video desde la consola (2026-11-08): play, pausa, detener, saltar y sonido sin tocar
   // la pantalla de proyección. Viaja en slide_actual.video (ver lib/videoControl.js); la pantalla reporta

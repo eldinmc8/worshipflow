@@ -205,6 +205,22 @@ describe("letra propia de un texto rápido", () => {
   });
 });
 
+describe("diapositiva de audio", () => {
+  it("su audio se guarda en estructura.audio y vuelve al cargar, junto con la imagen de fondo", async () => {
+    const eventoId = "evento-audio";
+    fake.db.eventos = [{ id: eventoId, titulo: "Domingo" }];
+    fake.db.items_servicio = [];
+    fake.db.miembros_rol = [];
+    const audio = { url: "https://x.supabase.co/storage/v1/object/public/fondos-en-vivo/i/audio/1-ofrenda.mp3", nombre: "ofrenda", alTerminar: "avanzar", repetir: false, seguir: false };
+    const item = { id: "a1", type: "slide", title: "Ofrenda", subtitle: "", name: "Audio: ofrenda", bg: "#1B2029", bgType: "imagen", imageUrl: "https://x.supabase.co/storage/v1/object/public/fondos-en-vivo/i/imagen/f.jpg", audio, encargados: [] };
+    await eventos.sincronizarServiceOrder(eventoId, [item]);
+    const fila = fake.db.items_servicio.find((i) => i.id === "a1");
+    expect(fila).toMatchObject({ tipo: "slide", fondo_tipo: "imagen", estructura: { audio } });
+    const ev = eventos.eventoCompletoAFormatoEditor({ evento: fake.db.eventos[0], items: fake.db.items_servicio, encargados: [], roles: [], roleMembers: [], recordatorios: [], vistas: [] });
+    expect(ev.serviceOrder[0]).toMatchObject({ type: "slide", title: "Ofrenda", bgType: "imagen", audio });
+  });
+});
+
 describe("animación de una canción solo en este evento", () => {
   it("viaja en items_servicio.animacion y vuelve al cargar; sin la columna se guarda sin ella", async () => {
     const eventoId = "evento-anim";

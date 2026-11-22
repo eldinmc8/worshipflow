@@ -1,6 +1,6 @@
 // Eventos: calendario y lista, detalle del evento y su Setlist (bloques, encargados, equipo de alabanza, bosquejo). Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import ConPlan from "../components/ConPlan.jsx";
-import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Music, ArrowLeft, Trash2, Bell, X, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy, Timer, CalendarRange } from "lucide-react";
+import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Music, ArrowLeft, Trash2, Bell, X, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy, Timer, CalendarRange, Volume2 } from "lucide-react";
 import { bosquejoTieneCambiosSinEnviar, esBloquePredicacion } from "../lib/bosquejos.js";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { todayLocal, monthKey, monthLabelFromKey, parseIsoDateLocal, isUpcoming, compareByDay, MONTH_ABBR, formatFullDate, horaDeEvento } from "../lib/dates.js";
@@ -23,7 +23,8 @@ import RelojCuentaRegresiva, { estiloCuenta } from "../components/RelojCuentaReg
 import { esCuentaRegresiva, normalizarCuenta } from "../lib/cuentaRegresiva.js";
 import { NOTES, normalizarTitulo, lideraBloque, isWorshipBlock, primaryBtn, ghostToggleBtn, iconGhost, ModalShell, Field, inputStyle, DEFAULT_COVERS, misAsignacionesEnEvento, quienDirigeAlabanza, miniBtnStyle, addBtnStyle, textoEnsayo, clasificacionesActuales, TYPE_META, ElegirParteDelCulto, BorrarBusqueda } from "./compartido.jsx";
 import { BibleModal } from "./biblia.jsx";
-import { SlideModal, VideoModal } from "./ventanas.jsx";
+import { SlideModal, VideoModal, audioValido } from "./ventanas.jsx";
+import { nuevaDiapositivaAudio } from "../lib/audioCulto.js";
 import { esVideoSolo } from "../lib/videoEnlace.js";
 import { SongEditor } from "./canciones.jsx";
 import { useCerrarConAtras } from "../lib/atras.js";
@@ -1128,10 +1129,12 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   const [animEvento, setAnimEvento] = useState(null);
   // Un video solo (sin texto) se edita con su propio formulario, más simple (2026-11-08).
   const abrirEditarTexto = (it) => (esVideoSolo(it) ? setVideoModal({ item: it }) : abrirEditarDiapositiva(it));
-  const abrirEditarDiapositiva = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", escalaSubtitulo: it.escalaSubtitulo, fuente: it.fuente, bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "" } });
+  const abrirEditarDiapositiva = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", escalaSubtitulo: it.escalaSubtitulo, fuente: it.fuente, bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "", ...(it.audio ? { audio: it.audio } : {}) } });
+  // Diapositiva de audio (2026-11-22): suena en la consola mientras se ve su texto o imagen.
+  const [audioDraft, setAudioDraft] = useState(null);
   // La parte del culto elegida en "+ Agregar" solo vale mientras se está agregando: al cerrarse todo
   // (o cancelar), vuelve a "al final" para que lo siguiente no caiga en un bloque viejo.
-  const agregando = showAgregar || pickerCancion || showImportar || showBibleForm || showSlideForm || showSermonForm || !!cuentaModal || !!videoModal;
+  const agregando = showAgregar || pickerCancion || showImportar || showBibleForm || showSlideForm || showSermonForm || !!cuentaModal || !!videoModal || !!audioDraft;
   useEffect(() => { if (!agregando && destinoAgregar) onDestinoAgregar?.(null); }, [agregando, destinoAgregar, onDestinoAgregar]);
   const [seccionDraft, setSeccionDraft] = useState({ title: "", description: "" });
   const confirmAddSeccion = () => {
@@ -1216,6 +1219,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
     canAddBibleReading && { clave: "biblia", Icon: BookOpen, color: "#2F5FA8", titulo: "Versículo", detalle: "Búscalo en la Biblia", accion: onAddBibleClick },
     isAdminViewer && { clave: "texto", Icon: Type, color: "#B15EA0", titulo: "Texto rápido", detalle: "Un aviso o un título en segundos", accion: onAddSlideClick },
     isAdminViewer && { clave: "video", Icon: Play, color: "#C23B32", titulo: "Video de YouTube", detalle: "Queda en el orden del culto y se reproduce con sonido", accion: () => setVideoModal({}) },
+    isAdminViewer && { clave: "audio", Icon: Volume2, color: "#1F8A73", titulo: "Audio", detalle: "Una pista o canción grabada, con una imagen o texto en pantalla mientras suena", accion: () => setAudioDraft(nuevaDiapositivaAudio()) },
     isAdminViewer && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(destinoAgregar ? anclaDeBloque(event.serviceOrder, destinoAgregar)?.id : undefined) },
     isAdminViewer && { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
     canAddSermonPoints && { clave: "bosquejo", Icon: Mic2, color: "var(--wf-heading)", titulo: "Punto del bosquejo", detalle: "Lo que el predicador va a ir mostrando", accion: () => setShowSermonForm(true) },
@@ -1641,6 +1645,14 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
             if (videoModal.item) onEditarItem(videoModal.item.id, { videoUrl, name });
             else onAddItems([{ id: crypto.randomUUID(), type: "slide", title: "", subtitle: "", name, bg: "#000000", bgType: "video", videoUrl, imageUrl: "" }]);
             setVideoModal(null);
+          }} />
+      )}
+      {audioDraft && (
+        <SlideModal iglesiaId={myIglesiaId} title="Diapositiva de audio" draft={audioDraft} setDraft={setAudioDraft} onClose={() => setAudioDraft(null)}
+          onAdd={() => {
+            if (!audioValido(audioDraft.audio?.url)) { showToast("Elige el audio: súbelo o pega su enlace.", "info"); return; }
+            onAddItems([{ id: crypto.randomUUID(), type: "slide", ...audioDraft, name: audioDraft.name?.trim() || `Audio: ${audioDraft.audio.nombre || "sin nombre"}` }]);
+            setAudioDraft(null); setShowAgregar(false);
           }} />
       )}
       {editTexto && (
