@@ -1448,7 +1448,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         </ModalShell>
       )}
       {showOtroEquipo && <PantallaOtroEquipo iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipo(false)} />}
-      {showAviso && <PanelAvisoCongregacion avisoActual={avisoCong} segundosRestantes={segAviso} onEnviar={(a) => setEstiloCompleto((st) => conAviso(st, a))} onQuitar={() => quitarAviso()} onCerrar={() => setShowAviso(false)} />}
+      {showAviso && <PanelAvisoCongregacion avisoActual={avisoCong} segundosRestantes={segAviso} onEnviar={(a) => setEstiloCompleto((st) => conAviso(st, a))} onQuitar={() => quitarAviso()} onCerrar={() => setShowAviso(false)} onIrAEscenario={onMensajeEscenario ? () => { setShowAviso(false); setShowEscenario(true); } : null} />}
       {showEscenario && onMensajeEscenario && <PanelEscenario mensaje={mensajeEscenario} onMensaje={onMensajeEscenario} iglesiaId={myIglesiaId} slug={iglesiaSlug} onCerrar={() => setShowEscenario(false)}
         temporizador={temporizador} onTemporizador={onTemporizador} autoTemporizador={autoTemporizador} onAutoTemporizador={onAutoTemporizador} />}
 

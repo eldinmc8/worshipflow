@@ -125,7 +125,8 @@ export default function PantallaEscenario() {
   };
 
   const slide = fila?.slide_actual || null;
-  const esc = slide?.escenario || null;
+  // Con nada al aire, el mensaje y el temporizador llegan aparte (estilo_en_vivo.escenarioSinDiapositiva).
+  const esc = slide?.escenario || (!slide ? fila?.estilo_en_vivo?.escenarioSinDiapositiva : null) || null;
   const mensajeActual = esc?.mensaje || "";
   useEffect(() => {
     if (mensajeActual && mensajeActual !== ultimoMensajeRef.current) setAlerta({ texto: mensajeActual, hasta: Date.now() + ALERTA_SEG * 1000 });
@@ -223,7 +224,9 @@ export default function PantallaEscenario() {
         <div style={{ height: vertical ? "20%" : "26%", minHeight: 0, display: "flex", flexDirection: "column", borderTop: "2px solid rgba(255,255,255,0.08)", paddingTop: "1.2vh" }}>
           <Etiqueta color={NARANJA}><IconoAhora size={13} style={{ flexShrink: 0 }} />En pantalla{etiquetaAhora ? ` · ${etiquetaAhora}` : ""}</Etiqueta>
           <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-            <AutoFitText lines={lineasAhora} targetRatio={0.3 * tamano} minRatio={0.12} minPx={14} alinearH="flex-start" style={{ color: "#C9D2DE", fontWeight: 600, lineHeight: 1.2, textAlign: "left", whiteSpace: "normal" }} />
+            {lineasAhora.length > 0
+              ? <AutoFitText lines={lineasAhora} targetRatio={0.3 * tamano} minRatio={0.12} minPx={14} alinearH="flex-start" style={{ color: "#C9D2DE", fontWeight: 600, lineHeight: 1.2, textAlign: "left", whiteSpace: "normal" }} />
+              : <div style={{ fontSize: "clamp(14px, 2.4vh, 28px)", color: "#5B6472" }}>Nada en pantalla ahora</div>}
           </div>
         </div>
       </div>
@@ -307,7 +310,7 @@ export default function PantallaEscenario() {
 
       {vencido ? (
         <div style={{ flex: 1, display: "flex" }}><EnlaceVencido tipo="escenario" /></div>
-      ) : vista === "reloj" ? cuerpoReloj : !enVivo || !slide ? (
+      ) : vista === "reloj" ? cuerpoReloj : !enVivo || (!slide && vista !== "predicador") ? (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, textAlign: "center" }}>
           <div style={{ fontSize: "clamp(22px, 4vh, 48px)", fontWeight: 700 }}>Pantalla de escenario</div>
           <div style={{ fontSize: "clamp(14px, 2.2vh, 26px)", color: GRIS, maxWidth: 700 }}>{enVivo ? "En vivo. Cuando Multimedia ponga algo al aire, aparece aquí." : "Esperando a que Multimedia inicie la transmisión."}</div>
