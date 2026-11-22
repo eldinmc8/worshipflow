@@ -79,7 +79,11 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
   const fondoAnimado = anim && liveStyle?.animFondo !== "propio" && !fondoCancion && !slideTraeFondo ? anim.fondo : null;
   const customBgEsVideo = !fondoAnimado && fondo?.theme === "custom" && (fondo.customBgType || "imagen") === "video";
   const customBgEsImagen = !fondoAnimado && fondo?.theme === "custom" && (fondo.customBgType || "imagen") === "imagen";
-  const globalVideoBg = !slideVideoBg && !colorPropio && customBgEsVideo && fondo.customVideo;
+  // Arreglo (2026-11-22, video de Eldin): con un VIDEO de fondo puesto en Estilo, una diapositiva con su
+  // propia imagen salía con el video (la imagen nunca se veía, ni en la vista previa). La imagen propia
+  // de la diapositiva manda sobre el video general, igual que ya mandaba sobre la imagen general.
+  const slideTraeImagen = slide?.type === "slide" && slide.bgType === "imagen" && !!slide.imageUrl;
+  const globalVideoBg = !slideVideoBg && !slideTraeImagen && !colorPropio && customBgEsVideo && fondo.customVideo;
   const videoSrc = slideVideoBg ? slide.videoUrl : globalVideoBg ? fondo.customVideo : null;
   const videoSolo = !!slideVideoBg && esVideoSolo(slide);
   const slideImageBg = !videoSrc && slide?.type === "slide" && slide.bgType === "imagen" && slide.imageUrl;
