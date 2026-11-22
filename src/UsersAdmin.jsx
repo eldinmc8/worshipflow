@@ -7,6 +7,7 @@ import { validarPassword } from "./lib/passwordSegura.js";
 import RolesAdmin from "./RolesAdmin.jsx";
 import { ordenarPor } from "./lib/orden.js";
 import EnlaceUnirse from "./components/EnlaceUnirse.jsx";
+import { BorrarBusqueda } from "./pantallas/compartido.jsx";
 
 import { esPopPropio, cuandoListo } from "./lib/atras.js";
 const ROLES = [
@@ -426,7 +427,10 @@ export default function UsersAdmin({ myEmail, iglesiaId, onExit }) {
             <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: -12, marginBottom: 20 }}>Le llegará un correo para crear su propia contraseña y elegir su nombre (y foto, si entra con Google) al aceptar.</div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por nombre o correo" style={{ ...inputStyle, flex: 1 }} />
+              <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+                <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por nombre o correo" style={{ ...inputStyle, width: "100%", boxSizing: "border-box", paddingRight: 40 }} />
+                <BorrarBusqueda valor={busqueda} onBorrar={() => setBusqueda("")} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }} />
+              </div>
               <button onClick={abrirRoles} style={{ ...ghostBtn, padding: "9px 12px", flexShrink: 0 }}>Roles y permisos</button>
             </div>
             {rows && <div style={{ fontSize: 11, color: "var(--wf-faint)", margin: "0 4px 8px" }}>{rows.length} {rows.length === 1 ? "persona" : "personas"} · {activos} {activos === 1 ? "activa" : "activas"}</div>}

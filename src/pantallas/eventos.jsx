@@ -21,10 +21,13 @@ import { SelectEstilo } from "../components/EditorAnimacionCancion.jsx";
 import { ANIMACIONES } from "../components/LetrasAnimadas.jsx";
 import RelojCuentaRegresiva, { estiloCuenta } from "../components/RelojCuentaRegresiva.jsx";
 import { esCuentaRegresiva, normalizarCuenta } from "../lib/cuentaRegresiva.js";
-import { NOTES, normalizarTitulo, lideraBloque, isWorshipBlock, primaryBtn, ghostToggleBtn, iconGhost, ModalShell, Field, inputStyle, DEFAULT_COVERS, misAsignacionesEnEvento, quienDirigeAlabanza, miniBtnStyle, addBtnStyle, textoEnsayo, clasificacionesActuales, TYPE_META, ElegirParteDelCulto } from "./compartido.jsx";
+import { NOTES, normalizarTitulo, lideraBloque, isWorshipBlock, primaryBtn, ghostToggleBtn, iconGhost, ModalShell, Field, inputStyle, DEFAULT_COVERS, misAsignacionesEnEvento, quienDirigeAlabanza, miniBtnStyle, addBtnStyle, textoEnsayo, clasificacionesActuales, TYPE_META, ElegirParteDelCulto, BorrarBusqueda } from "./compartido.jsx";
 import { BibleModal } from "./biblia.jsx";
 import { SlideModal, VideoModal } from "./ventanas.jsx";
 import { esVideoSolo } from "../lib/videoEnlace.js";
+import { SongEditor } from "./canciones.jsx";
+import { useCerrarConAtras } from "../lib/atras.js";
+import { confirmDialog } from "../lib/confirm.js";
 
 // Tonalidades para cambiar una canción dentro del Setlist: solo las 12 notas. Si la canción original
 // es menor, las 12 salen en menor (Em pasa a Fm, nunca a F), así nunca se cambia sin querer de
@@ -571,7 +574,7 @@ export function EventDetail({
   myIglesiaId, onAbrirEditor, onDisenarNueva,
   event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onPracticar, onGoLive, onDelete,
   isDraftFromTemplate, onPublish,
-  onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder,
+  onAddSong, onCrearCancion = null, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, verDiapositivas = true,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
@@ -831,7 +834,7 @@ export function EventDetail({
         onDisenarNueva={onDisenarNueva}
         myIglesiaId={myIglesiaId}
         event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer || puedeEditarSetlist} userId={userId} usuariosReales={usuariosReales}
-        onAddSong={onAddSong} onAddSeccion={onAddSeccion}
+        onAddSong={onAddSong} onCrearCancion={onCrearCancion} onAddSeccion={onAddSeccion}
         onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick} onAddItems={onAddItems} onAddCuenta={onAddCuenta}
         destinoAgregar={destinoAgregar} onDestinoAgregar={onDestinoAgregar} onEditarItem={onEditarItem}
         onRemove={onRemove} onRestaurar={onRestaurar} onDuplicate={onDuplicate} onReorder={onReorder}
@@ -1027,7 +1030,24 @@ function EncargadosToggleButton({ count, onClick }) {
 }
 
 // ---------------- SETLIST (orden del culto) ----------------
-function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar = null, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, verDiapositivas = true, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+// Editor de canción nueva encima de "Agregar canciones" (el mismo asistente de 4 pasos de la
+// biblioteca). Ocupa toda la pantalla; atrás o la flecha preguntan antes de perder lo escrito.
+function CrearCancionEnSetlist({ titulo, onCerrar, onGuardar }) {
+  const sucioRef = useRef(false);
+  const pedirCerrar = async () => {
+    if (sucioRef.current && !(await confirmDialog("¿Salir sin guardar esta canción? Se perderá lo que escribiste.", { danger: true, textoConfirmar: "Salir sin guardar" }))) return;
+    onCerrar();
+  };
+  useCerrarConAtras(true, pedirCerrar);
+  return createPortal(
+    <div data-testid="crear-cancion-setlist" style={{ position: "fixed", inset: 0, zIndex: 50, background: "var(--wf-bg)", overflowY: "auto", overscrollBehavior: "contain", "--bottom-nav-height": "0px" }}>
+      <SongEditor song={null} tituloInicial={titulo} isAdminViewer onCancel={pedirCerrar} onSave={onGuardar} onDirtyChange={(d) => { sucioRef.current = d; }} />
+    </div>,
+    document.body
+  );
+}
+
+function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onCrearCancion = null, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar = null, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, verDiapositivas = true, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   const [showImportar, setShowImportar] = useState(false); // Importar presentación (ver ImportarPresentacion)
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
@@ -1053,6 +1073,17 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   const [elegidasPicker, setElegidasPicker] = useState([]);
   useEffect(() => { if (pickerCancion) setElegidasPicker([]); }, [pickerCancion]);
   const numerosElegida = (id) => elegidasPicker.reduce((acc, x, i) => (x === id ? [...acc, i + 1] : acc), []);
+  // Crear una canción que no está en la biblioteca sin salir del setlist (pedido de Eldin, 2026-11-22):
+  // null | { titulo }. Se abre el mismo editor por pasos encima de "Agregar canciones"; al guardar,
+  // la canción entra a la biblioteca y al culto, y se vuelve a la lista con ella marcada.
+  const [nuevaCancion, setNuevaCancion] = useState(null);
+  const guardarCancionNueva = async (draft) => {
+    const id = await onCrearCancion(draft); // si falla, el editor se queda abierto con lo escrito
+    setNuevaCancion(null);
+    setQuery("");
+    setElegidasPicker((l) => [...l, id]);
+    showToast(`"${draft.title}" se guardó en la biblioteca y se agregó al culto.`, "info");
+  };
   const [menuItem, setMenuItem] = useState(null); // { id, x, y } — menú "⋯" de un elemento
   // "Empieza aquí" se puede ocultar por evento (por si esta iglesia no usa el equipo de alabanza, etc.).
   const claveOcultarPasos = `worshipflow_pasos_ocultos_${event.id}`;
@@ -1207,6 +1238,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
           <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
             <Search size={13} color="var(--wf-faint)" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 12, width: "100%" }} />
+            <BorrarBusqueda valor={query} onBorrar={() => setQuery("")} />
           </div>
           <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
             {[["todos", "Todos"], ...clasificacionesActuales.map((c) => [c.clave, c.nombre])].map(([key, label]) => (
@@ -1224,6 +1256,11 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
             );
           })}
           {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, padding: "6px 0" }}>Ninguna canción coincide.</div>}
+          {filtered.length === 0 && onCrearCancion && (
+            <button onClick={() => setNuevaCancion({ titulo: query })} style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1.5px dashed var(--wf-brand-accent)", background: "transparent", color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+              <Plus size={15} color="var(--wf-brand-accent)" /> {query.trim() ? `Crear "${query.trim()}"` : "Crear canción nueva"}
+            </button>
+          )}
         </div>
       </div>
       )}
@@ -1673,6 +1710,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10, flexShrink: 0 }}>
               <Search size={13} color="var(--wf-faint)" />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 13, width: "100%" }} />
+              <BorrarBusqueda valor={query} onBorrar={() => setQuery("")} />
             </div>
           <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginBottom: 10, flexShrink: 0 }}>
             {[["todos", "Todos"], ...clasificacionesActuales.map((c) => [c.clave, c.nombre])].map(([key, label]) => (
@@ -1681,8 +1719,15 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
           </div>
           {/* Antes la lista medía media pantalla y en el celular solo se veían ~7 canciones, sin notarse que
               había más (pedido de Eldin, 2026-10-25). Ahora usa casi todo el alto y dice cuántas hay. */}
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", margin: "0 2px 6px", flexShrink: 0 }}>
-            {filtered.length} {filtered.length === 1 ? "canción" : "canciones"}{libraryCategoryFilter !== "todos" ? ` en ${clasificacionesActuales.find((c) => c.clave === libraryCategoryFilter)?.nombre || "esta sección"}` : ""}{filtered.length > 6 ? " · desliza para ver todas" : ""}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 2px 6px", flexShrink: 0 }}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 700, color: "var(--wf-muted)" }}>
+              {filtered.length} {filtered.length === 1 ? "canción" : "canciones"}{libraryCategoryFilter !== "todos" ? ` en ${clasificacionesActuales.find((c) => c.clave === libraryCategoryFilter)?.nombre || "esta sección"}` : ""}{filtered.length > 6 ? " · desliza para ver todas" : ""}
+            </span>
+            {onCrearCancion && filtered.length > 0 && (
+              <button onClick={() => setNuevaCancion({ titulo: query })} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 4, background: "none", border: "1px solid var(--wf-brand-accent)", borderRadius: 20, padding: "5px 10px", fontSize: 12, fontWeight: 800, color: "var(--wf-brand-accent)", cursor: "pointer", fontFamily: "inherit" }}>
+                <Plus size={13} /> Nueva canción
+              </button>
+            )}
           </div>
           <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", margin: "0 -4px", padding: "0 4px" }}>
             {filtered.map((s) => {
@@ -1699,9 +1744,21 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
               );
             })}
             {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 12, padding: "6px 0" }}>Ninguna canción coincide.</div>}
+            {filtered.length === 0 && onCrearCancion && (
+              <button onClick={() => setNuevaCancion({ titulo: query })} style={{ width: "100%", marginTop: 6, padding: "14px 12px", borderRadius: 12, border: "1.5px dashed var(--wf-brand-accent)", background: "transparent", color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 10, textAlign: "left" }}>
+                <Plus size={20} color="var(--wf-brand-accent)" style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 14, fontWeight: 700 }}>{query.trim() ? `Crear "${query.trim()}"` : "Crear canción nueva"}</span>
+                  <span style={{ display: "block", fontSize: 12, color: "var(--wf-muted)" }}>Se guarda en la biblioteca y se agrega a este culto.</span>
+                </span>
+              </button>
+            )}
           </div>
           <button onClick={() => { setPickerCancion(false); onDestinoAgregar?.(null); }} style={{ ...primaryBtn, marginTop: 10, flexShrink: 0 }}>{elegidasPicker.length ? `Listo · ${elegidasPicker.length} ${elegidasPicker.length === 1 ? "canción agregada" : "canciones agregadas"}` : "Listo"}</button>
         </ModalShell>
+      )}
+      {nuevaCancion && onCrearCancion && (
+        <CrearCancionEnSetlist titulo={nuevaCancion.titulo} onCerrar={() => setNuevaCancion(null)} onGuardar={guardarCancionNueva} />
       )}
       {showImportar && (
         <ConPlan funcion="importar" onCerrar={() => setShowImportar(false)}>

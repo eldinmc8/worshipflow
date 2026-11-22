@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronUp, ChevronDown, Trash2, Plus, Music, BookOpen, Type, Timer, ListMusic, Sparkles, CalendarRange, X, Check, Users } from "lucide-react";
 import AsistentePasos, { EncabezadoPaso, Pildora, botonPie } from "./AsistentePasos.jsx";
-import { Field, inputStyle, ModalShell, primaryBtn } from "../pantallas/compartido.jsx";
+import { Field, inputStyle, ModalShell, primaryBtn, BorrarBusqueda } from "../pantallas/compartido.jsx";
 import { BibleModal } from "../pantallas/biblia.jsx";
 import { buscarCanciones } from "../lib/busqueda.js";
 import { ordenarPor } from "../lib/orden.js";
@@ -277,7 +277,10 @@ function ElegirCancion({ canciones, onElegir, onCerrar }) {
   const lista = buscarCanciones(canciones, q);
   return (
     <ModalShell title="Elegir canción" icon={Music} color="var(--wf-brand-accent)" onClose={onCerrar} alto>
-      <input value={q} autoFocus onChange={(e) => setQ(e.target.value)} placeholder="Buscar por título o artista" style={{ ...campo, marginBottom: 10 }} />
+      <div style={{ position: "relative", marginBottom: 10, flexShrink: 0 }}>
+        <input value={q} autoFocus onChange={(e) => setQ(e.target.value)} placeholder="Buscar por título o artista" style={{ ...campo, paddingRight: 40 }} />
+        <BorrarBusqueda valor={q} onBorrar={() => setQ("")} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }} />
+      </div>
       <div style={{ flex: 1, overflowY: "auto", display: "grid", gap: 4, alignContent: "start" }}>
         {lista.length === 0 && <div style={{ fontSize: 13, color: "var(--wf-faint)", padding: 10 }}>No hay canciones con ese nombre.</div>}
         {lista.map((s) => (

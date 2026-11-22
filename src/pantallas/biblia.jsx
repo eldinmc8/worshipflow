@@ -8,7 +8,7 @@ import { crearIndice, buscarEnIndice, filtrarResultadosApi } from "../lib/buscar
 import { stripBibleSearchMarkup } from "../lib/textoBiblia.js";
 import { leerCita, normalizar as normalizarBusqueda } from "../lib/busqueda.js";
 import { partesDeVersiculo } from "../lib/dividirTexto.js";
-import { fetchBibleBooks, fetchBibleChapter, BIBLE_VERSIONS, CAPITULOS_POR_LIBRO, SelectorVersionBiblia, versionBiblia, addBtnStyle, inputStyle, primaryBtn, ModalShell, iconGhost } from "./compartido.jsx";
+import { fetchBibleBooks, fetchBibleChapter, BIBLE_VERSIONS, CAPITULOS_POR_LIBRO, SelectorVersionBiblia, versionBiblia, addBtnStyle, inputStyle, primaryBtn, ModalShell, iconGhost, BorrarBusqueda } from "./compartido.jsx";
 
 const BIBLE_QUICK = [
   { ref: "Salmos 100:1-2", version: "RV1960", text: "Toda la tierra celebra con gozo la presencia del Señor y sirve delante de él con alegría." },
@@ -339,6 +339,7 @@ export function BibleBrowserBody({ onAdd, submitLabel = "Agregar al servicio", s
               <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
                 <Search size={13} color="var(--wf-faint)" />
                 <input value={bookFilter} onChange={(e) => setBookFilter(e.target.value)} placeholder="Buscar libro (ej. Juan, Salmos)…" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 12, width: "100%" }} />
+                <BorrarBusqueda valor={bookFilter} onBorrar={() => setBookFilter("")} />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, maxHeight: 320, overflowY: "auto" }}>
                 {filteredBooks.map((b) => (

@@ -15,7 +15,7 @@ import EditorAnimacionCancion from "../components/EditorAnimacionCancion.jsx";
 import EditorTextoCancion from "../components/EditorTextoCancion.jsx";
 import { PasoEstructura, PasoLetra, PasoAcordes } from "../components/PasosCancion.jsx";
 import { tieneAcordes, normalizarOrden } from "../lib/pasosCancion.js";
-import { NOTES, iconGhost, ModalShell, inputStyle, addBtnStyle, primaryBtn, clasificacionesActuales, transposeLine, semitoneShift, transposeChordToken, Field } from "./compartido.jsx";
+import { NOTES, iconGhost, ModalShell, inputStyle, addBtnStyle, primaryBtn, clasificacionesActuales, transposeLine, semitoneShift, transposeChordToken, Field, BorrarBusqueda } from "./compartido.jsx";
 
 function diatonicChords(keyStr) {
   if (!keyStr) return [];
@@ -166,6 +166,7 @@ export function CancionesList({ library, clasificaciones, puedeConfigurarClasifi
       <div data-tour="canciones-buscar" style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 14, padding: "10px 14px", marginBottom: 12 }}>
         <Search size={15} color="var(--wf-faint)" />
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por título o letra" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 13, width: "100%" }} />
+        <BorrarBusqueda valor={query} onBorrar={() => setQuery("")} />
       </div>
       <div style={{ position: "relative", marginBottom: 12 }}>
         <div ref={barraRef} onScroll={medirBordes} data-tour="canciones-filtros" className="chordbar-scroll" style={{ display: "flex", gap: 6, overflowX: "auto", padding: "2px 0 4px", scrollbarWidth: "none" }}>
@@ -1257,10 +1258,12 @@ function TiraNota({ tipo, etiqueta, texto, onAbrir, onBorrar }) {
 // (tocando una palabra), así nadie cambia la letra sin querer al poner acordes.
 const PASOS_CANCION = [["datos", "Datos"], ["estructura", "Estructura"], ["letra", "Letra"], ["acordes", "Acordes"]];
 
-export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draftGetterRef }) {
+// tituloInicial: al crear una canción desde "Agregar canciones" del setlist, lo que se escribió en el
+// buscador llega ya como título (se puede cambiar).
+export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChange, draftGetterRef, tituloInicial = "" }) {
   const canEditKey = isAdminViewer || !song;
   const nueva = !song;
-  const initialSnapshotRef = useRef(song ? JSON.stringify(normalizarOrden(song)) : JSON.stringify(blankSong()));
+  const initialSnapshotRef = useRef(song ? JSON.stringify(normalizarOrden(song)) : JSON.stringify({ ...blankSong(), title: String(tituloInicial || "").trim() }));
   const [draft, setDraft] = useState(() => JSON.parse(initialSnapshotRef.current));
   const [subTab, setSubTab] = useState("datos"); // datos | estructura | letra | acordes | animacion
   const [pegando, setPegando] = useState(false);

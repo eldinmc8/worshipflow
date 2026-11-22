@@ -814,8 +814,11 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     const candidatos = ministries.filter((m) => /alabanza|adoraci/i.test(m.name || ""));
     return candidatos.length === 1 ? candidatos[0].id : null;
   };
-  const addSong = (songId) => {
-    const song = library.find((s) => s.id === songId);
+  // cancionNueva: la que se acaba de crear desde "Agregar canciones" (todavía no está en `library` de
+  // este render, ver crearCancionEnSetlist).
+  const addSong = (songId, cancionNueva = null) => {
+    const song = cancionNueva || library.find((s) => s.id === songId);
+    if (!song) return;
     const newItem = { id: nextId(), type: "cancion", songId, structure: song.defaultStructure };
     if (destinoSetlist) { updateOrder((o) => colocar(o, newItem)); return; } // eligió el bloque a mano
     const targetBlock = clasificaciones.find((c) => c.clave === song.category)?.bloque?.trim();
@@ -1250,6 +1253,11 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       return idReal;
     }).finally(() => pendingSavesRef.current--);
   };
+  // Crear una canción desde "Agregar canciones" del setlist (2026-11-22): se guarda en la biblioteca
+  // igual que desde Canciones y entra al culto abierto. Devuelve el id real (o falla y el editor sigue).
+  const crearCancionEnSetlist = (draft) => persistSongDraft(draft)
+    .then((idReal) => { addSong(idReal, { ...draft, id: idReal }); return idReal; })
+    .catch((e) => { notifyError("No se pudo guardar la canción", e); throw e; });
   const saveSong = (draft) => {
     return persistSongDraft(draft)
       .then((idReal) => setOpenSong({ id: idReal, mode: "view" }))
@@ -2661,7 +2669,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           isDraftFromTemplate={selectedEvent.id === draftFromTemplateId}
           onPublish={() => { setDraftFromTemplateId(null); window.history.back(); }}
           onStart={() => startEvent(selectedEvent.id)} onPracticar={() => empezarPractica(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
-          onAddSong={addSong} onAddSeccion={addSeccion}
+          onAddSong={addSong} onCrearCancion={puedeGestionarCanciones ? crearCancionEnSetlist : null} onAddSeccion={addSeccion}
           onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)} onAddItems={(items) => updateOrder((o) => colocar(o, items))}
           onAddCuenta={(config) => updateOrder((o) => { const it = itemCuentaRegresiva(nextId(), config); return destinoSetlist ? colocar(o, [it]) : [it, ...o]; })}
           destinoAgregar={destinoSetlist} onDestinoAgregar={setDestinoSetlist}

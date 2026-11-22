@@ -425,3 +425,24 @@ export const addBtnStyle = { display: "flex", alignItems: "center", gap: 8, widt
 export const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "9px 10px", fontSize: 13, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
 
 export const primaryBtn = { width: "100%", background: "var(--wf-brand-accent)", border: "none", borderRadius: 12, padding: "10px", fontSize: 13, fontWeight: 700, color: "var(--wf-on-brand-accent)", cursor: "pointer" };
+
+// X para borrar lo escrito en un buscador con un solo toque (pedido de Eldin, 2026-11-22). Solo se ve
+// cuando hay texto; deja el cursor en el buscador para escribir otra cosa de una vez.
+export function BorrarBusqueda({ valor, onBorrar, style }) {
+  if (!valor) return null;
+  return (
+    <button
+      type="button"
+      aria-label="Borrar búsqueda"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={(e) => {
+        const input = e.currentTarget.parentElement?.querySelector("input");
+        onBorrar();
+        input?.focus();
+      }}
+      style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 13, border: "none", background: "var(--wf-border)", color: "var(--wf-text)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0, ...style }}
+    >
+      <X size={14} />
+    </button>
+  );
+}

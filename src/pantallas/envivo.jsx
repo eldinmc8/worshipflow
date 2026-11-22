@@ -29,7 +29,7 @@ import PanelEscenario from "../components/PanelEscenario.jsx";
 import ImportarPresentacion from "../components/ImportarPresentacion.jsx";
 import CuentaRegresivaModal from "../components/CuentaRegresivaModal.jsx";
 import { cuentaPorMinutos } from "../lib/cuentaRegresiva.js";
-import { TYPE_META, ModalShell, addBtnStyle, inputStyle, primaryBtn, BIBLE_VERSIONS, LIVE_FONTS, LIVE_THEMES, iconGhost, LIVE_SOMBRAS, LIVE_POSICIONES, LIVE_ALINEACIONES, ElegirParteDelCulto, Field } from "./compartido.jsx";
+import { TYPE_META, ModalShell, addBtnStyle, inputStyle, primaryBtn, BIBLE_VERSIONS, LIVE_FONTS, LIVE_THEMES, iconGhost, LIVE_SOMBRAS, LIVE_POSICIONES, LIVE_ALINEACIONES, ElegirParteDelCulto, Field, BorrarBusqueda } from "./compartido.jsx";
 import { BibleLivePanel, BibleModal } from "./biblia.jsx";
 import { MediaPicker, SlideModal, AvisoEnlaceVideo, VideoModal } from "./ventanas.jsx";
 import { avisoDeEnlace, tipoDeVideo } from "../lib/videoEnlace.js";
@@ -105,6 +105,7 @@ function AdHocSongModal({ library, onClose, onPick, Icono = null, color = "#5661
       <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 10px", marginBottom: 10 }}>
         <Search size={13} color="var(--wf-faint)" />
         <input value={query} onChange={(e) => setQuery(e.target.value)} autoFocus placeholder="Buscar canción (aunque esté mal escrita)…" style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 12, width: "100%" }} />
+        <BorrarBusqueda valor={query} onBorrar={() => setQuery("")} />
       </div>
       {filtered.map((s) => (
         <button key={s.id} onClick={() => onPick(s)} className="hoverable" style={{ ...addBtnStyle, textAlign: "left", marginBottom: 6 }}>
