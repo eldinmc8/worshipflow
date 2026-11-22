@@ -148,7 +148,7 @@ export function pasosEvento({ puedeGestionarEventos }) {
     {
       target: "evento-ajustes",
       titulo: "Nombre, fecha y hora",
-      texto: "Cámbialos aquí mismo y toca Guardar. Con \"Configurar alertas\" programas recordatorios para el equipo.",
+      texto: "Toca Editar para cambiarlos y luego Guardar. Con \"Configurar alertas\" programas recordatorios para el equipo.",
     },
     {
       target: "evento-iniciar",

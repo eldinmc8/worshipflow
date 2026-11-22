@@ -200,7 +200,7 @@ describe("letra propia de un texto rápido", () => {
     const cargar = () => eventos.eventoCompletoAFormatoEditor({ evento: fake.db.eventos[0], items: fake.db.items_servicio, encargados: [], roles: [], roleMembers: [], recordatorios: [], vistas: [] });
     expect(cargar().serviceOrder[0].fuente).toBe("impacto");
     await eventos.sincronizarServiceOrder(eventoId, [{ ...item, fuente: undefined }]);
-    expect(fila().estructura ?? null).toBeNull();
+    expect(fila().estructura).toEqual([]); // vacío, nunca null: la columna es NOT NULL
     expect(cargar().serviceOrder[0].fuente).toBeUndefined();
   });
 });
