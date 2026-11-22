@@ -30,7 +30,7 @@ import ImportarPresentacion from "../components/ImportarPresentacion.jsx";
 import CuentaRegresivaModal from "../components/CuentaRegresivaModal.jsx";
 import { cuentaPorMinutos } from "../lib/cuentaRegresiva.js";
 import { TYPE_META, ModalShell, addBtnStyle, inputStyle, primaryBtn, BIBLE_VERSIONS, LIVE_FONTS, LIVE_THEMES, iconGhost, LIVE_SOMBRAS, LIVE_POSICIONES, LIVE_ALINEACIONES, ElegirParteDelCulto, Field } from "./compartido.jsx";
-import { BibleLivePanel } from "./biblia.jsx";
+import { BibleLivePanel, BibleModal } from "./biblia.jsx";
 import { MediaPicker, SlideModal, AvisoEnlaceVideo, VideoModal } from "./ventanas.jsx";
 import { avisoDeEnlace, tipoDeVideo } from "../lib/videoEnlace.js";
 import { posicionActual, textoTiempo } from "../lib/videoControl.js";
@@ -317,6 +317,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   const [showAdHocSong, setShowAdHocSong] = useState(false);
   // "+ Agregar → Video" (2026-11-08): entra al orden del culto como cualquier otro elemento.
   const [showVideoOrden, setShowVideoOrden] = useState(false);
+  const [showVersiculoOrden, setShowVersiculoOrden] = useState(false);
   const [showCuenta, setShowCuenta] = useState(false);
   const [showImportar, setShowImportar] = useState(false);
   const [showAddSlide, setShowAddSlide] = useState(false);
@@ -959,7 +960,10 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   const opcionesAgregarConsola = [
     { clave: "proyectar", Icon: Radio, color: "var(--wf-brand-accent)", titulo: "Proyectar desde biblioteca", detalle: "Busca una canción y sale en pantalla de una vez", accion: () => setShowAdHocSong("proyectar") },
     { clave: "cancion", Icon: Music, color: "#1F8A73", titulo: "Canción", detalle: "De la biblioteca — queda en el orden del culto", accion: () => setShowAdHocSong(true) },
-    { clave: "biblia", Icon: BookOpen, color: "#2F5FA8", titulo: "Versículo", detalle: "Búscalo en la Biblia y proyéctalo al momento", accion: () => setMmPanel("biblia") },
+    // Versículo (arreglo 2026-11-22): antes solo abría la pestaña Biblia (si ya se estaba en ella, no
+    // pasaba nada) y no quedaba en el orden. Ahora abre el buscador y lo agrega al orden del culto, igual
+    // que en el Setlist. En una sesión libre (sin evento) sigue abriendo la Biblia para proyectar.
+    { clave: "biblia", Icon: BookOpen, color: "#2F5FA8", titulo: "Versículo", detalle: isFreeSession ? "Búscalo en la Biblia y proyéctalo al momento" : "Búscalo en la Biblia — queda en el orden del culto", accion: () => (isFreeSession ? setMmPanel("biblia") : setShowVersiculoOrden(true)) },
     { clave: "texto", Icon: Type, color: "#B15EA0", titulo: "Texto rápido", detalle: "Un aviso o el título de la prédica, en segundos", accion: nuevaDiapositivaTexto },
     { clave: "imagen", Icon: ImgIcon, color: "#B15EA0", titulo: "Imagen", detalle: "De tu biblioteca de imágenes o una nueva, a pantalla completa", accion: nuevaDiapositivaImagen },
     !isCompact && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(anclaParaAgregar()?.id || null) },
@@ -1447,6 +1451,16 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                 style={{ ...iconGhost, padding: 2, color: "var(--wf-faint)", flexShrink: 0 }}
               >{onOcultar ? <EyeOff size={13} /> : <X size={12} />}</button>
             );
+            // Borrar de verdad del orden (2026-11-22): el ojo solo oculta en la consola; esto lo quita del
+            // setlist del evento (pide confirmación). Sin onOcultar, la X de arriba ya hace esto.
+            const borrar = onOcultar && onQuitarDelOrden ? (
+              <button
+                className="orden-quitar" onClick={(e) => { e.stopPropagation(); quitarDelOrden(it); }}
+                title={it.type === "seccion" ? "Borrar este bloque del setlist" : "Borrar del setlist"}
+                aria-label="Borrar del setlist"
+                style={{ ...iconGhost, padding: 2, color: "var(--wf-faint)", flexShrink: 0 }}
+              ><Trash2 size={13} /></button>
+            ) : null;
             // El cursor de "mano que agarra" es blanco y sobre las filas claras no se veía (reportado por
             // Eldin, 2026-11-14): aquí la flecha/mano de siempre, y la de agarrar solo mientras se arrastra.
             const cursorFila = (normal) => (arrastreOrden.indiceArrastrado === idx ? "grabbing" : normal);
@@ -1469,6 +1483,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                     <button onClick={(e) => { e.stopPropagation(); setDestinoConsola(it.id); setShowAgregarConsola(true); }} title={`Agregar algo a "${it.title || "Bloque"}"`} aria-label={`Agregar a ${it.title || "Bloque"}`} style={{ ...iconGhost, padding: 2, color: "var(--wf-brand-accent)", flexShrink: 0 }}><Plus size={14} /></button>
                   )}
                   {quitar}
+                  {borrar}
                 </div>
               );
             }
@@ -1506,6 +1521,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
                 {alAire && <span style={{ fontSize: 9, fontWeight: 800, color: "#C23B32" }}>●</span>}
                 {mover}
                 {quitar}
+                {borrar}
               </div>
             );
           })}
@@ -1724,6 +1740,19 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
             Nada sale a la pantalla hasta que tú lo proyectes. Luego lo puedes arrastrar a otro lugar del orden.
           </div>
         </ModalShell>
+      )}
+      {showVersiculoOrden && (
+        <BibleModal
+          onClose={() => setShowVersiculoOrden(false)}
+          submitLabel="Agregar al orden del culto"
+          onAdd={(b) => {
+            const id = crypto.randomUUID();
+            onInsertarItems([{ id, type: "biblia", reference: b.ref, version: b.version, text: b.text, bookId: b.bookId, bookName: b.bookName, chapter: b.chapter, verseStart: b.verseStart, verseEnd: b.verseEnd }], anclaParaAgregar()?.id || null);
+            setShowVersiculoOrden(false);
+            setItemVisto(id); setVerTodas(false);
+            showToast(`"${b.ref}" quedó en el orden del culto. Tócalo para proyectarlo.`, "info");
+          }}
+        />
       )}
       {showCuenta && <CuentaRegresivaModal enConsola evento={eventoInfo} onClose={() => setShowCuenta(false)} onGuardar={(c) => { onStartAdHocCuenta(c); setShowCuenta(false); }} />}
       {showVideoOrden && (

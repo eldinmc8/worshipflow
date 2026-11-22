@@ -41,6 +41,15 @@ export async function deleteCancion(id) {
   if (error) throw error;
 }
 
+// Borrar varias a la vez (2026-11-22, "Seleccionar" en la biblioteca). En tandas de 100 para que la
+// dirección de la consulta no quede demasiado larga.
+export async function deleteCanciones(ids) {
+  for (let i = 0; i < ids.length; i += 100) {
+    const { error } = await supabase.from("canciones").delete().in("id", ids.slice(i, i + 100));
+    if (error) throw error;
+  }
+}
+
 // Reemplaza por completo las secciones/estructura/diapositivas de una canción con las que se
 // traen del editor — más simple y confiable que calcular diffs, y el volumen por canción es chico.
 export async function guardarSecciones(cancionId, secciones) {

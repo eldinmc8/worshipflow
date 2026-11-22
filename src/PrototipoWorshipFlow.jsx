@@ -10,7 +10,7 @@ import { showToast, notifyError, esFalloDeConexion } from "./lib/toast.js";
 import { ordenarPor } from "./lib/orden.js";
 import { registrarLineaBaseEventos, listEventosCompletos, sincronizarServiceOrder, sincronizarWorshipRoles, crearEventoCompleto, deleteEvento, updateEvento, marcarAsignacionVista } from "./lib/eventos.js";
 import { registrarLineaBaseMinisterios, listMinisteriosCompletos, sincronizarPlan, sincronizarRecursos, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarPermisosLider, actualizarColorMinisterio, eliminarMinisterio } from "./lib/ministerios.js";
-import { listCancionesCompletas, updateCancion, guardarLetraCancion, guardarCancionDesdeEditor, deleteCancion } from "./lib/canciones.js";
+import { listCancionesCompletas, updateCancion, guardarLetraCancion, guardarCancionDesdeEditor, deleteCancion, deleteCanciones } from "./lib/canciones.js";
 import { saveCache, loadCache } from "./lib/offlineCache.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { palabrasPorParteSegun, expandirVersiculosLargos, reorganizarLetra } from "./lib/dividirTexto.js";
@@ -1260,6 +1260,25 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     setLibrary((lib) => lib.filter((s) => s.id !== song.id));
     setOpenSong(null);
     deleteCancion(song.id).catch((e) => notifyError("No se pudo eliminar la canción", e));
+  };
+  // Borrar varias canciones a la vez (modo "Seleccionar" de la biblioteca). Devuelve true si se borraron.
+  const deleteSongs = async (songs) => {
+    if (songs.length === 0) return false;
+    const texto = songs.length === 1 ? `¿Eliminar "${songs[0].title}"? Esto no se puede deshacer.` : `¿Eliminar estas ${songs.length} canciones? Esto no se puede deshacer.`;
+    if (!(await confirmDialog(texto, { danger: true, textoConfirmar: songs.length === 1 ? "Eliminar" : `Eliminar ${songs.length}` }))) return false;
+    const ids = songs.map((s) => s.id);
+    const quitar = new Set(ids);
+    const antes = library;
+    setLibrary((lib) => lib.filter((s) => !quitar.has(s.id)));
+    try {
+      await deleteCanciones(ids);
+      showToast(songs.length === 1 ? "Canción eliminada" : `${songs.length} canciones eliminadas`, "info");
+    } catch (e) {
+      setLibrary(antes);
+      notifyError("No se pudieron eliminar las canciones", e);
+      return false;
+    }
+    return true;
   };
   // Cuando un evento nace clonado de una plantilla, se marca como "recién armado" (solo en memoria,
   // nada nuevo en la base de datos) para que EventDetail le muestre el botón "Publicar evento" — un
@@ -2582,7 +2601,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       )}
 
       {tab === "canciones" && openSong === null && (
-        <CancionesList library={library} clasificaciones={clasificaciones} puedeConfigurarClasificaciones={realIsAdmin && isAdminViewer} onGuardarClasificaciones={guardarClasificaciones} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onImportarPdf={() => setImportandoPdf(true)} onBuscarWeb={() => setBuscandoWeb(true)} onDelete={deleteSong} />
+        <CancionesList library={library} clasificaciones={clasificaciones} puedeConfigurarClasificaciones={realIsAdmin && isAdminViewer} onGuardarClasificaciones={guardarClasificaciones} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onImportarPdf={() => setImportandoPdf(true)} onBuscarWeb={() => setBuscandoWeb(true)} onDelete={deleteSong} onDeleteMany={deleteSongs} />
       )}
       {importandoPdf && (
         <ConPlan funcion="importar" onCerrar={() => setImportandoPdf(false)}>

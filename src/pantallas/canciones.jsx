@@ -1,10 +1,11 @@
 // Canciones: biblioteca, vista de la canción (acordes, Modo Músico), editor y sus ventanas. Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import { useState, useMemo, useRef, useEffect } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
-import { FileUp, Globe, Plus, Search, Heart, Pencil, Paperclip, Trash2, ListMusic, Music, Minus, FileText, Image as ImgIcon, Link2, ArrowLeft, ChevronDown, Radio, Pause, Users, Play, PencilLine, ChevronLeft, ChevronRight, RefreshCw, X, Check, ClipboardPaste, Lock } from "lucide-react";
+import { FileUp, Globe, Plus, Search, Heart, Pencil, Paperclip, Trash2, ListMusic, Music, Minus, FileText, Image as ImgIcon, Link2, ArrowLeft, ChevronDown, Radio, Pause, Users, Play, PencilLine, ChevronLeft, ChevronRight, RefreshCw, X, Check, ClipboardPaste, Lock, CheckSquare, Square } from "lucide-react";
 import { usePlan, permite, abrirPlanes } from "../lib/planes.js";
 import { acordeEn, usePreferencias, lineaEn } from "../lib/preferencias.js";
 import { confirmDialog } from "../lib/confirm.js";
+import { useCerrarConAtras } from "../lib/atras.js";
 import { listarAdjuntos, tipoDeArchivo, subirAdjunto, agregarEnlace, borrarAdjunto } from "../lib/adjuntosCancion.js";
 import { notifyError, showToast } from "../lib/toast.js";
 import { supabase } from "../lib/supabaseClient.js";
@@ -83,8 +84,16 @@ function isMusicoLeaderFresh(musicoState) {
 const nextSongId = () => crypto.randomUUID();
 
 // ---------------- CANCIONES: LISTA ----------------
-export function CancionesList({ library, clasificaciones, puedeConfigurarClasificaciones, onGuardarClasificaciones, isAdminViewer, onToggleFavorite, onOpen, onNew, onImportarPdf, onBuscarWeb, onDelete }) {
+export function CancionesList({ library, clasificaciones, puedeConfigurarClasificaciones, onGuardarClasificaciones, isAdminViewer, onToggleFavorite, onOpen, onNew, onImportarPdf, onBuscarWeb, onDelete, onDeleteMany }) {
   const [query, setQuery] = useState("");
+  // Modo "Seleccionar" (2026-11-22): marcar varias canciones y borrarlas juntas (ej. las que se
+  // agregaron por accidente). Atrás del teléfono sale del modo sin borrar nada.
+  const [seleccionando, setSeleccionando] = useState(false);
+  const [elegidas, setElegidas] = useState(() => new Set());
+  const [borrando, setBorrando] = useState(false);
+  const salirDeSeleccion = () => { setSeleccionando(false); setElegidas(new Set()); };
+  useCerrarConAtras(seleccionando, salirDeSeleccion);
+  const alternar = (id) => setElegidas((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   // "todos" + las clasificaciones de ESTA iglesia. "sin" (Sin clasificar) solo aparece si hay
   // canciones cuya clasificación ya no existe (ej. la borraron), para que no queden escondidas.
   const [categoryFilter, setCategoryFilter] = useState("todos");
@@ -94,6 +103,18 @@ export function CancionesList({ library, clasificaciones, puedeConfigurarClasifi
   const enFiltro = (s, key) => key === "todos" || (key === "favoritas" ? s.favorite : key === "sin" ? !claves.has(s.category) : s.category === key);
   // Búsqueda tolerante (sin tildes, en cualquier orden, con faltas de ortografía) — ver lib/busqueda.js.
   const filtered = useMemo(() => buscarCanciones(library.filter((s) => enFiltro(s, categoryFilter)), query), [library, categoryFilter, query, clasificaciones]);
+  const todasVisiblesElegidas = filtered.length > 0 && filtered.every((s) => elegidas.has(s.id));
+  const elegirTodasVisibles = () => setElegidas((prev) => {
+    const n = new Set(prev);
+    if (todasVisiblesElegidas) filtered.forEach((s) => n.delete(s.id)); else filtered.forEach((s) => n.add(s.id));
+    return n;
+  });
+  const borrarElegidas = async () => {
+    const lista = library.filter((s) => elegidas.has(s.id));
+    if (lista.length === 0 || borrando) return;
+    setBorrando(true);
+    try { if (await onDeleteMany(lista)) salirDeSeleccion(); } finally { setBorrando(false); }
+  };
   // Barra de clasificaciones (2026-10-10): cada chip dice cuántas canciones tiene, "Favoritas" va
   // fija al inicio, el borde se difumina cuando hay más a la derecha, y la elegida se trae a la vista.
   const filtros = [
@@ -121,8 +142,13 @@ export function CancionesList({ library, clasificaciones, puedeConfigurarClasifi
     <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
         <h2 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, margin: 0 }}>{library.length} Canciones</h2>
-        {isAdminViewer && (
-          <div style={{ display: "flex", gap: 8 }}>
+        {isAdminViewer && !seleccionando && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {onDeleteMany && library.length > 0 && (
+              <button onClick={() => setSeleccionando(true)} title="Seleccionar varias canciones para borrarlas" style={{ display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 12px", borderRadius: 10, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", color: "var(--wf-text)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <CheckSquare size={14} /> Seleccionar
+              </button>
+            )}
             {onBuscarWeb && (
               <button onClick={onBuscarWeb} title="Buscar una canción en internet (letra y acordes)" style={{ display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 12px", borderRadius: 10, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", color: "var(--wf-text)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                 <Globe size={14} /> Internet
@@ -176,8 +202,29 @@ export function CancionesList({ library, clasificaciones, puedeConfigurarClasifi
           onGuardar={async (lista) => { await onGuardarClasificaciones(lista); setShowClasificaciones(false); if (!lista.some((c) => c.clave === categoryFilter)) setCategoryFilter("todos"); }}
         />
       )}
-      {filtered.map((s) => (
-        <div key={s.id} onClick={() => onOpen(s.id)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: "pointer" }}>
+      {seleccionando && (
+        <div data-testid="barra-seleccion" style={{ position: "sticky", top: 8, zIndex: 5, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, background: "var(--wf-card)", boxShadow: "0 2px 10px rgba(22,50,79,0.14)", borderRadius: 14, padding: "10px 12px", marginBottom: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, flex: 1, minWidth: 110 }}>
+            {elegidas.size === 0 ? "Toca las canciones que quieres borrar" : elegidas.size === 1 ? "1 seleccionada" : `${elegidas.size} seleccionadas`}
+          </span>
+          {filtered.length > 0 && (
+            <button onClick={elegirTodasVisibles} style={{ height: 32, padding: "0 12px", borderRadius: 10, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", color: "var(--wf-text)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              {todasVisiblesElegidas ? "Quitar todas" : `Marcar todas (${filtered.length})`}
+            </button>
+          )}
+          <button onClick={salirDeSeleccion} style={{ height: 32, padding: "0 12px", borderRadius: 10, background: "transparent", border: "1px solid var(--wf-border)", color: "var(--wf-text)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+            Cancelar
+          </button>
+          <button onClick={borrarElegidas} disabled={elegidas.size === 0 || borrando} style={{ display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 14px", borderRadius: 10, background: elegidas.size === 0 ? "var(--wf-hover)" : "#C23B32", border: "none", color: elegidas.size === 0 ? "var(--wf-faint)" : "#FFFFFF", fontSize: 12.5, fontWeight: 700, cursor: elegidas.size === 0 ? "default" : "pointer", fontFamily: "inherit" }}>
+            <Trash2 size={14} /> {borrando ? "Borrando…" : elegidas.size > 0 ? `Borrar (${elegidas.size})` : "Borrar"}
+          </button>
+        </div>
+      )}
+      {filtered.map((s) => {
+        const marcada = seleccionando && elegidas.has(s.id);
+        return (
+        <div key={s.id} onClick={() => (seleccionando ? alternar(s.id) : onOpen(s.id))} role={seleccionando ? "checkbox" : undefined} aria-checked={seleccionando ? marcada : undefined} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, background: marcada ? "rgba(194,59,50,0.07)" : "var(--wf-card)", border: "none", boxShadow: marcada ? "0 0 0 2px #C23B32" : "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: "pointer" }}>
+          {seleccionando && (marcada ? <CheckSquare size={20} color="#C23B32" style={{ flexShrink: 0 }} /> : <Square size={20} color="var(--wf-faint)" style={{ flexShrink: 0 }} />)}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>{s.title}</div>
             <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>{s.artist || "Unknown"}</div>
@@ -185,10 +232,11 @@ export function CancionesList({ library, clasificaciones, puedeConfigurarClasifi
           {s.hasAttachment && <Paperclip size={15} color="var(--wf-faint)" />}
           <span style={{ fontSize: 11, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 20, padding: "3px 10px", color: "var(--wf-text-2)" }}>{acordeEn(s.key)}</span>
           <span style={{ fontSize: 11, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 20, padding: "3px 10px", color: "var(--wf-text-2)" }}>{s.tempo} bpm</span>
-          <button onClick={(e) => { e.stopPropagation(); onToggleFavorite(s.id); }} style={iconGhost}><Heart size={16} color={s.favorite ? "#C23B32" : "var(--wf-faint)"} fill={s.favorite ? "#C23B32" : "none"} /></button>
-          {isAdminViewer && <button onClick={(e) => { e.stopPropagation(); onDelete(s); }} style={iconGhost}><Trash2 size={16} color="var(--wf-faint)" /></button>}
+          {!seleccionando && <button onClick={(e) => { e.stopPropagation(); onToggleFavorite(s.id); }} style={iconGhost}><Heart size={16} color={s.favorite ? "#C23B32" : "var(--wf-faint)"} fill={s.favorite ? "#C23B32" : "none"} /></button>}
+          {isAdminViewer && !seleccionando && <button onClick={(e) => { e.stopPropagation(); onDelete(s); }} style={iconGhost}><Trash2 size={16} color="var(--wf-faint)" /></button>}
         </div>
-      ))}
+        );
+      })}
       {filtered.length === 0 && <div style={{ color: "var(--wf-faint)", fontSize: 13 }}>No hay canciones que coincidan con la búsqueda.</div>}
     </div>
   );
