@@ -14,6 +14,7 @@ import { notifyError, showToast, esFalloDeConexion } from "../lib/toast.js";
 import { ModalShell, Field, primaryBtn, inputStyle, addBtnStyle, LIVE_FONTS } from "./compartido.jsx";
 import { avisoDeEnlace } from "../lib/videoEnlace.js";
 import { colorPropioDe, fondoFijo, tipoDeFondo, COLORES_LISOS } from "../lib/fondoDiapositiva.js";
+import GaleriaDisenos from "../components/GaleriaDisenos.jsx";
 
 // +502 4054 4813, sin "+" ni espacios para wa.me
 
@@ -432,8 +433,11 @@ const etiquetaCampo = { display: "block", fontSize: 11.5, fontWeight: 800, color
 // vistaPrevia(draft): la consola pasa una mini pantalla con el estilo en vivo, para ver el fondo ANTES
 // de agregar (2026-11-14: el texto rápido salía con el fondo de las canciones y no se notaba hasta
 // proyectarlo). Fondo: "El de Estilo" (el de siempre), un color liso propio, una imagen o un video.
-export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositiva de texto", submitLabel = "Agregar al culto", iglesiaId, vistaPrevia = null }) {
+export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositiva de texto", submitLabel = "Agregar al culto", iglesiaId, vistaPrevia = null, onDiseno = null }) {
   const tipo = tipoDeFondo(draft);
+  // Diseños listos solo en computadora (la edición de diapositivas es solo para computadora).
+  const verDisenos = !!onDiseno && !(typeof window !== "undefined" && window.innerWidth < 768);
+  const [disenosAbiertos, setDisenosAbiertos] = useState(true);
   const liso = colorPropioDe(draft);
   const elegirTipo = (t) => {
     if (t === "estilo") setDraft({ ...draft, bgType: "color", bg: "#1B2029" });
@@ -442,6 +446,23 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
   };
   return (
     <ModalShell title={title} icon={ImgIcon} color="#B15EA0" onClose={onClose}>
+      {/* Galería de diseños listos (pedido de Eldin, 2026-11-22): tocar uno abre el editor de
+          diapositivas con ese diseño puesto, para cambiar el texto y agregarlo con "Listo". */}
+      {verDisenos && (
+        <div style={{ marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid var(--wf-border)" }}>
+          <button type="button" onClick={() => setDisenosAbiertos((v) => !v)} aria-expanded={disenosAbiertos}
+            style={{ ...etiquetaCampo, display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+            <span>Diseños listos · ofrendas, jóvenes, sermón y anuncios</span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: "#2F5FA8" }}>{disenosAbiertos ? "Ocultar" : "Ver"}</span>
+          </button>
+          {disenosAbiertos && (
+            <>
+              <GaleriaDisenos columnas={3} onElegir={onDiseno} />
+              <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Se abre en el editor con el diseño puesto: cambias el texto y tocas Listo. O escribe abajo una diapositiva sencilla.</div>
+            </>
+          )}
+        </div>
+      )}
       {vistaPrevia && (
         <div data-testid="vista-previa-diapositiva" style={{ width: "100%", aspectRatio: "16/9", borderRadius: 12, overflow: "hidden", marginBottom: 12, boxShadow: "0 1px 3px rgba(22,50,79,0.08)" }}>
           {vistaPrevia(draft)}

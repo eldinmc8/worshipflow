@@ -1794,6 +1794,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           iglesiaId={myIglesiaId} title={showAddSlide === "imagen" ? "Imagen" : "Texto rápido"} vistaPrevia={vistaPreviaDiapositiva}
           draft={newSlideDraft} setDraft={setNewSlideDraft}
           onClose={() => setShowAddSlide(false)}
+          onDiseno={!isCompact && onDisenarNueva && showAddSlide !== "imagen" ? (d) => { setShowAddSlide(false); onDisenarNueva(anclaParaAgregar()?.id || null, d); } : null}
           onAdd={() => {
             if (!newSlideDraft.title && !(newSlideDraft.bgType === "video" && newSlideDraft.videoUrl) && !(newSlideDraft.bgType === "imagen" && newSlideDraft.imageUrl)) { showToast(newSlideDraft.bgType === "imagen" ? "Elige una imagen o escribe un texto." : "Escribe el texto que se va a proyectar.", "info"); return; }
             if (showAddSlide !== "imagen") { saveCache("texto_rapido_fondo", fondoParaRecordar(newSlideDraft)); saveCache("texto_rapido_fuente", newSlideDraft.fuente || ""); }

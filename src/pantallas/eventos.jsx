@@ -1634,7 +1634,8 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
         />
       )}
       {showBibleForm && <BibleModal onClose={() => setShowBibleForm(false)} onAdd={addBible} splitVersesIndividually />}
-      {showSlideForm && <SlideModal iglesiaId={myIglesiaId} draft={slideDraft} setDraft={setSlideDraft} onClose={() => setShowSlideForm(false)} onAdd={addSlide} />}
+      {showSlideForm && <SlideModal iglesiaId={myIglesiaId} draft={slideDraft} setDraft={setSlideDraft} onClose={() => setShowSlideForm(false)} onAdd={addSlide}
+        onDiseno={isAdminViewer && onDisenarNueva && !isCompact ? (d) => { setShowSlideForm(false); onDisenarNueva(destinoAgregar ? anclaDeBloque(event.serviceOrder, destinoAgregar)?.id : undefined, d); } : null} />}
       {videoModal && (
         <VideoModal iglesiaId={myIglesiaId} inicial={videoModal.item || null} onClose={() => setVideoModal(null)}
           onAdd={({ videoUrl, name }) => {

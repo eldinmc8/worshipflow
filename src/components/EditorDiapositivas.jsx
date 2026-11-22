@@ -7,6 +7,7 @@ import {
 import { listarPlantillasIglesia, guardarPlantillaIglesia, borrarPlantillaIglesia } from "../lib/plantillasIglesia.js";
 import { ICONOS_DISENO } from "./iconosDiseno.js";
 import DiapositivaDisenada from "./DiapositivaDisenada.jsx";
+import GaleriaDisenos from "./GaleriaDisenos.jsx";
 import { ENTRADAS, PERMANENCIAS, ANIM_CAPA_VACIA, pasosDeDiapositiva } from "../lib/animaciones.js";
 import {
   FUENTES, COLORES, PLANTILLAS, LIENZO_ANCHO, familiaDe, nuevaCapaTexto, nuevaCapaImagen, clonarDiapositiva, clonarCapa,
@@ -101,7 +102,7 @@ const medirImagen = (url) => new Promise((resolve) => {
   img.src = url;
 });
 
-export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas: inicial, indiceInicial = 0, alAire = false, nueva = false, iglesiaId, onGuardar, onCerrar }) {
+export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas: inicial, indiceInicial = 0, alAire = false, nueva = false, abrirPlantillas = true, iglesiaId, onGuardar, onCerrar }) {
   const [titulo, setTitulo] = useState(tituloInicial || "");
   const [hist, setHist] = useState(() => ({ pasado: [], presente: inicial?.length ? inicial : [nuevaDiapositiva()], futuro: [] }));
   const diaps = hist.presente;
@@ -110,7 +111,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
   const [editandoTexto, setEditandoTexto] = useState(null);
   const [guias, setGuias] = useState({ x: null, y: null });
   const [menu, setMenu] = useState(null); // { x, y, indice } — clic derecho en una miniatura
-  const [plantillasAbiertas, setPlantillasAbiertas] = useState(nueva && !(typeof window !== "undefined" && window.innerWidth < 768)); // una diapositiva nueva abre con las plantillas a la vista
+  const [plantillasAbiertas, setPlantillasAbiertas] = useState(nueva && abrirPlantillas && !(typeof window !== "undefined" && window.innerWidth < 768)); // una diapositiva nueva abre con las plantillas a la vista
   const [panelInsertar, setPanelInsertar] = useState(null); // null | "formas" | "iconos"
   const [buscarIcono, setBuscarIcono] = useState("");
   // Plantillas propias de la iglesia (null = todavía no se cargan, o la tabla no existe aún).
@@ -134,7 +135,7 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
   }, []);
   const movilRef = useRef(movil);
   movilRef.current = movil;
-  const [hoja, setHoja] = useState(nueva && typeof window !== "undefined" && window.innerWidth < 768 ? "plantillas" : null); // celular: qué hoja de herramientas está abierta
+  const [hoja, setHoja] = useState(nueva && abrirPlantillas && typeof window !== "undefined" && window.innerWidth < 768 ? "plantillas" : null); // celular: qué hoja de herramientas está abierta
   const areaRef = useRef(null);
   const lienzoRef = useRef(null);
   const gestoRef = useRef(null);
@@ -464,6 +465,11 @@ export default function EditorDiapositivas({ titulo: tituloInicial, diapositivas
                     </div>
                   </>
                 )}
+                {/* Galería de diseños listos (2026-11-22): ofrendas, jóvenes, sermón y anuncios, con candado por plan. */}
+                <div style={{ ...etiqueta, marginBottom: 8 }}>Diseños listos</div>
+                <div style={{ marginBottom: 14 }}>
+                  <GaleriaDisenos oscuro columnas={3} onElegir={(d) => { usarPlantilla(d); setPlantillasAbiertas(false); }} />
+                </div>
                 <div style={{ ...etiqueta, marginBottom: 8 }}>Plantillas · todo se puede cambiar después</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                   {PLANTILLAS.map((p) => {

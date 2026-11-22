@@ -13,7 +13,7 @@ export const PLANES = [
   {
     id: "ministerio", nombre: "Ministerio", precio: 9.99, precioAnual: 99, color: "#1F8A73",
     resumen: "Para el equipo de alabanza completo",
-    incluye: ["Hasta 20 miembros", "Todo lo del plan Gratis", "Modo Músico (acordes, auto-avance, tap tempo)", "Todas las letras animadas y fondos en movimiento", "Hasta 75 canciones", "Plantillas de eventos", "Hasta 3 ministerios", "Asistente: 30 mensajes al día"],
+    incluye: ["Hasta 20 miembros", "Todo lo del plan Gratis", "Modo Músico (acordes, auto-avance, tap tempo)", "Todas las letras animadas y fondos en movimiento", "Galería completa de diseños para diapositivas", "Hasta 75 canciones", "Plantillas de eventos", "Hasta 3 ministerios", "Asistente: 30 mensajes al día"],
   },
   {
     id: "crecimiento", nombre: "Crecimiento", precio: 19.99, precioAnual: 199, color: "#2F5FA8",
@@ -67,6 +67,7 @@ export function permite(plan, funcion) {
 const NIVEL = { gratis: 0, ministerio: 1, crecimiento: 2, iglesia: 3 };
 export const FUNCIONES_PLAN = {
   estilos_animados: { plan: "ministerio", nombre: "Todas las letras animadas y fondos en movimiento" },
+  galeria_disenos: { plan: "ministerio", nombre: "Galería completa de diseños para diapositivas" },
   fondo_propio: { plan: "crecimiento", nombre: "Imagen o video propio de fondo" },
   importar: { plan: "crecimiento", nombre: "Importar PowerPoint, PDF y canciones de internet" },
   bosquejo: { plan: "crecimiento", nombre: "Bosquejo del predicador y Modo Predicar" },
@@ -106,6 +107,7 @@ export const COMPARATIVO = [
     ["Proyección en vivo y TV", true, true, true, true],
     ["Pantalla de escenario (teleprompter)", true, true, true, true],
     ["Temas de color y tipos de letra", true, true, true, true],
+    ["Diseños listos para diapositivas", "6 básicos", "Todos", "Todos", "Todos"],
     ["Letras animadas", "5 básicas", "Todas", "Todas", "Todas"],
     ["Fondos en movimiento", false, true, true, true],
     ["Imagen o video propio de fondo", false, false, true, true],
