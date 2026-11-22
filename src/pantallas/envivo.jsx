@@ -27,13 +27,16 @@ import CintaAdaptable from "../components/CintaAdaptable.jsx";
 import PantallaOtroEquipo from "../components/PantallaOtroEquipo.jsx";
 import PanelEscenario from "../components/PanelEscenario.jsx";
 import PanelAvisoCongregacion from "../components/PanelAvisoCongregacion.jsx";
-import { avisoValido, segundosRestantesAviso, conAviso } from "../lib/avisoCongregacion.js";
+import { avisoValido, segundosRestantesAviso, conAviso, crearAviso } from "../lib/avisoCongregacion.js";
 import ImportarPresentacion from "../components/ImportarPresentacion.jsx";
 import CuentaRegresivaModal from "../components/CuentaRegresivaModal.jsx";
 import { cuentaPorMinutos } from "../lib/cuentaRegresiva.js";
 import { TYPE_META, ModalShell, addBtnStyle, inputStyle, primaryBtn, BIBLE_VERSIONS, LIVE_FONTS, LIVE_THEMES, iconGhost, LIVE_SOMBRAS, LIVE_POSICIONES, LIVE_ALINEACIONES, ElegirParteDelCulto, Field, BorrarBusqueda } from "./compartido.jsx";
 import { BibleLivePanel, BibleModal } from "./biblia.jsx";
-import { MediaPicker, SlideModal, AvisoEnlaceVideo, VideoModal } from "./ventanas.jsx";
+import { MediaPicker, SlideModal, AvisoEnlaceVideo, VideoModal, audioValido } from "./ventanas.jsx";
+import { nuevaDiapositivaAudio, reproducirAudio, bajarAudio } from "../lib/audioCulto.js";
+import { leerBotones, guardarBotones, pasoIncompleto, indiceDestino, cuentaDelPaso, TIPOS_PASO } from "../lib/botonesRapidos.js";
+import { FilaBotonesRapidos, EditorBotonesRapidos } from "../components/BotonesRapidos.jsx";
 import { avisoDeEnlace, tipoDeVideo } from "../lib/videoEnlace.js";
 import { posicionActual, textoTiempo } from "../lib/videoControl.js";
 import { useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
@@ -287,6 +290,50 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   // Mensaje para la congregación (2026-11-22, ver lib/avisoCongregacion.js): franja en el proyector que se
   // quita sola. Viaja en el estilo en vivo; aquí se cuenta el tiempo y se borra al terminar.
   const [showAviso, setShowAviso] = useState(false);
+  // Botones de un solo toque (2026-11-22, ver lib/botonesRapidos.js): varios pasos con un toque.
+  const [botonesRapidos, setBotonesRapidos] = useState(() => leerBotones());
+  const [showEditorBotones, setShowEditorBotones] = useState(false);
+  const ejecutarBotonRapido = (boton) => {
+    const saltados = [];
+    const conFondo = boton.pasos.some((p) => p.tipo === "fondo" && p.fondo);
+    boton.pasos.forEach((p) => {
+      if (pasoIncompleto(p)) { saltados.push(TIPOS_PASO.find((t) => t.tipo === p.tipo)?.label || p.tipo); return; }
+      switch (p.tipo) {
+        case "fondo":
+          setEstiloCompleto((st) => ({ ...st, theme: p.fondo.theme, customBgType: p.fondo.customBgType, customImage: p.fondo.customImage, customVideo: p.fondo.customVideo, ...(animacionActiva(st) ? { animFondo: "propio" } : {}) }));
+          break;
+        case "cuenta":
+          if (onStartAdHocCuenta) onStartAdHocCuenta(cuentaDelPaso(p, conFondo)); else saltados.push("Cuenta regresiva");
+          break;
+        case "musica":
+          reproducirAudio({ url: p.url, nombre: p.nombre, origen: "musica", repetir: p.repetir, seguir: true });
+          break;
+        case "bajarMusica":
+          bajarAudio();
+          break;
+        case "irA": {
+          const i = indiceDestino(p.destino, slides);
+          if (i == null) saltados.push("Ir a una parte del culto (no hay cantos)");
+          else gotoPlanSlide(i);
+          break;
+        }
+        case "negro":
+          setBlanked(p.valor);
+          break;
+        case "mensaje":
+          if (enPractica) saltados.push("Mensaje (no sale en la práctica)");
+          else setEstiloCompleto((st) => conAviso(st, crearAviso(p.texto, p.segundos)));
+          break;
+        case "escenario":
+          if (onMensajeEscenario) onMensajeEscenario(p.texto); else saltados.push("Mensaje al escenario");
+          break;
+        default:
+      }
+    });
+    if (!boton.pasos.length) showToast(`"${boton.nombre}" todavía no hace nada. Tócalo en Editar para agregarle pasos.`, "info");
+    else if (saltados.length) showToast(`"${boton.nombre}" listo, pero se saltó: ${saltados.join(", ")}. Complétalo en Editar.`, "info");
+    else showToast(`"${boton.nombre}" listo.`, "info");
+  };
   const avisoCong = avisoValido(estiloCompleto?.avisoCongregacion) ? estiloCompleto.avisoCongregacion : null;
   const [, setTicAviso] = useState(0);
   const quitarAviso = (id = null) => setEstiloCompleto((st) => (st?.avisoCongregacion && (!id || st.avisoCongregacion.id === id) ? conAviso(st, null) : st));
@@ -349,7 +396,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     setEditDraft(
       s.type === "biblia" ? { reference: s.baseReference ?? s.reference, text: s.baseText ?? s.text }
       : s.type === "cancion" ? { text: (s.baseLines || s.lines).join("\n") }
-      : { title: s.title, subtitle: s.subtitle || "", name: s.nombre || "", escalaSubtitulo: s.escalaSubtitulo, fuente: s.fuente, bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "" }
+      : { title: s.title, subtitle: s.subtitle || "", name: s.nombre || "", escalaSubtitulo: s.escalaSubtitulo, fuente: s.fuente, bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "", ...(s.audio ? { audio: s.audio } : {}) }
     );
   };
   const saveSlideEdit = () => {
@@ -987,6 +1034,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     !isCompact && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(anclaParaAgregar()?.id || null) },
     { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
     { clave: "video", Icon: Play, color: "#C23B32", titulo: "Video de YouTube", detalle: "Queda en el orden del culto. Al tocarlo se reproduce con sonido y lo controlas desde aquí", accion: () => setShowVideoOrden(true) },
+    { clave: "audio", Icon: Volume2, color: "#1F8A73", titulo: "Audio", detalle: "Una pista o canción grabada, con una imagen o texto en pantalla mientras suena", accion: () => { setNewSlideDraft(nuevaDiapositivaAudio()); setShowAddSlide("audio"); } },
     onStartAdHocCuenta && { clave: "cuenta", Icon: Timer, color: "#5661B3", titulo: "Cuenta regresiva", detalle: "Un reloj antes del culto o de un receso (20 estilos)", accion: () => setShowCuenta(true) },
   ].filter(Boolean);
   // Debajo de la vista previa cuando lo que está al aire es una cuenta regresiva.
@@ -1192,6 +1240,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         <div style={{ flex: 1 }} />
         {botonAgregarConsola({ tour: "envivo-agregar" })}
       </div>
+      <FilaBotonesRapidos compacto botones={botonesRapidos} onEjecutar={ejecutarBotonRapido} onEditar={() => setShowEditorBotones(true)} />
       {franjasDeEstado}
 
       {/* Sin letrero de "improvisado" (pedido de Eldin, 2026-10-08): para volver al plan basta tocar
@@ -1448,6 +1497,8 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         </ModalShell>
       )}
       {showOtroEquipo && <PantallaOtroEquipo iglesiaId={myIglesiaId} onCerrar={() => setShowOtroEquipo(false)} />}
+      {showEditorBotones && <EditorBotonesRapidos botones={botonesRapidos} iglesiaId={myIglesiaId} estiloActual={estiloCompleto} onCerrar={() => setShowEditorBotones(false)}
+        onGuardar={(lista) => { setBotonesRapidos(lista); guardarBotones(lista); setShowEditorBotones(false); showToast("Botones guardados en esta computadora.", "info"); }} />}
       {showAviso && <PanelAvisoCongregacion avisoActual={avisoCong} segundosRestantes={segAviso} onEnviar={(a) => setEstiloCompleto((st) => conAviso(st, a))} onQuitar={() => quitarAviso()} onCerrar={() => setShowAviso(false)} onIrAEscenario={onMensajeEscenario ? () => { setShowAviso(false); setShowEscenario(true); } : null} />}
       {showEscenario && onMensajeEscenario && <PanelEscenario mensaje={mensajeEscenario} onMensaje={onMensajeEscenario} iglesiaId={myIglesiaId} slug={iglesiaSlug} onCerrar={() => setShowEscenario(false)}
         temporizador={temporizador} onTemporizador={onTemporizador} autoTemporizador={autoTemporizador} onAutoTemporizador={onAutoTemporizador} />}
@@ -1643,6 +1694,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               izquierda (pedido de Eldin, 2026-10-11): aquí abajo ya no se repite. */}
         </aside>
       </div>
+      <FilaBotonesRapidos botones={botonesRapidos} onEjecutar={ejecutarBotonRapido} onEditar={() => setShowEditorBotones(true)} />
       {barraDeMando}
       </>
       )}
@@ -1791,11 +1843,16 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       )}
       {showAddSlide && (
         <SlideModal
-          iglesiaId={myIglesiaId} title={showAddSlide === "imagen" ? "Imagen" : "Texto rápido"} vistaPrevia={vistaPreviaDiapositiva}
+          iglesiaId={myIglesiaId} title={showAddSlide === "imagen" ? "Imagen" : showAddSlide === "audio" ? "Diapositiva de audio" : "Texto rápido"} vistaPrevia={vistaPreviaDiapositiva}
           draft={newSlideDraft} setDraft={setNewSlideDraft}
           onClose={() => setShowAddSlide(false)}
           onDiseno={!isCompact && onDisenarNueva && showAddSlide !== "imagen" ? (d) => { setShowAddSlide(false); onDisenarNueva(anclaParaAgregar()?.id || null, d); } : null}
           onAdd={() => {
+            if (showAddSlide === "audio") {
+              if (!audioValido(newSlideDraft.audio?.url)) { showToast("Elige el audio: súbelo o pega su enlace.", "info"); return; }
+              onAddLiveSlide({ ...newSlideDraft, name: newSlideDraft.name?.trim() || `Audio: ${newSlideDraft.audio.nombre || "sin nombre"}` }, anclaParaAgregar()?.id); setShowAddSlide(false);
+              return;
+            }
             if (!newSlideDraft.title && !(newSlideDraft.bgType === "video" && newSlideDraft.videoUrl) && !(newSlideDraft.bgType === "imagen" && newSlideDraft.imageUrl)) { showToast(newSlideDraft.bgType === "imagen" ? "Elige una imagen o escribe un texto." : "Escribe el texto que se va a proyectar.", "info"); return; }
             if (showAddSlide !== "imagen") { saveCache("texto_rapido_fondo", fondoParaRecordar(newSlideDraft)); saveCache("texto_rapido_fuente", newSlideDraft.fuente || ""); }
             onAddLiveSlide(newSlideDraft, anclaParaAgregar()?.id); setShowAddSlide(false);

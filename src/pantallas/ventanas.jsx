@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import SelectorZonaHoraria from "../components/SelectorZonaHoraria.jsx";
 import { etiquetaZona } from "../lib/zonasHorarias.js";
 import { supabase } from "../lib/supabaseClient.js";
-import { Radio, Palette, Download, KeyRound, Play, Image as ImgIcon, LayoutGrid, Trash2, Clock } from "lucide-react";
+import { Radio, Palette, Download, KeyRound, Play, Image as ImgIcon, LayoutGrid, Trash2, Clock, Music } from "lucide-react";
 import { FORMATOS_LETRA } from "../lib/dividirTexto.js";
 import AppLogo from "../AppLogo.jsx";
 import { validarPassword } from "../lib/passwordSegura.js";
@@ -13,6 +13,7 @@ import { confirmDialog } from "../lib/confirm.js";
 import { notifyError, showToast, esFalloDeConexion } from "../lib/toast.js";
 import { ModalShell, Field, primaryBtn, inputStyle, addBtnStyle, LIVE_FONTS } from "./compartido.jsx";
 import { avisoDeEnlace } from "../lib/videoEnlace.js";
+import { nombreDeAudio, avisoEnlaceAudio } from "../lib/audioCulto.js";
 import { colorPropioDe, fondoFijo, tipoDeFondo, COLORES_LISOS } from "../lib/fondoDiapositiva.js";
 import GaleriaDisenos from "../components/GaleriaDisenos.jsx";
 
@@ -355,25 +356,30 @@ export function MediaPicker({ iglesiaId, tipo, value, onChange, color = "#B15EA0
           {value ? (
             tipo === "imagen"
               ? <span style={{ width: 16, height: 16, borderRadius: 8, backgroundImage: `url(${value})`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />
-              : <Play size={13} color={color} />
-          ) : tipo === "imagen" ? <ImgIcon size={13} color="var(--wf-faint)" /> : <Play size={13} color="var(--wf-faint)" />}
-          <span>{uploading ? "Subiendo…" : `Subir ${tipo === "imagen" ? (value ? "otra imagen" : "una imagen") : (value ? "otro video" : "un video")} desde este equipo`}</span>
+              : tipo === "audio" ? <Music size={13} color={color} /> : <Play size={13} color={color} />
+          ) : tipo === "imagen" ? <ImgIcon size={13} color="var(--wf-faint)" /> : tipo === "audio" ? <Music size={13} color="var(--wf-faint)" /> : <Play size={13} color="var(--wf-faint)" />}
+          <span>{uploading ? "Subiendo…" : `Subir ${tipo === "imagen" ? (value ? "otra imagen" : "una imagen") : tipo === "audio" ? (value ? "otro audio" : "un audio") : (value ? "otro video" : "un video")} desde este equipo`}</span>
         </button>
         <button type="button" onClick={() => setShowGallery((s) => !s)} aria-expanded={showGallery} className="hoverable" title="Elegir de lo ya subido antes" style={{ ...addBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap", ...(showGallery ? { borderColor: color } : {}) }}>
           <LayoutGrid size={13} color={color} /> {showGallery ? "Ocultar biblioteca" : "Biblioteca"}
         </button>
       </div>
-      <input ref={fileInputRef} type="file" accept={tipo === "imagen" ? "image/*" : "video/*"} style={{ display: "none" }} onChange={(e) => { subir(e.target.files?.[0]); e.target.value = ""; }} />
-      {!error && <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Máximo {Math.round(FONDO_MAX_BYTES[tipo] / (1024 * 1024))} MB por {tipo === "imagen" ? "imagen" : "video"}.{tipo === "video" ? " Si pesa más, súbelo a YouTube o Google Drive y pega el enlace." : ""}</div>}
+      <input ref={fileInputRef} type="file" accept={tipo === "imagen" ? "image/*" : tipo === "audio" ? "audio/*,.mp3,.m4a,.wav,.ogg" : "video/*"} style={{ display: "none" }} onChange={(e) => { subir(e.target.files?.[0]); e.target.value = ""; }} />
+      {!error && <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Máximo {Math.round(FONDO_MAX_BYTES[tipo] / (1024 * 1024))} MB por {tipo === "imagen" ? "imagen" : tipo === "audio" ? "audio" : "video"}.{tipo === "video" ? " Si pesa más, súbelo a YouTube o Google Drive y pega el enlace." : ""}</div>}
       {error && <div style={{ fontSize: 11, color: "#C23B32", marginTop: 6 }}>{error}</div>}
       {showGallery && (
         <div data-testid="biblioteca-fondos" style={{ marginTop: 10, display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${grande ? 118 : 72}px, 1fr))`, gap: 8, maxHeight: grande ? 300 : 220, overflowY: "auto", background: "var(--wf-hover)", borderRadius: 12, padding: 8 }}>
           {loading && <div style={{ fontSize: 11, color: "var(--wf-faint)", gridColumn: "1/-1" }}>Cargando…</div>}
-          {!loading && items.length === 0 && <div style={{ fontSize: 11, color: "var(--wf-faint)", gridColumn: "1/-1" }}>{tipo === "imagen" ? "Todavía no hay imágenes guardadas: sube la primera con el botón de arriba." : "Todavía no hay videos guardados: sube el primero con el botón de arriba."}</div>}
+          {!loading && items.length === 0 && <div style={{ fontSize: 11, color: "var(--wf-faint)", gridColumn: "1/-1" }}>{tipo === "imagen" ? "Todavía no hay imágenes guardadas: sube la primera con el botón de arriba." : tipo === "audio" ? "Todavía no hay audios guardados: sube el primero con el botón de arriba." : "Todavía no hay videos guardados: sube el primero con el botón de arriba."}</div>}
           {items.map((item) => (
             <div key={item.ruta} onClick={() => onChange(item.url)} title={item.nombre} role="button" aria-pressed={value === item.url} style={{ position: "relative", aspectRatio: grande ? "16/9" : "1", borderRadius: 10, overflow: "hidden", cursor: "pointer", background: "#000", border: value === item.url ? `3px solid ${color}` : "1px solid var(--wf-border)", boxSizing: "border-box" }}>
               {tipo === "imagen" ? (
                 <div style={{ width: "100%", height: "100%", backgroundImage: `url(${item.url})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+              ) : tipo === "audio" ? (
+                <div style={{ width: "100%", height: "100%", background: "var(--wf-card)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: 6, boxSizing: "border-box" }}>
+                  <Music size={18} color={color} />
+                  <span style={{ fontSize: 9.5, color: "var(--wf-text)", textAlign: "center", lineHeight: 1.15, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", wordBreak: "break-word" }}>{nombreDeAudio(item.url)}</span>
+                </div>
               ) : (
                 <video src={item.url} muted preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               )}
@@ -384,6 +390,40 @@ export function MediaPicker({ iglesiaId, tipo, value, onChange, color = "#B15EA0
       )}
     </div>
   );
+}
+
+// Elegir un audio (2026-11-22): subirlo a la biblioteca (MP3, M4A, WAV…) o pegar un enlace directo. Lo usan
+// la diapositiva de audio y el paso "Poner música" de los botones de un solo toque.
+export function SelectorAudio({ iglesiaId, value, onChange, color = "#1F8A73" }) {
+  const [enlace, setEnlace] = useState(!!value && !/\/fondos-en-vivo\//.test(value));
+  const aviso = enlace && value ? avisoEnlaceAudio(value) : null;
+  return (
+    <div>
+      {!enlace ? (
+        <>
+          <MediaPicker iglesiaId={iglesiaId} tipo="audio" value={value} onChange={onChange} color={color} />
+          <button type="button" onClick={() => { setEnlace(true); onChange(""); }} style={{ background: "none", border: "none", padding: 0, marginTop: 8, fontSize: 12, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>Mejor pegar un enlace directo a un audio</button>
+        </>
+      ) : (
+        <>
+          <input inputMode="url" placeholder="Pega el enlace de un .mp3 (no YouTube ni Spotify)" value={value || ""} onChange={(e) => onChange(e.target.value.trim())} style={{ ...inputStyle, marginBottom: 6 }} />
+          {aviso && <div style={{ fontSize: 11.5, fontWeight: 600, color: aviso.ok ? "#1F8A73" : "#C23B32", marginBottom: 6, lineHeight: 1.4 }}>{aviso.texto}</div>}
+          <button type="button" onClick={() => { setEnlace(false); onChange(""); }} style={{ background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>Mejor subir el archivo desde mi equipo</button>
+        </>
+      )}
+      {value && avisoEnlaceAudio(value)?.ok && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 4 }}>Escúchalo aquí: <b style={{ color: "var(--wf-text)" }}>{nombreDeAudio(value)}</b></div>
+          <audio controls preload="none" src={value} style={{ width: "100%", height: 36 }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ¿El audio elegido sirve? (hay enlace y no es de YouTube/Spotify/Drive).
+export function audioValido(url) {
+  return !!url && avisoEnlaceAudio(url)?.ok === true;
 }
 
 // Qué se detectó en el enlace pegado, o por qué no se va a poder reproducir (2026-11-08).
@@ -444,11 +484,34 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
     else if (t === "liso") setDraft({ ...draft, bgType: "color", bg: fondoFijo(liso || COLORES_LISOS[1]) });
     else setDraft({ ...draft, bgType: t });
   };
+  // Diapositiva de audio (2026-11-22): el audio suena en la consola mientras se ve este texto o imagen.
+  const audio = draft.audio || null;
+  const setAudio = (patch) => setDraft({ ...draft, audio: { ...audio, ...patch } });
   return (
-    <ModalShell title={title} icon={ImgIcon} color="#B15EA0" onClose={onClose}>
+    <ModalShell title={title} icon={audio ? Music : ImgIcon} color={audio ? "#1F8A73" : "#B15EA0"} onClose={onClose}>
+      {audio && (
+        <div data-testid="seccion-audio" style={{ marginBottom: 14 }}>
+          <label style={etiquetaCampo}>Audio · lo que va a sonar</label>
+          <SelectorAudio iglesiaId={iglesiaId} value={audio.url} onChange={(url) => setAudio({ url, nombre: nombreDeAudio(url) })} />
+          <label style={{ ...etiquetaCampo, marginTop: 12 }}>Cuando termine el audio</label>
+          <div role="radiogroup" aria-label="Cuando termine el audio" style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12 }}>
+            {[["quedarse", "Quedarse aquí"], ["avanzar", "Pasar a lo siguiente"]].map(([val, label]) => {
+              const activo = (audio.alTerminar || "quedarse") === val && !audio.repetir;
+              return <button key={val} type="button" role="radio" aria-checked={activo} onClick={() => setAudio({ alTerminar: val, repetir: false })} style={{ flex: 1, fontSize: 11.5, fontWeight: 700, padding: "6px 4px", borderRadius: 10, border: "none", cursor: "pointer", whiteSpace: "nowrap", background: activo ? "var(--wf-brand-accent)" : "transparent", color: activo ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{label}</button>;
+            })}
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, marginTop: 10, cursor: "pointer" }}>
+            <input type="checkbox" checked={!!audio.repetir} onChange={(e) => setAudio({ repetir: e.target.checked })} /> Repetir sin parar (en bucle)
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, marginTop: 6, cursor: "pointer" }}>
+            <input type="checkbox" checked={!!audio.seguir} onChange={(e) => setAudio({ seguir: e.target.checked })} /> Que siga sonando al pasar a otra diapositiva
+          </label>
+          <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6, lineHeight: 1.4 }}>Empieza solo cuando esta diapositiva sale en pantalla. Suena en la computadora de la consola, por la salida de audio elegida en Ajustes. Si no marcas lo de arriba, al pasar a otra cosa el audio se baja poco a poco.</div>
+        </div>
+      )}
       {/* Galería de diseños listos (pedido de Eldin, 2026-11-22): tocar uno abre el editor de
           diapositivas con ese diseño puesto, para cambiar el texto y agregarlo con "Listo". */}
-      {verDisenos && (
+      {verDisenos && !audio && (
         <div style={{ marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid var(--wf-border)" }}>
           <button type="button" onClick={() => setDisenosAbiertos((v) => !v)} aria-expanded={disenosAbiertos}
             style={{ ...etiquetaCampo, display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
@@ -472,8 +535,8 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
           (dónde se corta cada línea en la proyección), en vez de dejarlo todo al ajuste automático. */}
       {/* Contenido (lo que se proyecta) separado del NOMBRE (cómo aparece en la lista y en la miniatura)
           — pedido de Eldin, 2026-10-11, para que no se confundan. */}
-      <label style={etiquetaCampo}>Contenido · lo que se ve en la pantalla</label>
-      <textarea placeholder="Escribe el texto que se va a proyectar (Enter para cambiar de línea). Opcional si es solo imagen o video." value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} style={{ ...inputStyle, height: 80, resize: "none" }} />
+      <label style={etiquetaCampo}>{audio ? "Lo que se ve mientras suena (opcional)" : "Contenido · lo que se ve en la pantalla"}</label>
+      <textarea placeholder={audio ? "Un título, la letra o un aviso. Déjalo vacío para que se vea solo el fondo o la imagen." : "Escribe el texto que se va a proyectar (Enter para cambiar de línea). Opcional si es solo imagen o video."} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} style={{ ...inputStyle, height: 80, resize: "none" }} />
       <textarea placeholder="Texto pequeño debajo (opcional)" value={draft.subtitle} onChange={(e) => setDraft({ ...draft, subtitle: e.target.value })} style={{ ...inputStyle, height: 44, resize: "none", marginTop: 8 }} />
       {(draft.subtitle || "").trim() && (
         <div style={{ marginTop: 8 }}>
@@ -485,7 +548,7 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
       )}
       <label style={{ ...etiquetaCampo, marginTop: 14 }}>Fondo</label>
       <div role="radiogroup" aria-label="Fondo de la diapositiva" style={{ display: "flex", gap: 3, background: "var(--wf-hover)", padding: 3, borderRadius: 12, marginBottom: 10 }}>
-        {[["estilo", "El de Estilo"], ["liso", "Color liso"], ["imagen", "Imagen"], ["video", "Video"]].map(([val, label]) => (
+        {[["estilo", "El de Estilo"], ["liso", "Color liso"], ["imagen", "Imagen"], ...(audio ? [] : [["video", "Video"]])].map(([val, label]) => (
           <button key={val} type="button" role="radio" aria-checked={tipo === val} onClick={() => elegirTipo(val)} style={{ flex: 1, fontSize: 11.5, fontWeight: 700, padding: "6px 4px", borderRadius: 10, border: "none", cursor: "pointer", whiteSpace: "nowrap", background: tipo === val ? "var(--wf-brand-accent)" : "transparent", color: tipo === val ? "var(--wf-brand-primary)" : "var(--wf-text)" }}>{label}</button>
         ))}
       </div>
