@@ -13,8 +13,9 @@
 // aplica sola: ProjectionPanel elige uno u otro según la diapositiva (estiloParaDiapositiva).
 
 // Lo que es solo de canciones: la letra animada (y su fondo) y el fondo por canción.
-// Tampoco son de la Biblia las transiciones: son del culto entero (ver lib/transiciones.js).
-const SOLO_CANCIONES = new Set(["fondoPorCancion", "fondosCanciones", "transicion", "transicionVel", "transicionesItems"]);
+// Tampoco son de la Biblia las transiciones ni el mensaje para la congregación: son del culto entero
+// (ver lib/transiciones.js y lib/avisoCongregacion.js).
+const SOLO_CANCIONES = new Set(["fondoPorCancion", "fondosCanciones", "transicion", "transicionVel", "transicionesItems", "avisoCongregacion"]);
 const esSoloCanciones = (clave) => SOLO_CANCIONES.has(clave) || /^anim/.test(clave);
 
 export function sinEfectosDeCanciones(estilo) {
