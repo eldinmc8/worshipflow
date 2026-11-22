@@ -1128,7 +1128,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   const [animEvento, setAnimEvento] = useState(null);
   // Un video solo (sin texto) se edita con su propio formulario, más simple (2026-11-08).
   const abrirEditarTexto = (it) => (esVideoSolo(it) ? setVideoModal({ item: it }) : abrirEditarDiapositiva(it));
-  const abrirEditarDiapositiva = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", escalaSubtitulo: it.escalaSubtitulo, bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "" } });
+  const abrirEditarDiapositiva = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", escalaSubtitulo: it.escalaSubtitulo, fuente: it.fuente, bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "" } });
   // La parte del culto elegida en "+ Agregar" solo vale mientras se está agregando: al cerrarse todo
   // (o cancelar), vuelve a "al final" para que lo siguiente no caiga en un bloque viejo.
   const agregando = showAgregar || pickerCancion || showImportar || showBibleForm || showSlideForm || showSermonForm || !!cuentaModal || !!videoModal;

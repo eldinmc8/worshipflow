@@ -43,6 +43,8 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
   // Versículos con su propio estilo (sin letra animada); el resto con el de las canciones. Ver lib/estiloBiblia.js.
   const liveStyle = estiloParaDiapositiva(estiloCompleto, slide);
   const font = LIVE_FONTS[liveStyle?.font || "elegante"];
+  // Una diapositiva de texto puede traer su propia letra (slide.fuente, 2026-11-22); si no, esta.
+  const fuenteBase = font;
   const scale = liveStyle?.fontScale ?? 1;
   // Tamaño real (medido, en px) al que AutoFitText terminó dejando el texto del versículo después de
   // achicarlo para que quepa — puede ser bastante menor que el "deseado" (bibliaRatio) si el versículo
@@ -341,7 +343,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
               </div>
             </>
           )}
-          {slide.type === "slide" && (
+          {slide.type === "slide" && (() => { const font = (slide.fuente && LIVE_FONTS[slide.fuente]) || fuenteBase; return (
             <div style={{ textAlign: "center", zIndex: 1, width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               <AutoFitText
                 // Un renglón vacío se proyecta como espacio (pedido de Eldin, 2026-10-11): una línea "" medía
@@ -362,7 +364,7 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
               )}
               {slide.subtitle && slide.title && posicion.flex === "center" && <div style={{ flex: 0.55, minHeight: 0 }} />}
             </div>
-          )}
+          ); })()}
         </CapaTransicion>
       )}
     </div>

@@ -11,7 +11,7 @@ import MedidorPassword from "../MedidorPassword.jsx";
 import { listarFondos, subirFondo, borrarFondo, FONDO_MAX_BYTES } from "../lib/multimedia.js";
 import { confirmDialog } from "../lib/confirm.js";
 import { notifyError, showToast, esFalloDeConexion } from "../lib/toast.js";
-import { ModalShell, Field, primaryBtn, inputStyle, addBtnStyle } from "./compartido.jsx";
+import { ModalShell, Field, primaryBtn, inputStyle, addBtnStyle, LIVE_FONTS } from "./compartido.jsx";
 import { avisoDeEnlace } from "../lib/videoEnlace.js";
 import { colorPropioDe, fondoFijo, tipoDeFondo, COLORES_LISOS } from "../lib/fondoDiapositiva.js";
 
@@ -499,6 +499,19 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
           <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Con el contenido vacío se proyecta como video, a pantalla completa y <b>con sonido</b>. Con texto encima queda de fondo, sin sonido y en bucle.</div>
         </div>
       )}
+      {/* Letra propia (pedido de Eldin, 2026-11-22): sin elegir, sale con la tipografía de Estilo (la de
+          las canciones); con una elegida, solo ESTA diapositiva cambia de letra. Viaja en estructura.fuente. */}
+      <label style={{ ...etiquetaCampo, marginTop: 14 }}>Letra</label>
+      <div role="radiogroup" aria-label="Letra de la diapositiva" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {[["", "La de Estilo", null], ...Object.entries(LIVE_FONTS).map(([k, f]) => [k, f.label, f])].map(([k, label, f]) => {
+          const activo = (draft.fuente || "") === k;
+          return (
+            <button key={k || "estilo"} type="button" role="radio" aria-checked={activo} onClick={() => setDraft({ ...draft, fuente: k || undefined })}
+              style={{ fontSize: 13, padding: "6px 10px", borderRadius: 12, cursor: "pointer", whiteSpace: "nowrap", border: activo ? "2px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", background: activo ? "var(--wf-hover)" : "var(--wf-card, #fff)", color: "var(--wf-text)", ...(f ? { fontFamily: f.family, fontWeight: f.weight, fontStyle: f.italic ? "italic" : "normal" } : { fontWeight: 700 }) }}>{label}</button>
+          );
+        })}
+      </div>
+      {!draft.fuente && <div style={{ fontSize: 11.5, color: "var(--wf-muted)", lineHeight: 1.4, marginTop: 6 }}>Sale con la letra que esté puesta en <b>Estilo</b> (la misma de las canciones). Elige otra para cambiar solo esta diapositiva.</div>}
       <label style={{ ...etiquetaCampo, marginTop: 14 }}>Nombre de la diapositiva · no se proyecta</label>
       <input placeholder={`Ej. "Anuncio de ayuno" — así sale en el orden del culto y en la miniatura`} value={draft.name || ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={inputStyle} />
       <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 5 }}>Si lo dejas vacío, se usa el contenido como nombre.</div>

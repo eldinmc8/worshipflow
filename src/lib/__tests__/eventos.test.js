@@ -187,6 +187,24 @@ describe("cuenta regresiva en el Setlist", () => {
   });
 });
 
+describe("letra propia de un texto rápido", () => {
+  it("se guarda en estructura.fuente, vuelve al cargar y se borra al volver a la de Estilo", async () => {
+    const eventoId = "evento-fuente";
+    fake.db.eventos = [{ id: eventoId, titulo: "Domingo" }];
+    fake.db.items_servicio = [];
+    fake.db.miembros_rol = [];
+    const item = { id: "t1", type: "slide", title: "Bienvenidos", subtitle: "", bg: "#1B2029", bgType: "color", fuente: "impacto", encargados: [] };
+    await eventos.sincronizarServiceOrder(eventoId, [item]);
+    const fila = () => fake.db.items_servicio.find((i) => i.id === "t1");
+    expect(fila().estructura).toEqual({ fuente: "impacto" });
+    const cargar = () => eventos.eventoCompletoAFormatoEditor({ evento: fake.db.eventos[0], items: fake.db.items_servicio, encargados: [], roles: [], roleMembers: [], recordatorios: [], vistas: [] });
+    expect(cargar().serviceOrder[0].fuente).toBe("impacto");
+    await eventos.sincronizarServiceOrder(eventoId, [{ ...item, fuente: undefined }]);
+    expect(fila().estructura ?? null).toBeNull();
+    expect(cargar().serviceOrder[0].fuente).toBeUndefined();
+  });
+});
+
 describe("animación de una canción solo en este evento", () => {
   it("viaja en items_servicio.animacion y vuelve al cargar; sin la columna se guarda sin ella", async () => {
     const eventoId = "evento-anim";

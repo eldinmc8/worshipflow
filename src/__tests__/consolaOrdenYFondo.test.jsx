@@ -114,6 +114,22 @@ describe("Fondo e imágenes a la mano", () => {
     fireEvent.click(enLaCinta(/^Texto rápido/));
     expect(screen.getByRole("radio", { name: "Color liso" }).getAttribute("aria-checked")).toBe("true");
   });
+  it("el texto rápido puede llevar su propia letra, se ve en la vista previa y el siguiente empieza igual", () => {
+    const onAgregar = vi.fn();
+    render(<Consola onAgregar={onAgregar} />);
+    modoCompleto();
+    fireEvent.click(screen.getByText("Insertar"));
+    fireEvent.click(enLaCinta(/^Texto rápido/));
+    expect(screen.getByRole("radio", { name: "La de Estilo" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("radio", { name: "Impacto" }));
+    fireEvent.change(screen.getByPlaceholderText(/Escribe el texto que se va a proyectar/), { target: { value: "Bienvenidos" } });
+    const previa = screen.getByTestId("vista-previa-diapositiva");
+    expect(previa.innerHTML).toContain("Bebas Neue");
+    fireEvent.click(screen.getByText("Agregar al culto"));
+    expect(onAgregar.mock.calls[0][0]).toMatchObject({ title: "Bienvenidos", fuente: "impacto" });
+    fireEvent.click(enLaCinta(/^Texto rápido/));
+    expect(screen.getByRole("radio", { name: "Impacto" }).getAttribute("aria-checked")).toBe("true");
+  });
   it("la diapositiva de texto que se ve al centro tiene 'Texto y fondo' a un clic", () => {
     render(<Consola />);
     fireEvent.click(screen.getByText("Texto y fondo"));

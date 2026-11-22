@@ -196,7 +196,7 @@ function buildSlides(serviceOrder, library) {
       // Presentación agrupada o diapositiva diseñada en el editor: cada diapositiva con su diseño.
       slides.push(...slidesDeGrupo(item));
     } else if (item.type === "slide") {
-      slides.push({ slideId: item.id, type: "slide", title: item.title, nombre: item.name || "", subtitle: subtituloProyectable(item), escalaSubtitulo: item.escalaSubtitulo, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl, imageUrl: item.imageUrl });
+      slides.push({ slideId: item.id, type: "slide", title: item.title, nombre: item.name || "", subtitle: subtituloProyectable(item), escalaSubtitulo: item.escalaSubtitulo, fuente: item.fuente, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl, imageUrl: item.imageUrl });
     }
   });
   return slides;
