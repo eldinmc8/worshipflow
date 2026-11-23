@@ -216,8 +216,10 @@ export default function PantallaEscenario() {
             </>
           ) : (
             <>
-              <Etiqueta>Hora · el temporizador aparece cuando Multimedia lo inicie</Etiqueta>
-              <div style={{ fontSize: `calc(min(20vh, 15vw) * ${tamano})`, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{reloj}</div>
+              <Etiqueta>Hora</Etiqueta>
+              <div style={{ fontSize: `calc(min(16vh, 12vw) * ${tamano})`, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{reloj}</div>
+              {transcurrido && <div style={{ marginTop: "2vh", fontSize: `calc(clamp(16px, 3.4vh, 42px) * ${tamano})`, color: "#C9D2DE", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}><span style={{ color: "#C23B32" }}>●</span> Tiempo del culto · {transcurrido}</div>}
+              <div style={{ marginTop: "1.6vh", fontSize: "clamp(11px, 1.6vh, 18px)", color: GRIS, maxWidth: 560, lineHeight: 1.4 }}>El temporizador del mensaje aparece aquí cuando Multimedia lo inicia (Escenario → Temporizador), o solo al empezar la predicación si lo dejan activado.</div>
             </>
           )}
         </Tarjeta>
@@ -239,10 +241,32 @@ export default function PantallaEscenario() {
               : <div style={{ fontSize: "clamp(14px, 2.2vh, 26px)", color: GRIS }}>Este punto no tiene nota.</div>}
           </Tarjeta>
         ) : (
-          <Tarjeta style={{ flex: 1, borderLeft: "4px solid #F6C344" }}>
-            <Etiqueta color="#F6C344">Tu bosquejo</Etiqueta>
-            <div style={{ fontSize: "clamp(14px, 2.4vh, 28px)", color: GRIS, lineHeight: 1.4 }}>Cuando Multimedia ponga al aire tu bosquejo, aquí salen el punto en el que vas y tu nota.</div>
-          </Tarjeta>
+          <>
+            {/* Sin bosquejo al aire: lo que sigue y lo que viene en el culto, para que la pantalla no quede vacía. */}
+            {sig && (
+              <Tarjeta>
+                <Etiqueta>{`Sigue${sig.etiqueta ? ` · ${sig.etiqueta}` : ""}`}</Etiqueta>
+                <div style={{ fontSize: `calc(clamp(16px, 3vh, 38px) * ${tamano})`, color: "#E6EAF0", fontWeight: 600, lineHeight: 1.3 }}>{esc?.siguienteEsOtro && sig.titulo ? sig.titulo : (sig.lineas || []).join(" · ")}</div>
+              </Tarjeta>
+            )}
+            {esc?.proximos?.length > 0 && (
+              <Tarjeta style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+                <Etiqueta>Lo que viene en el culto</Etiqueta>
+                <div style={{ display: "flex", flexDirection: "column", gap: "1vh" }}>
+                  {esc.proximos.map((p, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: `calc(clamp(15px, 2.6vh, 32px) * ${tamano})`, color: p.tipo === "seccion" ? GRIS : "#E6EAF0", fontWeight: p.tipo === "seccion" ? 700 : 500, textTransform: p.tipo === "seccion" ? "uppercase" : "none" }}>
+                      {p.tipo !== "seccion" && <span style={{ width: 9, height: 9, borderRadius: 5, flexShrink: 0, background: p.tipo === "cancion" ? NARANJA : p.tipo === "biblia" ? "#2F5FA8" : "#B15EA0" }} />}
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.titulo}</span>
+                    </div>
+                  ))}
+                </div>
+              </Tarjeta>
+            )}
+            <Tarjeta style={{ flex: esc?.proximos?.length ? "none" : 1, borderLeft: "4px solid #F6C344" }}>
+              <Etiqueta color="#F6C344">Tu bosquejo</Etiqueta>
+              <div style={{ fontSize: "clamp(13px, 2vh, 24px)", color: GRIS, lineHeight: 1.4 }}>Cuando Multimedia ponga al aire tu bosquejo, aquí salen el punto en el que vas, tu nota y los próximos versículos.</div>
+            </Tarjeta>
+          </>
         )}
         {pred?.proximosVersiculos?.length > 0 && (
           <Tarjeta>
