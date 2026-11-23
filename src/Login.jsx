@@ -8,7 +8,7 @@ const primaryBtn = { width: "100%", background: "#E8821E", border: "none", borde
 
 // Los miembros entran con credenciales ya creadas desde Ajustes/Usuarios. Desde el lanzamiento (2026-11-18) hay un
 // enlace "Crear mi iglesia gratis" (?crear-iglesia) para iglesias nuevas: el registro de iglesias es abierto.
-export default function Login() {
+export default function Login({ aviso = "" }) {
   const { lanzado } = useLanzamiento();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,6 +43,7 @@ export default function Login() {
         <div style={{ marginBottom: 20 }}>
           <GenericMark size={64} />
         </div>
+        {aviso && <div style={{ background: "#FDF0E3", color: "#16324F", borderRadius: 10, padding: "10px 12px", fontSize: 13, fontWeight: 600, marginBottom: 14 }}>{aviso}</div>}
 
         <form onSubmit={submitLogin} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <input type="email" required placeholder="Correo" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />

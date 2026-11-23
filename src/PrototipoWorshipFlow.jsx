@@ -34,7 +34,7 @@ import { listMisNotificaciones, subscribeNotificaciones, marcarLeida, marcarToda
 import { estaEnPredicacion, perteneceA, temporizadorActivo, iniciarTemporizador, armarEscenario } from "./lib/escenario.js";
 import { isUpcoming, compareByDay, formatFullDate, formatHora } from "./lib/dates.js";
 import { CLAVES_TUTORIAL, pasosBienvenida, pasosEventos, pasosEvento, pasosCanciones, pasosEditorCancion, pasosEnVivo, marcarTutorialVisto, reiniciarTutoriales } from "./lib/tutoriales.js";
-import { Eye, WifiOff, EyeOff, ChevronRight, Bell, Pencil, Check, LayoutGrid, Home, Music, Calendar, MessageCircle, Radio, Image as ImgIcon, Settings, X } from "lucide-react";
+import { Eye, WifiOff, EyeOff, ChevronRight, Bell, Pencil, Check, LayoutGrid, Home, Music, Calendar, MessageCircle, Radio, Image as ImgIcon, Settings, X, Gift } from "lucide-react";
 import AppLogo from "./AppLogo.jsx";
 import Tour from "./components/Tour.jsx";
 import ImportarCancionesPdf from "./components/ImportarCancionesPdf.jsx";
@@ -54,6 +54,8 @@ import { ProjectionPanel } from "./pantallas/proyeccion.jsx";
 import { esPopPropio, cuandoListo, useBloquearAtras } from "./lib/atras.js";
 import { suscribirComandos, resolverComando, TEXTO_ACCION } from "./lib/controlRemoto.js";
 import ControlRemoto from "./components/ControlRemoto.jsx";
+import { usePlan, abrirPlanes } from "./lib/planes.js";
+import { hayPendiente, olvidarPendiente, destinoSuscribirse, puedeActivarBeneficio, enlacePagoBeneficio, barraCerradaHoy, cerrarBarraHoy, hoyLocal, textoBarraBeneficio } from "./lib/suscribirse.js";
 import { idEquipo, esteEquipoLleva } from "./lib/equipo.js";
 export { ProjectionPanel } from "./pantallas/proyeccion.jsx";
 
@@ -1453,6 +1455,33 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const ROLE_DB_TO_LABEL = { admin: "Administrador", multimedia: "Multimedia", musico: "Músico", miembro: "Miembro", supervisor: "Supervisor" };
   const realIsAdmin = perfil?.rol === "admin";
   const realRoleLabel = ROLE_DB_TO_LABEL[perfil?.rol] || "Miembro";
+
+  // ---- Activar el beneficio en un toque (2026-11-23, ver lib/suscribirse.js) ----
+  const planIglesia = usePlan();
+  const irAPagoBeneficio = async () => {
+    let correo = "";
+    try { correo = (await supabase.auth.getSession()).data?.session?.user?.email || ""; } catch { /* sin correo: Paddle lo pide */ }
+    window.location.assign(enlacePagoBeneficio(planIglesia, correo));
+  };
+  // Enlace ?suscribirse (o el pedido guardado antes de iniciar sesión): en cuanto se sabe el plan, al pago o a
+  // Ajustes → Plan. Si el plan no llega en 10 s (sin red), Ajustes → Plan.
+  const suscribirseAtendido = useRef(false);
+  useEffect(() => {
+    if (suscribirseAtendido.current || !hayPendiente()) return;
+    const irAPlan = () => { suscribirseAtendido.current = true; olvidarPendiente(); setTab("ajustes"); abrirPlanes(); };
+    if (!planIglesia) {
+      const t = setTimeout(() => { if (!suscribirseAtendido.current) irAPlan(); }, 10000);
+      return () => clearTimeout(t);
+    }
+    if (destinoSuscribirse(planIglesia) === "pago") {
+      suscribirseAtendido.current = true;
+      olvidarPendiente();
+      irAPagoBeneficio();
+    } else irAPlan();
+  }, [planIglesia]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Barra arriba: se cierra por hoy (en este equipo) y vuelve al día siguiente.
+  const [barraCerradaDia, setBarraCerradaDia] = useState(() => (barraCerradaHoy(perfil?.iglesia_id) ? hoyLocal() : null));
+  const verBarraBeneficio = puedeActivarBeneficio(planIglesia) && barraCerradaDia !== hoyLocal();
   const realName = perfil?.nombre || "";
   // Fase 2b (multi-iglesia): sesiones_en_vivo/musico_en_vivo son una fila POR IGLESIA, no una sola
   // para toda la base — ver src/lib/liveSession.js y src/lib/musicoLive.js. Todo lo que las toca en
@@ -2433,6 +2462,18 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             onCerrar={() => setEditorDiap(null)}
           />
         </Suspense>
+      )}
+
+      {/* Beneficio de lanzamiento sin activar: barra arriba para los administradores (no en la consola en vivo). */}
+      {verBarraBeneficio && tab !== "envivo" && tab !== "proyeccion" && (
+        <div style={{ position: "sticky", top: 0, zIndex: 150, background: "#E8821E", color: "#16324F", padding: "calc(8px + env(safe-area-inset-top)) 10px 8px 14px", flexShrink: 0, display: "flex", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 700 }}>
+          <Gift size={17} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1, minWidth: 0, lineHeight: 1.35 }}>{textoBarraBeneficio(planIglesia.beneficio)}</span>
+          <button onClick={irAPagoBeneficio} style={{ background: "#16324F", color: "#fff", border: "none", borderRadius: 12, padding: "7px 14px", fontSize: 13, fontWeight: 800, cursor: "pointer", flexShrink: 0, fontFamily: "inherit" }}>Activar</button>
+          <button aria-label="Cerrar por hoy" title="Cerrar por hoy" onClick={() => { cerrarBarraHoy(perfil?.iglesia_id); setBarraCerradaDia(hoyLocal()); }} style={{ background: "transparent", border: "none", color: "#16324F", padding: 4, cursor: "pointer", display: "flex", flexShrink: 0 }}>
+            <X size={18} />
+          </button>
+        </div>
       )}
 
       {/* Mientras un administrador ve la app como otra persona/rol (Ajustes → Mi iglesia), una franja

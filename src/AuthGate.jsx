@@ -8,6 +8,7 @@ import Login, { GoogleIcon } from "./Login.jsx";
 import UnirseIglesia, { EsperandoAprobacion } from "./UnirseIglesia.jsx";
 import { leerCodigoDeUrl, codigoPendiente, solicitarIngreso, miSolicitud, olvidarCodigo, nombreDeSesion } from "./lib/unirse.js";
 import { validarPassword } from "./lib/passwordSegura.js";
+import { leerSuscribirseDeUrl, guardarPendiente, hayPendiente } from "./lib/suscribirse.js";
 import MedidorPassword from "./MedidorPassword.jsx";
 import UsersAdmin from "./UsersAdmin.jsx";
 import RolesAdmin from "./RolesAdmin.jsx";
@@ -48,6 +49,12 @@ export default function AuthGate() {
   const esperabaAprobacion = useRef(false);
   // El enlace para unirse que traía ESTA visita (?unirse=), para mostrar la pantalla de registro.
   const [codigoUnirseUrl] = useState(() => leerCodigoDeUrl());
+  // Enlace ?suscribirse de los correos (activar el beneficio en un toque, ver lib/suscribirse.js): se guarda en este
+  // equipo para seguir al pago después de iniciar sesión, aunque Google regrese sin el ?suscribirse.
+  const [vieneASuscribirse] = useState(() => {
+    if (leerSuscribirseDeUrl()) { guardarPendiente(); return true; }
+    return hayPendiente();
+  });
 
   // Se enciende si alguien logra obtener una sesión válida de Supabase (típicamente iniciando con
   // Google) sin tener una fila en "usuarios" — o sea, sin que un administrador lo haya invitado antes.
@@ -311,7 +318,7 @@ export default function AuthGate() {
       </div>
     );
   }
-  if (!session) return codigoUnirseUrl ? <UnirseIglesia codigo={codigoUnirseUrl} /> : <Login />;
+  if (!session) return codigoUnirseUrl ? <UnirseIglesia codigo={codigoUnirseUrl} /> : <Login aviso={vieneASuscribirse ? "Inicia sesión para activar tu beneficio." : ""} />;
 
   if (errorPerfil) {
     return (
