@@ -247,7 +247,11 @@ export default function PantallaEscenario() {
           </Tarjeta>
         ) : (
           <>
-            {/* Sin bosquejo al aire: lo que sigue y lo que viene en el culto, para que la pantalla no quede vacía. */}
+            {/* Sin bosquejo al aire: arriba el aviso del bosquejo y abajo lo que sigue y lo que viene, para que la pantalla no quede vacía. */}
+            <Tarjeta style={{ borderLeft: "4px solid #F6C344" }}>
+              <Etiqueta color="#F6C344">Tu bosquejo</Etiqueta>
+              <div style={{ fontSize: "clamp(13px, 2vh, 24px)", color: GRIS, lineHeight: 1.4 }}>Cuando Multimedia ponga al aire tu bosquejo, aquí salen el punto en el que vas, tu nota y los próximos versículos.</div>
+            </Tarjeta>
             {sig && (
               <Tarjeta>
                 <Etiqueta>{`Sigue${sig.etiqueta ? ` · ${sig.etiqueta}` : ""}`}</Etiqueta>
@@ -267,10 +271,6 @@ export default function PantallaEscenario() {
                 </div>
               </Tarjeta>
             )}
-            <Tarjeta style={{ flex: esc?.proximos?.length ? "none" : 1, borderLeft: "4px solid #F6C344" }}>
-              <Etiqueta color="#F6C344">Tu bosquejo</Etiqueta>
-              <div style={{ fontSize: "clamp(13px, 2vh, 24px)", color: GRIS, lineHeight: 1.4 }}>Cuando Multimedia ponga al aire tu bosquejo, aquí salen el punto en el que vas, tu nota y los próximos versículos.</div>
-            </Tarjeta>
           </>
         )}
         {pred?.proximosVersiculos?.length > 0 && (
