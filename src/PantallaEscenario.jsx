@@ -208,29 +208,34 @@ export default function PantallaEscenario() {
   const cuerpoPredicador = (
     <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: vertical ? "column" : "row", gap: "1.4vw" }}>
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", gap: "1.4vh" }}>
-        <Tarjeta style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", background: nivel === "excedido" ? "rgba(194,59,50,0.22)" : nivel === "aviso" ? "rgba(232,130,30,0.16)" : "rgba(255,255,255,0.05)" }}>
-          {restante != null ? (
-            <>
-              <Etiqueta color={nivel === "normal" ? GRIS : colorTemporizador}>{nivel === "excedido" ? "Se pasó del tiempo" : esc.temporizador.finEn ? "Tiempo del mensaje" : "Tiempo del mensaje · en pausa"}</Etiqueta>
-              <div aria-label="Temporizador del mensaje" style={{ fontSize: `calc(min(24vh, 17vw) * ${tamano})`, fontWeight: 800, color: colorTemporizador, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{textoTemporizador(restante)}</div>
-            </>
-          ) : (
-            <>
-              <Etiqueta>Hora</Etiqueta>
-              <div style={{ fontSize: `calc(min(16vh, 12vw) * ${tamano})`, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{reloj}</div>
-              {transcurrido && <div style={{ marginTop: "2vh", fontSize: `calc(clamp(16px, 3.4vh, 42px) * ${tamano})`, color: "#C9D2DE", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}><span style={{ color: "#C23B32" }}>●</span> Tiempo del culto · {transcurrido}</div>}
-              <div style={{ marginTop: "1.6vh", fontSize: "clamp(11px, 1.6vh, 18px)", color: GRIS, maxWidth: 560, lineHeight: 1.4 }}>El temporizador del mensaje aparece aquí cuando Multimedia lo inicia (Escenario → Temporizador), o solo al empezar la predicación si lo dejan activado.</div>
-            </>
-          )}
-        </Tarjeta>
-        <div style={{ height: vertical ? "20%" : "26%", minHeight: 0, display: "flex", flexDirection: "column", borderTop: "2px solid rgba(255,255,255,0.08)", paddingTop: "1.2vh" }}>
+        {/* Arriba y en grande: lo que está en pantalla (pedido de Eldin, 2026-11-22). Abajo, el tiempo. */}
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           <Etiqueta color={NARANJA}><IconoAhora size={13} style={{ flexShrink: 0 }} />En pantalla{etiquetaAhora ? ` · ${etiquetaAhora}` : ""}</Etiqueta>
           <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             {lineasAhora.length > 0
-              ? <AutoFitText lines={lineasAhora} targetRatio={0.3 * tamano} minRatio={0.12} minPx={14} alinearH="flex-start" style={{ color: "#C9D2DE", fontWeight: 600, lineHeight: 1.2, textAlign: "left", whiteSpace: "normal" }} />
-              : <div style={{ fontSize: "clamp(14px, 2.4vh, 28px)", color: "#5B6472" }}>Nada en pantalla ahora</div>}
+              ? <AutoFitText lines={lineasAhora} targetRatio={(esVersiculo ? 0.13 : 0.2) * tamano} minRatio={esVersiculo ? 0.05 : 0.09} minPx={18} alinearH="flex-start" style={{ color: "#fff", fontWeight: 700, lineHeight: 1.2, textAlign: "left", whiteSpace: "normal" }} />
+              : <div style={{ fontSize: "clamp(16px, 3vh, 36px)", color: "#5B6472" }}>Nada en pantalla ahora</div>}
           </div>
         </div>
+        <Tarjeta style={{ height: vertical ? "24%" : "30%", minHeight: 0, flexShrink: 0, display: "flex", alignItems: "center", gap: "2.5vw", background: nivel === "excedido" ? "rgba(194,59,50,0.22)" : nivel === "aviso" ? "rgba(232,130,30,0.16)" : "rgba(255,255,255,0.05)" }}>
+          {restante != null ? (
+            <>
+              <div aria-label="Temporizador del mensaje" style={{ fontSize: `calc(min(19vh, 12vw) * ${tamano})`, fontWeight: 800, color: colorTemporizador, lineHeight: 1, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{textoTemporizador(restante)}</div>
+              <div style={{ minWidth: 0 }}>
+                <Etiqueta color={nivel === "normal" ? GRIS : colorTemporizador}>{nivel === "excedido" ? "Se pasó del tiempo" : esc.temporizador.finEn ? "Tiempo del mensaje" : "Tiempo del mensaje · en pausa"}</Etiqueta>
+                <div style={{ fontSize: `calc(clamp(16px, 3.4vh, 42px) * ${tamano})`, fontWeight: 700, color: "#C9D2DE", fontVariantNumeric: "tabular-nums" }}>Hora {reloj}</div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: `calc(min(15vh, 10vw) * ${tamano})`, fontWeight: 800, lineHeight: 1, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{reloj}</div>
+              <div style={{ minWidth: 0 }}>
+                {transcurrido && <div style={{ fontSize: `calc(clamp(15px, 3vh, 38px) * ${tamano})`, color: "#C9D2DE", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}><span style={{ color: "#C23B32" }}>●</span> Tiempo del culto · {transcurrido}</div>}
+                <div style={{ marginTop: "1vh", fontSize: "clamp(11px, 1.6vh, 18px)", color: GRIS, lineHeight: 1.4 }}>El temporizador del mensaje sale aquí cuando Multimedia lo inicia (Escenario → Temporizador).</div>
+              </div>
+            </>
+          )}
+        </Tarjeta>
       </div>
       <div style={{ width: vertical ? "auto" : "min(40%, 680px)", flexShrink: 0, display: "flex", flexDirection: "column", gap: "1.2vh", minHeight: 0 }}>
         {pred ? (
