@@ -5,6 +5,8 @@
 // tarjeta" lleva a esa página con el plan, el periodo, la iglesia y el correo; al terminar regresa a la app.
 // Quien sube el plan es el aviso de Paddle (Edge Function paddle-webhook), no esta página.
 
+import { beneficioPorGrupo } from "./beneficios.js";
+
 // Token público de Paddle.js. "test_..." = modo de prueba (sandbox); "live_..." = cobros reales.
 export const PADDLE_TOKEN = "live_265ee5f7cd9cd5db55861ec8e1a";
 
@@ -40,9 +42,11 @@ export const pruebaConTarjetaLista = (token = PADDLE_TOKEN) => pagosConfigurados
 export const URL_PAGO = "https://worshipflowapp.com/web/pagar";
 export const URL_APP = "https://app.worshipflowapp.com/";
 
-export function enlacePago({ plan, anual, prueba = false, iglesiaId, correo }) {
-  const p = new URLSearchParams({ plan: prueba ? "iglesia" : plan, periodo: prueba ? "prueba" : anual ? "anual" : "mensual", iglesia: iglesiaId || "" });
+// beneficio = true: el enlace es para activar el beneficio de lanzamiento del grupo (ver beneficios.js).
+export function enlacePago({ plan, anual, prueba = false, beneficio = false, iglesiaId, correo }) {
+  const p = new URLSearchParams({ plan: prueba || beneficio ? "iglesia" : plan, periodo: prueba ? "prueba" : anual ? "anual" : "mensual", iglesia: iglesiaId || "" });
   if (correo) p.set("correo", correo);
+  if (beneficio) p.set("beneficio", "1");
   return `${URL_PAGO}?${p.toString()}`;
 }
 
@@ -55,7 +59,44 @@ export function leerPedidoPago(search) {
   const precio = precioPaddle(plan, periodo);
   if (!precio || !/^[0-9a-f-]{36}$/i.test(iglesia)) return null;
   const correo = p.get("correo") || "";
-  return { plan, periodo, iglesia, precio, correo: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo) ? correo : "" };
+  return { plan, periodo, iglesia, precio, correo: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo) ? correo : "", beneficio: p.get("beneficio") === "1" };
+}
+
+// Beneficio de lanzamiento por grupo (2026-11-23): la página de pago (sin sesión) pregunta a la base si esa iglesia
+// puede activar su beneficio (función beneficio_para_pago, migración 20261126000000). Devuelve el grupo o null.
+// Si algo falla (sin conexión, migración aún no aplicada), null: se usa el pago normal de siempre.
+export async function consultarBeneficio(iglesiaId, { fetchFn = globalThis.fetch, url = import.meta.env?.VITE_SUPABASE_URL, llave = import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY, esperaMs = 6000 } = {}) {
+  if (!url || !llave || !fetchFn || !/^[0-9a-f-]{36}$/i.test(iglesiaId || "")) return null;
+  const control = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const reloj = control ? setTimeout(() => control.abort(), esperaMs) : null;
+  try {
+    const res = await fetchFn(`${url}/rest/v1/rpc/beneficio_para_pago`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: llave, Authorization: `Bearer ${llave}` },
+      body: JSON.stringify({ p_iglesia: iglesiaId }),
+      ...(control ? { signal: control.signal } : {}),
+    });
+    if (!res.ok) return null;
+    const grupo = await res.json();
+    return beneficioPorGrupo(grupo) ? grupo : null;
+  } catch {
+    return null;
+  } finally {
+    if (reloj) clearTimeout(reloj);
+  }
+}
+
+// Lo que se le pasa a Paddle.Checkout.open: con beneficio, el precio y el descuento del grupo (discountId, sin
+// código visible); sin beneficio, el precio del pedido como siempre.
+export function opcionesCheckout(pedido, grupo = null) {
+  const b = beneficioPorGrupo(grupo);
+  return {
+    items: [{ priceId: b ? b.precio : pedido.precio, quantity: 1 }],
+    ...(b ? { discountId: b.descuento } : {}),
+    ...(pedido.correo ? { customer: { email: pedido.correo } } : {}),
+    customData: b ? { iglesia_id: pedido.iglesia, beneficio: grupo } : { iglesia_id: pedido.iglesia },
+    settings: { displayMode: "overlay", locale: "es", theme: "light", allowLogout: !pedido.correo },
+  };
 }
 
 // Carga Paddle.js una sola vez.

@@ -1,4 +1,6 @@
 // Lógica pura de los avisos de Paddle (sin Deno ni Supabase) para poder probarla: firma y cambios del plan.
+import { PRECIOS_BENEFICIO } from "./beneficio.ts";
+
 export const GRACIA_DIAS = 3;
 export const TOLERANCIA_SEG = 5 * 60;
 
@@ -26,11 +28,13 @@ export const PRECIOS_REALES: Record<string, { plan: string; periodo: string }> =
 export const PRECIO_PRUEBA_REAL = "pri_01m7pbervbwqyafheyppmyn6pk";
 const PLANES_VALIDOS = new Set(["ministerio", "crecimiento", "iglesia"]);
 
-export function precios(extra?: string | null): Record<string, { plan: string; periodo: string }> {
+// Los precios de los beneficios por grupo (beneficio.ts) también son plan Iglesia; su periodo sale del ciclo de cobro.
+export function precios(extra?: string | null): Record<string, { plan: string; periodo: string | null }> {
+  const base = { ...PRECIOS_PRUEBA, ...PRECIOS_REALES, ...PRECIOS_BENEFICIO, [PRECIO_PRUEBA_REAL]: { plan: "iglesia", periodo: "mensual" } };
   try {
-    return { ...PRECIOS_PRUEBA, ...PRECIOS_REALES, [PRECIO_PRUEBA_REAL]: { plan: "iglesia", periodo: "mensual" }, ...JSON.parse(extra || "{}") };
+    return { ...base, ...JSON.parse(extra || "{}") };
   } catch {
-    return { ...PRECIOS_PRUEBA, ...PRECIOS_REALES, [PRECIO_PRUEBA_REAL]: { plan: "iglesia", periodo: "mensual" } };
+    return base;
   }
 }
 
@@ -59,7 +63,7 @@ const masDias = (iso: string, dias: number) => new Date(new Date(iso).getTime() 
 
 // Qué cambia en la iglesia según el estado de la suscripción. null = nada que cambiar.
 // deno-lint-ignore no-explicit-any
-export function cambiosPorSuscripcion(sub: any, mapa = precios()): Record<string, unknown> | null {
+export function cambiosPorSuscripcion(sub: any, mapa: Record<string, { plan: string; periodo: string | null }> = precios()): Record<string, unknown> | null {
   const item = sub?.items?.[0];
   const precioId = item?.price?.id;
   const conocido = precioId ? mapa[precioId] : undefined;

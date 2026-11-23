@@ -42,4 +42,29 @@ describe("Tu plan con Paddle", () => {
     await waitFor(() => expect(screen.getAllByText("Pagar con tarjeta").length).toBe(3));
     expect(screen.queryByText("Administrar mi suscripción")).toBeNull();
   });
+  it("con beneficio por activar: muestra el grupo y 'Activar mi beneficio' en vez del mes gratis normal", async () => {
+    await abrir({ ...base, plan: "gratis", plan_contratado: "gratis", tiene_suscripcion: false, prueba_disponible: true,
+      beneficio: { grupo: "fase_2", plazo_hasta: "2099-01-01T00:00:00Z", activado_en: null } }, "Plan Gratis");
+    expect(screen.getByText("Beneficio Fase 2")).toBeTruthy();
+    expect(screen.getByText("Activar mi beneficio").getAttribute("href")).toContain("beneficio=1");
+    expect(screen.queryByText("Empezar mi mes gratis")).toBeNull();
+  });
+  it("con beneficio activo: fecha en que termina lo gratis y cuándo sube a precio normal", async () => {
+    await abrir({ ...base, plan: "iglesia", plan_contratado: "iglesia", tiene_suscripcion: true,
+      beneficio: { grupo: "fase_1", activado_en: "2026-12-01T00:00:00Z", gratis_hasta: "2027-06-01T12:00:00Z", precio_hasta: null } }, "Plan Iglesia");
+    expect(screen.getByText("Lo gratis termina")).toBeTruthy();
+    expect(screen.getByText("Nunca: precio especial para siempre")).toBeTruthy();
+    expect(screen.queryByText("Activar mi beneficio")).toBeNull();
+  });
+  it("plazo vencido sin activar: aviso con el WhatsApp para pedir prórroga", async () => {
+    await abrir({ ...base, plan: "gratis", plan_contratado: "gratis", tiene_suscripcion: false,
+      beneficio: { grupo: "lista_espera", plazo_hasta: "2020-01-01T00:00:00Z", activado_en: null } }, "Plan Gratis");
+    expect(screen.getByText("Venció el plazo para activar tu beneficio")).toBeTruthy();
+    expect(screen.getByText("Pedir prórroga por WhatsApp").getAttribute("href")).toContain("wa.me/50239816407");
+  });
+  it("sin grupo: no aparece nada del beneficio", async () => {
+    await abrir({ ...base, tiene_suscripcion: false });
+    expect(screen.queryByText(/Beneficio/)).toBeNull();
+    expect(screen.queryByText(/prórroga/)).toBeNull();
+  });
 });

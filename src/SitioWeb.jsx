@@ -14,7 +14,8 @@ import CarruselPortada from "./CarruselPortada.jsx";
 import { PLANES, COMPARATIVO } from "./lib/planes.js";
 import { CORREO_SOPORTE, WHATSAPP_SOPORTE } from "./lib/soporte.js";
 import { direccionApp } from "./lib/portada.js";
-import { PADDLE_TOKEN, pagosConfigurados, leerPedidoPago, cargarPaddle } from "./lib/paddle.js";
+import { PADDLE_TOKEN, pagosConfigurados, leerPedidoPago, cargarPaddle, consultarBeneficio, opcionesCheckout } from "./lib/paddle.js";
+import { beneficioPorGrupo, enlaceProrroga, WHATSAPP_BENEFICIO_TEXTO } from "./lib/beneficios.js";
 import { useLanzamiento, fechaLanzamientoTexto, fechaLanzamientoCorta } from "./lib/lanzamiento.js";
 
 // "Abrir la app web" / "Entrar": en worshipflowapp.com lleva a app.worshipflowapp.com; en la dirección vieja, a "/".
@@ -616,11 +617,14 @@ function Privacidad() {
 // Paddle solo deja cobrar desde un dominio aprobado y público, por eso el pago vive aquí y no en app.worshipflowapp.com.
 function Pagar() {
   const [pedido] = useState(() => leerPedidoPago(window.location.search));
-  const [estado, setEstado] = useState(pedido && pagosConfigurados() ? "cargando" : "invalido"); // cargando · abierto · cerrado · listo · error · invalido
+  const [estado, setEstado] = useState(pedido && pagosConfigurados() ? "cargando" : "invalido"); // cargando · abierto · cerrado · listo · error · invalido · sin_beneficio
   const [error, setError] = useState("");
+  // Beneficio de lanzamiento (2026-11-23): undefined = todavía preguntando; null = sin beneficio; o el grupo.
+  const [grupo, setGrupo] = useState(undefined);
   const plan = pedido ? PLANES.find((p) => p.id === pedido.plan) : null;
+  const beneficio = beneficioPorGrupo(grupo);
 
-  const abrir = () => {
+  const abrir = (g = grupo) => {
     if (!pedido) return;
     setError("");
     cargarPaddle().then((Paddle) => {
@@ -633,16 +637,62 @@ function Pagar() {
           },
         });
       }
-      Paddle.Checkout.open({
-        items: [{ priceId: pedido.precio, quantity: 1 }],
-        ...(pedido.correo ? { customer: { email: pedido.correo } } : {}),
-        customData: { iglesia_id: pedido.iglesia },
-        settings: { displayMode: "overlay", locale: "es", theme: "light", allowLogout: !pedido.correo },
-      });
+      // Con beneficio: precio y descuento del grupo (discountId, sin código visible). Sin grupo: el pago de siempre.
+      Paddle.Checkout.open(opcionesCheckout(pedido, g));
       setEstado("abierto");
     }).catch((e) => { setError(e.message || "No se pudo abrir el pago."); setEstado("error"); });
   };
-  useEffect(() => { if (estado === "cargando") abrir(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (estado !== "cargando") return;
+    let vivo = true;
+    consultarBeneficio(pedido.iglesia).then((g) => {
+      if (!vivo) return;
+      setGrupo(g);
+      // Enlace de "Activar mi beneficio" pero el beneficio ya no está disponible (venció o ya se usó): no se abre un
+      // pago normal por sorpresa.
+      if (!g && pedido.beneficio) setEstado("sin_beneficio");
+      else abrir(g);
+    });
+    return () => { vivo = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (beneficio && estado !== "invalido") {
+    const gratis = `${beneficio.mesesGratis} ${beneficio.mesesGratis === 1 ? "mes" : "meses"} gratis`;
+    const despues = beneficio.mesesPrecio == null ? "precio especial para siempre" : `${beneficio.mesesPrecio} meses con precio especial`;
+    return (
+      <Legal ruta="/web/pagar" titulo={estado === "listo" ? "¡Gracias!" : "Activar tu beneficio"}>
+        {estado === "listo" ? (
+          <>
+            <p>¡Listo! Activaste tu beneficio <strong>{beneficio.nombre}</strong>: {gratis} del plan Iglesia y después {despues}. En unos segundos tu iglesia ya lo tiene activo; si la app ya estaba abierta, ciérrala y vuelve a abrirla.</p>
+            <p>Las fechas exactas las ves en la app, en <strong>Ajustes → Plan</strong>. Paddle te mandó el recibo por correo; desde ahí también puedes cancelar.</p>
+            <p><Boton href={URL_APP} mismaPestana>Volver a WorshipFlow</Boton></p>
+          </>
+        ) : (
+          <>
+            <p>Beneficio <strong>{beneficio.nombre}</strong>: {gratis} del plan Iglesia y después {despues}. El descuento ya va aplicado. El pago lo procesa <strong>Paddle.com</strong>, nuestro revendedor oficial, de forma segura.</p>
+            <p>Hoy no se te cobra nada: pedimos tu tarjeta para que, al terminar lo gratis, la suscripción siga sin interrupciones. Si cancelas o el pago falla, tu iglesia pasa al plan Gratis sin perder nada, pero el beneficio solo se puede usar una vez.</p>
+            {error && <p style={{ color: "#C23B32" }}>{error}</p>}
+            <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Boton onClick={() => abrir()}>{estado === "cerrado" || estado === "error" ? "Volver a abrir el pago" : "Abrir el pago"}</Boton>
+              <Boton href={URL_APP} mismaPestana tipo="texto">Volver a la app</Boton>
+            </p>
+          </>
+        )}
+      </Legal>
+    );
+  }
+  if (estado === "sin_beneficio") {
+    return (
+      <Legal ruta="/web/pagar" titulo="Beneficio no disponible">
+        <p>Este beneficio ya no está disponible para tu iglesia: venció el plazo para activarlo o ya se usó (es de una sola vez). Tus datos siguen guardados y puedes seguir en el plan Gratis.</p>
+        <p>Si se te pasó la fecha, escríbenos por WhatsApp al <strong>{WHATSAPP_BENEFICIO_TEXTO}</strong> y pide una prórroga.</p>
+        <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Boton href={enlaceProrroga()}>Pedir prórroga por WhatsApp</Boton>
+          <Boton href={URL_APP} mismaPestana tipo="texto">Volver a la app</Boton>
+        </p>
+      </Legal>
+    );
+  }
 
   const prueba = pedido?.periodo === "prueba";
   const precio = plan ? (prueba ? `1 mes gratis, después $${plan.precio} al mes` : pedido.periodo === "anual" ? `$${plan.precioAnual} al año` : `$${plan.precio} al mes`) : "";
@@ -669,7 +719,7 @@ function Pagar() {
           {prueba && <p>Hoy no se te cobra nada: pedimos tu tarjeta para que, al terminar el mes, la suscripción siga sin interrupciones. Si cancelas antes de que termine, no se te cobra.</p>}
           {error && <p style={{ color: "#C23B32" }}>{error}</p>}
           <p style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Boton onClick={abrir}>{estado === "cerrado" || estado === "error" ? "Volver a abrir el pago" : "Abrir el pago"}</Boton>
+            <Boton onClick={() => abrir()}>{estado === "cerrado" || estado === "error" ? "Volver a abrir el pago" : "Abrir el pago"}</Boton>
             <Boton href={URL_APP} mismaPestana tipo="texto">Volver a la app</Boton>
           </p>
           <p style={{ fontSize: 13, color: SUAVE }}>Puedes cancelar cuando quieras y tienes 14 días para pedir el reembolso completo de cualquier pago. Ver <Enlace ruta="/web/reembolsos" style={{ color: TINTA, textDecoration: "underline" }}>política de reembolsos</Enlace>.</p>

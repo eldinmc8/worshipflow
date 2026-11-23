@@ -9,7 +9,7 @@ describe("enlace de pago", () => {
     const url = enlacePago({ plan: "crecimiento", anual: true, iglesiaId: IGLESIA, correo: "pastor@iglesia.org" });
     expect(url.startsWith(`${URL_PAGO}?`)).toBe(true);
     expect(leerPedidoPago(new URL(url).search)).toEqual({
-      plan: "crecimiento", periodo: "anual", iglesia: IGLESIA, precio: precioPaddle("crecimiento", "anual"), correo: "pastor@iglesia.org",
+      plan: "crecimiento", periodo: "anual", iglesia: IGLESIA, precio: precioPaddle("crecimiento", "anual"), correo: "pastor@iglesia.org", beneficio: false,
     });
   });
   it("rechaza plan, periodo o iglesia inválidos, y descarta un correo mal escrito", () => {

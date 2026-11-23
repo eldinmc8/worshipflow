@@ -11,6 +11,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //   fecha ya no se mueve y al pasar la iglesia cuenta como Gratis (wf_plan_efectivo). Nada se borra.
 
 import { firmaValida, cambiosPorSuscripcion, precios } from "./logica.ts";
+import { cambiosPorBeneficio } from "./beneficio.ts";
 
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), { status, headers: { "Content-Type": "application/json" } });
@@ -74,11 +75,26 @@ Deno.serve(async (req: Request) => {
     if (!count) return json({ ok: true, ignorado: "modo de prueba: iglesia sin super admin" });
   }
 
-  const cambios = cambiosPorSuscripcion(sub, precios(Deno.env.get("PADDLE_PRECIOS")));
-  if (!cambios) return json({ ok: true, sin_cambios: true });
+  const cuando = evento.occurred_at ?? new Date().toISOString();
+  const normales = cambiosPorSuscripcion(sub, precios(Deno.env.get("PADDLE_PRECIOS")));
+
+  // Beneficio de lanzamiento por grupo (2026-11-23): solo para iglesias con grupo_beneficio. Si las columnas
+  // todavía no existen o falla la lectura, se sigue con la lógica de siempre.
+  const { data: iglesia } = await admin.from("iglesias")
+    .select("grupo_beneficio, beneficio_activado_en, beneficio_plazo_hasta")
+    .eq("id", iglesiaId).maybeSingle();
+  const delBeneficio = cambiosPorBeneficio(iglesia ?? null, tipo, sub, cuando);
+
+  // La activación se guarda aparte (y solo si sigue sin activar), para que no se pierda si llega fuera de orden.
+  if (delBeneficio && "beneficio_activado_en" in delBeneficio) {
+    const { error: errBen } = await admin.from("iglesias").update(delBeneficio).eq("id", iglesiaId).is("beneficio_activado_en", null);
+    if (errBen) return json({ error: errBen.message }, 500);
+  }
+  const extra = delBeneficio && !("beneficio_activado_en" in delBeneficio) ? delBeneficio : null;
+  if (!normales && !extra) return json({ ok: true, sin_cambios: !delBeneficio });
+  const cambios = { ...(normales ?? {}), ...(extra ?? {}) };
 
   // No aplicar un aviso más viejo que el último que ya se aplicó (Paddle puede reintentar fuera de orden).
-  const cuando = evento.occurred_at ?? new Date().toISOString();
   const { error } = await admin.from("iglesias")
     .update({ ...cambios, pago_evento_en: cuando })
     .eq("id", iglesiaId)

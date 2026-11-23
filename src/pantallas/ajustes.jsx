@@ -19,6 +19,8 @@ import { etiquetaZona } from "../lib/zonasHorarias.js";
 import { inputStyle, ModalShell } from "./compartido.jsx";
 import { CORREO_SOPORTE, WHATSAPP_SOPORTE } from "../lib/soporte.js";
 import { usePlan, planPorId, diasRestantes, abrirPlanes } from "../lib/planes.js";
+import { beneficioPorGrupo, estadoBeneficio, fechaBeneficio } from "../lib/beneficios.js";
+import { AvisoBeneficioVencido } from "../components/BeneficioPlan.jsx";
 
 function NavRow({ icon: Icon, label, onClick, right, danger }) {
   // Si no hay onClick propio de la fila (ej. cuando "right" ya es interactivo, como un ToggleSwitch),
@@ -231,6 +233,12 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
   const nombreTamano = (TAMANOS_LETRA.find((t) => t.value === tamanoLetra) || {}).label || "";
   const nombreNotacion = ((NOTACIONES.find((n) => n.value === notacion) || {}).label || "").replace(/\s+/g, " ");
   const textoPlan = plan ? (plan.en_prueba ? `${planPorId(plan.plan).nombre} · Prueba, ${diasRestantes(plan.vence)} días` : planPorId(plan.plan).nombre) : "";
+  // Beneficio de lanzamiento por grupo (2026-11-23): el grupo y hasta cuándo es gratis, junto al plan.
+  const infoBeneficio = beneficioPorGrupo(plan?.beneficio?.grupo);
+  const estadoBen = estadoBeneficio(plan?.beneficio);
+  const textoBeneficio = !infoBeneficio ? "" : estadoBen === "activo"
+    ? `${infoBeneficio.nombre} · gratis hasta ${fechaBeneficio(plan.beneficio.gratis_hasta)}`
+    : estadoBen === "disponible" ? `${infoBeneficio.nombre} · beneficio por activar` : `${infoBeneficio.nombre} · plazo vencido`;
   const TITULOS = { cuenta: "Mi cuenta", fechas: "Mis próximas fechas", avisos: "Notificaciones", apariencia: "Apariencia", dispositivo: "Este dispositivo", proyeccion: "Proyección y pantallas", sinconexion: "Usar sin conexión", identidad: "Identidad y horario", ayuda: "Ayuda y contacto", avanzado: "Avanzado" };
 
   if (seccion) {
@@ -480,6 +488,8 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
         <span style={{ fontSize: 12, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 2 }}>Mi cuenta {chevron}</span>
       </button>
 
+      {realIsAdmin && plan && <AvisoBeneficioVencido beneficio={plan.beneficio} teamName={teamName} compacto />}
+
       {realIsAdmin && plan && (plan.en_prueba || plan.vencido) && (
         <button onClick={abrirPlanes} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "var(--wf-active-bg)", border: "none", borderRadius: 16, padding: "14px 16px", cursor: "pointer", marginBottom: 12, fontFamily: "inherit" }}>
           <Crown size={20} color="var(--wf-active-text)" style={{ flexShrink: 0 }} />
@@ -504,7 +514,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
         {realIsAdmin && <FilaAjuste icon={Users} color="#2F5FA8" label="Miembros y roles" sub="Invitar, permisos y estado" onClick={onGoToUsuarios} />}
         <FilaAjuste icon={Tv} color="#C23B32" label="Proyección y pantallas" sub={realIsAdmin ? "Pantallas y TV · Letra y versículos" : "Proyección · Escenario"} onClick={() => setSeccion("proyeccion")} />
         {realIsAdmin && <FilaAjuste icon={Palette} color="#B15EA0" label="Identidad y horario" sub={["Logo y colores", zonaIglesia ? etiquetaZona(zonaIglesia) : ""].filter(Boolean).join(" · ")} onClick={() => setSeccion("identidad")} />}
-        {realIsAdmin && <FilaAjuste icon={Crown} color="#E8821E" label="Plan" sub={textoPlan} onClick={abrirPlanes} />}
+        {realIsAdmin && <FilaAjuste icon={Crown} color="#E8821E" label="Plan" sub={[textoPlan, textoBeneficio].filter(Boolean).join(" · ")} onClick={abrirPlanes} />}
       </GrupoAjustes>
 
       <GrupoAjustes titulo="Más">
