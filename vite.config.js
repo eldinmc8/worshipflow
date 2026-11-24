@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import legacy from '@vitejs/plugin-legacy'
 import { VitePWA } from 'vite-plugin-pwa'
 import versionCelular from './src/versionCelular.json'
+import { TITULO_SITIO, etiquetasHead, resumenParaRobots } from './src/lib/sitioWebDatos.js'
 
 // Publica /version-celular.json junto a la app (no se precachea: el service worker solo guarda
 // js/css/html). La app ya instalada lo pide al servidor cuando detecta una versión nueva, para saber
@@ -11,6 +12,18 @@ const publicarVersionCelular = {
   name: 'publicar-version-celular',
   generateBundle() {
     this.emitFile({ type: 'asset', fileName: 'version-celular.json', source: JSON.stringify({ version: versionCelular.version }) })
+  },
+}
+
+// Página web para Google y las IAs (2026-11-24): escribe en el HTML el título, la descripción, la vista previa al
+// compartir, los datos JSON-LD y un resumen de la página, todo sacado de src/lib/sitioWebDatos.js (planes y
+// preguntas reales). En la app y en las pantallas, un script de index.html borra el resumen antes de pintarlo.
+const paginaParaRobots = {
+  name: 'pagina-para-robots',
+  transformIndexHtml(html) {
+    return html
+      .replace('<title>WorshipFlow</title>', `<title>${TITULO_SITIO}</title>\n    ${etiquetasHead()}`)
+      .replace('<div id="root"></div>', `<div id="root">${resumenParaRobots()}</div>`)
   },
 }
 
@@ -26,6 +39,7 @@ export default defineConfig({
     // además una copia de la app traducida para esos navegadores; los modernos siguen bajando la de siempre.
     legacy({ targets: ['chrome >= 49', 'safari >= 10', 'firefox >= 52', 'opera >= 36', 'samsung >= 5', 'ios >= 10'] }),
     publicarVersionCelular,
+    paginaParaRobots,
     VitePWA({
       // 'prompt' (no 'autoUpdate'): que una versión nueva se recargue SOLA sin avisar puede pasar en
       // pleno culto a mitad de algo — y para quien nunca abre Ajustes, un cambio publicado tampoco tenía

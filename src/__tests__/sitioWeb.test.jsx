@@ -6,6 +6,8 @@ vi.mock("../lib/supabaseClient.js", () => ({ supabase: {}, callUsersFunction: vi
 import SitioWeb from "../SitioWeb.jsx";
 import { CORREO_SOPORTE } from "../lib/soporte.js";
 import { MOMENTO_LANZAMIENTO } from "../lib/lanzamiento.js";
+import { PLANES } from "../lib/planesDatos.js";
+import { datosEstructurados, etiquetasHead, resumenParaRobots, PREGUNTAS, REDES } from "../lib/sitioWebDatos.js";
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 // Pone el reloj antes o después del lanzamiento oficial (solo la fecha; los setInterval siguen reales).
 const reloj = (ms) => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(ms); };
@@ -81,7 +83,7 @@ describe("registro abierto", () => {
     expect(crear.getAttribute("href")).toMatch(/[?&]crear-iglesia$/);
     expect(container.textContent).not.toMatch(/Pedir mi código/);
     expect(container.textContent).not.toMatch(/14 días del plan Iglesia/);
-    expect(container.textContent).toMatch(/30 días gratis del plan Iglesia/);
+    expect(container.textContent).toMatch(/30 días gratis (del|el) plan Iglesia/);
   });
 });
 
@@ -126,5 +128,38 @@ describe("carrusel de funciones en la portada", () => {
     expect(puntos.length).toBe(11);
     fireEvent.click(puntos[2]);
     expect(puntos[2].getAttribute("aria-current")).toBe("true");
+  });
+});
+
+// Página para Google y las IAs (2026-11-24, lanzamiento del 30 de noviembre).
+describe("página para Google y las IAs", () => {
+  it("los precios de los datos para Google salen de los planes reales", () => {
+    const app = datosEstructurados().find((d) => d["@type"] === "SoftwareApplication");
+    expect(app.offers.map((o) => Number(o.price))).toEqual(PLANES.map((p) => p.precio));
+    expect(app.offers.every((o) => o.priceCurrency === "USD")).toBe(true);
+    // No hay app en las tiendas: no se anuncia Android ni iOS.
+    expect(app.operatingSystem).not.toMatch(/Android|iOS/);
+  });
+  it("las preguntas van también como FAQ y no prometen cosas que la app no hace", () => {
+    const faq = datosEstructurados().find((d) => d["@type"] === "FAQPage");
+    expect(faq.mainEntity.length).toBe(PREGUNTAS.length);
+    const todo = PREGUNTAS.flat().join(" ");
+    expect(todo).not.toMatch(/PayPal|transferencia|1 clic/i);
+    // La prueba de 30 días es solo del plan Iglesia.
+    expect(todo).not.toMatch(/prueba[^.]*planes de pago/i);
+  });
+  it("el resumen sin JavaScript trae el título, los precios y las preguntas", () => {
+    const html = resumenParaRobots();
+    expect(html).toMatch(/<h1>/);
+    expect(html).toContain("$9.99 al mes");
+    expect(html).toContain(PREGUNTAS[0][0].replace("¿", "¿"));
+    expect(etiquetasHead()).toMatch(/application\/ld\+json/);
+    expect(etiquetasHead()).toMatch(/meta name="description"/);
+  });
+  it("las preguntas frecuentes también están en Inicio y las redes en el pie", () => {
+    despues();
+    const { container } = abrir("/web");
+    expect(container.textContent).toContain("¿Qué pasa si el internet de la iglesia falla o es lento?");
+    for (const r of REDES) expect([...container.querySelectorAll("footer a")].some((a) => a.getAttribute("href") === r.url)).toBe(true);
   });
 });

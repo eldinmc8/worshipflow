@@ -1,0 +1,6 @@
+# worshipflowapp.com: la página web se puede indexar completa.
+User-agent: *
+Allow: /
+Disallow: /web/pagar
+
+Sitemap: https://worshipflowapp.com/sitemap.xml

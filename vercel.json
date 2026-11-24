@@ -1,6 +1,30 @@
 {
   "rewrites": [
     {
+      "source": "/robots.txt",
+      "has": [
+        {
+          "type": "host",
+          "value": "worshipflowapp.com"
+        }
+      ],
+      "destination": "/robots-web.txt"
+    },
+    {
+      "source": "/robots.txt",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.worshipflowapp.com"
+        }
+      ],
+      "destination": "/robots-web.txt"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/robots-app.txt"
+    },
+    {
       "source": "/p/:slug",
       "destination": "/index.html"
     },
@@ -43,6 +67,47 @@
       "source": "/privacidad.html",
       "destination": "/web/privacidad",
       "permanent": true
+    },
+    {
+      "source": "/terminos",
+      "destination": "/web/terminos",
+      "permanent": true
+    },
+    {
+      "source": "/privacidad",
+      "destination": "/web/privacidad",
+      "permanent": true
+    },
+    {
+      "source": "/reembolsos",
+      "destination": "/web/reembolsos",
+      "permanent": true
+    },
+    {
+      "source": "/precios",
+      "destination": "/web/precios",
+      "permanent": true
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "missing": [
+        {
+          "type": "host",
+          "value": "worshipflowapp.com"
+        },
+        {
+          "type": "host",
+          "value": "www.worshipflowapp.com"
+        }
+      ],
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
     }
   ]
 }

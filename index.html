@@ -35,6 +35,20 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- El resumen de la página web para Google y las IAs (lo escribe vite.config.js dentro de #root) solo se queda en
+         la página web: en la app, las pantallas y la TV se borra aquí, antes de pintarse, y la pestaña vuelve a
+         llamarse "WorshipFlow" (2026-11-24). Debe coincidir con mostrarPortada (src/lib/portada.js). -->
+    <script>
+      (function () {
+        var l = location, dominio = /^(www\.)?worshipflowapp\.com$/i.test(l.hostname);
+        var web = /^\/web(\/(precios|terminos|privacidad|reembolsos|pagar))?\/?$/.test(l.pathname) ||
+          (dominio && (l.pathname === "/" || l.pathname === "") && !l.search && !/access_token|refresh_token|error_description|type=/.test(l.hash));
+        if (web) return;
+        var r = document.querySelector("[data-resumen-robots]");
+        if (r && r.parentNode) r.parentNode.removeChild(r);
+        document.title = "WorshipFlow";
+      })();
+    </script>
     <!-- Si la app no llega a abrir (navegador muy viejo de un televisor, sin internet), que no quede una
          página en blanco sin explicación (2026-11-13). Escrito en JavaScript antiguo a propósito. -->
     <script>

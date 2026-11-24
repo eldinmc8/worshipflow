@@ -11,7 +11,8 @@ import { Radio, Music, ListMusic, BookOpen, Users, Tv, Check, MessageCircle, Men
 import { Analytics } from "@vercel/analytics/react";
 import WorshipFlowIcon from "./WorshipFlowIcon.jsx";
 import CarruselPortada from "./CarruselPortada.jsx";
-import { PLANES, COMPARATIVO } from "./lib/planes.js";
+import { PLANES, COMPARATIVO } from "./lib/planesDatos.js";
+import { PREGUNTAS, REDES, CONFIANZA, DOMINIO, RUTAS_SITIO, TITULO_SITIO, DESCRIPCION_SITIO, DESCRIPCIONES_RUTA } from "./lib/sitioWebDatos.js";
 import { CORREO_SOPORTE, WHATSAPP_SOPORTE } from "./lib/soporte.js";
 import { direccionApp } from "./lib/portada.js";
 import { PADDLE_TOKEN, pagosConfigurados, leerPedidoPago, cargarPaddle, consultarBeneficio, opcionesCheckout } from "./lib/paddle.js";
@@ -223,6 +224,9 @@ function Pie() {
               <a href={`mailto:${CORREO_SOPORTE}`} style={link}>Correo</a>
               <a href={whatsapp("Hola, tengo una pregunta sobre WorshipFlow.")} target="_blank" rel="noopener" style={link}>WhatsApp</a>
             </>)}
+            {col("Síguenos", <>
+              {REDES.map((r) => <a key={r.nombre} href={r.url} target="_blank" rel="noopener me" style={link}>{r.nombre}</a>)}
+            </>)}
           </div>
         </div>
         <div style={{ borderTop: "1px solid #1E2A3B", paddingTop: 22, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, fontSize: 12.5, color: "#8A96A8" }}>
@@ -260,14 +264,7 @@ const PASOS = [
   { titulo: "Proyecta el domingo", texto: "Arma el setlist, conecta la pantalla y controla todo desde el celular." },
 ];
 
-const PREGUNTAS = [
-  ["¿Necesito instalar algo?", "No. WorshipFlow funciona en el navegador del celular, tablet o computadora, y se puede instalar como app desde el mismo navegador."],
-  ["¿Qué cuenta como miembro?", "Cada persona de tu equipo con su propia cuenta. La congregación, las pantallas y las TV conectadas no cuentan."],
-  ["¿Puedo cancelar cuando quiera?", "Sí. Cancelas cuando quieras y no se te vuelve a cobrar. Además, tienes 14 días después de cualquier pago para pedir el reembolso completo."],
-  ["¿Puedo cambiar de plan?", "Sí, cuando quieras. Si bajas de plan no se borra nada: lo que pase del límite queda guardado, solo no se puede agregar más."],
-  ["¿Cómo pago?", "Por ahora con transferencia o PayPal: escríbenos por WhatsApp y activamos tu plan. Pronto también con tarjeta directo en la app."],
-  ["¿Hay prueba gratis?", "Sí. Cada iglesia nueva puede probar 30 días gratis el plan Iglesia completo. Para activar la prueba se registra una tarjeta; si cancelas antes de que terminen los 30 días, no se te cobra nada. Sin tarjeta puedes usar el plan Gratis para siempre."],
-];
+// Las preguntas frecuentes viven en lib/sitioWebDatos.js (también van a Google como datos FAQ).
 
 function Inicio() {
   return (
@@ -278,9 +275,9 @@ function Inicio() {
         <section style={{ ...contenedor, paddingTop: "clamp(48px, 8vw, 88px)", paddingBottom: "clamp(56px, 8vw, 96px)", display: "flex", flexWrap: "wrap", gap: 48, alignItems: "center" }}>
           <div style={{ flex: "1 1 420px", minWidth: 0, display: "flex", flexDirection: "column", gap: 22 }}>
             <span style={eyebrow}>Hecha para iglesias, en español</span>
-            <h1 style={{ margin: 0, fontSize: "clamp(40px, 7vw, 68px)", lineHeight: 1.02, fontWeight: 700, letterSpacing: "-0.04em", color: TINTA }}>Todo el culto, en una sola app.</h1>
+            <h1 style={{ margin: 0, fontSize: "clamp(38px, 6.4vw, 62px)", lineHeight: 1.04, fontWeight: 700, letterSpacing: "-0.04em", color: TINTA }}>Proyecta letras y la Biblia, y organiza todo el culto.</h1>
             <p style={{ margin: 0, fontSize: "clamp(17px, 2.2vw, 20px)", lineHeight: 1.5, color: SUAVE, maxWidth: 540 }}>
-              Proyecta letras y versículos, prepara el setlist, coordina a tu equipo y toca con acordes que avanzan solos. Desde el celular.
+              Prepara el setlist, coordina a tus servidores y toca con acordes que avanzan solos. En español, sin instalar programas, y lo controlas desde el celular.
             </p>
             <CuentaRegresiva />
             <BannerListaEspera />
@@ -289,7 +286,7 @@ function Inicio() {
               <Boton href={URL_APP} mismaPestana tipo="oscuro" grande>Abrir la app web</Boton>
               <Boton ruta="/web/precios" tipo="texto" grande>Ver planes →</Boton>
             </div>
-            <span style={{ fontSize: 13, color: SUAVE }}>Plan Gratis para siempre · 30 días gratis del plan Iglesia · Funciona en el navegador</span>
+            <FraseConfianza />
           </div>
           <div style={{ flex: "1 1 480px", minWidth: 0 }}><CarruselPortada /></div>
         </section>
@@ -377,10 +374,53 @@ function Inicio() {
           </div>
         </section>
 
+        <section style={{ ...contenedor, paddingTop: "clamp(64px, 9vw, 96px)" }}>
+          <PreguntasFrecuentes />
+        </section>
+
         <LlamadoFinal titulo="Empieza gratis." texto="Crea tu iglesia en minutos y prueba 30 días el plan Iglesia completo." />
       </main>
       <Pie />
     </>
+  );
+}
+
+// Debajo de los botones de la portada: lo que da confianza, en una línea.
+function FraseConfianza() {
+  return (
+    <span style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", fontSize: 13.5, color: SUAVE }}>
+      {CONFIANZA.map((t) => <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Check size={15} color={TINTA} strokeWidth={2.4} />{t}</span>)}
+    </span>
+  );
+}
+
+// Preguntas frecuentes (Inicio y Precios). Las respuestas están en el HTML aunque estén cerradas, para que
+// Google y las IAs las lean.
+function PreguntasFrecuentes() {
+  const [abierta, setAbierta] = useState(0);
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 40 }}>
+      <div style={{ flex: "1 1 280px", maxWidth: 380, display: "flex", flexDirection: "column", gap: 10 }}>
+        <h2 style={{ ...h2, fontSize: "clamp(28px, 4vw, 40px)" }}>Preguntas frecuentes</h2>
+        <p style={{ margin: 0, fontSize: 16, lineHeight: 1.55, color: SUAVE }}>
+          ¿Otra duda? <a href={whatsapp("Hola, tengo una pregunta sobre WorshipFlow.")} target="_blank" rel="noopener" style={{ color: TINTA, textDecoration: "underline" }}>Escríbenos por WhatsApp</a>.
+        </p>
+      </div>
+      <div style={{ flex: "2 1 520px", minWidth: 0 }}>
+        {PREGUNTAS.map(([p, r], i) => (
+          <div key={p} style={{ borderBottom: `1px solid ${LINEA}` }}>
+            <h3 style={{ margin: 0 }}>
+              <button onClick={() => setAbierta(abierta === i ? null : i)} aria-expanded={abierta === i}
+                style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, background: "none", border: "none", padding: "20px 0", minHeight: 44, fontSize: 17, fontWeight: 600, letterSpacing: "-0.015em", color: TINTA, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                {p}
+                <Plus size={20} color={SUAVE} style={{ flexShrink: 0, transform: abierta === i ? "rotate(45deg)" : "none", transition: "transform .2s" }} />
+              </button>
+            </h3>
+            <p hidden={abierta !== i} style={{ margin: 0, padding: "0 0 20px", fontSize: 15, lineHeight: 1.6, color: SUAVE, maxWidth: 640 }}>{r}</p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -406,7 +446,6 @@ const precioTexto = (n) => `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
 function Precios() {
   const [anual, setAnual] = useState(false);
-  const [abierta, setAbierta] = useState(0);
   const { lanzado } = useEstadoLanzamiento();
   return (
     <>
@@ -477,25 +516,8 @@ function Precios() {
           <Comparativo />
         </section>
 
-        <section style={{ ...contenedor, paddingTop: "clamp(56px, 8vw, 80px)", display: "flex", flexWrap: "wrap", gap: 40 }}>
-          <div style={{ flex: "1 1 280px", maxWidth: 380, display: "flex", flexDirection: "column", gap: 10 }}>
-            <h2 style={{ ...h2, fontSize: "clamp(28px, 4vw, 40px)" }}>Preguntas frecuentes</h2>
-            <p style={{ margin: 0, fontSize: 16, lineHeight: 1.55, color: SUAVE }}>
-              ¿Otra duda? <a href={whatsapp("Hola, tengo una pregunta sobre los planes de WorshipFlow.")} target="_blank" rel="noopener" style={{ color: TINTA, textDecoration: "underline" }}>Escríbenos por WhatsApp</a>.
-            </p>
-          </div>
-          <div style={{ flex: "2 1 520px", minWidth: 0 }}>
-            {PREGUNTAS.map(([p, r], i) => (
-              <div key={p} style={{ borderBottom: `1px solid ${LINEA}` }}>
-                <button onClick={() => setAbierta(abierta === i ? null : i)} aria-expanded={abierta === i}
-                  style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, background: "none", border: "none", padding: "20px 0", minHeight: 44, fontSize: 17, fontWeight: 600, letterSpacing: "-0.015em", color: TINTA, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
-                  {p}
-                  <Plus size={20} color={SUAVE} style={{ flexShrink: 0, transform: abierta === i ? "rotate(45deg)" : "none", transition: "transform .2s" }} />
-                </button>
-                {abierta === i && <p style={{ margin: 0, padding: "0 0 20px", fontSize: 15, lineHeight: 1.6, color: SUAVE, maxWidth: 640 }}>{r}</p>}
-              </div>
-            ))}
-          </div>
+        <section style={{ ...contenedor, paddingTop: "clamp(56px, 8vw, 80px)" }}>
+          <PreguntasFrecuentes />
         </section>
 
         <LlamadoFinal gris titulo="Prueba el plan Iglesia 30 días." texto="Si cancelas antes de que terminen, no se te cobra nada. O quédate en el plan Gratis para siempre." />
@@ -755,7 +777,15 @@ export default function SitioWeb() {
   }, []);
   useEffect(() => {
     const p = PAGINAS.find((x) => x.ruta === ruta);
-    document.title = p && p.ruta !== "/web" ? `${p.nombre} · WorshipFlow` : "WorshipFlow — Todo el culto en una sola app";
+    document.title = p && p.ruta !== "/web" ? `${p.nombre} · WorshipFlow` : TITULO_SITIO;
+    // Descripción y dirección oficial de cada página (Google ejecuta JavaScript y las lee de aquí).
+    const ponerEtiqueta = (selector, crear, attr, valor) => {
+      let el = document.head.querySelector(selector);
+      if (!el) { el = crear(); document.head.appendChild(el); }
+      el.setAttribute(attr, valor);
+    };
+    ponerEtiqueta('meta[name="description"]', () => Object.assign(document.createElement("meta"), { name: "description" }), "content", DESCRIPCIONES_RUTA[ruta] || DESCRIPCION_SITIO);
+    if (RUTAS_SITIO[ruta]) ponerEtiqueta('link[rel="canonical"]', () => Object.assign(document.createElement("link"), { rel: "canonical" }), "href", `${DOMINIO}${RUTAS_SITIO[ruta]}`);
   }, [ruta]);
 
   const pagina = { "/web/pagar": <Pagar />, "/web/precios": <Precios />, "/web/terminos": <Terminos />, "/web/privacidad": <Privacidad />, "/web/reembolsos": <Reembolsos /> }[ruta] || <Inicio />;
