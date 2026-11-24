@@ -1,6 +1,8 @@
 // Eventos: calendario y lista, detalle del evento y su Setlist (bloques, encargados, equipo de alabanza, bosquejo). Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
 import ConPlan from "../components/ConPlan.jsx";
-import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Music, ArrowLeft, Trash2, Bell, X, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy, Timer, CalendarRange, Volume2 } from "lucide-react";
+import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Music, ArrowLeft, Trash2, Bell, X, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy, Timer, CalendarRange, Volume2, ListOrdered } from "lucide-react";
+import OrdenCancionEvento from "../components/OrdenCancionEvento.jsx";
+import { ordenEventoDe, resumenOrden } from "../lib/ordenEvento.js";
 import { bosquejoTieneCambiosSinEnviar, esBloquePredicacion } from "../lib/bosquejos.js";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { todayLocal, monthKey, monthLabelFromKey, parseIsoDateLocal, isUpcoming, compareByDay, MONTH_ABBR, formatFullDate, horaDeEvento } from "../lib/dates.js";
@@ -803,6 +805,7 @@ export function EventDetail({
                 return (
                   <li key={item.id} style={{ marginBottom: 6, fontSize: 14 }}>
                     {song ? `${song.title} — ${acordeEn(item.keyOverride || song.key)}, ${song.tempo} bpm` : "Canción"}
+                    {song && ordenEventoDe(item) && <div style={{ fontSize: 12, color: "#444" }}>Orden: {resumenOrden(song, item, library)}</div>}
                   </li>
                 );
               }
@@ -1139,6 +1142,8 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   const [videoModal, setVideoModal] = useState(null);
   // Otro estilo de letra animada para una canción solo en este evento (2026-11-06): { id, valor } | null.
   const [animEvento, setAnimEvento] = useState(null);
+  // "Orden para este culto" de una canción (lib/ordenEvento.js): id del ítem del setlist abierto.
+  const [ordenCancion, setOrdenCancion] = useState(null);
   // Un video solo (sin texto) se edita con su propio formulario, más simple (2026-11-08).
   const abrirEditarTexto = (it) => (esVideoSolo(it) ? setVideoModal({ item: it }) : abrirEditarDiapositiva(it));
   const abrirEditarDiapositiva = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", escalaSubtitulo: it.escalaSubtitulo, fuente: it.fuente, colorLetra: it.colorLetra, bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "", ...(it.audio ? { audio: it.audio } : {}) } });
@@ -1584,8 +1589,16 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                       <span style={{ minWidth: 22, height: 22, padding: "0 4px", boxSizing: "border-box", borderRadius: 11, border: "1px solid var(--wf-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{acordeEn(effectiveKey)}</span>
                     )}
                     <span style={{ fontSize: 11, color: "var(--wf-muted)", background: "var(--wf-hover)", borderRadius: 16, padding: "3px 8px", flexShrink: 0 }}>{song.tempo} bpm</span>
-                    <span onClick={() => onOpenSong(song.id, item.id)} title="Abrir para tocar en vivo" style={{ fontSize: 13, fontWeight: 600, flex: 1, cursor: "pointer" }}>{song.title}</span>
+                    <span onClick={() => onOpenSong(song.id, item.id)} title="Abrir para tocar en vivo" style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
+                      <span style={{ display: "block", fontSize: 13, fontWeight: 600 }}>{song.title}</span>
+                      {ordenEventoDe(item) && (
+                        <span style={{ display: "block", fontSize: 11, color: "#1F8A73", fontWeight: 600, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title="Orden solo para este culto">Orden especial: {resumenOrden(song, item, library)}</span>
+                      )}
+                    </span>
                     {song.hasAttachment && <Paperclip size={14} color="var(--wf-faint)" />}
+                    {canEdit && onEditarItem && (
+                      <button onClick={() => setOrdenCancion(item.id)} onPointerDown={(e) => e.stopPropagation()} title="Orden para este culto" aria-label={`Orden para este culto de ${song.title}`} style={{ ...iconGhost, width: 32, height: 32, color: ordenEventoDe(item) ? "#1F8A73" : "var(--wf-muted)" }}><ListOrdered size={16} /></button>
+                    )}
                   </>
                 ) : (
                   <>
@@ -1624,6 +1637,15 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
           );
         })}
       </div>
+      {ordenCancion && (() => {
+        const it = event.serviceOrder.find((x) => x.id === ordenCancion);
+        const song = it ? library.find((x) => x.id === it.songId) : null;
+        if (!song) return null;
+        return (
+          <OrdenCancionEvento song={song} item={it} library={library} onCerrar={() => setOrdenCancion(null)}
+            onGuardar={(orden) => { onEditarItem(it.id, { ordenEvento: orden }); setOrdenCancion(null); showToast(orden ? "Orden guardado solo para este culto" : "Vuelve al orden del cancionero"); }} />
+        );
+      })()}
       {animEvento && (() => {
         const it = event.serviceOrder.find((x) => x.id === animEvento.id);
         const song = it ? library.find((x) => x.id === it.songId) : null;
@@ -1697,6 +1719,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
             {it.type === "slide" && !esCuentaRegresiva(it) && !esGrupoDiapositivas(it) && onEditarItem && opcion(Pencil, esVideoSolo(it) ? "Editar video" : "Editar texto", () => abrirEditarTexto(it))}
             {it.type === "slide" && !esCuentaRegresiva(it) && onAbrirEditor && opcion(PenTool, esGrupoDiapositivas(it) ? "Editar diseño" : "Diseñar (imágenes, plantillas)", () => onAbrirEditor(it.id))}
             {it.type === "cancion" && opcion(Music, "Abrir la canción", () => onOpenSong(it.songId, it.id))}
+            {it.type === "cancion" && onEditarItem && opcion(ListOrdered, "Orden para este culto", () => setOrdenCancion(it.id))}
             {it.type === "cancion" && onEditarItem && opcion(Sparkles, "Animación en este evento", () => setAnimEvento({ id: it.id, valor: it.animacion?.general || null }))}
             {it.type === "seccion" && opcion(Users, expandedSections[it.id] ? "Ocultar encargados" : "Ver encargados", () => setExpandedSections((e) => ({ ...e, [it.id]: !e[it.id] })))}
             {opcion(Copy, "Duplicar", () => onDuplicate(it.id))}

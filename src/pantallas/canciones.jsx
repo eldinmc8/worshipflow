@@ -350,7 +350,7 @@ function ChordsAboveLyrics({ raw, semitones = 0 }) {
   );
 }
 
-function badgeColor(badge) {
+export function badgeColor(badge) {
   const b = (badge || "").toUpperCase();
   if (b.startsWith("IN")) return "#1F8A73"; // Intro/Instrumental (ambas sin letra): teal
   if (b.startsWith("PC")) return "#2F5FA8"; // Pre-coro: azul (chequeado ANTES que Puente, ya que "PC" también empieza con "P")

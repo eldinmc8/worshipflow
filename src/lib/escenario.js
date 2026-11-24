@@ -8,6 +8,7 @@
 
 import { esBloquePredicacion } from "./predicacion.js";
 import { semitoneShift, transposeLine } from "./musicTheory.js";
+import { cancionParaElEvento } from "./ordenEvento.js";
 
 // ---------- Diseños de la pantalla de escenario (2026-11-22) ----------
 // Cada monitor elige qué mostrar (idea sacada de RW Presenter). Se guarda en ese equipo y también se
@@ -113,7 +114,8 @@ export function armarEscenario({ slides = [], indice = -1, alAire = null, servic
   // Para el diseño "Banda con acordes": la parte al aire completa y la que sigue, con acordes.
   let acordes = null;
   if (item?.type === "cancion" && actual?.type === "cancion") {
-    const cancion = library.find((s) => s.id === item.songId);
+    // Con un orden solo para este culto, la copia trae también las partes tomadas de otra canción.
+    const cancion = cancionParaElEvento(library.find((s) => s.id === item.songId), item, library);
     const semitonos = item.keyOverride && cancion?.key ? semitoneShift(cancion.key, item.keyOverride) : 0;
     const ahora = acordesDeParte(cancion, actual.blockKey, semitonos);
     const claveSig = parteActual >= 0 ? claves[parteActual + 1] : null;

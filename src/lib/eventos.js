@@ -110,7 +110,9 @@ function filaAItemServicio(filaOriginal, encargadosPorItem) {
     const marca = row.estructura && !Array.isArray(row.estructura) && typeof row.estructura.predicacion === "boolean" ? { esPredicacion: row.estructura.predicacion } : {};
     return { ...base, type: "seccion", title: row.titulo, description: row.descripcion || "", ministryId: row.ministerio_id || null, ...marca };
   }
-  if (row.tipo === "cancion") return { ...base, type: "cancion", songId: row.cancion_id, structure: row.estructura && row.estructura.length ? row.estructura : undefined, keyOverride: row.tonalidad_override || null, ...(row.animacion !== undefined ? { animacion: row.animacion } : {}) };
+  // Orden solo para este evento (2026-11-24, ver lib/ordenEvento.js): viaja como { ordenEvento: [...] }.
+  // Un arreglo simple es la foto vieja de la Estructura del día en que se agregó (structure).
+  if (row.tipo === "cancion") return { ...base, type: "cancion", songId: row.cancion_id, structure: Array.isArray(row.estructura) && row.estructura.length ? row.estructura : undefined, ...(Array.isArray(row.estructura?.ordenEvento) && row.estructura.ordenEvento.length ? { ordenEvento: row.estructura.ordenEvento } : {}), keyOverride: row.tonalidad_override || null, ...(row.animacion !== undefined ? { animacion: row.animacion } : {}) };
   // Diapositivas que salen del bosquejo de un predicador: marcadas con el id de su bloque (ver bosquejos.js).
   if (row.estructura && !Array.isArray(row.estructura) && row.estructura.bosquejoDe) {
     base.bosquejoDe = row.estructura.bosquejoDe;
@@ -151,7 +153,7 @@ function itemServicioAFila(item, eventoId, orden) {
   if (item.type === "seccion") return { ...base, ...(typeof item.esPredicacion === "boolean" ? { estructura: { predicacion: item.esPredicacion } } : {}), tipo: "bloque", titulo: item.title, descripcion: item.description || "", ministerio_id: item.ministryId || null };
   // animacion: la de esta canción solo en este evento (2026-11-06). Se manda solo si el ítem la conoce
   // (la base sin su columna la deja undefined), para no romper el guardado antes de correr el SQL.
-  if (item.type === "cancion") return { ...base, tipo: "cancion", cancion_id: item.songId, tonalidad_override: item.keyOverride || null, ...(item.animacion !== undefined ? { animacion: item.animacion } : {}) };
+  if (item.type === "cancion") return { ...base, ...(item.ordenEvento?.length ? { estructura: { ordenEvento: item.ordenEvento } } : {}), tipo: "cancion", cancion_id: item.songId, tonalidad_override: item.keyOverride || null, ...(item.animacion !== undefined ? { animacion: item.animacion } : {}) };
   // La marca del bosquejo (bosquejoDe) viaja en estructura, que versículos y diapositivas de texto no usan.
   if (item.bosquejoDe) base.estructura = marcaBosquejo(item);
   if (item.type === "biblia") return { ...base, tipo: "biblia", referencia: item.reference, version_biblia: item.version, texto_biblia: item.text, libro_id: item.bookId ?? null, libro_nombre: item.bookName ?? null, capitulo: item.chapter ?? null, versiculo_inicio: item.verseStart ?? null, versiculo_fin: item.verseEnd ?? null };

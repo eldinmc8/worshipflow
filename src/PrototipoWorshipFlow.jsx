@@ -41,6 +41,7 @@ import ImportarCancionesPdf from "./components/ImportarCancionesPdf.jsx";
 import BuscarCancionWeb from "./components/BuscarCancionWeb.jsx";
 import BosquejoWizard from "./components/BosquejoWizard.jsx";
 import { stripBibleSearchMarkup } from "./lib/textoBiblia.js";
+import { cancionParaElEvento, leerClaveOtra } from "./lib/ordenEvento.js";
 import { semitoneShift, transposeLine, CLASIFICACIONES_DEFAULT, fijarClasificacionesActuales, EVENTO_LIBRE, isWorshipBlock, serviceItemLabel, DEFAULT_COVERS, lideraBloque, nextMinistryChildId, misAsignacionesEnEvento, ModalShell, ghostToggleBtn, primaryBtn, fetchBibleChapter, fetchBibleBooks } from "./pantallas/compartido.jsx";
 import { InicioView } from "./pantallas/inicio.jsx";
 import { SettingsView } from "./pantallas/ajustes.jsx";
@@ -189,7 +190,8 @@ function buildSlides(serviceOrder, library) {
     if (item.type === "cancion") {
       const song = library.find((s) => s.id === item.songId);
       if (!song) return;
-      slides.push(...songToSlides(item.id, song, item.structure, item));
+      // Con un orden solo para este culto (lib/ordenEvento.js) se usa esa copia de la canción.
+      slides.push(...songToSlides(item.id, cancionParaElEvento(song, item, library), item.structure, item));
     } else if (item.type === "biblia") {
       slides.push({ slideId: item.id, type: "biblia", reference: item.reference, version: item.version, text: item.text, bookId: item.bookId, bookName: item.bookName, chapter: item.chapter, verseStart: item.verseStart, verseEnd: item.verseEnd });
     } else if (esCuentaRegresiva(item)) {
@@ -209,7 +211,8 @@ function buildSlides(serviceOrder, library) {
 // (items_servicio.id es su propia primary key). Los encargados se copian con la misma gente pero
 // confirmación reiniciada a "pendiente" — es una semana distinta, hay que reconfirmar a cada quien.
 function cloneServiceOrder(order) {
-  return order.map((item) => ({
+  // El orden de una canción "solo para este culto" no pasa al culto nuevo (ordenEvento fuera).
+  return order.map(({ ordenEvento: _orden, ...item }) => ({
     ...item, id: nextId(),
     encargados: (item.encargados || []).map((m) => ({ ...m, id: nextId(), status: "pendiente" })),
   }));
@@ -1202,16 +1205,28 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       .finally(() => pendingSavesRef.current--);
     return true;
   };
-  const editSongSlideLive = (songId, blockKey, slideIndexInBlock, nuevoTexto) =>
-    cambiarLetraEnVivo(songId, { tipo: "editar", blockKey, indice: slideIndexInBlock, texto: nuevoTexto }, "No se pudo guardar la corrección en la canción");
+  // Una diapositiva de una parte tomada de otra canción (orden solo para este culto) se corrige en
+  // esa otra canción, que es donde vive su letra.
+  const parteReal = (songId, blockKey) => {
+    const ref = leerClaveOtra(blockKey);
+    return ref ? [ref.cancionId, ref.claveParte] : [songId, blockKey];
+  };
+  const editSongSlideLive = (songId0, blockKey0, slideIndexInBlock, nuevoTexto) => {
+    const [songId, blockKey] = parteReal(songId0, blockKey0);
+    return cambiarLetraEnVivo(songId, { tipo: "editar", blockKey, indice: slideIndexInBlock, texto: nuevoTexto }, "No se pudo guardar la corrección en la canción");
+  };
   // La diapositiva nueva entra justo DESPUÉS de la que se estaba viendo (no al final de la sección), y
   // solo si trae texto — una vacía nunca se proyecta y antes quedaba "invisible".
-  const addSongSlideLive = (songId, blockKey, afterIndex, texto, cortarDespuesDeLinea) =>
-    cambiarLetraEnVivo(songId, { tipo: "agregar", blockKey, indice: afterIndex, texto, cortarDespuesDeLinea }, "No se pudo agregar la diapositiva");
+  const addSongSlideLive = (songId0, blockKey0, afterIndex, texto, cortarDespuesDeLinea) => {
+    const [songId, blockKey] = parteReal(songId0, blockKey0);
+    return cambiarLetraEnVivo(songId, { tipo: "agregar", blockKey, indice: afterIndex, texto, cortarDespuesDeLinea }, "No se pudo agregar la diapositiva");
+  };
   // Borrar o mover diapositivas de una sección desde la consola: la sección se rearma con los pedazos
   // que quedan, en el orden nuevo (ver rearmarSeccion). También queda guardado en la canción.
-  const rearmarSeccionLive = (songId, blockKey, segmentos, mensajeError) =>
-    cambiarLetraEnVivo(songId, (song) => rearmarSeccion(song, blockKey, segmentos), mensajeError);
+  const rearmarSeccionLive = (songId0, blockKey0, segmentos, mensajeError) => {
+    const [songId, blockKey] = parteReal(songId0, blockKey0);
+    return cambiarLetraEnVivo(songId, (song) => rearmarSeccion(song, blockKey, segmentos), mensajeError);
+  };
   // Corregir la letra COMPLETA de una canción desde la consola (pedido de Eldin, 2026-10-18): en vez de
   // diapositiva por diapositiva, se abre todo el texto (cada parte con su nombre, una línea en blanco =
   // diapositiva nueva) y se guarda de una. Mismo convertidor que la pestaña Escribir del editor de
@@ -2810,7 +2825,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           : songItems.findIndex((it) => it.songId === openSong.id);
         const currentItem = pos >= 0 ? songItems[pos] : null;
         const baseSong = library.find((s) => s.id === openSong.id);
-        const displaySong = songWithKeyOverride(baseSong, currentItem?.keyOverride);
+        // Primero el orden solo para este culto (con partes de otras canciones ya en el tono de esta),
+        // luego la tonalidad del evento sobre todo junto.
+        const displaySong = songWithKeyOverride(cancionParaElEvento(baseSong, currentItem, library), currentItem?.keyOverride);
         const prevItem = pos > 0 ? songItems[pos - 1] : null;
         const nextItem = pos >= 0 && pos < songItems.length - 1 ? songItems[pos + 1] : null;
         const prevTitle = prevItem ? library.find((s) => s.id === prevItem.songId)?.title : null;

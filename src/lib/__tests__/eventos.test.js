@@ -283,3 +283,23 @@ describe("Setlist con diapositiva de fondo de imagen (2026-11-21)", () => {
     expect(filas.find((f) => f.id === "s1").fondo_imagen_url).toBe("https://x/fondo.jpg");
   });
 });
+
+describe("orden de una canción solo para este culto", () => {
+  it("se guarda en estructura.ordenEvento, vuelve al cargar y se quita al volver al del cancionero", async () => {
+    const eventoId = "evento-orden";
+    fake.db.eventos = [{ id: eventoId, titulo: "Domingo" }];
+    fake.db.items_servicio = [];
+    fake.db.miembros_rol = [];
+    const orden = ["C", "V1", "C", "otra~s2~C"];
+    const item = { id: "k1", type: "cancion", songId: "s1", structure: ["V1", "C"], ordenEvento: orden, encargados: [] };
+    await eventos.sincronizarServiceOrder(eventoId, [item]);
+    const fila = () => fake.db.items_servicio.find((i) => i.id === "k1");
+    expect(fila().estructura).toEqual({ ordenEvento: orden });
+    const cargar = () => eventos.eventoCompletoAFormatoEditor({ evento: fake.db.eventos[0], items: fake.db.items_servicio, encargados: [], roles: [], roleMembers: [], recordatorios: [], vistas: [] });
+    expect(cargar().serviceOrder[0].ordenEvento).toEqual(orden);
+    expect(cargar().serviceOrder[0].structure).toBeUndefined();
+    await eventos.sincronizarServiceOrder(eventoId, [{ ...item, ordenEvento: null }]);
+    expect(fila().estructura).toEqual(["V1", "C"]); // la foto vieja de siempre
+    expect(cargar().serviceOrder[0].ordenEvento).toBeUndefined();
+  });
+});
