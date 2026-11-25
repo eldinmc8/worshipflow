@@ -25,3 +25,30 @@ describe("adjuntos de canción", () => {
     expect(tituloPorDefecto("imagen", { nombreArchivo: "" })).toBe("Imagen");
   });
 });
+
+import { esVideo, agruparAdjuntos, tituloParaArchivo } from "../adjuntosCancion.js";
+describe("material para músicos", () => {
+  it("reconoce videos de YouTube y Vimeo", () => {
+    expect(esVideo({ tipo: "enlace", url: "https://youtu.be/x" })).toBe(true);
+    expect(esVideo({ tipo: "enlace", url: "https://m.youtube.com/watch?v=1" })).toBe(true);
+    expect(esVideo({ tipo: "enlace", url: "https://vimeo.com/1" })).toBe(true);
+    expect(esVideo({ tipo: "enlace", url: "https://drive.google.com/x" })).toBe(false);
+    expect(esVideo({ tipo: "pdf", url: "https://youtu.be/x" })).toBe(false);
+  });
+  it("separa enlaces y archivos, en orden alfabético", () => {
+    const { enlaces, archivos } = agruparAdjuntos([
+      { id: 1, tipo: "enlace", titulo: "Tutorial trompeta" },
+      { id: 2, tipo: "pdf", titulo: "Voces" },
+      { id: 3, tipo: "enlace", titulo: "álbum" },
+      { id: 4, tipo: "imagen", titulo: "Bajo" },
+    ]);
+    expect(enlaces.map((a) => a.id)).toEqual([3, 1]);
+    expect(archivos.map((a) => a.id)).toEqual([4, 2]);
+  });
+  it("numera los archivos cuando suben varios con el mismo nombre", () => {
+    expect(tituloParaArchivo("Voces", 0, 2, "a.jpg", "imagen")).toBe("Voces 1");
+    expect(tituloParaArchivo("Voces", 1, 2, "b.jpg", "imagen")).toBe("Voces 2");
+    expect(tituloParaArchivo("Trompeta en Si bemol", 0, 1, "x.pdf", "pdf")).toBe("Trompeta en Si bemol");
+    expect(tituloParaArchivo("", 0, 1, "Partitura.pdf", "pdf")).toBe("Partitura");
+  });
+});

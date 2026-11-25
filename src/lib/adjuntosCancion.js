@@ -45,6 +45,36 @@ export function tituloPorDefecto(tipo, { url, nombreArchivo } = {}) {
   return base || (tipo === "pdf" ? "PDF" : "Imagen");
 }
 
+// Nombres de un toque para lo que más suben los músicos (pedido de un músico, 2026-11-25).
+export const SUGERENCIAS_ENLACE = ["Versión original", "Tutorial piano", "Tutorial guitarra", "Tutorial bajo", "Tutorial batería", "Tutorial trompeta", "Tutorial voces", "Pista"];
+export const SUGERENCIAS_ARCHIVO = ["Partitura", "Cifrado", "Trompeta en Si bemol", "Saxofón en Mi bemol", "Piano", "Voces"];
+
+// ¿Es un video (YouTube / Vimeo)? Para ponerle el ícono de video.
+export function esVideo(adjunto) {
+  if (adjunto?.tipo !== "enlace") return false;
+  try {
+    const host = new URL(adjunto.url).hostname.replace(/^www\./, "").replace(/^m\./, "");
+    return /(^|\.)youtube\.com$|^youtu\.be$|(^|\.)vimeo\.com$/.test(host);
+  } catch {
+    return false;
+  }
+}
+
+// Separa la lista en enlaces (videos, tutoriales) y archivos (partituras, fotos), cada una en orden alfabético.
+export function agruparAdjuntos(lista) {
+  const orden = (a, b) => (a.titulo || "").localeCompare(b.titulo || "", "es", { sensitivity: "base", numeric: true });
+  const enlaces = (lista || []).filter((a) => a.tipo === "enlace").sort(orden);
+  const archivos = (lista || []).filter((a) => a.tipo !== "enlace").sort(orden);
+  return { enlaces, archivos };
+}
+
+// Título para cada archivo cuando suben varios a la vez con un mismo nombre: "Voces 1", "Voces 2"...
+export function tituloParaArchivo(titulo, indice, total, nombreArchivo, tipo) {
+  const t = (titulo || "").trim();
+  if (!t) return tituloPorDefecto(tipo, { nombreArchivo });
+  return total > 1 ? `${t} ${indice + 1}` : t;
+}
+
 function sanitizarNombre(nombre) {
   return (nombre || "archivo").replace(/[^a-zA-Z0-9.\-]/g, "_").slice(-80);
 }
@@ -97,4 +127,12 @@ export async function borrarAdjunto(adjunto) {
   const { error } = await supabase.from("adjuntos_cancion").delete().eq("id", adjunto.id);
   if (error) throw error;
   if (adjunto.ruta) await supabase.storage.from(BUCKET).remove([adjunto.ruta]).catch(() => {});
+}
+
+export async function renombrarAdjunto(adjunto, titulo) {
+  const limpio = (titulo || "").trim().slice(0, 80);
+  if (!limpio) throw new Error("Escribe un nombre.");
+  const { data, error } = await supabase.from("adjuntos_cancion").update({ titulo: limpio }).eq("id", adjunto.id).select().single();
+  if (error) throw error;
+  return data;
 }

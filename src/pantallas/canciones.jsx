@@ -6,7 +6,8 @@ import { usePlan, permite, abrirPlanes } from "../lib/planes.js";
 import { acordeEn, usePreferencias, lineaEn } from "../lib/preferencias.js";
 import { confirmDialog } from "../lib/confirm.js";
 import { useCerrarConAtras } from "../lib/atras.js";
-import { listarAdjuntos, tipoDeArchivo, subirAdjunto, agregarEnlace, borrarAdjunto } from "../lib/adjuntosCancion.js";
+import { listarAdjuntos, tipoDeArchivo, subirAdjunto, agregarEnlace, borrarAdjunto, renombrarAdjunto, agruparAdjuntos, esVideo, tituloParaArchivo, SUGERENCIAS_ENLACE, SUGERENCIAS_ARCHIVO } from "../lib/adjuntosCancion.js";
+import VisorImagen from "../components/VisorImagen.jsx";
 import { notifyError, showToast } from "../lib/toast.js";
 import { supabase } from "../lib/supabaseClient.js";
 import { cargarNotas, guardarNota, DUENO_EQUIPO } from "../lib/notasSeccion.js";
@@ -434,33 +435,47 @@ function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResult
   );
 }
 
-// Adjuntos de la canción (PDF, imágenes y enlaces) — ver src/lib/adjuntosCancion.js. Todos los de la
-// iglesia los ven y los abren; agregan/quitan solo quienes pueden notas "para todos" (puedeEditar).
+// Material de la canción para los músicos (PDF, fotos de partituras y enlaces/tutoriales) — ver
+// src/lib/adjuntosCancion.js. Todos los de la iglesia los ven y los abren; agregan, renombran y quitan
+// solo quienes pueden notas "para todos" (puedeEditar). Rediseño 2026-11-25: dos grupos en orden
+// alfabético, nombre con sugerencias de un toque, renombrar, y fotos con zoom dentro de la app.
 function AdjuntosModal({ song, iglesiaId, puedeEditar, onClose, onCambio }) {
   const [adjuntos, setAdjuntos] = useState(null);
   const [errorCarga, setErrorCarga] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
-  const [modoEnlace, setModoEnlace] = useState(false);
+  const [modo, setModo] = useState(null); // null | "archivo" | "enlace"
   const [enlace, setEnlace] = useState("");
-  const [tituloEnlace, setTituloEnlace] = useState("");
+  const [titulo, setTitulo] = useState("");
+  const [renombrando, setRenombrando] = useState(null); // { id, titulo }
+  const [visor, setVisor] = useState(null); // { imagenes, inicial }
   const inputArchivoRef = useRef(null);
+  const formularioRef = useRef(null);
+  // El formulario sale abajo de la lista: llevarlo a la vista para que no quede escondido.
+  useEffect(() => { if (modo) formularioRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }); }, [modo]);
   useEffect(() => {
     let vivo = true;
     listarAdjuntos(song.id).then((r) => { if (vivo) setAdjuntos(r); }).catch(() => { if (vivo) { setAdjuntos([]); setErrorCarga(true); } });
     return () => { vivo = false; };
   }, [song.id]);
   const actualizar = (lista) => { setAdjuntos(lista); onCambio?.(lista.length > 0); };
+  const { enlaces, archivos } = useMemo(() => agruparAdjuntos(adjuntos || []), [adjuntos]);
+  const cerrarFormulario = () => { setModo(null); setEnlace(""); setTitulo(""); };
   const elegirArchivos = async (e) => {
-    const archivos = [...(e.target.files || [])];
+    const elegidos = [...(e.target.files || [])];
     e.target.value = "";
-    if (!archivos.length) return;
+    if (!elegidos.length) return;
     if (!iglesiaId) { notifyError("No se pudo identificar tu iglesia. Vuelve a abrir la app."); return; }
+    const validos = elegidos.filter((file) => {
+      if (tipoDeArchivo(file)) return true;
+      notifyError(`"${file.name}" no es PDF ni foto.`);
+      return false;
+    });
     setSubiendo(true);
     let lista = adjuntos || [];
-    for (const file of archivos) {
-      if (!tipoDeArchivo(file)) { notifyError(`"${file.name}" no es PDF ni imagen.`); continue; }
+    for (const [i, file] of validos.entries()) {
       try {
-        const nuevo = await subirAdjunto({ iglesiaId, cancionId: song.id, file });
+        const nombre = tituloParaArchivo(titulo, i, validos.length, file.name, tipoDeArchivo(file));
+        const nuevo = await subirAdjunto({ iglesiaId, cancionId: song.id, file, titulo: nombre });
         lista = [...lista, nuevo];
         actualizar(lista);
       } catch (err) {
@@ -468,17 +483,31 @@ function AdjuntosModal({ song, iglesiaId, puedeEditar, onClose, onCambio }) {
       }
     }
     setSubiendo(false);
+    if (lista.length > (adjuntos || []).length) cerrarFormulario();
   };
   const guardarEnlace = async () => {
     setSubiendo(true);
     try {
-      const nuevo = await agregarEnlace({ cancionId: song.id, url: enlace, titulo: tituloEnlace });
+      const nuevo = await agregarEnlace({ cancionId: song.id, url: enlace, titulo });
       actualizar([...(adjuntos || []), nuevo]);
-      setEnlace(""); setTituloEnlace(""); setModoEnlace(false);
+      cerrarFormulario();
     } catch (err) {
       notifyError(err?.message || "No se pudo guardar el enlace.");
     }
     setSubiendo(false);
+  };
+  const guardarNombre = async () => {
+    const r = renombrando;
+    const original = (adjuntos || []).find((x) => x.id === r?.id);
+    if (!original) { setRenombrando(null); return; }
+    if (r.titulo.trim() === original.titulo) { setRenombrando(null); return; }
+    try {
+      const nuevo = await renombrarAdjunto(original, r.titulo);
+      actualizar((adjuntos || []).map((x) => (x.id === nuevo.id ? nuevo : x)));
+      setRenombrando(null);
+    } catch (err) {
+      notifyError(err?.message || "No se pudo cambiar el nombre.");
+    }
   };
   const quitar = async (a) => {
     if (!(await confirmDialog(`¿Quitar "${a.titulo}" de esta canción?`, { danger: true, textoConfirmar: "Quitar" }))) return;
@@ -489,67 +518,114 @@ function AdjuntosModal({ song, iglesiaId, puedeEditar, onClose, onCambio }) {
       notifyError(err?.message || "No se pudo quitar.");
     }
   };
-  const abrir = (a) => window.open(a.url, "_blank", "noopener");
-  const iconoDe = (tipo) => (tipo === "pdf" ? FileText : tipo === "imagen" ? ImgIcon : Link2);
-  const colorDe = (tipo) => (tipo === "pdf" ? "#C23B32" : tipo === "imagen" ? "#B15EA0" : "#2F5FA8");
+  const abrir = (a) => {
+    if (a.tipo === "imagen") {
+      const imagenes = archivos.filter((x) => x.tipo === "imagen");
+      setVisor({ imagenes, inicial: Math.max(0, imagenes.findIndex((x) => x.id === a.id)) });
+      return;
+    }
+    window.open(a.url, "_blank", "noopener");
+  };
+  const iconoDe = (a) => (a.tipo === "pdf" ? FileText : a.tipo === "imagen" ? ImgIcon : esVideo(a) ? Play : Link2);
+  const colorDe = (a) => (a.tipo === "pdf" ? "#C23B32" : a.tipo === "imagen" ? "#B15EA0" : esVideo(a) ? "#C23B32" : "#2F5FA8");
+  const subtipo = (a) => (a.tipo === "pdf" ? "PDF" : a.tipo === "imagen" ? "Foto · se puede agrandar" : esVideo(a) ? "Video" : "Enlace");
   const campo = { width: "100%", boxSizing: "border-box", borderRadius: 10, border: "1px solid var(--wf-border)", background: "var(--wf-bg)", color: "var(--wf-text)", padding: "10px 12px", fontSize: 14, fontFamily: "inherit", marginBottom: 8, outline: "none" };
   const botonAgregar = { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "10px 4px", fontSize: 12, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit" };
+  const tituloGrupo = { fontSize: 11, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: "var(--wf-muted)", margin: "4px 0 8px" };
+  const chip = (activo) => ({ border: `1px solid ${activo ? "var(--wf-brand-accent)" : "var(--wf-border)"}`, background: activo ? "var(--wf-active-bg)" : "var(--wf-card)", color: activo ? "var(--wf-brand-accent)" : "var(--wf-text-2)", borderRadius: 999, padding: "6px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" });
+  const sugerencias = (lista) => (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+      {lista.map((t) => <button key={t} type="button" onClick={() => setTitulo(t)} style={chip(titulo === t)}>{t}</button>)}
+    </div>
+  );
+  const fila = (a) => {
+    const Icono = iconoDe(a);
+    const editandoEsta = renombrando?.id === a.id;
+    return (
+      <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-bg)", borderRadius: 12, padding: 8, boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
+        {editandoEsta ? (
+          <>
+            <input autoFocus value={renombrando.titulo} maxLength={80} onChange={(e) => setRenombrando({ ...renombrando, titulo: e.target.value })}
+              onKeyDown={(e) => { if (e.key === "Enter") guardarNombre(); if (e.key === "Escape") setRenombrando(null); }}
+              style={{ ...campo, marginBottom: 0, flex: 1 }} aria-label="Nombre" />
+            <button onClick={guardarNombre} title="Guardar nombre" style={{ ...iconGhost, width: 34, height: 34 }}><Check size={16} color="#1F8A73" /></button>
+            <button onClick={() => setRenombrando(null)} title="Cancelar" style={{ ...iconGhost, width: 34, height: 34 }}><X size={16} /></button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => abrir(a)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 10, background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left", color: "var(--wf-text)", fontFamily: "inherit" }}>
+              {a.tipo === "imagen" ? (
+                <img src={a.url} alt="" loading="lazy" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8, flexShrink: 0, background: "var(--wf-hover)" }} />
+              ) : (
+                <span style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: `${colorDe(a)}1A` }}><Icono size={20} color={colorDe(a)} /></span>
+              )}
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.titulo}</span>
+                <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)" }}>{subtipo(a)}</span>
+              </span>
+            </button>
+            {puedeEditar && (
+              <>
+                <button onClick={() => setRenombrando({ id: a.id, titulo: a.titulo })} title="Cambiar nombre" style={{ ...iconGhost, width: 32, height: 32 }}><Pencil size={14} /></button>
+                <button onClick={() => quitar(a)} title="Quitar" style={{ ...iconGhost, width: 32, height: 32 }}><Trash2 size={15} color="#C23B32" /></button>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+  const grupo = (nombre, lista) => lista.length > 0 && (
+    <div style={{ marginBottom: 14 }}>
+      <div style={tituloGrupo}>{nombre}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{lista.map(fila)}</div>
+    </div>
+  );
   return (
-    <ModalShell title="Adjuntos" icon={Paperclip} color="var(--wf-brand-accent)" onClose={onClose}>
+    <ModalShell title="Material de la canción" icon={Paperclip} color="var(--wf-brand-accent)" onClose={onClose}>
       <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>{song.title}</div>
       {adjuntos === null ? (
         <div style={{ fontSize: 13, color: "var(--wf-faint)", padding: "12px 0" }}>Cargando…</div>
       ) : adjuntos.length === 0 ? (
         <div style={{ fontSize: 13, color: "var(--wf-faint)", padding: "8px 0 14px" }}>
-          {errorCarga ? "No se pudieron cargar los adjuntos." : puedeEditar ? "Todavía no hay nada. Agrega partituras, cifrados, fotos o enlaces (YouTube, Drive…)." : "Esta canción no tiene adjuntos."}
+          {errorCarga ? "No se pudo cargar el material." : puedeEditar ? "Todavía no hay nada. Agrega la versión que se va a tocar, tutoriales por instrumento y partituras (PDF o fotos)." : "Esta canción todavía no tiene material."}
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-          {adjuntos.map((a) => {
-            const Icono = iconoDe(a.tipo);
-            return (
-              <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--wf-bg)", borderRadius: 12, padding: 8, boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
-                <button onClick={() => abrir(a)} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 10, background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left", color: "var(--wf-text)", fontFamily: "inherit" }}>
-                  {a.tipo === "imagen" ? (
-                    <img src={a.url} alt="" loading="lazy" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8, flexShrink: 0, background: "var(--wf-hover)" }} />
-                  ) : (
-                    <span style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: `${colorDe(a.tipo)}1A` }}><Icono size={20} color={colorDe(a.tipo)} /></span>
-                  )}
-                  <span style={{ minWidth: 0 }}>
-                    <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.titulo}</span>
-                    <span style={{ display: "block", fontSize: 11, color: "var(--wf-faint)" }}>{a.tipo === "pdf" ? "PDF" : a.tipo === "imagen" ? "Imagen" : "Enlace"} · tocar para abrir</span>
-                  </span>
-                </button>
-                {puedeEditar && (
-                  <button onClick={() => quitar(a)} title="Quitar" style={{ ...iconGhost, width: 32, height: 32 }}><Trash2 size={15} color="#C23B32" /></button>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <>
+          {grupo("Videos y tutoriales", enlaces)}
+          {grupo("Partituras y fotos", archivos)}
+        </>
       )}
       {puedeEditar && (
-        modoEnlace ? (
-          <div>
+        modo === "enlace" ? (
+          <div ref={formularioRef}>
             <input autoFocus type="url" inputMode="url" value={enlace} onChange={(e) => setEnlace(e.target.value)} placeholder="Pega el enlace (YouTube, Drive, Spotify…)" style={campo} />
-            <input value={tituloEnlace} onChange={(e) => setTituloEnlace(e.target.value)} placeholder="Nombre (opcional) — ej. Video del ensayo" style={campo} />
+            <input value={titulo} maxLength={80} onChange={(e) => setTitulo(e.target.value)} placeholder="Nombre — ej. Tutorial de trompeta" style={campo} />
+            {sugerencias(SUGERENCIAS_ENLACE)}
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => { setModoEnlace(false); setEnlace(""); setTituloEnlace(""); }} style={{ ...primaryBtn, flex: 1, background: "var(--wf-hover)", color: "var(--wf-text)" }}>Cancelar</button>
+              <button onClick={cerrarFormulario} style={{ ...primaryBtn, flex: 1, background: "var(--wf-hover)", color: "var(--wf-text)" }}>Cancelar</button>
               <button onClick={guardarEnlace} disabled={subiendo || !enlace.trim()} style={{ ...primaryBtn, flex: 1, opacity: subiendo || !enlace.trim() ? 0.6 : 1 }}>{subiendo ? "Guardando…" : "Agregar"}</button>
             </div>
           </div>
-        ) : (
-          <>
+        ) : modo === "archivo" ? (
+          <div ref={formularioRef}>
             <input ref={inputArchivoRef} type="file" multiple accept="application/pdf,.pdf,image/*" onChange={elegirArchivos} style={{ display: "none" }} />
+            <input autoFocus value={titulo} maxLength={80} onChange={(e) => setTitulo(e.target.value)} placeholder="Nombre — ej. Trompeta en Si bemol" style={campo} />
+            {sugerencias(SUGERENCIAS_ARCHIVO)}
             <div style={{ display: "flex", gap: 8 }}>
-              <button disabled={subiendo} onClick={() => inputArchivoRef.current?.click()} style={botonAgregar}><FileText size={18} color="#C23B32" />PDF o imagen</button>
-              <button disabled={subiendo} onClick={() => setModoEnlace(true)} style={botonAgregar}><Link2 size={18} color="#2F5FA8" />Enlace</button>
+              <button onClick={cerrarFormulario} disabled={subiendo} style={{ ...primaryBtn, flex: 1, background: "var(--wf-hover)", color: "var(--wf-text)" }}>Cancelar</button>
+              <button onClick={() => inputArchivoRef.current?.click()} disabled={subiendo} style={{ ...primaryBtn, flex: 1, opacity: subiendo ? 0.6 : 1 }}>{subiendo ? "Subiendo…" : "Elegir PDF o fotos"}</button>
             </div>
-            {subiendo && <div style={{ fontSize: 12, color: "var(--wf-muted)", marginTop: 10, textAlign: "center" }}>Subiendo…</div>}
-            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 10, textAlign: "center" }}>Hasta 20 MB por archivo. Puedes elegir varios a la vez.</div>
-          </>
+            <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 10, textAlign: "center" }}>Hasta 20 MB por archivo. Si eliges varios, se numeran: "Voces 1", "Voces 2"…</div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setModo("enlace")} style={botonAgregar}><Play size={18} color="#C23B32" />Video o enlace</button>
+            <button onClick={() => setModo("archivo")} style={botonAgregar}><FileText size={18} color="#B15EA0" />Partitura (PDF o foto)</button>
+          </div>
         )
       )}
+      {visor && <VisorImagen imagenes={visor.imagenes} inicial={visor.inicial} onClose={() => setVisor(null)} />}
     </ModalShell>
   );
 }
@@ -1017,9 +1093,9 @@ export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onE
             />
           )}
           {(song.hasAttachment || notasCtx?.puedeEquipo) && (
-            <button onClick={() => setShowAdjuntos(true)} title="Adjuntos (PDF, imágenes, enlaces)" className="hoverable"
-              style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 32, background: song.hasAttachment ? "var(--wf-active-bg)" : "var(--wf-hover)", border: `1px solid ${song.hasAttachment ? "var(--wf-brand-accent)" : "var(--wf-border)"}`, borderRadius: 10, cursor: "pointer", color: song.hasAttachment ? "var(--wf-brand-accent)" : "var(--wf-text-2)" }}>
-              <Paperclip size={16} />
+            <button onClick={() => setShowAdjuntos(true)} title="Material: videos, tutoriales y partituras" className="hoverable"
+              style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, height: 32, padding: "0 10px", background: song.hasAttachment ? "var(--wf-active-bg)" : "var(--wf-hover)", border: `1px solid ${song.hasAttachment ? "var(--wf-brand-accent)" : "var(--wf-border)"}`, borderRadius: 10, cursor: "pointer", color: song.hasAttachment ? "var(--wf-brand-accent)" : "var(--wf-text-2)", fontSize: 12, fontWeight: 700, fontFamily: "inherit" }}>
+              <Paperclip size={15} /> Material
             </button>
           )}
           {showAdjuntos && (
