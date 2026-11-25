@@ -4,7 +4,7 @@ import { buscarCanciones } from "../lib/busqueda.js";
 import { FileUp, Globe, Plus, Search, Heart, Pencil, Paperclip, Trash2, ListMusic, Music, Minus, FileText, Image as ImgIcon, Link2, ArrowLeft, ChevronDown, Radio, Pause, Users, Play, PencilLine, ChevronLeft, ChevronRight, RefreshCw, X, Check, ClipboardPaste, Lock, CheckSquare, Square } from "lucide-react";
 import { usePlan, permite, abrirPlanes } from "../lib/planes.js";
 import { acordeEn, usePreferencias, lineaEn, setInstrumento } from "../lib/preferencias.js";
-import { cambiosPorPosicion, semitonosCambio, tonoMas, textoCambio, INSTRUMENTOS, instrumentoPorValor, relativa } from "../lib/cambioTono.js";
+import { cambiosPorPosicion, semitonosCambio, tonoMas, textoCambio, INSTRUMENTOS, instrumentoPorValor } from "../lib/cambioTono.js";
 import { COLOR_CAMBIO } from "../components/CambioTono.jsx";
 import { confirmDialog } from "../lib/confirm.js";
 import { useCerrarConAtras } from "../lib/atras.js";
@@ -1489,7 +1489,7 @@ export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChang
               {canEditKey ? (
                 <select value={draft.key} onChange={(e) => setDraft({ ...draft, key: e.target.value })} style={{ ...inputStyle, fontSize: 16, minHeight: 44 }}>
                   <option value="">Selecciona tonalidad</option>
-                  {KEY_OPTIONS.map((k) => <option key={k} value={k}>{relativa(k) ? `${acordeEn(k)}  (relativa: ${acordeEn(relativa(k))})` : acordeEn(k)}</option>)}
+                  {KEY_OPTIONS.map((k) => <option key={k} value={k}>{k}</option>)}
                 </select>
               ) : (
                 <div style={{ ...inputStyle, color: "var(--wf-muted)", background: "var(--wf-hover)" }}>
