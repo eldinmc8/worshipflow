@@ -823,10 +823,11 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   };
   // cancionNueva: la que se acaba de crear desde "Agregar canciones" (todavía no está en `library` de
   // este render, ver crearCancionEnSetlist).
-  const addSong = (songId, cancionNueva = null) => {
+  // copia: lo que trae un canto copiado de otro culto (tono, orden para ese culto…; ver lib/copiarCantos.js).
+  const addSong = (songId, cancionNueva = null, copia = null) => {
     const song = cancionNueva || library.find((s) => s.id === songId);
     if (!song) return;
-    const newItem = { id: nextId(), type: "cancion", songId, structure: song.defaultStructure };
+    const newItem = { structure: song.defaultStructure, ...(copia || {}), id: nextId(), type: "cancion", songId };
     if (destinoSetlist) { updateOrder((o) => colocar(o, newItem)); return; } // eligió el bloque a mano
     const targetBlock = clasificaciones.find((c) => c.clave === song.category)?.bloque?.trim();
     updateOrder((o) => {
@@ -2758,6 +2759,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onPublish={() => { setDraftFromTemplateId(null); window.history.back(); }}
           onStart={() => startEvent(selectedEvent.id)} onPracticar={() => empezarPractica(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
           onAddSong={addSong} onCrearCancion={puedeGestionarCanciones ? crearCancionEnSetlist : null} onAddSeccion={addSeccion}
+          eventosParaCopiar={realEvents} onCopiarCantos={(items) => items.forEach((it) => addSong(it.songId, null, it))}
           onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)} onAddItems={(items) => updateOrder((o) => colocar(o, items))}
           onAddCuenta={(config) => updateOrder((o) => { const it = itemCuentaRegresiva(nextId(), config); return destinoSetlist ? colocar(o, [it]) : [it, ...o]; })}
           destinoAgregar={destinoSetlist} onDestinoAgregar={setDestinoSetlist}
