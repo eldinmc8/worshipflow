@@ -1072,6 +1072,11 @@ export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onE
         {song.artist || "Unknown"} · {song.tempo} bpm{song.compas ? ` · ${song.compas}` : ""}
         {positionLabel && <span style={{ marginLeft: 8, fontWeight: 700, color: "var(--wf-brand-accent)" }}>· {positionLabel} en el setlist</span>}
       </div>
+      {inst.semitonos > 0 && (
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--wf-text-2)", background: "var(--wf-hover)", borderRadius: 12, padding: "7px 12px", margin: "-6px 0 14px" }}>
+          Instrumento en {inst.label}: tú tocas en <b>{acordeEn(tonoQueLeo)}</b> · la banda suena en <b>{acordeEn(displayedKey)}</b>
+        </div>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, background: (autoMode || isLeaderMe) ? "var(--wf-active-bg)" : "var(--wf-bg)", border: `1px solid ${(autoMode || isLeaderMe) ? "var(--wf-brand-accent)" : "var(--wf-divider)"}`, borderRadius: 16, padding: "8px 10px", marginBottom: 16, flexWrap: "wrap" }}>
         {/* En vivo, Modo Músico es voluntario: alguien dirige, y cada músico decide si se une o va a su

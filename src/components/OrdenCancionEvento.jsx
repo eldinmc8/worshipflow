@@ -46,7 +46,8 @@ export default function OrdenCancionEvento({ song, item, library, onGuardar, onC
   const vista = useMemo(() => cancionParaElEvento(song, { ordenEvento: orden }, library), [song, orden, library]);
   const bloques = vista?.blocks || song.blocks || {};
   const visibles = orden.filter((k) => bloques[k]);
-  const propias = Object.keys(song.blocks || {});
+  // Los "Sube de tono" de la canción no salen como parte para agregar: para eso está el botón naranja.
+  const propias = Object.keys(song.blocks || {}).filter((k) => !semitonosCambio(song.blocks[k]));
   // Partes de otras canciones que ya están en el orden: para volver a agregarlas con un toque.
   const prestadas = [...new Set(visibles.filter((k) => leerClaveOtra(k)))];
   const teniaEspecial = !!ordenEventoDe(item);
