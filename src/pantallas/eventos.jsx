@@ -2,6 +2,7 @@
 import ConPlan from "../components/ConPlan.jsx";
 import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Music, ArrowLeft, Trash2, Bell, X, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy, Timer, CalendarRange, Volume2, ListOrdered } from "lucide-react";
 import OrdenCancionEvento from "../components/OrdenCancionEvento.jsx";
+import CopiarDeOtroCulto from "../components/CopiarDeOtroCulto.jsx";
 import { ordenEventoDe, resumenOrden } from "../lib/ordenEvento.js";
 import { bosquejoTieneCambiosSinEnviar, esBloquePredicacion } from "../lib/bosquejos.js";
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -577,7 +578,7 @@ export function EventDetail({
   myIglesiaId, onAbrirEditor, onDisenarNueva,
   event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onPracticar, onGoLive, onDelete,
   isDraftFromTemplate, onPublish,
-  onAddSong, onCrearCancion = null, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder,
+  onAddSong, onCrearCancion = null, eventosParaCopiar = null, onCopiarCantos = null, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, verDiapositivas = true,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
@@ -849,6 +850,7 @@ export function EventDetail({
         onAbrirEditor={onAbrirEditor}
         onDisenarNueva={onDisenarNueva}
         myIglesiaId={myIglesiaId}
+        eventosParaCopiar={eventosParaCopiar} onCopiarCantos={onCopiarCantos}
         event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer || puedeEditarSetlist} userId={userId} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onCrearCancion={onCrearCancion} onAddSeccion={onAddSeccion}
         onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick} onAddItems={onAddItems} onAddCuenta={onAddCuenta}
@@ -1063,7 +1065,7 @@ function CrearCancionEnSetlist({ titulo, onCerrar, onGuardar }) {
   );
 }
 
-function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onCrearCancion = null, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar = null, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, verDiapositivas = true, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, eventosParaCopiar = null, onCopiarCantos = null, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onCrearCancion = null, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar = null, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, verDiapositivas = true, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   const [showImportar, setShowImportar] = useState(false); // Importar presentación (ver ImportarPresentacion)
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
@@ -1093,6 +1095,14 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
   // null | { titulo }. Se abre el mismo editor por pasos encima de "Agregar canciones"; al guardar,
   // la canción entra a la biblioteca y al culto, y se vuelve a la lista con ella marcada.
   const [nuevaCancion, setNuevaCancion] = useState(null);
+  // "Copiar de otro culto" (lib/copiarCantos.js): se abre encima de "Agregar canciones".
+  const [copiandoCantos, setCopiandoCantos] = useState(false);
+  const copiarCantos = (items, culto) => {
+    onCopiarCantos(items);
+    setCopiandoCantos(false);
+    setElegidasPicker((l) => [...l, ...items.map((it) => it.songId)]);
+    showToast(`Se ${items.length === 1 ? "copió 1 canto" : `copiaron ${items.length} cantos`} de "${culto.title || "otro culto"}".`, "info");
+  };
   const guardarCancionNueva = async (draft) => {
     const id = await onCrearCancion(draft); // si falla, el editor se queda abierto con lo escrito
     setNuevaCancion(null);
@@ -1760,6 +1770,16 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 13, width: "100%" }} />
               <BorrarBusqueda valor={query} onBorrar={() => setQuery("")} />
             </div>
+          {onCopiarCantos && eventosParaCopiar && (
+            <button onClick={() => setCopiandoCantos(true)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 10, borderRadius: 12, border: "1px dashed #1F8A73", background: "transparent", color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+              <Copy size={17} color="#1F8A73" style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13.5, fontWeight: 700 }}>Copiar de otro culto</span>
+                <span style={{ display: "block", fontSize: 11.5, color: "var(--wf-muted)" }}>Trae los cantos de otro servicio con su tono y su orden.</span>
+              </span>
+              <ChevronRight size={16} color="var(--wf-faint)" />
+            </button>
+          )}
           <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4, marginBottom: 10, flexShrink: 0 }}>
             {[["todos", "Todos"], ...clasificacionesActuales.map((c) => [c.clave, c.nombre])].map(([key, label]) => (
               <button key={key} onClick={() => setLibraryCategoryFilter(key)} style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 20, border: "none", background: libraryCategoryFilter === key ? "var(--wf-brand-accent)" : "var(--wf-hover)", color: libraryCategoryFilter === key ? "var(--wf-brand-primary)" : "var(--wf-text)", cursor: "pointer" }}>{label}</button>
@@ -1804,6 +1824,9 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
           </div>
           <button onClick={() => { setPickerCancion(false); onDestinoAgregar?.(null); }} style={{ ...primaryBtn, marginTop: 10, flexShrink: 0 }}>{elegidasPicker.length ? `Listo · ${elegidasPicker.length} ${elegidasPicker.length === 1 ? "canción agregada" : "canciones agregadas"}` : "Listo"}</button>
         </ModalShell>
+      )}
+      {copiandoCantos && onCopiarCantos && (
+        <CopiarDeOtroCulto eventos={eventosParaCopiar} eventoActualId={event.id} library={library} onCerrar={() => setCopiandoCantos(false)} onCopiar={copiarCantos} />
       )}
       {nuevaCancion && onCrearCancion && (
         <CrearCancionEnSetlist titulo={nuevaCancion.titulo} onCerrar={() => setNuevaCancion(null)} onGuardar={guardarCancionNueva} />
