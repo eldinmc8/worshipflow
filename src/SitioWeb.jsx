@@ -7,12 +7,12 @@
 // cerrado, bandas grises para separar y pie oscuro. El logo es el ícono oficial (WorshipFlowIcon).
 // Los planes, precios y la tabla salen de lib/planes.js: no se escriben a mano aquí.
 import { createContext, useContext, useEffect, useState } from "react";
-import { Radio, Music, ListMusic, BookOpen, Users, Tv, Check, MessageCircle, Menu, X, Minus, Plus, Smartphone, Tablet, Monitor, Cast } from "lucide-react";
+import { Radio, Music, ListMusic, BookOpen, Users, Tv, Check, MessageCircle, Menu, X, Minus, Plus, Smartphone, Tablet, Monitor, Cast, Video, ShieldCheck } from "lucide-react";
 import { Analytics } from "@vercel/analytics/react";
 import WorshipFlowIcon from "./WorshipFlowIcon.jsx";
 import CarruselPortada from "./CarruselPortada.jsx";
 import { PLANES, COMPARATIVO } from "./lib/planesDatos.js";
-import { PREGUNTAS, REDES, CONFIANZA, DOMINIO, RUTAS_SITIO, TITULO_SITIO, DESCRIPCION_SITIO, DESCRIPCIONES_RUTA } from "./lib/sitioWebDatos.js";
+import { PREGUNTAS, REDES, CONFIANZA, RESPALDO_PADDLE, DOMINIO, RUTAS_SITIO, TITULO_SITIO, DESCRIPCION_SITIO, DESCRIPCIONES_RUTA } from "./lib/sitioWebDatos.js";
 import { CORREO_SOPORTE, WHATSAPP_SOPORTE } from "./lib/soporte.js";
 import { direccionApp } from "./lib/portada.js";
 import { PADDLE_TOKEN, pagosConfigurados, leerPedidoPago, cargarPaddle, consultarBeneficio, opcionesCheckout } from "./lib/paddle.js";
@@ -249,6 +249,7 @@ const FUNCIONES = [
   { icono: BookOpen, titulo: "Biblia integrada", texto: "RVR1960, NVI, TLA, DHH y NTV. Busca un pasaje y proyéctalo al instante." },
   { icono: Users, titulo: "Equipos y ministerios", texto: "Roles, confirmaciones y recordatorios. Cada ministerio con su planificación y recursos." },
   { icono: Tv, titulo: "Pantalla de escenario", texto: "Teleprompter para quien está en la plataforma: qué sigue, la letra y el reloj." },
+  { icono: Video, titulo: "Letras para tu transmisión (OBS)", texto: "Un enlace aparte con fondo transparente y solo la letra, para agregarlo en OBS como fuente de navegador. Eliges tamaño y posición sin cambiar la pantalla del templo." },
 ];
 
 const DISPOSITIVOS = [
@@ -375,6 +376,10 @@ function Inicio() {
         </section>
 
         <section style={{ ...contenedor, paddingTop: "clamp(64px, 9vw, 96px)" }}>
+          <RespaldoPaddle />
+        </section>
+
+        <section style={{ ...contenedor, paddingTop: "clamp(64px, 9vw, 96px)" }}>
           <PreguntasFrecuentes />
         </section>
 
@@ -391,6 +396,20 @@ function FraseConfianza() {
     <span style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", fontSize: 13.5, color: SUAVE }}>
       {CONFIANZA.map((t) => <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Check size={15} color={TINTA} strokeWidth={2.4} />{t}</span>)}
     </span>
+  );
+}
+
+// Respaldo de los pagos (pedido de Eldin, 2026-11-25): que se vea que cobra Paddle.com, no nosotros.
+function RespaldoPaddle() {
+  return (
+    <div style={{ background: NIEBLA, borderRadius: 16, padding: "clamp(22px, 4vw, 32px)", display: "flex", flexWrap: "wrap", gap: 20, alignItems: "center" }}>
+      <ShieldCheck size={34} color={AZUL} strokeWidth={1.8} style={{ flexShrink: 0 }} />
+      <div style={{ flex: "1 1 320px", minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", color: TINTA }}>Pagos seguros con Paddle.com</h2>
+        <p style={{ margin: 0, fontSize: 15, lineHeight: 1.55, color: SUAVE }}>{RESPALDO_PADDLE}</p>
+      </div>
+      <Enlace ruta="/web/reembolsos" style={{ fontSize: 14.5, fontWeight: 700, color: "#B4610F", minHeight: 44, display: "inline-flex", alignItems: "center" }}>Política de reembolsos →</Enlace>
+    </div>
   );
 }
 
@@ -511,6 +530,7 @@ function Precios() {
           </p>
         </section>
 
+        <section style={{ ...contenedor, paddingTop: 28 }}><RespaldoPaddle /></section>
         <section style={{ ...contenedor, paddingTop: "clamp(56px, 8vw, 80px)", display: "flex", flexDirection: "column", gap: 24 }}>
           <h2 style={{ ...h2, fontSize: "clamp(28px, 4vw, 40px)" }}>Compara los planes</h2>
           <Comparativo />

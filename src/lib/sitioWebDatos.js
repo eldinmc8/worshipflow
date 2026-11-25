@@ -13,6 +13,7 @@ import { CORREO_SOPORTE, WHATSAPP_SOPORTE } from "./soporte.js";
 export const DOMINIO = "https://worshipflowapp.com";
 export const TITULO_SITIO = "WorshipFlow | Proyección de letras y Biblia para iglesias, en español";
 export const DESCRIPCION_SITIO = "Proyecta letras y la Biblia, arma el setlist y organiza a tus servidores. App web en español, sin instalar programas. Plan Gratis para siempre, sin tarjeta.";
+export const RESPALDO_PADDLE = "El cobro lo hace Paddle.com, empresa que procesa pagos de software en todo el mundo y es el comerciante registrado de nuestros pedidos: cobra, emite tu recibo y atiende devoluciones. Nunca vemos ni guardamos tu tarjeta. Cancelas cuando quieras y tienes 14 días después de cualquier pago para pedir el reembolso completo.";
 export const CONFIANZA = ["Gratis para siempre, sin tarjeta", "Pagos seguros con Paddle", "Reembolso en 14 días"];
 
 // Redes oficiales (Eldin, 2026-11-24). Sin los parámetros de rastreo con los que se copiaron.
@@ -35,6 +36,7 @@ export const PREGUNTAS = [
   ["¿Puedo usar WorshipFlow gratis y sin tarjeta?", "Sí. El plan Gratis es para siempre y no pide tarjeta: proyección en vivo de letras, la Biblia y diapositivas de texto, pantalla de escenario, eventos y setlist, con hasta 5 miembros y 20 canciones."],
   ["¿Necesito instalar algo o una computadora potente?", "No hay que instalar programas. WorshipFlow funciona en el navegador del celular, tablet o computadora, y se puede instalar como app desde el mismo navegador. Para proyectar basta una computadora sencilla o una pantalla con navegador conectada al proyector o la TV; desde el celular controlas las diapositivas."],
   ["¿Sirve para una iglesia con muchos servidores y áreas?", "Sí. Cada área (alabanza, multimedia, ujieres, limpieza, niños…) es un grupo con su líder, sus roles y confirmaciones. El plan Crecimiento admite hasta 50 miembros con cuenta y 6 grupos; el plan Iglesia, miembros y grupos ilimitados."],
+  ["¿Puedo poner las letras en mi transmisión de YouTube o Facebook con OBS?", "Sí, en todos los planes. En Pantallas y TV → Transmisión (OBS) copias un enlace aparte que muestra solo la letra con fondo transparente, y lo agregas en OBS como fuente de navegador. En Estilo → Transmisión (OBS) eliges el tamaño, si va abajo o arriba, y si lleva franja o solo letra. La pantalla del templo no cambia."],
   ["¿Qué pasa si el internet de la iglesia falla o es lento?", "Con internet preparas el culto y el celular controla la proyección. Antes del culto, la computadora que proyecta puede guardar todo con Ajustes → Usar sin conexión (canciones, próximos eventos, fondos de imagen y la Biblia). Si el proyector o la TV están conectados por cable HDMI a esa computadora, la proyección sigue aunque se caiga el internet. Los videos de fondo y las pantallas en otros equipos sí necesitan internet."],
   ["¿Qué cuenta como miembro?", "Cada persona de tu equipo con su propia cuenta. La congregación, las pantallas y las TV conectadas no cuentan."],
   ["¿Hay prueba gratis?", "Sí. Cada iglesia nueva puede probar 30 días gratis el plan Iglesia completo. Para activar la prueba se registra una tarjeta; si cancelas antes de que terminen los 30 días, no se te cobra nada. Sin tarjeta puedes usar el plan Gratis para siempre."],
@@ -59,6 +61,7 @@ export function datosEstructurados() {
       applicationSubCategory: "Proyección y gestión para iglesias",
       operatingSystem: "Web (navegador de celular, tablet, computadora y Smart TV)",
       inLanguage: "es",
+      featureList: ["Proyección en vivo de letras y la Biblia", "Control desde el celular", "Eventos y setlist", "Modo Músico con acordes", "Equipos y grupos con confirmaciones", "Pantalla de escenario", "Letras para transmisión en OBS con fondo transparente (fuente de navegador)", "Uso sin conexión en la computadora que proyecta"],
       image: `${DOMINIO}/pwa-512x512.png`,
       publisher: { "@type": "Organization", name: "WorshipFlow", url: `${DOMINIO}/` },
       offers: PLANES.map((p) => ({
@@ -120,9 +123,11 @@ export function resumenParaRobots() {
       <p>${esc(DESCRIPCION_SITIO)}</p>
       <p>${esc(CONFIANZA.join(" · "))}.</p>
       <h2>Qué hace</h2>
-      <ul>${["Proyección en vivo de letras, versículos y diapositivas en el proyector o la TV, controlada desde el celular", "Biblia integrada para buscar un pasaje y proyectarlo al instante", "Eventos y setlist con canciones, versículos, diapositivas y bloques", "Modo Músico con acordes, cambio de tono y avance según el tempo", "Equipos y grupos con roles, confirmaciones y recordatorios", "Pantalla de escenario para quien está en la plataforma"].map(li).join("")}</ul>
+      <ul>${["Proyección en vivo de letras, versículos y diapositivas en el proyector o la TV, controlada desde el celular", "Biblia integrada para buscar un pasaje y proyectarlo al instante", "Eventos y setlist con canciones, versículos, diapositivas y bloques", "Modo Músico con acordes, cambio de tono y avance según el tempo", "Equipos y grupos con roles, confirmaciones y recordatorios", "Pantalla de escenario para quien está en la plataforma", "Letras para la transmisión en vivo: un enlace con fondo transparente y solo la letra, para agregarlo en OBS como fuente de navegador (YouTube, Facebook)"].map(li).join("")}</ul>
       <h2>Planes y precios (USD)</h2>
       <ul>${planes}</ul>
+      <h2>Pagos seguros con Paddle.com</h2>
+      <p>${esc(RESPALDO_PADDLE)}</p>
       <p>Prueba gratis de 30 días del plan Iglesia (se registra una tarjeta; si cancelas antes, no se cobra). Pagos procesados por Paddle.com. Reembolso completo dentro de los 14 días siguientes a cualquier pago.</p>
       <h2>Preguntas frecuentes</h2>
       ${preguntas}

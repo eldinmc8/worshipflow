@@ -160,6 +160,8 @@ describe("página para Google y las IAs", () => {
     despues();
     const { container } = abrir("/web");
     expect(container.textContent).toContain("¿Qué pasa si el internet de la iglesia falla o es lento?");
+    expect(container.textContent).toContain("Letras para tu transmisión (OBS)");
+    expect(container.textContent).toContain("Pagos seguros con Paddle.com");
     for (const r of REDES) expect([...container.querySelectorAll("footer a")].some((a) => a.getAttribute("href") === r.url)).toBe(true);
   });
 });

@@ -42,6 +42,7 @@ export const COMPARATIVO = [
   { grupo: "Proyección", filas: [
     ["Proyección en vivo y TV", true, true, true, true],
     ["Pantalla de escenario (teleprompter)", true, true, true, true],
+    ["Letras para transmisión en vivo (OBS, fondo transparente)", true, true, true, true],
     ["Temas de color y tipos de letra", true, true, true, true],
     ["Diseños listos para diapositivas", "6 básicos", "Todos", "Todos", "Todos"],
     ["Letras animadas", "5 básicas", "Todas", "Todas", "Todas"],
