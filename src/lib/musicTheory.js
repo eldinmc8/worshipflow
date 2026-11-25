@@ -36,7 +36,7 @@ export function semitoneShift(fromKey, toKey) {
   return ((toIdx - fromIdx) % 12 + 12) % 12;
 }
 
-function transposeChordToken(chord, semitones) {
+export function transposeChordToken(chord, semitones) {
   if (!semitones) return chord;
   const match = chord.match(/^([A-G])(#|b)?(.*)$/);
   if (!match) return chord;

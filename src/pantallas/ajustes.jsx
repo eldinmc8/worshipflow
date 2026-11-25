@@ -8,7 +8,8 @@ import { supabase } from "../lib/supabaseClient.js";
 import { confirmDialog } from "../lib/confirm.js";
 import { estaSuscritoPush, suscribirPush, desuscribirPush, esRechazoDeNotificaciones } from "../lib/notificaciones.js";
 import { isUpcoming, formatFullDate } from "../lib/dates.js";
-import { usePreferencias, TAMANOS_LETRA, setTamanoLetra, NOTACIONES, setNotacion, acordeEn } from "../lib/preferencias.js";
+import { usePreferencias, TAMANOS_LETRA, setTamanoLetra, NOTACIONES, setNotacion, acordeEn, setInstrumento } from "../lib/preferencias.js";
+import { INSTRUMENTOS } from "../lib/cambioTono.js";
 import { ChevronRight, ChevronLeft, KeyRound, Check, Calendar, Bell, Moon, Type, Music, Download, Radio, Tv, Users, Palette, Shield, Sparkles, MessageCircle, Send, LogOut, Speaker, Clock, Crown, WifiOff } from "lucide-react";
 import PantallaOtroEquipo from "../components/PantallaOtroEquipo.jsx";
 import { SalidaAudioModal, useSalidaAudioActual } from "../components/SalidaAudioVideos.jsx";
@@ -175,7 +176,7 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
   // Reorganizado (pedido de Eldin, 2026-10-09): agrupado por lo que la persona busca — su cuenta
   // arriba, lo suyo, cómo se ve, este aparato, la iglesia (admins), ayuda. Lo de pruebas de
   // administrador queda guardado en "Opciones avanzadas" para que nadie lo toque sin querer.
-  const { tamanoLetra, notacion } = usePreferencias();
+  const { tamanoLetra, notacion, instrumento } = usePreferencias();
   const plan = usePlan();
   const [seccion, setSeccion] = useState(null); // null = portada · "cuenta" · "apariencia" · …
   const chevron = <ChevronRight size={16} color="var(--wf-faint)" />;
@@ -358,6 +359,18 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
             <div style={{ fontSize: 11, color: "var(--wf-muted)", marginTop: 8 }}>
               Ejemplo: <b style={{ fontFamily: "'JetBrains Mono', monospace", color: "#1F8A73" }}>{acordeEn("G", notacion)} · {acordeEn("Em", notacion)} · {acordeEn("D/F#", notacion)}</b> — solo cambia lo que tú ves.
             </div>
+          </div>
+          <div style={tarjeta}>
+            {subtitulo(<Music size={18} color="var(--wf-text-2)" />, "Mi instrumento")}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              {INSTRUMENTOS.map((ins) => (
+                <button key={ins.value} onClick={() => setInstrumento(ins.value)} aria-pressed={instrumento === ins.value} style={{ ...opcion(instrumento === ins.value), display: "flex", flexDirection: "column", alignItems: "flex-start", textAlign: "left", gap: 2 }}>
+                  <span>{ins.label}</span>
+                  <span style={{ fontSize: 10.5, fontWeight: 500, opacity: 0.8, lineHeight: 1.3 }}>{ins.detalle}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--wf-muted)", marginTop: 8 }}>Para trompeta, saxo o corno: verás los acordes en el tono que tú lees. Solo en este dispositivo.</div>
           </div>
 
           </>

@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { ChevronUp, ChevronDown, X, Plus, Pencil, Trash2, Repeat, Music, ListMusic, Keyboard, Hand, MoveHorizontal, ArrowDownToLine, Scissors } from "lucide-react";
+import { ChevronUp, ChevronDown, X, Plus, Pencil, Trash2, Repeat, Music, ListMusic, Keyboard, Hand, MoveHorizontal, ArrowDownToLine, Scissors, ArrowUp } from "lucide-react";
 import { useArrastreLista } from "../lib/arrastreLista.js";
 import { promptDialog, confirmDialog } from "../lib/confirm.js";
 import { acordeEn } from "../lib/preferencias.js";
@@ -8,7 +8,10 @@ import {
   TIPOS_PARTE, ordenDe, partesUnicas, partesSinUsar, agregarParte, repetirParte, moverEnOrden, quitarDelOrden, borrarParte, renombrarParte,
   textoDeParte, contenidoVaConLetra, escribirLetraParte, lineasParaAcordes, palabrasDe, ponerAcorde, quitarAcorde, agregarAcordeAlFinal,
   partirPalabra, alargarLetra, acortarLetra, puedeAlargar, puedeAcortar, revisarTextoAcordes, unirRenglones, partirRenglon,
+  agregarCambioTono, cambiarCambioTono,
 } from "../lib/pasosCancion.js";
+import { esCambioTono, semitonosCambio, cambiosPorPosicion, tonoMas, textoCambio } from "../lib/cambioTono.js";
+import { ElegirCambioTono, COLOR_CAMBIO } from "./CambioTono.jsx";
 
 // Pasos 2, 3 y 4 del asistente de canciones (ver lib/pasosCancion.js). Pensados primero para el
 // celular: botones grandes, letra a 16px (así el iPhone no hace zoom al escribir) y nada que haya que
@@ -25,12 +28,18 @@ const dist = (b) => b?.badge || distintivoDe(b?.label || "");
 
 function Distintivo({ b, color, grande = false }) {
   const t = grande ? 34 : 28;
-  return <span style={{ minWidth: t, height: t, padding: "0 6px", boxSizing: "border-box", borderRadius: t / 2, background: color, color: "#fff", fontSize: grande ? 12 : 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{dist(b)}</span>;
+  const sube = esCambioTono(b);
+  return <span style={{ minWidth: t, height: t, padding: "0 6px", boxSizing: "border-box", borderRadius: t / 2, background: sube ? COLOR_CAMBIO : color, color: "#fff", fontSize: grande ? 12 : 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{sube ? <ArrowUp size={grande ? 16 : 14} strokeWidth={3} /> : dist(b)}</span>;
 }
 
 // ---------------- Paso 2: Estructura ----------------
 export function PasoEstructura({ cancion, setCancion, colorDe }) {
   const orden = ordenDe(cancion);
+  // "Sube de tono": null | { nuevo: true } | { k, idx } (cambiar uno que ya está en el orden).
+  const [eligiendoTono, setEligiendoTono] = useState(null);
+  const cambios = cambiosPorPosicion(orden, cancion.blocks);
+  const tonoAl = (s) => tonoMas(cancion.key, s);
+  const tonoFinal = tonoAl(cambios.length ? cambios[cambios.length - 1] : 0);
   const unicas = partesUnicas(cancion).filter((k) => orden.includes(k));
   const sinUsar = partesSinUsar(cancion);
   const arrastre = useArrastreLista({ habilitado: true, onReorder: (desde, destino) => setCancion((c) => moverEnOrden(c, desde, destino)) });
@@ -62,7 +71,15 @@ export function PasoEstructura({ cancion, setCancion, colorDe }) {
         <button type="button" onClick={otra} className="hoverable" style={{ minHeight: TOQUE + 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 14, border: "1.5px dashed var(--wf-border)", background: "transparent", cursor: "pointer", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", color: "var(--wf-muted)" }}>
           <Plus size={16} /> Otra…
         </button>
+        <button type="button" onClick={() => setEligiendoTono({ nuevo: true })} className="hoverable"
+          style={{ minHeight: TOQUE + 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 14, border: "none", cursor: "pointer", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", background: `color-mix(in srgb, ${COLOR_CAMBIO} 15%, var(--wf-card))`, color: COLOR_CAMBIO }}>
+          <ArrowUp size={16} /> Sube de tono
+        </button>
       </div>
+      {eligiendoTono?.nuevo && (
+        <ElegirCambioTono desdeKey={tonoFinal} titulo="¿A qué tono sube desde aquí?" onCancelar={() => setEligiendoTono(null)}
+          onElegir={(n) => { setCancion((c) => agregarCambioTono(c, n)); setEligiendoTono(null); }} />
+      )}
 
       <div style={etiquetaSeccion}><ListMusic size={13} /> ORDEN DE LA CANCIÓN</div>
       {orden.length === 0 ? (
@@ -72,15 +89,28 @@ export function PasoEstructura({ cancion, setCancion, colorDe }) {
           {orden.length > 1 && <div style={{ fontSize: 12, color: "var(--wf-faint)", marginBottom: 8 }}>Para cambiar el orden usa las flechas, o mantén presionada una parte y arrástrala.</div>}
           {orden.map((k, idx) => {
             const b = cancion.blocks[k];
+            const sube = semitonosCambio(b);
+            const editandoEste = eligiendoTono && !eligiendoTono.nuevo && eligiendoTono.idx === idx;
             return (
-              <div key={`${k}-${idx}`} data-parte={dist(b)} {...arrastre.filaProps(idx)} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: "6px 6px 6px 10px", marginBottom: 8, minHeight: TOQUE + 8, ...arrastre.estiloFila(idx) }}>
+              <div key={`${k}-${idx}`}>
+              <div data-parte={dist(b)} {...arrastre.filaProps(idx)} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: "6px 6px 6px 10px", marginBottom: 8, minHeight: TOQUE + 8, ...arrastre.estiloFila(idx) }}>
                 <span style={{ width: 18, fontSize: 12, color: "var(--wf-faint)", fontWeight: 700, textAlign: "right", flexShrink: 0 }}>{idx + 1}</span>
                 <Distintivo b={b} color={colorDe(dist(b))} />
-                <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.label}</span>
-                <BotonIcono etiqueta={`Cambiar nombre de ${b.label}`} onClick={() => renombrar(k)}><Pencil size={15} /></BotonIcono>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {b.label}
+                  {sube > 0 && cancion.key && <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: COLOR_CAMBIO }}>{textoCambio(sube, acordeEn(tonoAl(cambios[idx])))}</span>}
+                </span>
+                {sube > 0
+                  ? <BotonIcono etiqueta={`Cambiar a qué tono sube`} onClick={() => setEligiendoTono(editandoEste ? null : { k, idx })}><ArrowUp size={16} /></BotonIcono>
+                  : <BotonIcono etiqueta={`Cambiar nombre de ${b.label}`} onClick={() => renombrar(k)}><Pencil size={15} /></BotonIcono>}
                 <BotonIcono etiqueta={`Subir ${b.label}`} onClick={() => setCancion((c) => moverEnOrden(c, idx, idx - 1))} disabled={idx === 0}><ChevronUp size={18} /></BotonIcono>
                 <BotonIcono etiqueta={`Bajar ${b.label}`} onClick={() => setCancion((c) => moverEnOrden(c, idx, idx + 1))} disabled={idx === orden.length - 1}><ChevronDown size={18} /></BotonIcono>
-                <BotonIcono etiqueta={`Quitar ${b.label}`} onClick={() => setCancion((c) => quitarDelOrden(c, idx))} color="#C23B32"><X size={17} /></BotonIcono>
+                <BotonIcono etiqueta={`Quitar ${b.label}`} onClick={() => { setEligiendoTono(null); setCancion((c) => quitarDelOrden(c, idx)); }} color="#C23B32"><X size={17} /></BotonIcono>
+              </div>
+              {editandoEste && (
+                <ElegirCambioTono desdeKey={tonoAl(cambios[idx] - sube)} actual={sube} onCancelar={() => setEligiendoTono(null)}
+                  onElegir={(n) => { setCancion((c) => cambiarCambioTono(c, k, n)); setEligiendoTono(null); }} />
+              )}
               </div>
             );
           })}
@@ -144,7 +174,8 @@ function CuadroCreciente({ value, onChange, placeholder, etiqueta }) {
 }
 
 export function PasoLetra({ cancion, setCancion, colorDe, onIrAEstructura }) {
-  const partes = partesUnicas(cancion);
+  // "Sube de tono" no lleva letra: no se muestra aquí.
+  const partes = partesUnicas(cancion).filter((k) => !esCambioTono(cancion.blocks[k]));
   const orden = ordenDe(cancion);
   // Se decide una vez al abrir el paso (no a cada tecla) qué partes llevan su letra también a los acordes.
   const [vaConLetra] = useState(() => Object.fromEntries(partes.map((k) => [k, contenidoVaConLetra(cancion, k)])));
@@ -183,7 +214,7 @@ export function PasoLetra({ cancion, setCancion, colorDe, onIrAEstructura }) {
               {veces === 0 && <span style={{ fontSize: 12, color: "var(--wf-muted)", fontWeight: 600 }}>no está en el orden</span>}
             </div>
             <CuadroCreciente value={texto} onChange={(t) => escribir(k, t)} etiqueta={`Letra de ${b.label}`}
-              placeholder={/^(IN|INS|F|O)\d*$/i.test(dist(b)) ? `Letra de ${b.label} (si no tiene, déjala vacía)` : `Escribe aquí la letra de ${b.label}…`} />
+              placeholder={/^(IN|INS|INT|F|O|M|VI)\d*$/i.test(dist(b)) ? `Letra de ${b.label} (si no tiene, déjala vacía)` : `Escribe aquí la letra de ${b.label}…`} />
             {vaConLetra[k] === false && <div style={{ fontSize: 12, color: "var(--wf-muted)", marginTop: 6 }}>Esta parte tiene los acordes escritos aparte. Si cambias la letra aquí, revisa también el paso Acordes.</div>}
             <div style={{ fontSize: 11, fontWeight: 800, color: "var(--wf-muted)", letterSpacing: 0.4, margin: "10px 0 6px" }}>
               {slides.length === 0 ? "SIN DIAPOSITIVAS · no se proyecta" : `${slides.length} DIAPOSITIVA${slides.length === 1 ? "" : "S"}`}

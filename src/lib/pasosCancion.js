@@ -5,6 +5,7 @@
 //   parte no tenía acordes escritos aparte, también el texto que ven los músicos (blocks[k].lines).
 // - Acordes: se ponen tocando una palabra; la letra NO se puede cambiar desde ahí.
 import { diapositivasDeLineas, limpiarParaProyectar, quitarAcordes, distintivoDe } from "./textoCancion.js";
+import { esCambioTono, semitonosCambio, distintivoCambio } from "./cambioTono.js";
 
 export const TIPOS_PARTE = [
   { id: "intro", label: "Intro", prefix: "IN" },
@@ -13,6 +14,10 @@ export const TIPOS_PARTE = [
   { id: "coro", label: "Coro", prefix: "C" },
   { id: "puente", label: "Puente", prefix: "P" },
   { id: "instrumental", label: "Instrumental", prefix: "INS" },
+  // Pedido de un músico (2026-11-24): partes que ayudan a la banda aunque no lleven letra.
+  { id: "interludio", label: "Interludio", prefix: "INT" },
+  { id: "melodia", label: "Melodía", prefix: "M" },
+  { id: "vientos", label: "Vientos", prefix: "VI" },
   { id: "final", label: "Final", prefix: "F" },
 ];
 
@@ -105,7 +110,35 @@ export function borrarParte(cancion, k) {
 export function renombrarParte(cancion, k, nombre) {
   const label = String(nombre || "").trim();
   if (!label || !cancion.blocks[k]) return cancion;
-  return { ...cancion, blocks: { ...cancion.blocks, [k]: { ...cancion.blocks[k], label, badge: distintivoDe(label) } } };
+  // Un cambio de tono guarda en su distintivo cuánto sube: al renombrarlo no se pierde.
+  const badge = esCambioTono(cancion.blocks[k]) ? cancion.blocks[k].badge : distintivoDe(label);
+  return { ...cancion, blocks: { ...cancion.blocks, [k]: { ...cancion.blocks[k], label, badge } } };
+}
+
+// ---- Cambio de tono (ver lib/cambioTono.js) ----
+// Agrega al final del orden una parte "Sube de tono" que sube n medios tonos. Si ya hay una que sube
+// lo mismo, se repite esa (como el coro), para no llenar la canción de partes iguales.
+export function agregarCambioTono(cancion, n) {
+  const badge = distintivoCambio(n);
+  if (!semitonosCambio({ badge })) return cancion;
+  const orden = [...ordenDe(cancion)];
+  const existente = Object.keys(cancion.blocks || {}).find((k) => cancion.blocks[k].badge === badge);
+  if (existente) return { ...cancion, defaultStructure: [...orden, existente] };
+  const k = nuevaClave();
+  return {
+    ...cancion,
+    blocks: { ...cancion.blocks, [k]: { badge, label: "Sube de tono", bars: 4, lines: [""] } },
+    letra: { ...(cancion.letra || {}), [k]: [] },
+    defaultStructure: [...orden, k],
+  };
+}
+
+// Cambia cuánto sube una parte "Sube de tono" (en todas las veces que esté en el orden).
+export function cambiarCambioTono(cancion, k, n) {
+  const b = cancion.blocks?.[k];
+  const badge = distintivoCambio(n);
+  if (!b || !esCambioTono(b) || !semitonosCambio({ badge })) return cancion;
+  return { ...cancion, blocks: { ...cancion.blocks, [k]: { ...b, badge } } };
 }
 
 // ---- Letra ----

@@ -8,6 +8,7 @@
 
 import { esBloquePredicacion } from "./predicacion.js";
 import { semitoneShift, transposeLine } from "./musicTheory.js";
+import { cambiosPorPosicion } from "./cambioTono.js";
 import { cancionParaElEvento } from "./ordenEvento.js";
 
 // ---------- Diseños de la pantalla de escenario (2026-11-22) ----------
@@ -83,7 +84,7 @@ function partesDeCancion(slides, indice, itemId) {
     if (!ultima || ultima.posicion !== posicion) partes.push({ posicion, clave: s.blockKey, nombre: s.sectionLabel || s.blockKey || "", corto: abreviarParte(s.sectionLabel || s.blockKey) });
     if (k === indice || s === actual) parteActual = partes.length - 1;
   });
-  return { partes: partes.map(({ nombre, corto }) => ({ nombre, corto })), claves: partes.map((p) => p.clave), parteActual };
+  return { partes: partes.map(({ nombre, corto }) => ({ nombre, corto })), claves: partes.map((p) => p.clave), posiciones: partes.map((p) => Number(p.posicion)), parteActual };
 }
 
 function tituloDeItem(it, library) {
@@ -107,8 +108,8 @@ export function armarEscenario({ slides = [], indice = -1, alAire = null, servic
   const item = actual ? serviceOrder.find((it) => it.type !== "seccion" && perteneceA(actual, it.id)) || null : null;
   const siguienteDiapositiva = indice >= 0 ? slides[indice + 1] || null : null;
 
-  let partes = [], claves = [], parteActual = -1;
-  if (item?.type === "cancion" && indice >= 0) ({ partes, claves, parteActual } = partesDeCancion(slides, indice, item.id));
+  let partes = [], claves = [], posiciones = [], parteActual = -1;
+  if (item?.type === "cancion" && indice >= 0) ({ partes, claves, posiciones, parteActual } = partesDeCancion(slides, indice, item.id));
   const siguienteParte = parteActual >= 0 && parteActual + 1 < partes.length ? partes[parteActual + 1].nombre : "";
 
   // Para el diseño "Banda con acordes": la parte al aire completa y la que sigue, con acordes.
@@ -117,9 +118,13 @@ export function armarEscenario({ slides = [], indice = -1, alAire = null, servic
     // Con un orden solo para este culto, la copia trae también las partes tomadas de otra canción.
     const cancion = cancionParaElEvento(library.find((s) => s.id === item.songId), item, library);
     const semitonos = item.keyOverride && cancion?.key ? semitoneShift(cancion.key, item.keyOverride) : 0;
-    const ahora = acordesDeParte(cancion, actual.blockKey, semitonos);
+    // Con un "Sube de tono" en el orden, cada parte va en el tono de SU posición.
+    const orden = cancion?.defaultStructure?.length ? cancion.defaultStructure : Object.keys(cancion?.blocks || {});
+    const cambios = cambiosPorPosicion(orden, cancion?.blocks);
+    const extra = (pos) => (Number.isInteger(pos) && pos >= 0 ? cambios[pos] || 0 : 0);
+    const ahora = acordesDeParte(cancion, actual.blockKey, semitonos + extra(posiciones[parteActual]));
     const claveSig = parteActual >= 0 ? claves[parteActual + 1] : null;
-    const sigue = claveSig ? acordesDeParte(cancion, claveSig, semitonos) : null;
+    const sigue = claveSig ? acordesDeParte(cancion, claveSig, semitonos + extra(posiciones[parteActual + 1])) : null;
     if (ahora || sigue) acordes = { ahora, sigue };
   }
 

@@ -3,7 +3,9 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
 import { FileUp, Globe, Plus, Search, Heart, Pencil, Paperclip, Trash2, ListMusic, Music, Minus, FileText, Image as ImgIcon, Link2, ArrowLeft, ChevronDown, Radio, Pause, Users, Play, PencilLine, ChevronLeft, ChevronRight, RefreshCw, X, Check, ClipboardPaste, Lock, CheckSquare, Square } from "lucide-react";
 import { usePlan, permite, abrirPlanes } from "../lib/planes.js";
-import { acordeEn, usePreferencias, lineaEn } from "../lib/preferencias.js";
+import { acordeEn, usePreferencias, lineaEn, setInstrumento } from "../lib/preferencias.js";
+import { cambiosPorPosicion, semitonosCambio, tonoMas, textoCambio, INSTRUMENTOS, instrumentoPorValor, relativa } from "../lib/cambioTono.js";
+import { COLOR_CAMBIO } from "../components/CambioTono.jsx";
 import { confirmDialog } from "../lib/confirm.js";
 import { useCerrarConAtras } from "../lib/atras.js";
 import { listarAdjuntos, tipoDeArchivo, subirAdjunto, agregarEnlace, borrarAdjunto } from "../lib/adjuntosCancion.js";
@@ -352,6 +354,9 @@ function ChordsAboveLyrics({ raw, semitones = 0 }) {
 
 export function badgeColor(badge) {
   const b = (badge || "").toUpperCase();
+  if (b.startsWith("↑")) return COLOR_CAMBIO; // "Sube de tono": naranja
+  if (b.startsWith("INT")) return "#1F8A73"; // Interludio: teal como Instrumental
+  if (b.startsWith("M") || b.startsWith("VI")) return "#1F8A73"; // Melodía / Vientos: también sin letra
   if (b.startsWith("IN")) return "#1F8A73"; // Intro/Instrumental (ambas sin letra): teal
   if (b.startsWith("PC")) return "#2F5FA8"; // Pre-coro: azul (chequeado ANTES que Puente, ya que "PC" también empieza con "P")
   if (b.startsWith("C")) return "#D98A54"; // Coro: durazno
@@ -384,6 +389,7 @@ const CEJILLA_SESSION_KEY = "wf-cejilla-por-cancion";
 // con signo negativo como el Capo viejo). Quién puede tocar "Guardar" y qué hace ese guardado
 // depende de dónde se abrió este modal — ver SongView, que decide puedeCambiarPermanente/Local.
 function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResultKey, puedeCambiarPermanente, puedeCambiarLocal, onClose, onGuardarPermanente, onGuardarLocal }) {
+  const { instrumento } = usePreferencias();
   const isMinorKey = song.key.endsWith("m");
   const parsed = displayedKey.match(/^([A-G])(#|b)?/);
   const [letra, setLetra] = useState(parsed?.[1] || "C");
@@ -427,6 +433,23 @@ function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResult
         <button onClick={() => setCejilla((c) => Math.max(0, c - 1))} className="hoverable" style={{ ...iconGhost, width: 28, height: 28 }}><Minus size={14} /></button>
         <span style={{ flex: 1, textAlign: "center", fontSize: 14, fontWeight: 700 }}>{cejilla}{cejillaResultKey ? ` (${acordeEn(cejillaResultKey)})` : ""}</span>
         <button onClick={() => setCejilla((c) => Math.min(11, c + 1))} className="hoverable" style={{ ...iconGhost, width: 28, height: 28 }}><Plus size={14} /></button>
+      </div>
+
+      {/* Mi instrumento (2026-11-24): trompeta, saxo y corno leen en otro tono. Se recuerda en este teléfono
+          para todas las canciones y no cambia lo que ven los demás. */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-faint)", marginBottom: 6, textTransform: "uppercase" }}>Mi instrumento</div>
+      <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 8 }}>Si tocas trompeta, saxo o corno, elige tu afinación y verás los acordes en el tono que tú lees. Solo cambia lo que TÚ ves, en todas las canciones.</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 16 }}>
+        {INSTRUMENTOS.map((ins) => {
+          const activo = instrumento === ins.value;
+          return (
+            <button key={ins.value} type="button" onClick={() => setInstrumento(ins.value)} aria-pressed={activo} className="hoverable"
+              style={{ textAlign: "left", padding: "8px 10px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "inherit", ...(activo ? activeStyle : inactiveStyle) }}>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{ins.label}</div>
+              <div style={{ fontSize: 10.5, opacity: 0.8, lineHeight: 1.3 }}>{ins.detalle}</div>
+            </button>
+          );
+        })}
       </div>
 
       {puedeCambiarRoot && <button onClick={guardar} style={primaryBtn}>Guardar</button>}
@@ -651,8 +674,14 @@ export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onE
   // Semitonos totales a aplicar sobre los acordes TAL COMO están guardados (en song.key): primero lo
   // que haga falta para llegar a la tonalidad mostrada, y encima, la cejilla resta (tocar más abajo
   // porque el capo físico ya sube esos semitonos al sonar).
-  const semitonesDesdeOriginal = song ? semitoneShift(song.key, displayedKey) - cejilla : 0;
+  // "Mi instrumento": trompeta (Si bemol), saxo alto (Mi bemol), corno (Fa) leen más arriba que lo que suena.
+  const { instrumento } = usePreferencias();
+  const inst = instrumentoPorValor(instrumento);
+  const semitonesDesdeOriginal = song ? semitoneShift(song.key, displayedKey) - cejilla + inst.semitonos : 0;
   const cejillaResultKey = song ? transposeChordToken(displayedKey, -cejilla) : null;
+  // Tono que LEE este músico (con su instrumento) y "Sube de tono" en cada posición del orden.
+  const tonoQueLeo = song ? transposeChordToken(displayedKey, inst.semitonos - cejilla) : null;
+  const cambios = song ? cambiosPorPosicion(order, song.blocks) : [];
 
   // ---- Fuera de una transmisión en vivo (repaso/ensayo): sigue igual que siempre — cualquiera que
   // tenga la MISMA canción abierta se sincroniza por un canal ad-hoc (song.id), sin un líder fijo,
@@ -999,7 +1028,7 @@ export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onE
             className="hoverable"
             style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 10, padding: "5px 8px", color: "var(--wf-text-2)", cursor: "pointer" }}
           >
-            {acordeEn(displayedKey)}{cejilla > 0 ? ` · cejilla ${cejilla}` : ""}
+            {inst.semitonos ? `${acordeEn(tonoQueLeo)} · ${inst.label}` : acordeEn(displayedKey)}{cejilla > 0 ? ` · cejilla ${cejilla}` : ""}
             <ChevronDown size={12} />
           </button>
           {showTonalidadModal && (
@@ -1138,8 +1167,8 @@ export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onE
             <button key={`${key}-${i}`} data-pill={i}
               onClick={() => goToSectionIdx(i)} className="hoverable"
               style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, borderRadius: 18, border: `1.5px solid ${color}`, background: actual ? color : "transparent", color: actual ? "#fff" : "var(--wf-text)", fontSize: 12.5, fontWeight: 700, padding: "6px 12px 6px 6px", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}>
-              <span style={{ minWidth: 22, height: 22, borderRadius: 11, padding: "0 4px", boxSizing: "border-box", background: actual ? "rgba(255,255,255,0.25)" : `${color}22`, color: actual ? "#fff" : color, fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{b.badge}</span>
-              {b.label || b.badge}
+              <span style={{ minWidth: 22, height: 22, borderRadius: 11, padding: "0 4px", boxSizing: "border-box", background: actual ? "rgba(255,255,255,0.25)" : `${color}22`, color: actual ? "#fff" : color, fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{semitonosCambio(b) ? "↑" : b.badge}</span>
+              {semitonosCambio(b) ? textoCambio(semitonosCambio(b), acordeEn(tonoMas(tonoQueLeo, cambios[i]))) : (b.label || b.badge)}
             </button>
           );
         })}
@@ -1168,18 +1197,27 @@ export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onE
           >
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${color}22`, borderRadius: 20, padding: "5px 12px", marginRight: 2 }}>
-                <span style={{ width: 22, height: 22, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{b.badge}</span>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", border: `1.5px solid ${color}`, color, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{semitonosCambio(b) ? "↑" : b.badge}</span>
                 <span style={{ fontSize: 13, fontWeight: 700 }}>{b.label}</span>
               </div>
+              {semitonosCambio(b) > 0 && (
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#fff", background: COLOR_CAMBIO, borderRadius: 20, padding: "5px 12px" }}>
+                  {textoCambio(semitonosCambio(b), acordeEn(tonoMas(tonoQueLeo, cambios[i])))}
+                </span>
+              )}
               {etiquetasDe("equipo", key).map((et) => <EtiquetaParte key={`e-${et}`} texto={et} />)}
               {etiquetasDe("mias", key).map((et) => <EtiquetaParte key={`m-${et}`} texto={et} mia />)}
             </div>
             {textoNota("equipo", key).trim() && <TiraNota tipo="equipo" etiqueta="LÍDER" texto={textoNota("equipo", key)} onAbrir={() => abrirAnotarEn("equipo", key)} onBorrar={puedeEditarCapa("equipo") ? () => borrarNota("equipo", key) : null} />}
             {textoNota("mias", key).trim() && <TiraNota tipo="mias" etiqueta="MI NOTA" texto={textoNota("mias", key)} onAbrir={() => abrirAnotarEn("mias", key)} onBorrar={() => borrarNota("mias", key)} />}
+            {/* Un "Sube de tono" sin acordes propios es solo el aviso de arriba. */}
+            {(!semitonosCambio(b) || b.lines.some((l) => String(l).trim())) && (
             <div style={{ background: isActive ? "var(--wf-active-bg)" : "var(--wf-hover)", borderRadius: 14, padding: 16 }}>
-              {/* Sin renglones vacíos dentro de una parte: el músico ve la estrofa corrida (2026-11-20). */}
-              {b.lines.filter((l) => String(l).trim()).map((l, i2) => <ChordsAboveLyrics key={i2} raw={l} semitones={semitonesDesdeOriginal} />)}
+              {/* Sin renglones vacíos dentro de una parte: el músico ve la estrofa corrida (2026-11-20).
+                  Después de un "Sube de tono" los acordes salen en el tono nuevo (cambios[i]). */}
+              {b.lines.filter((l) => String(l).trim()).map((l, i2) => <ChordsAboveLyrics key={i2} raw={l} semitones={semitonesDesdeOriginal + (cambios[i] || 0)} />)}
             </div>
+            )}
           </div>
         );
       })}
@@ -1370,7 +1408,7 @@ export function SongEditor({ song, isAdminViewer, onCancel, onSave, onDirtyChang
               {canEditKey ? (
                 <select value={draft.key} onChange={(e) => setDraft({ ...draft, key: e.target.value })} style={{ ...inputStyle, fontSize: 16, minHeight: 44 }}>
                   <option value="">Selecciona tonalidad</option>
-                  {KEY_OPTIONS.map((k) => <option key={k} value={k}>{k}</option>)}
+                  {KEY_OPTIONS.map((k) => <option key={k} value={k}>{relativa(k) ? `${acordeEn(k)}  (relativa: ${acordeEn(relativa(k))})` : acordeEn(k)}</option>)}
                 </select>
               ) : (
                 <div style={{ ...inputStyle, color: "var(--wf-muted)", background: "var(--wf-hover)" }}>

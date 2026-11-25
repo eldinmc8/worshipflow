@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ListMusic, ChevronUp, ChevronDown, X, Plus, Repeat, Search, ArrowLeft, RotateCcw } from "lucide-react";
+import { ListMusic, ChevronUp, ChevronDown, X, Plus, Repeat, Search, ArrowLeft, RotateCcw, ArrowUp } from "lucide-react";
 import { ModalShell, primaryBtn, BorrarBusqueda } from "../pantallas/compartido.jsx";
 import { badgeColor } from "../pantallas/canciones.jsx";
 import { useArrastreLista } from "../lib/arrastreLista.js";
@@ -10,6 +10,8 @@ import {
   cancionParaElEvento, ordenInicial, ordenEventoDe, esIgualAlOriginal, claveDeOtra, leerClaveOtra,
   moverParte, quitarParte, repetirAqui, agregarAlFinal,
 } from "../lib/ordenEvento.js";
+import { semitonosCambio, leerClaveCambio, claveCambioEvento, cambiosPorPosicion, tonoMas, textoCambio } from "../lib/cambioTono.js";
+import { ElegirCambioTono, COLOR_CAMBIO } from "./CambioTono.jsx";
 
 // "Orden para este culto" (2026-11-24, ver lib/ordenEvento.js): el director acomoda las partes de una
 // canción como se ensayaron, y puede sumar una parte de otra canción (mezclas), sin tocar el cancionero.
@@ -20,7 +22,8 @@ const etiqueta = { fontSize: 11.5, fontWeight: 800, color: "var(--wf-muted)", le
 const dist = (b) => b?.badge || distintivoDe(b?.label || "");
 
 function Distintivo({ b }) {
-  return <span style={{ minWidth: 28, height: 28, padding: "0 6px", boxSizing: "border-box", borderRadius: 14, background: badgeColor(dist(b)), color: "#fff", fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{dist(b)}</span>;
+  const sube = semitonosCambio(b) > 0;
+  return <span style={{ minWidth: 28, height: 28, padding: "0 6px", boxSizing: "border-box", borderRadius: 14, background: badgeColor(dist(b)), color: "#fff", fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{sube ? <ArrowUp size={14} strokeWidth={3} /> : dist(b)}</span>;
 }
 
 function BotonIcono({ etiqueta: et, onClick, disabled, color = "var(--wf-muted)", children }) {
@@ -47,6 +50,11 @@ export default function OrdenCancionEvento({ song, item, library, onGuardar, onC
   // Partes de otras canciones que ya están en el orden: para volver a agregarlas con un toque.
   const prestadas = [...new Set(visibles.filter((k) => leerClaveOtra(k)))];
   const teniaEspecial = !!ordenEventoDe(item);
+  // "Sube de tono" solo para este culto: null | { nuevo: true } | { idx } (cambiar uno puesto aquí).
+  const [eligiendoTono, setEligiendoTono] = useState(null);
+  const tonoBase = item?.keyOverride || song.key;
+  const cambios = cambiosPorPosicion(visibles, bloques);
+  const tonoAl = (n) => tonoMas(tonoBase, n);
   const arrastre = useArrastreLista({ habilitado: true, onReorder: (desde, destino) => setOrden((o) => moverParte(o, desde, destino)) });
 
   const otras = useMemo(() => {
@@ -74,15 +82,29 @@ export default function OrdenCancionEvento({ song, item, library, onGuardar, onC
         <div>
           {visibles.map((k, idx) => {
             const b = bloques[k];
+            const sube = semitonosCambio(b);
+            const delCulto = leerClaveCambio(k) > 0; // puesto aquí (se puede cambiar); los de la canción no
+            const editandoEste = eligiendoTono && eligiendoTono.idx === idx;
             return (
-              <div key={`${k}-${idx}`} {...arrastre.filaProps(idx)} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 12, padding: "4px 4px 4px 8px", marginBottom: 6, minHeight: TOQUE + 4, ...arrastre.estiloFila(idx) }}>
+              <div key={`${k}-${idx}`}>
+              <div {...arrastre.filaProps(idx)} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 12, padding: "4px 4px 4px 8px", marginBottom: 6, minHeight: TOQUE + 4, ...arrastre.estiloFila(idx) }}>
                 <span style={{ width: 16, fontSize: 11.5, color: "var(--wf-faint)", fontWeight: 700, textAlign: "right", flexShrink: 0 }}>{idx + 1}</span>
                 <Distintivo b={b} />
-                <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, lineHeight: 1.25, overflowWrap: "anywhere" }}>{b.label}</span>
-                <BotonIcono etiqueta={`Repetir ${b.label}`} onClick={() => setOrden((o) => repetirAqui(o, idx))} color="#1F8A73"><Repeat size={15} /></BotonIcono>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, lineHeight: 1.25, overflowWrap: "anywhere" }}>
+                  {b.label}
+                  {sube > 0 && tonoBase && <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: COLOR_CAMBIO }}>{textoCambio(sube, acordeEn(tonoAl(cambios[idx])))}</span>}
+                </span>
+                {delCulto
+                  ? <BotonIcono etiqueta="Cambiar a qué tono sube" onClick={() => setEligiendoTono(editandoEste ? null : { idx })} color={COLOR_CAMBIO}><ArrowUp size={15} /></BotonIcono>
+                  : <BotonIcono etiqueta={`Repetir ${b.label}`} onClick={() => setOrden((o) => repetirAqui(o, idx))} color="#1F8A73"><Repeat size={15} /></BotonIcono>}
                 <BotonIcono etiqueta={`Subir ${b.label}`} onClick={() => setOrden((o) => moverParte(o, idx, idx - 1))} disabled={idx === 0}><ChevronUp size={17} /></BotonIcono>
                 <BotonIcono etiqueta={`Bajar ${b.label}`} onClick={() => setOrden((o) => moverParte(o, idx, idx + 1))} disabled={idx === visibles.length - 1}><ChevronDown size={17} /></BotonIcono>
-                <BotonIcono etiqueta={`Quitar ${b.label}`} onClick={() => setOrden((o) => quitarParte(o, idx))} color="#C23B32"><X size={16} /></BotonIcono>
+                <BotonIcono etiqueta={`Quitar ${b.label}`} onClick={() => { setEligiendoTono(null); setOrden((o) => quitarParte(o, idx)); }} color="#C23B32"><X size={16} /></BotonIcono>
+              </div>
+              {editandoEste && (
+                <ElegirCambioTono desdeKey={tonoAl(cambios[idx] - sube)} actual={sube} onCancelar={() => setEligiendoTono(null)}
+                  onElegir={(n) => { setOrden((o) => o.map((x, i) => (i === idx ? claveCambioEvento(n) : x))); setEligiendoTono(null); }} />
+              )}
               </div>
             );
           })}
@@ -97,7 +119,14 @@ export default function OrdenCancionEvento({ song, item, library, onGuardar, onC
             <Distintivo b={bloques[k]} /> {bloques[k].label}
           </button>
         ))}
+        <button type="button" onClick={() => setEligiendoTono({ nuevo: true })} className="hoverable" style={{ ...chip, padding: "0 12px", borderColor: COLOR_CAMBIO, color: COLOR_CAMBIO, fontWeight: 700 }}>
+          <ArrowUp size={15} /> Sube de tono
+        </button>
       </div>
+      {eligiendoTono?.nuevo && (
+        <ElegirCambioTono desdeKey={tonoAl(cambios.length ? cambios[cambios.length - 1] : 0)} titulo="¿A qué tono sube al final?" onCancelar={() => setEligiendoTono(null)}
+          onElegir={(n) => { setOrden((o) => agregarAlFinal(o, claveCambioEvento(n))); setEligiendoTono(null); }} />
+      )}
 
       {!buscandoOtra ? (
         <button type="button" onClick={() => setBuscandoOtra(true)} className="hoverable"

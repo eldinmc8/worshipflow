@@ -6,6 +6,7 @@
 // Una parte de otra canción se guarda como una clave especial "otra~<idCanción>~<claveParte>": no se
 // copia la letra, se toma de esa canción cada vez (si alguien la corrige, aquí sale corregida).
 import { semitoneShift, transposeLine } from "./musicTheory.js";
+import { leerClaveCambio, bloqueCambioEvento, cambiosPorPosicion, semitonosCambio, tonoMas } from "./cambioTono.js";
 
 const PREFIJO = "otra~";
 
@@ -66,6 +67,9 @@ export function cancionParaElEvento(song, item, library) {
   const blocks = { ...(song.blocks || {}) };
   const letra = { ...(song.letra || {}) };
   for (const clave of new Set(orden)) {
+    // "Sube de tono" puesto solo para este culto (clave "tono~2"): no tiene letra ni diapositivas.
+    const sube = leerClaveCambio(clave);
+    if (sube && !blocks[clave]) { blocks[clave] = bloqueCambioEvento(sube); letra[clave] = []; continue; }
     if (blocks[clave] || !leerClaveOtra(clave)) continue;
     const p = parteDeOtra(song, clave, library);
     if (!p) continue;
@@ -81,8 +85,11 @@ export function cancionParaElEvento(song, item, library) {
 export function resumenOrden(song, item, library) {
   const c = cancionParaElEvento(song, item, library);
   if (!c?.ordenEspecial) return "";
-  return c.defaultStructure.map((k) => {
+  const cambios = cambiosPorPosicion(c.defaultStructure, c.blocks);
+  const tono = item?.keyOverride || song?.key;
+  return c.defaultStructure.map((k, i) => {
     const b = c.blocks[k];
+    if (semitonosCambio(b)) return tono ? `↑ ${tonoMas(tono, cambios[i])}` : "↑";
     const corto = b.badge || b.label || k;
     return b.origen ? `${corto} (${b.origen.titulo})` : corto;
   }).join(" · ");
@@ -109,4 +116,10 @@ export function repetirAqui(orden, idx) {
 
 export function agregarAlFinal(orden, clave) {
   return [...orden, clave];
+}
+
+// Pone un "Sube de tono" justo después de la parte idx (o al final si idx no se da).
+export function insertarDespues(orden, idx, clave) {
+  if (idx == null || idx < 0 || idx >= orden.length) return [...orden, clave];
+  return [...orden.slice(0, idx + 1), clave, ...orden.slice(idx + 1)];
 }

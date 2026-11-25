@@ -31,6 +31,7 @@ import { esVideoSolo } from "../lib/videoEnlace.js";
 import { SongEditor } from "./canciones.jsx";
 import { useCerrarConAtras } from "../lib/atras.js";
 import { confirmDialog } from "../lib/confirm.js";
+import { relativa } from "../lib/cambioTono.js";
 
 // Tonalidades para cambiar una canción dentro del Setlist: solo las 12 notas. Si la canción original
 // es menor, las 12 salen en menor (Em pasa a Fm, nunca a F), así nunca se cambia sin querer de
@@ -1577,12 +1578,13 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, event, librar
                         value={effectiveKey}
                         onChange={(e) => onSetSongKey(item.id, e.target.value, song.key)}
                         title="Tonalidad para este evento"
-                        style={{ width: getNotacion() === "solfeo" ? 62 : 46, borderRadius: 10, border: `1px solid ${item.keyOverride ? "var(--wf-brand-accent)" : "var(--wf-border-soft)"}`, fontSize: 10, fontWeight: 700, padding: "3px 2px", color: item.keyOverride ? "var(--wf-brand-accent)" : "var(--wf-text-2)", background: "var(--wf-card)", flexShrink: 0 }}
+                        style={{ width: getNotacion() === "solfeo" ? 96 : 68, borderRadius: 10, border: `1px solid ${item.keyOverride ? "var(--wf-brand-accent)" : "var(--wf-border-soft)"}`, fontSize: 10, fontWeight: 700, padding: "3px 2px", color: item.keyOverride ? "var(--wf-brand-accent)" : "var(--wf-text-2)", background: "var(--wf-card)", flexShrink: 0 }}
                       >
                         {(() => {
                           const opciones = opcionesTonalidadSetlist(song.key);
                           // Un cambio viejo que no encaje (ej. hecho antes de esta regla) se sigue mostrando tal cual.
-                          return (opciones.includes(effectiveKey) ? opciones : [effectiveKey, ...opciones]).map((k) => <option key={k} value={k}>{acordeEn(k)}</option>);
+                          // "C / Am": con su relativa al lado, para quien piensa en el menor (pedido de un músico, 2026-11-24).
+                          return (opciones.includes(effectiveKey) ? opciones : [effectiveKey, ...opciones]).map((k) => <option key={k} value={k}>{relativa(k) ? `${acordeEn(k)} / ${acordeEn(relativa(k))}` : acordeEn(k)}</option>);
                         })()}
                       </select>
                     ) : (

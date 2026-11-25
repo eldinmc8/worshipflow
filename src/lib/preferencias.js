@@ -10,6 +10,9 @@ import { useEffect, useState } from "react";
 
 const K_TAMANO = "worshipflow_tamano_letra";
 const K_NOTACION = "worshipflow_notacion";
+// "Mi instrumento" (2026-11-24): trompeta/saxo/corno ven los acordes en el tono que ellos leen.
+const K_INSTRUMENTO = "worshipflow_instrumento";
+const INSTRUMENTOS_VALIDOS = ["concierto", "sib", "mib", "fa"];
 
 export const TAMANOS_LETRA = [
   { value: "normal", label: "Normal", zoom: 1 },
@@ -38,6 +41,7 @@ function guardar(key, v) {
 
 let tamanoActual = null;
 let notacionActual = null;
+let instrumentoActual = null;
 
 export function getTamanoLetra() {
   if (tamanoActual === null) tamanoActual = leer(K_TAMANO, TAMANOS_LETRA.map((t) => t.value), "normal");
@@ -46,6 +50,17 @@ export function getTamanoLetra() {
 export function getNotacion() {
   if (notacionActual === null) notacionActual = leer(K_NOTACION, NOTACIONES.map((n) => n.value), "letras");
   return notacionActual;
+}
+
+export function getInstrumento() {
+  if (instrumentoActual === null) instrumentoActual = leer(K_INSTRUMENTO, INSTRUMENTOS_VALIDOS, "concierto");
+  return instrumentoActual;
+}
+export function setInstrumento(v) {
+  if (!INSTRUMENTOS_VALIDOS.includes(v)) return;
+  instrumentoActual = v;
+  guardar(K_INSTRUMENTO, v);
+  avisar();
 }
 
 export function zoomDe(tamano) {
@@ -97,7 +112,7 @@ export function usePreferencias() {
     listeners.add(fn);
     return () => listeners.delete(fn);
   }, []);
-  return { tamanoLetra: getTamanoLetra(), notacion: getNotacion() };
+  return { tamanoLetra: getTamanoLetra(), notacion: getNotacion(), instrumento: getInstrumento() };
 }
 
 // ---- Do Re Mi ----
