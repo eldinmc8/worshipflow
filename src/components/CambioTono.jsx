@@ -1,6 +1,6 @@
 import { ArrowUp } from "lucide-react";
 import { acordeEn } from "../lib/preferencias.js";
-import { opcionesCambio, cuantoSube, relativa } from "../lib/cambioTono.js";
+import { opcionesCambio, cuantoSube } from "../lib/cambioTono.js";
 
 // Cuadro "¿A qué tono sube?" (ver lib/cambioTono.js). Se usa en la Estructura de la canción y en
 // "Orden para este culto". Muestra los tonos de verdad (D, E…) y cuánto sube cada uno, para que nadie
@@ -23,7 +23,7 @@ export function ElegirCambioTono({ desdeKey, actual = 0, titulo = "¿A qué tono
           return (
             <button key={o.semitonos} type="button" onClick={() => onElegir(o.semitonos)} aria-pressed={activo} className="hoverable"
               style={{ minHeight: 52, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, borderRadius: 12, border: activo ? "none" : "1px solid var(--wf-divider)", background: activo ? COLOR_CAMBIO : "var(--wf-bg)", color: activo ? "#fff" : "var(--wf-text)", cursor: "pointer", fontFamily: "inherit" }}>
-              <span style={{ fontSize: 15, fontWeight: 800 }}>{desdeKey ? acordeEn(o.tono) : `+${o.semitonos}`}{desdeKey && relativa(o.tono) ? <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.75 }}> / {acordeEn(relativa(o.tono))}</span> : null}</span>
+              <span style={{ fontSize: 15, fontWeight: 800 }}>{desdeKey ? acordeEn(o.tono) : `+${o.semitonos}`}</span>
               <span style={{ fontSize: 10.5, fontWeight: 600, opacity: activo ? 0.9 : 0.65 }}>{cuantoSube(o.semitonos)}</span>
             </button>
           );
