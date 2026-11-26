@@ -14,12 +14,12 @@ export const PLANES = [
   {
     id: "crecimiento", nombre: "Crecimiento", precio: 19.99, precioAnual: 199, color: "#2F5FA8",
     resumen: "Para verse profesional cada domingo",
-    incluye: ["Hasta 50 miembros", "Todo lo del plan Ministerio", "Importar PowerPoint y PDF", "Bosquejo del predicador y Modo Predicar", "Logo y colores de tu iglesia", "Imagen o video propio de fondo", "Crear letras animadas propias", "Hasta 200 canciones", "Hasta 6 ministerios", "Asistente: 60 mensajes al día"],
+    incluye: ["Hasta 50 miembros", "Todo lo del plan Ministerio", "Importar PowerPoint y PDF al culto", "Bosquejo del predicador y Modo Predicar", "Logo y colores de tu iglesia", "Imagen o video propio de fondo", "Crear letras animadas propias", "Hasta 200 canciones", "Hasta 6 ministerios", "Asistente: 60 mensajes al día"],
   },
   {
     id: "iglesia", nombre: "Iglesia", precio: 29.99, precioAnual: 299, color: "#E8821E",
     resumen: "Toda la iglesia, organizada y sin límites",
-    incluye: ["Miembros ilimitados", "Todo lo del plan Crecimiento", "Roles y permisos personalizados", "Canciones ilimitadas", "Te ayudamos a cargar tus canciones", "Ministerios ilimitados", "Asistente: 100 mensajes al día", "Soporte prioritario por WhatsApp"],
+    incluye: ["Miembros ilimitados", "Todo lo del plan Crecimiento", "Roles y permisos personalizados", "Canciones ilimitadas", "Importar tus canciones de Holyrics, ProPresenter, OpenLP y más", "Te ayudamos a cargar tus canciones", "Ministerios ilimitados", "Asistente: 100 mensajes al día", "Soporte prioritario por WhatsApp"],
   },
 ];
 
@@ -36,7 +36,8 @@ export const COMPARATIVO = [
     ["Eventos y setlist", true, true, true, true],
     ["Plantillas de eventos", false, true, true, true],
     ["Biblia (RVR1960, NVI, TLA, DHH, NTV)", true, true, true, true],
-    ["Importar PowerPoint y PDF", false, false, true, true],
+    ["Importar PowerPoint y PDF al culto", false, false, true, true],
+    ["Importar canciones de otros programas (Holyrics, ProPresenter, OpenLP…) o PDF", false, false, false, true],
     ["Bosquejo del predicador y Modo Predicar", false, false, true, true],
   ] },
   { grupo: "Proyección", filas: [

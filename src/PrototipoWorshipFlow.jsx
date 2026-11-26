@@ -2701,7 +2701,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         <CancionesList library={library} clasificaciones={clasificaciones} puedeConfigurarClasificaciones={realIsAdmin && isAdminViewer} onGuardarClasificaciones={guardarClasificaciones} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onImportarPdf={() => setImportandoPdf(true)} onBuscarWeb={() => setBuscandoWeb(true)} onDelete={deleteSong} onDeleteMany={deleteSongs} />
       )}
       {importandoPdf && (
-        <ConPlan funcion="importar" onCerrar={() => setImportandoPdf(false)}>
+        <ConPlan funcion="importar_canciones" onCerrar={() => setImportandoPdf(false)}>
         <ImportarCancionesPdf library={library} clasificaciones={clasificaciones} iglesiaId={myIglesiaId} userId={userId}
           onCerrar={() => setImportandoPdf(false)} onImportadas={() => reloadLibrary()} />
         </ConPlan>

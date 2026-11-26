@@ -51,7 +51,9 @@ export const FUNCIONES_PLAN = {
   estilos_animados: { plan: "ministerio", nombre: "Todas las letras animadas y fondos en movimiento" },
   galeria_disenos: { plan: "ministerio", nombre: "Galería completa de diseños para diapositivas" },
   fondo_propio: { plan: "crecimiento", nombre: "Imagen o video propio de fondo" },
-  importar: { plan: "crecimiento", nombre: "Importar PowerPoint, PDF y canciones de internet" },
+  importar: { plan: "crecimiento", nombre: "Importar PowerPoint y PDF al culto, y canciones de internet" },
+  // Importar canciones de archivos (PDF, Holyrics, ProPresenter, OpenLP…): solo plan Iglesia (Eldin, 2026-11-26).
+  importar_canciones: { plan: "iglesia", nombre: "Importar tus canciones de otros programas (Holyrics, ProPresenter, OpenLP…) o PDF" },
   bosquejo: { plan: "crecimiento", nombre: "Bosquejo del predicador y Modo Predicar" },
   identidad: { plan: "crecimiento", nombre: "Identidad de la iglesia (logo y colores)" },
   animaciones_propias: { plan: "crecimiento", nombre: "Crear letras animadas propias" },
