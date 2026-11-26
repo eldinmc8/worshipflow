@@ -158,7 +158,7 @@ function SelectorAnimacionInterno({ liveStyle, setLiveStyle, columnas = 3, igles
         </div>
       )}
 
-      {/* Plan Gratis: las 5 básicas y el candado al resto */}
+      {/* Plan Gratis: las 3 básicas y el candado al resto */}
       {soloBasicas && (
         <div>
           {tituloGrupo("Básicas")}

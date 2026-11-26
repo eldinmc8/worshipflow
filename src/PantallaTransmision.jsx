@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import AutoFitText from "./components/AutoFitText.jsx";
 import { leerTransmisionDeUrl } from "./lib/enlacePantalla.js";
 import { useSesionPublica } from "./lib/usarSesionPublica.js";
+import { usePantallasExtraPermitidas } from "./lib/planPantallas.js";
 import { estiloParaDiapositiva } from "./lib/estiloBiblia.js";
 import { LIVE_FONTS } from "./pantallas/compartido.jsx";
 import { ajustesTransmision, altoFranja, textoParaTransmision } from "./lib/transmision.js";
@@ -21,11 +22,14 @@ export default function PantallaTransmision() {
     return () => { [document.documentElement.style.background, document.body.style.background] = antes; };
   }, []);
   const [enlace] = useState(() => leerTransmisionDeUrl(window.location.pathname, window.location.search) || {});
-  const { fila, vencido } = useSesionPublica({ slug: enlace.slug || null, codigo: enlace.codigo || null });
+  const { fila, vencido, iglesiaId } = useSesionPublica({ slug: enlace.slug || null, codigo: enlace.codigo || null });
+  const planPermite = usePantallasExtraPermitidas(iglesiaId); // salida para OBS: desde el plan Ministerio
   const slide = fila?.slide_actual || null;
   const estilo = fila?.estilo_en_vivo || {};
   const ajustes = ajustesTransmision(estilo);
-  const contenido = vencido
+  const contenido = !planPermite
+    ? { lineas: ["La letra para OBS es del plan Ministerio: mejora el plan en WorshipFlow → Ajustes → Plan"], referencia: "", aviso: true }
+    : vencido
     ? { lineas: ["Enlace vencido: copia el nuevo en WorshipFlow → Pantallas y TV → Transmisión (OBS)"], referencia: "", aviso: true }
     : fila?.blanked ? null : textoParaTransmision(slide);
   const font = LIVE_FONTS[estiloParaDiapositiva(estilo, slide)?.font] || LIVE_FONTS.elegante;

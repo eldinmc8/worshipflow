@@ -85,19 +85,28 @@ describe("planes de suscripción", () => {
     await sql("insert into public.eventos (titulo, fecha, es_plantilla, iglesia_id) values ('Plantilla', current_date, true, $1)", [IG]);
     await actuarComo(db, ADMIN);
     const p = (await sql("select public.mi_plan() as p")).rows[0].p;
-    expect(p.limites).toMatchObject({ miembros: 20, modo_musico: true, ministerios: 3, canciones: 75 });
+    expect(p.limites).toMatchObject({ miembros: 20, modo_musico: true, ministerios: 3, canciones: null });
     expect(p.uso.miembros).toBe(6);
   });
 
-  it("Ministerio: tope de 75 canciones; al bajar a Gratis conserva las suyas pero no agrega", async () => {
+  it("Ministerio: canciones sin tope (2026-11-26); al bajar a Gratis conserva las suyas pero no agrega", async () => {
     await comoServidor();
     const ya = Number((await sql("select count(*) as c from public.canciones where iglesia_id = $1", [IG])).rows[0].c);
-    for (let i = ya; i < 75; i++) await sql("insert into public.canciones (titulo, iglesia_id) values ($1, $2)", [`M${i}`, IG]);
-    await expect(sql("insert into public.canciones (titulo, iglesia_id) values ('La 76', $1)", [IG])).rejects.toThrow(/75 canciones/);
+    for (let i = ya; i < 80; i++) await sql("insert into public.canciones (titulo, iglesia_id) values ($1, $2)", [`M${i}`, IG]);
     await ponerPlan("gratis");
     await comoServidor();
-    expect(Number((await sql("select count(*) as c from public.canciones where iglesia_id = $1", [IG])).rows[0].c)).toBe(75);
+    expect(Number((await sql("select count(*) as c from public.canciones where iglesia_id = $1", [IG])).rows[0].c)).toBe(80);
     await expect(sql("insert into public.canciones (titulo, iglesia_id) values ('Otra', $1)", [IG])).rejects.toThrow(/20 canciones/);
+    await ponerPlan("ministerio");
+  });
+
+  it("pantalla de escenario y OBS: solo desde Ministerio (se pregunta sin sesión)", async () => {
+    await comoServidor();
+    await sql("set role anon");
+    expect((await sql("select public.pantallas_extra_permitidas($1) as ok", [IG])).rows[0].ok).toBe(true);
+    await ponerPlan("gratis");
+    await sql("set role anon");
+    expect((await sql("select public.pantallas_extra_permitidas($1) as ok", [IG])).rows[0].ok).toBe(false);
     await ponerPlan("ministerio");
   });
 
@@ -156,7 +165,7 @@ describe("planes de suscripción", () => {
     await actuarComo(db, ADMIN);
     const p = (await sql("select public.mi_plan() as p")).rows[0].p;
     expect(p.plan).toBe("crecimiento");
-    expect(p.limites).toMatchObject({ miembros: 50, ministerios: 6, modo_musico: true, plantillas: true, canciones: 200 });
+    expect(p.limites).toMatchObject({ miembros: 50, ministerios: 6, modo_musico: true, plantillas: true, canciones: null });
   });
 
   it("Iglesia: canciones ilimitadas", async () => {

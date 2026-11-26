@@ -6,6 +6,8 @@ import { leerEscenarioDeUrl } from "./lib/enlacePantalla.js";
 import { tiempoTranscurrido, restanteTemporizador, textoTemporizador, nivelTemporizador, VISTAS_ESCENARIO, vistaInicial } from "./lib/escenario.js";
 import { useSesionPublica } from "./lib/usarSesionPublica.js";
 import EnlaceVencido from "./components/EnlaceVencido.jsx";
+import PantallaSinPlan from "./components/PantallaSinPlan.jsx";
+import { usePantallasExtraPermitidas } from "./lib/planPantallas.js";
 import { soportaPantallaCompleta, pedirPantallaCompleta, salirDePantallaCompleta } from "./lib/pantallaCompleta.js";
 import AvisoIphone from "./components/AvisoIphone.jsx";
 import { segundosRestantes, textoCuenta } from "./lib/cuentaRegresiva.js";
@@ -91,7 +93,8 @@ export default function PantallaEscenario() {
   // Iglesia y código secreto vienen del enlace (/e/<iglesia>/<código>); el código vence al finalizar cada
   // transmisión. Misma lectura que la Proyección — ver useSesionPublica.
   const [enlace] = useState(() => leerEscenarioDeUrl(window.location.pathname, window.location.search) || {});
-  const { fila, vencido } = useSesionPublica({ slug: enlace.slug || null, codigo: enlace.codigo || null });
+  const { fila, vencido, iglesiaId } = useSesionPublica({ slug: enlace.slug || null, codigo: enlace.codigo || null });
+  const planPermite = usePantallasExtraPermitidas(iglesiaId); // escenario: desde el plan Ministerio
 
   useEffect(() => { const t = setInterval(() => setAhora(Date.now()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => {
@@ -337,7 +340,9 @@ export default function PantallaEscenario() {
         </div>
       </div>}
 
-      {vencido ? (
+      {!planPermite ? (
+        <div style={{ flex: 1, display: "flex" }}><PantallaSinPlan /></div>
+      ) : vencido ? (
         <div style={{ flex: 1, display: "flex" }}><EnlaceVencido tipo="escenario" /></div>
       ) : vista === "reloj" ? cuerpoReloj : !enVivo || (!slide && vista !== "predicador") ? (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, textAlign: "center" }}>

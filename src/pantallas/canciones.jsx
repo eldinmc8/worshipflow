@@ -1,4 +1,5 @@
 // Canciones: biblioteca, vista de la canción (acordes, Modo Músico), editor y sus ventanas. Separadas de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
+import ConPlan from "../components/ConPlan.jsx";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
 import { FileUp, Globe, Plus, Search, Heart, Pencil, Paperclip, Trash2, ListMusic, Music, Minus, FileText, Image as ImgIcon, Link2, ArrowLeft, ChevronDown, Radio, Pause, Users, Play, PencilLine, ChevronLeft, ChevronRight, RefreshCw, X, Check, ClipboardPaste, Lock, CheckSquare, Square } from "lucide-react";
@@ -1128,7 +1129,7 @@ export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onE
             </button>
           )}
           {showAdjuntos && (
-            <AdjuntosModal song={song} iglesiaId={iglesiaId} puedeEditar={!!notasCtx?.puedeEquipo} onClose={() => setShowAdjuntos(false)} onCambio={(tiene) => onAdjuntosChange?.(song.id, tiene)} />
+            <ConPlan funcion="material_cancion" onCerrar={() => setShowAdjuntos(false)}><AdjuntosModal song={song} iglesiaId={iglesiaId} puedeEditar={!!notasCtx?.puedeEquipo} onClose={() => setShowAdjuntos(false)} onCambio={(tiene) => onAdjuntosChange?.(song.id, tiene)} /></ConPlan>
           )}
           {isAdminViewer && (
             <button onClick={onEdit} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 12, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: "var(--wf-text)", cursor: "pointer" }}>

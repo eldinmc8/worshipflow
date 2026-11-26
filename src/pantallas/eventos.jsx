@@ -1695,12 +1695,14 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, eventosParaCo
           }} />
       )}
       {audioDraft && (
+        <ConPlan funcion="audio_culto" onCerrar={() => setAudioDraft(null)}>
         <SlideModal iglesiaId={myIglesiaId} title="Diapositiva de audio" draft={audioDraft} setDraft={setAudioDraft} onClose={() => setAudioDraft(null)}
           onAdd={() => {
             if (!audioValido(audioDraft.audio?.url)) { showToast("Elige el audio: súbelo o pega su enlace.", "info"); return; }
             onAddItems([{ id: crypto.randomUUID(), type: "slide", ...audioDraft, name: audioDraft.name?.trim() || `Audio: ${audioDraft.audio.nombre || "sin nombre"}` }]);
             setAudioDraft(null); setShowAgregar(false);
           }} />
+        </ConPlan>
       )}
       {editTexto && (
         <SlideModal iglesiaId={myIglesiaId} title="Editar diapositiva" submitLabel="Guardar cambios" draft={editTexto.draft}

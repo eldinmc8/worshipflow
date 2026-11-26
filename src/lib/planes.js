@@ -58,6 +58,12 @@ export const FUNCIONES_PLAN = {
   identidad: { plan: "crecimiento", nombre: "Identidad de la iglesia (logo y colores)" },
   animaciones_propias: { plan: "crecimiento", nombre: "Crear letras animadas propias" },
   roles_personalizados: { plan: "iglesia", nombre: "Roles y permisos personalizados" },
+  // Plan Gratis más limitado (Eldin, 2026-11-26): canciones ilimitadas en los planes de pago, y esto pide Ministerio.
+  pantallas_extra: { plan: "ministerio", nombre: "Pantalla de escenario y salida para OBS" },
+  botones_rapidos: { plan: "ministerio", nombre: "Botones de un solo toque" },
+  audio_culto: { plan: "ministerio", nombre: "Música y diapositivas con audio" },
+  material_cancion: { plan: "ministerio", nombre: "Material de la canción (tutoriales, partituras y fotos)" },
+  sin_conexion: { plan: "ministerio", nombre: "Preparar para usar sin conexión" },
 };
 // ¿El plan incluye esta función? Mientras no se sabe el plan, sí (no se traba un culto por la red).
 export function tiene(plan, funcion) {
@@ -68,8 +74,8 @@ export function tiene(plan, funcion) {
 export const nombrePlanRequerido = (funcion) => planPorId(FUNCIONES_PLAN[funcion]?.plan).nombre;
 // Compatibilidad: letras animadas y fondos en movimiento.
 export const estilosAvanzados = (plan) => tiene(plan, "estilos_animados");
-// Plan Gratis (2026-11-13): 5 letras animadas básicas de fábrica, sin crear ni usar las de la galería.
-export const ANIMACIONES_BASICAS = ["suave", "luz", "cielo", "karaoke", "cinetico"];
+// Plan Gratis: 3 letras animadas básicas de fábrica (Eldin, 2026-11-26; antes 5), sin crear ni usar las de la galería.
+export const ANIMACIONES_BASICAS = ["suave", "luz", "karaoke"];
 
 
 

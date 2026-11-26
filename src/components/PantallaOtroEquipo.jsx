@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Copy, Check, MessageCircle, MonitorSmartphone, RefreshCw, Clock, Tv, Smartphone, Video } from "lucide-react";
+import { X, Copy, Check, MessageCircle, MonitorSmartphone, RefreshCw, Clock, Tv, Smartphone, Video, Lock } from "lucide-react";
+import { usePlan, tiene, abrirPlanes, nombrePlanRequerido } from "../lib/planes.js";
 import qrcode from "qrcode-generator";
 import { supabase } from "../lib/supabaseClient.js";
 import { enlacePantalla, enlaceEscenario, enlaceTransmision } from "../lib/enlacePantalla.js";
@@ -21,6 +22,9 @@ export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCer
   const [tipo, setTipo] = useState(tipoInicial === "escenario" || tipoInicial === "transmision" ? tipoInicial : "proyeccion");
   const esEscenario = tipo === "escenario";
   const esTransmision = tipo === "transmision";
+  // Escenario y OBS: desde el plan Ministerio (Eldin, 2026-11-26). La proyección normal y la TV, en todos.
+  const extrasOk = tiene(usePlan(), "pantallas_extra");
+  const bloqueada = tipo !== "proyeccion" && !extrasOk;
   // Código secreto que va en el enlace (vence solo al finalizar cada transmisión). undefined = cargando;
   // null = la base todavía no lo tiene (enlace de siempre, sin código).
   const [codigo, setCodigo] = useState(undefined);
@@ -91,7 +95,7 @@ export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCer
           {[["proyeccion", "Proyección", "Para la congregación"], ["escenario", "Escenario", "Para la plataforma"], ["transmision", "Transmisión", "Para OBS"]].map(([clave, titulo, sub]) => (
             <button key={clave} type="button" role="tab" aria-selected={tipo === clave} onClick={() => { setTipo(clave); setCopiado(false); setResultadoTv(null); }}
               style={{ flex: 1, border: "none", borderRadius: 9, padding: "7px 8px", cursor: "pointer", fontFamily: "inherit", background: tipo === clave ? "var(--wf-brand-accent)" : "transparent", color: tipo === clave ? "var(--wf-on-brand-accent)" : "var(--wf-text)" }}>
-              <span style={{ display: "block", fontSize: 13, fontWeight: 700 }}>{titulo}</span>
+              <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, fontSize: 13, fontWeight: 700 }}>{clave !== "proyeccion" && !extrasOk && <Lock size={11} />}{titulo}</span>
               <span style={{ display: "block", fontSize: 10.5, opacity: 0.8 }}>{sub}</span>
             </button>
           ))}
@@ -104,7 +108,17 @@ export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCer
             : "Lo mismo que ve la congregación. Cambia solo, sin iniciar sesión."}
         </p>
 
-        {esTransmision && (
+        {bloqueada && (
+          <div style={{ ...tarjeta, textAlign: "center" }}>
+            <div style={{ ...tituloTarjeta, justifyContent: "center" }}><Lock size={17} color="var(--wf-brand-accent)" /> Plan {nombrePlanRequerido("pantallas_extra")} o superior</div>
+            <p style={{ fontSize: 12.5, color: "var(--wf-text-2)", lineHeight: 1.5, margin: "0 0 12px" }}>
+              {esTransmision ? "La letra para OBS" : "La pantalla de escenario"} es parte del plan {nombrePlanRequerido("pantallas_extra")}. En el plan Gratis puedes usar la proyección normal y la TV.
+            </p>
+            <button type="button" onClick={() => { onCerrar?.(); abrirPlanes(); }} style={{ ...boton, width: "100%", border: "none", background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)" }}>Ver planes</button>
+          </div>
+        )}
+
+        {!bloqueada && esTransmision && (
           <div style={tarjeta}>
             <div style={tituloTarjeta}><Video size={17} color="var(--wf-brand-accent)" /> En OBS (o Streamlabs)</div>
             <div style={paso}><span style={numPaso}>1</span><span>Copia este enlace:</span></div>
@@ -118,7 +132,7 @@ export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCer
         )}
 
         {/* 1. Smart TV: número de 6 dígitos */}
-        {!esTransmision && <div style={tarjeta}>
+        {!bloqueada && !esTransmision && <div style={tarjeta}>
           <div style={tituloTarjeta}><Tv size={17} color="var(--wf-brand-accent)" /> En un Smart TV</div>
           <div style={paso}><span style={numPaso}>1</span><span>En el navegador del TV abre <b style={{ color: "var(--wf-heading)" }}>{dirTv}</b> (guárdala en favoritos: es siempre la misma).</span></div>
           <div style={paso}><span style={numPaso}>2</span><span>Escribe aquí el número que aparece en el TV:</span></div>
@@ -138,7 +152,7 @@ export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCer
         </div>}
 
         {/* 2. Celular, tablet o computadora: QR y enlace */}
-        {!esTransmision && <div style={tarjeta}>
+        {!bloqueada && !esTransmision && <div style={tarjeta}>
           <div style={tituloTarjeta}><Smartphone size={17} color="var(--wf-brand-accent)" /> En un celular, tablet o computadora</div>
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
             <div aria-label="Código QR del enlace" style={{ width: 180, height: 180, background: "#fff", borderRadius: 14, padding: 8, boxSizing: "border-box", boxShadow: "0 3px 14px rgba(22,50,79,0.12)" }}
@@ -153,7 +167,7 @@ export default function PantallaOtroEquipo({ iglesiaId, slug: slugInicial, onCer
           {!esEscenario && <div style={{ fontSize: 11.5, color: "var(--wf-faint)", lineHeight: 1.5, marginTop: 6 }}>¿Transmites con OBS y quieres la letra encima de la cámara? Usa la pestaña <b>Transmisión</b>: sale más grande y con fondo transparente.</div>}
         </div>}
 
-        {codigo && (
+        {!bloqueada && codigo && (
           <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "rgba(232,130,30,0.12)", borderRadius: 12, padding: "10px 12px", marginBottom: 10 }}>
             <Clock size={16} color="var(--wf-brand-accent)" style={{ flexShrink: 0, marginTop: 2 }} />
             <div style={{ flex: 1, fontSize: 12.5, color: "var(--wf-text)", lineHeight: 1.5 }}>

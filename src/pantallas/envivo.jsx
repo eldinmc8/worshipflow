@@ -1,5 +1,5 @@
 // Consola En vivo de Multimedia: orden del culto, diapositivas, Biblia en vivo, estilo, escenario. Separada de PrototipoWorshipFlow.jsx el 2026-11-02 sin cambiar el código.
-import ConPlan from "../components/ConPlan.jsx";
+import ConPlan, { AvisoPlan } from "../components/ConPlan.jsx";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { buscarCanciones } from "../lib/busqueda.js";
 import { Pause, Square, Volume2, VolumeX, Speaker } from "lucide-react";
@@ -188,7 +188,11 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
   // "transmision" es el que ya existía (grid de diapositivas); "biblia" y "estilo" antes eran cajones
   // que tapaban la pantalla — ahora son pestañas fijas para no perder de vista la vista previa de al lado.
   // Imagen o video propio de fondo: plan Crecimiento en adelante (ver lib/planes.js → FUNCIONES_PLAN).
-  const fondoPropioOk = tiene(usePlan(), "fondo_propio");
+  const planIglesia = usePlan();
+  const fondoPropioOk = tiene(planIglesia, "fondo_propio");
+  // Plan Gratis (Eldin, 2026-11-26): botones de un toque y audio piden plan Ministerio; se avisa con AvisoPlan.
+  const [avisoPlan, setAvisoPlan] = useState(null);
+  const conPlan = (funcion, fn) => (...args) => (tiene(planIglesia, funcion) ? fn(...args) : setAvisoPlan(funcion));
   const [mmPanel, setMmPanel] = useState("transmision"); // "biblia" | "transmision" | "estilo" | "insertar" (este último solo en escritorio)
   // Estilo para Canciones o para la Biblia (pedido de Eldin, 2026-11-09, ver lib/estiloBiblia.js): el
   // mismo panel de Estilo de siempre, pero lo que se elige queda para lo que diga "Estilo para". Sigue
@@ -1034,7 +1038,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     !isCompact && onDisenarNueva && { clave: "disenar", Icon: PenTool, color: "#E8821E", titulo: "Diseñar diapositiva", detalle: "Con imágenes y plantillas", accion: () => onDisenarNueva(anclaParaAgregar()?.id || null) },
     { clave: "importar", Icon: FileUp, color: "#5B6472", titulo: "Importar PDF o imágenes", detalle: "De Canva, PowerPoint o del predicador", accion: () => setShowImportar(true) },
     { clave: "video", Icon: Play, color: "#C23B32", titulo: "Video de YouTube", detalle: "Queda en el orden del culto. Al tocarlo se reproduce con sonido y lo controlas desde aquí", accion: () => setShowVideoOrden(true) },
-    { clave: "audio", Icon: Volume2, color: "#1F8A73", titulo: "Audio", detalle: "Una pista o canción grabada, con una imagen o texto en pantalla mientras suena", accion: () => { setNewSlideDraft(nuevaDiapositivaAudio()); setShowAddSlide("audio"); } },
+    { clave: "audio", Icon: Volume2, color: "#1F8A73", titulo: "Audio", detalle: "Una pista o canción grabada, con una imagen o texto en pantalla mientras suena", accion: conPlan("audio_culto", () => { setNewSlideDraft(nuevaDiapositivaAudio()); setShowAddSlide("audio"); }) },
     onStartAdHocCuenta && { clave: "cuenta", Icon: Timer, color: "#5661B3", titulo: "Cuenta regresiva", detalle: "Un reloj antes del culto o de un receso (20 estilos)", accion: () => setShowCuenta(true) },
   ].filter(Boolean);
   // Debajo de la vista previa cuando lo que está al aire es una cuenta regresiva.
@@ -1240,7 +1244,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
         <div style={{ flex: 1 }} />
         {botonAgregarConsola({ tour: "envivo-agregar" })}
       </div>
-      <FilaBotonesRapidos compacto botones={botonesRapidos} onEjecutar={ejecutarBotonRapido} onEditar={() => setShowEditorBotones(true)} />
+      <FilaBotonesRapidos compacto botones={botonesRapidos} onEjecutar={conPlan("botones_rapidos", ejecutarBotonRapido)} onEditar={conPlan("botones_rapidos", () => setShowEditorBotones(true))} />
       {franjasDeEstado}
 
       {/* Sin letrero de "improvisado" (pedido de Eldin, 2026-10-08): para volver al plan basta tocar
@@ -1500,8 +1504,9 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
       {showEditorBotones && <EditorBotonesRapidos botones={botonesRapidos} iglesiaId={myIglesiaId} estiloActual={estiloCompleto} onCerrar={() => setShowEditorBotones(false)}
         onGuardar={(lista) => { setBotonesRapidos(lista); guardarBotones(lista); setShowEditorBotones(false); showToast("Botones guardados en esta computadora.", "info"); }} />}
       {showAviso && <PanelAvisoCongregacion avisoActual={avisoCong} segundosRestantes={segAviso} onEnviar={(a) => setEstiloCompleto((st) => conAviso(st, a))} onQuitar={() => quitarAviso()} onCerrar={() => setShowAviso(false)} onIrAEscenario={onMensajeEscenario ? () => { setShowAviso(false); setShowEscenario(true); } : null} />}
-      {showEscenario && onMensajeEscenario && <PanelEscenario mensaje={mensajeEscenario} onMensaje={onMensajeEscenario} iglesiaId={myIglesiaId} slug={iglesiaSlug} onCerrar={() => setShowEscenario(false)}
-        temporizador={temporizador} onTemporizador={onTemporizador} autoTemporizador={autoTemporizador} onAutoTemporizador={onAutoTemporizador} />}
+      {showEscenario && onMensajeEscenario && <ConPlan funcion="pantallas_extra" onCerrar={() => setShowEscenario(false)}><PanelEscenario mensaje={mensajeEscenario} onMensaje={onMensajeEscenario} iglesiaId={myIglesiaId} slug={iglesiaSlug} onCerrar={() => setShowEscenario(false)}
+        temporizador={temporizador} onTemporizador={onTemporizador} autoTemporizador={autoTemporizador} onAutoTemporizador={onAutoTemporizador} /></ConPlan>}
+      {avisoPlan && <AvisoPlan funcion={avisoPlan} onCerrar={() => setAvisoPlan(null)} />}
 
       <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 12, padding: "10px 12px 12px" }}>
         {/* Orden del culto, dividido por bloques igual que el Setlist */}
@@ -1694,7 +1699,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
               izquierda (pedido de Eldin, 2026-10-11): aquí abajo ya no se repite. */}
         </aside>
       </div>
-      <FilaBotonesRapidos botones={botonesRapidos} onEjecutar={ejecutarBotonRapido} onEditar={() => setShowEditorBotones(true)} />
+      <FilaBotonesRapidos botones={botonesRapidos} onEjecutar={conPlan("botones_rapidos", ejecutarBotonRapido)} onEditar={conPlan("botones_rapidos", () => setShowEditorBotones(true))} />
       {barraDeMando}
       </>
       )}

@@ -19,7 +19,7 @@ import { IdentidadIglesiaModal, PantallaProyeccionModal, ChangePasswordModal, Zo
 import { etiquetaZona } from "../lib/zonasHorarias.js";
 import { inputStyle, ModalShell } from "./compartido.jsx";
 import { CORREO_SOPORTE, WHATSAPP_SOPORTE } from "../lib/soporte.js";
-import { usePlan, planPorId, diasRestantes, abrirPlanes } from "../lib/planes.js";
+import { usePlan, planPorId, diasRestantes, abrirPlanes, tiene, nombrePlanRequerido } from "../lib/planes.js";
 import { beneficioPorGrupo, estadoBeneficio, fechaBeneficio } from "../lib/beneficios.js";
 import { AvisoBeneficioVencido } from "../components/BeneficioPlan.jsx";
 
@@ -424,7 +424,13 @@ export function SettingsView({ realIsAdmin, myRole, roleOverride, setRoleOverrid
 
           </>
         )}
-        {seccion === "sinconexion" && <PrepararSinConexion />}
+        {seccion === "sinconexion" && (tiene(plan, "sin_conexion") ? <PrepararSinConexion /> : (
+          <div style={{ background: "var(--wf-card)", borderRadius: 16, padding: 16, boxShadow: "0 1px 3px rgba(22,50,79,0.08)", textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--wf-heading)", marginBottom: 6 }}>Usar sin conexión es del plan {nombrePlanRequerido("sin_conexion")}</div>
+            <p style={{ fontSize: 12.5, color: "var(--wf-text-2)", lineHeight: 1.5, margin: "0 0 12px" }}>Guarda canciones, cultos, fondos y la Biblia en esta computadora para proyectar aunque se vaya el internet.</p>
+            <button onClick={abrirPlanes} style={{ border: "none", borderRadius: 12, padding: "10px 16px", background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Ver planes</button>
+          </div>
+        ))}
         {seccion === "proyeccion" && (
           <>
           <NavRow icon={Tv} label="Pantallas y TV" onClick={() => setShowOtroEquipoAjustes("proyeccion")} right={<span style={{ fontSize: 11, color: "var(--wf-faint)", display: "flex", alignItems: "center", gap: 4 }}>Proyección · Escenario {chevron}</span>} />
