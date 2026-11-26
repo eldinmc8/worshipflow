@@ -102,7 +102,7 @@ describe("enlace para unirse", () => {
     await esperar(); await esperar();
     expect(estado.llamadasRpc.find((l) => l.fn === "wf_solicitar_ingreso").args).toEqual({ p_codigo: "abc123def0", p_nombre: "Ana de Google" });
     expect(screen.getByText("Tu solicitud está en espera")).toBeTruthy();
-    expect(screen.queryByText("Todavía no tienes acceso")).toBeNull();
+    expect(screen.queryByText(/todavía no está en ninguna iglesia/)).toBeNull();
     expect(estado.llamadas).not.toContain("descartar-acceso-no-invitado");
     expect(localStorage.getItem("worshipflow_codigo_unirse")).toBeNull();
   });
@@ -135,7 +135,7 @@ describe("enlace para unirse", () => {
     estado.perfil = sinFila;
     render(<AuthGate />);
     await esperar(); await esperar();
-    expect(screen.getByText("Todavía no tienes acceso")).toBeTruthy();
+    expect(screen.getByText(/todavía no está en ninguna iglesia/)).toBeTruthy();
   });
 });
 

@@ -1,5 +1,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { yaLanzamos } from "../_shared/lanzamiento.js";
+import { datosBeneficioDeLista } from "../_shared/beneficioPorCorreo.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -86,17 +87,31 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Con Google (2026-11-26): quien ya entró con Google (o con una cuenta sin iglesia) crea su iglesia con ESA
+    // sesión: el correo sale de la sesión (no del formulario) y no hace falta contraseña. Ver src/SinIglesia.jsx.
+    let usuarioSesion: { id: string; email?: string } | null = null;
+    if (body.con_sesion) {
+      const authHeader = req.headers.get("Authorization") || "";
+      const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const callerClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
+      const { data: { user } } = await callerClient.auth.getUser();
+      if (!user?.email) return json({ error: "Tu sesión venció. Vuelve a entrar con Google e intenta de nuevo." }, 401);
+      usuarioSesion = user;
+    }
+
     const iglesiaNombre = String(body.iglesia_nombre || "").trim();
     const zonaHoraria = zonaValida(body.zona_horaria) ? body.zona_horaria : "Etc/GMT+6";
     const adminNombre = String(body.admin_nombre || "").trim();
-    const adminEmail = String(body.admin_email || "").trim().toLowerCase();
+    const adminEmail = usuarioSesion ? String(usuarioSesion.email).trim().toLowerCase() : String(body.admin_email || "").trim().toLowerCase();
     const adminPassword = String(body.admin_password || "");
 
     if (!iglesiaNombre) return json({ error: "El nombre de la iglesia es obligatorio." }, 400);
     if (!adminNombre) return json({ error: "Tu nombre es obligatorio." }, 400);
     if (!EMAIL_RE.test(adminEmail)) return json({ error: "Correo inválido." }, 400);
-    const errPassword = errorPassword(adminPassword);
-    if (errPassword) return json({ error: errPassword }, 400);
+    if (!usuarioSesion) {
+      const errPassword = errorPassword(adminPassword);
+      if (errPassword) return json({ error: errPassword }, 400);
+    }
 
     // Los correos son únicos en TODA la base (una sola fila por email en "usuarios", sin importar la
     // iglesia) -- igual que en crear-usuario. Una persona no puede fundar dos iglesias con el mismo
@@ -139,21 +154,28 @@ Deno.serve(async (req: Request) => {
 
     // 2) Crear el acceso del administrador -- con contraseña directa (igual que el bootstrap de
     // crear-usuario): no hay a quién mandarle un correo de invitación, es quien se está dando de alta.
-    const { data: created, error: createError } = await admin.auth.admin.createUser({
-      email: adminEmail, password: adminPassword, email_confirm: true,
-    });
-    if (createError || !created?.user) {
-      await admin.from("iglesias").delete().eq("id", iglesia.id);
-      return await fallar("No se pudo crear el acceso: " + (createError?.message ?? "error"), 400);
+    // Con sesión (Google) la cuenta ya existe: se usa esa, no se crea otra.
+    let userId: string;
+    if (usuarioSesion) {
+      userId = usuarioSesion.id;
+    } else {
+      const { data: created, error: createError } = await admin.auth.admin.createUser({
+        email: adminEmail, password: adminPassword, email_confirm: true,
+      });
+      if (createError || !created?.user) {
+        await admin.from("iglesias").delete().eq("id", iglesia.id);
+        return await fallar("No se pudo crear el acceso: " + (createError?.message ?? "error"), 400);
+      }
+      userId = created.user.id;
     }
 
     // 3) Guardar la fila en usuarios, ya como admin de su propia iglesia nueva.
     const { error: insertError } = await admin.from("usuarios").insert({
-      id: created.user.id, email: adminEmail, nombre: adminNombre, rol: "admin",
+      id: userId, email: adminEmail, nombre: adminNombre, rol: "admin",
       estado: "activo", perfil_completo: true, iglesia_id: iglesia.id,
     });
     if (insertError) {
-      await admin.auth.admin.deleteUser(created.user.id);
+      if (!usuarioSesion) await admin.auth.admin.deleteUser(userId); // la cuenta de Google es de la persona: no se borra
       await admin.from("iglesias").delete().eq("id", iglesia.id);
       return await fallar("No se pudo guardar el usuario: " + insertError.message, 400);
     }
@@ -170,7 +192,23 @@ Deno.serve(async (req: Request) => {
     const { error: cancionesError } = await admin.rpc("sembrar_canciones_default", { p_iglesia_id: iglesia.id });
     if (cancionesError) console.error(`sembrar_canciones_default falló para iglesia ${iglesia.id}:`, cancionesError);
 
-    // 6) Anotar qué iglesia usó el código (solo informativo para la consola).
+    // 6) Beneficio de lanzamiento por correo (2026-11-26): si el correo está en beneficios_por_correo (fase 1,
+    // fase 2 o lista de espera), la iglesia queda con ese grupo y su plazo. Si la tabla no existe todavía o algo
+    // falla, la iglesia queda igual (sin grupo) y se deja en los logs para ponerlo a mano.
+    try {
+      const { data: filaBeneficio } = await admin.from("beneficios_por_correo")
+        .select("grupo, plazo_hasta, usado_en").eq("email", adminEmail).maybeSingle();
+      const beneficio = datosBeneficioDeLista(filaBeneficio);
+      if (beneficio) {
+        const { error: errBeneficio } = await admin.from("iglesias").update(beneficio).eq("id", iglesia.id);
+        if (errBeneficio) console.error(`beneficio por correo falló para iglesia ${iglesia.id}:`, errBeneficio);
+        else await admin.from("beneficios_por_correo").update({ usado_en: new Date().toISOString(), iglesia_id: iglesia.id }).eq("email", adminEmail);
+      }
+    } catch (e) {
+      console.error(`beneficio por correo falló para iglesia ${iglesia.id}:`, e);
+    }
+
+    // 7) Anotar qué iglesia usó el código (solo informativo para la consola).
     if (codigoIngresado) await admin.from("codigos_invitacion").update({ iglesia_id: iglesia.id }).eq("codigo", codigoIngresado);
 
     return json({ success: true, iglesia_id: iglesia.id }, 200);

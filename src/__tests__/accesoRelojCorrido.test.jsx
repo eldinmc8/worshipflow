@@ -4,7 +4,7 @@
 // renovaciones de la llave, la lectura del perfil salía sin sesión y la app concluía "no invitado".
 import React from "react"; // eslint-disable-line no-unused-vars
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, act } from "@testing-library/react";
+import { render, screen, cleanup, act, fireEvent } from "@testing-library/react";
 
 const estado = { sesionActual: null, respuestaPerfil: null, escuchar: null, cerrar: vi.fn(), llamadas: [] };
 const llave = (iat) => `x.${btoa(JSON.stringify({ sub: "u1", iat, exp: iat + 3600 })).replace(/=+$/, "")}.y`;
@@ -47,7 +47,7 @@ describe("acceso con el reloj de la computadora corrido", () => {
     estado.respuestaPerfil = { then: (fn) => { estado.sesionActual = null; return Promise.resolve(original).then(fn); } };
     render(<AuthGate />);
     await esperar();
-    expect(screen.queryByText("Todavía no tienes acceso")).toBeNull();
+    expect(screen.queryByText(/todavía no está en ninguna iglesia/)).toBeNull();
     expect(estado.llamadas).not.toContain("descartar-acceso-no-invitado");
   });
 
@@ -80,7 +80,11 @@ describe("acceso con el reloj de la computadora corrido", () => {
     estado.respuestaPerfil = { data: null, error: { code: "PGRST116", message: "0 rows" } };
     render(<AuthGate />);
     await esperar();
-    expect(screen.getByText("Todavía no tienes acceso")).toBeTruthy();
+    expect(screen.getByText(/todavía no está en ninguna iglesia/)).toBeTruthy();
+    // Ya no se borra la cuenta de una (2026-11-26): puede crear su iglesia. Solo si elige "Usar otra cuenta".
+    expect(estado.llamadas).not.toContain("descartar-acceso-no-invitado");
+    fireEvent.click(screen.getByText("Usar otra cuenta"));
+    await esperar();
     expect(estado.llamadas).toContain("descartar-acceso-no-invitado");
   });
 
@@ -89,7 +93,7 @@ describe("acceso con el reloj de la computadora corrido", () => {
     estado.respuestaPerfil = { data: null, error: { code: "PGRST301", message: "JWT expired" } };
     render(<AuthGate />);
     await esperar();
-    expect(screen.queryByText("Todavía no tienes acceso")).toBeNull();
+    expect(screen.queryByText(/todavía no está en ninguna iglesia/)).toBeNull();
     expect(screen.getByText("No pudimos cargar tu cuenta")).toBeTruthy();
     expect(estado.llamadas).not.toContain("descartar-acceso-no-invitado");
   });
