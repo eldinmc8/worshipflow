@@ -39,6 +39,9 @@ export function leerEncabezado(linea) {
   // [Coro 1] — solo si empieza con una palabra de sección (así nunca se confunde con un acorde [C])
   const corchete = sinRep.match(/^\[\s*([^\]]+?)\s*\]$/);
   if (corchete && RE_PALABRA.test(corchete[1])) return { etiqueta: corchete[1], veces, resto: "" };
+  // [Verse 1] / Chorus / "Bridge:" (así exportan ProPresenter, OpenLP y otros en inglés) → en español.
+  const enIngles = traducirEncabezado(corchete ? corchete[1] : sinRep);
+  if (enIngles) return { etiqueta: enIngles.etiqueta, veces, resto: corchete ? "" : enIngles.resto };
   // Coro / CORO / Coro 2 / Coro final / "Coro 2:" / "Intro: G D Em C". Sin dos puntos solo cuenta si la
   // línea es SOLO el nombre (palabra de sección + número o "final"), para no confundir letra que
   // empiece con "Coro…".
@@ -47,6 +50,23 @@ export function leerEncabezado(linea) {
   const resto = dosPuntos >= 0 ? sinRep.slice(dosPuntos + 1).trim() : "";
   if (RE_SOLO_NOMBRE.test(izquierda)) return { etiqueta: capitalizar(izquierda), veces, resto };
   return null;
+}
+// Nombres de partes en inglés → su nombre en español (solo al LEER un texto importado; no cambia cómo
+// se escriben las partes de una canción que ya existe).
+const INGLES = [
+  [/^pre[-\s]?chorus/i, "Pre-coro"], [/^chorus|^refrain/i, "Coro"], [/^verse/i, "Estrofa"], [/^bridge/i, "Puente"],
+  [/^ending|^end(?=$|[\s\d:])/i, "Final"], [/^interlude/i, "Interludio"],
+];
+const RE_INGLES_NOMBRE = /^(pre[-\s]?chorus|chorus|refrain|verse|bridge|ending|end|interlude)(?:\s*(\d+))?(?:\s+(\d+))?$/i;
+function traducirEncabezado(texto) {
+  const t = String(texto || "").trim();
+  const dosPuntos = t.indexOf(":");
+  const izquierda = (dosPuntos >= 0 ? t.slice(0, dosPuntos) : t).trim();
+  const m = izquierda.match(RE_INGLES_NOMBRE);
+  if (!m) return null;
+  const nombre = INGLES.find(([re]) => re.test(m[1]))[1];
+  const num = m[2] || m[3] || "";
+  return { etiqueta: num ? `${nombre} ${num}` : nombre, resto: dosPuntos >= 0 ? t.slice(dosPuntos + 1).trim() : "" };
 }
 const RE_SOLO_NOMBRE = new RegExp(`^(?:${PALABRAS_SECCION.map((p) => p.replace(/[-\s]/g, "[-\\s]?")).join("|")})(?:\\s*\\d+)?(?:\\s+(?:final|\\d+))?$`, "i");
 const capitalizar = (s) => (s === s.toUpperCase() ? s.charAt(0) + s.slice(1).toLowerCase() : s.charAt(0).toUpperCase() + s.slice(1));

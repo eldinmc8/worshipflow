@@ -158,8 +158,8 @@ export function CancionesList({ library, clasificaciones, puedeConfigurarClasifi
               </button>
             )}
             {onImportarPdf && (
-              <button onClick={onImportarPdf} title="Importar canciones desde PDF" style={{ display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 12px", borderRadius: 10, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", color: "var(--wf-text)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                <FileUp size={14} /> Importar PDF
+              <button onClick={onImportarPdf} title="Importar canciones (PDF, texto, Word, Holyrics, ProPresenter, OpenLP…)" style={{ display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 12px", borderRadius: 10, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", color: "var(--wf-text)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <FileUp size={14} /> Importar
               </button>
             )}
             <button data-tour="canciones-nueva" onClick={onNew} style={{ ...iconGhost, width: 30, height: 30, background: "var(--wf-hover)", border: "1px solid var(--wf-border)" }}><Plus size={16} /></button>

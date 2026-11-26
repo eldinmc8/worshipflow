@@ -219,7 +219,7 @@ function VentanaCanciones() {
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", padding: 14, gap: 10 }}>
         <div style={{ border: `1px solid ${LINEA}`, borderRadius: 10, padding: "9px 12px", fontSize: 14, color: "#8A96A8" }}>Buscar canción…</div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {["Internet", "Importar PDF", "Nueva canción"].map((t) => <span key={t} className="wfc-chip">{t}</span>)}
+          {["Internet", "Importar", "Nueva canción"].map((t) => <span key={t} className="wfc-chip">{t}</span>)}
         </div>
         <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 6, overflow: "hidden" }}>
           {canciones.map(([t, k], i) => (

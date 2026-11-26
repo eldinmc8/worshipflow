@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, FileUp, Check, AlertTriangle, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
-import { cancionesDePdf } from "../lib/importarCancionesPdf.js";
+import { cancionesDeArchivo } from "../lib/importarArchivosCancion.js";
 import { textoACancion } from "../lib/textoCancion.js";
 import { guardarCancionDesdeEditor } from "../lib/canciones.js";
 import { subirAdjunto } from "../lib/adjuntosCancion.js";
@@ -12,6 +12,15 @@ import { useCerrarConAtras } from "../lib/atras.js";
 // canción o un cancionero con muchas); la app los lee, separa las canciones, pega cada acorde en su
 // sílaba y arma partes y diapositivas. Antes de guardar se revisa todo: título, autor, tono, y la
 // letra tal como quedó, por si algo hay que corregir.
+// Desde 2026-11-26 recibe también los archivos de otros programas (texto, Word, ChordPro, OpenLP,
+// OpenSong, JSON de Holyrics, SongBeamer): ver lib/importarArchivosCancion.js.
+const esPdf = (file) => /\.pdf$/i.test(file.name) || file.type === "application/pdf";
+const MENSAJES = {
+  SIN_TEXTO: "Este archivo no trae letra que se pueda leer (si es un PDF, puede ser una foto escaneada). Hay que copiar la letra a mano o pegarla en Nueva canción → Pegar canción completa.",
+  HOLYRICS: "Este es el archivo propio de Holyrics (.muf / .mufl), que todavía no se puede leer. Mientras tanto: en Holyrics abre la canción, copia la letra y pégala en Nueva canción → Pegar canción completa.",
+  PROPRESENTER: "Las presentaciones de ProPresenter (.pro) no se pueden leer. En ProPresenter elige las canciones y usa Archivo → Exportar → Como texto plano, y sube aquí ese archivo.",
+  NO_SE_LEE: "Este tipo de archivo no se puede leer. Sirven PDF, texto (.txt), Word (.docx), ChordPro, OpenLP/OpenSong y el JSON de Holyrics.",
+};
 const normalizar = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 
 export default function ImportarCancionesPdf({ library = [], clasificaciones = [], iglesiaId, userId, onCerrar, onImportadas }) {
@@ -26,20 +35,18 @@ export default function ImportarCancionesPdf({ library = [], clasificaciones = [
   const existentes = new Set(library.map((s) => normalizar(s.title)));
 
   const elegir = async (files) => {
-    const nuevos = [...files].filter((f) => /\.pdf$/i.test(f.name) || f.type === "application/pdf").map((file) => ({ id: `${Date.now()}-${Math.random()}`, file, estado: "leyendo", canciones: [] }));
+    const nuevos = [...files].map((file) => ({ id: `${Date.now()}-${Math.random()}`, file, estado: "leyendo", canciones: [] }));
     if (!nuevos.length) return;
     setArchivos((a) => [...a, ...nuevos]);
     for (const n of nuevos) {
       try {
-        const canciones = (await cancionesDePdf(n.file)).map((c, i) => ({
+        const canciones = (await cancionesDeArchivo(n.file)).map((c, i) => ({
           clave: `${n.id}-${i}`, incluir: !existentes.has(normalizar(c.titulo)), existe: existentes.has(normalizar(c.titulo)),
-          titulo: c.titulo, artista: c.artista, tonalidad: c.tonalidad || c.resultado.tonalidadSugerida || "", texto: c.texto, resultado: c.resultado,
+          titulo: c.titulo, artista: c.artista, tonalidad: c.tonalidad || c.resultado.tonalidadSugerida || "", tempo: c.tempo || "", texto: c.texto, resultado: c.resultado,
         }));
-        setArchivos((a) => a.map((x) => (x.id === n.id ? { ...x, estado: canciones.length ? "listo" : "error", error: canciones.length ? null : "No se encontró ninguna canción en este PDF.", canciones } : x)));
+        setArchivos((a) => a.map((x) => (x.id === n.id ? { ...x, estado: canciones.length ? "listo" : "error", error: canciones.length ? null : "No se encontró ninguna canción en este archivo.", canciones } : x)));
       } catch (e) {
-        const msg = e?.message === "SIN_TEXTO"
-          ? "Este PDF es una imagen escaneada (foto o escáner): no trae texto que se pueda leer. Hay que copiar la letra a mano o pegarla en Nueva canción → Pegar canción completa."
-          : "No se pudo leer este PDF.";
+        const msg = MENSAJES[e?.message] || "No se pudo leer este archivo.";
         setArchivos((a) => a.map((x) => (x.id === n.id ? { ...x, estado: "error", error: msg } : x)));
       }
     }
@@ -70,12 +77,12 @@ export default function ImportarCancionesPdf({ library = [], clasificaciones = [
         const r = c.resultado;
         const draft = {
           title: c.titulo.trim(), artist: c.artista.trim() || "Unknown", key: c.tonalidad || r.tonalidadSugerida || "C",
-          tempo: "", compas: "", themes: "", category: categoria, favorite: false,
+          tempo: c.tempo || "", compas: "", themes: "", category: categoria, favorite: false,
           blocks: r.blocks, letra: r.letra, defaultStructure: r.defaultStructure,
         };
         const id = await guardarCancionDesdeEditor(draft, false, userId);
         // El PDF original queda adjunto a la canción (para verlo tal cual), solo si traía UNA canción.
-        if (adjuntarOriginal && c.archivo.canciones.length === 1 && iglesiaId) {
+        if (adjuntarOriginal && esPdf(c.archivo.file) && c.archivo.canciones.length === 1 && iglesiaId) {
           await subirAdjunto({ iglesiaId, cancionId: id, file: c.archivo.file, titulo: "PDF original" }).catch(() => {});
         }
         ok++;
@@ -99,8 +106,8 @@ export default function ImportarCancionesPdf({ library = [], clasificaciones = [
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${C.borde}` }}>
           <FileUp size={20} color="var(--wf-brand-accent)" />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 19, fontWeight: 600 }}>Importar canciones desde PDF</div>
-            <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>Un PDF por canción o un cancionero completo. Revisas todo antes de guardar.</div>
+            <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 19, fontWeight: 600 }}>Importar canciones</div>
+            <div style={{ fontSize: 12, color: "var(--wf-muted)" }}>Desde PDF, texto, Word u otro programa (Holyrics, ProPresenter, OpenLP…). Revisas todo antes de guardar.</div>
           </div>
           <button onClick={onCerrar} aria-label="Cerrar" style={{ background: "var(--wf-hover)", border: "none", borderRadius: 10, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--wf-text)" }}><X size={18} /></button>
         </div>
@@ -111,19 +118,20 @@ export default function ImportarCancionesPdf({ library = [], clasificaciones = [
               <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#1F8A7322", color: "#1F8A73", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}><Check size={28} /></div>
               <div style={{ fontWeight: 800, fontSize: 18 }}>{terminado.ok} {terminado.ok === 1 ? "canción importada" : "canciones importadas"}</div>
               {terminado.fallas.length > 0 && <div style={{ color: "#C23B32", fontSize: 13, marginTop: 8 }}>No se pudieron guardar: {terminado.fallas.join(", ")}</div>}
-              <div style={{ color: "var(--wf-muted)", fontSize: 13, marginTop: 8 }}>Ya están en tu biblioteca. Si algún acorde quedó corrido, lo ajustas en la canción → Editar → Contenido.</div>
+              <div style={{ color: "var(--wf-muted)", fontSize: 13, marginTop: 8 }}>Ya están en tu biblioteca. Si algún acorde quedó corrido, lo ajustas en la canción → Editar → Acordes.</div>
               <button onClick={onCerrar} style={{ ...boton, background: "var(--wf-brand-accent)", color: "var(--wf-on-brand-accent)", marginTop: 18 }}>Listo</button>
             </div>
           ) : (
             <>
-              <input ref={inputRef} type="file" accept=".pdf,application/pdf" multiple style={{ display: "none" }} onChange={(e) => { elegir(e.target.files); e.target.value = ""; }} />
+              <input ref={inputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => { elegir(e.target.files); e.target.value = ""; }} />
               <button onClick={() => inputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); elegir(e.dataTransfer.files); }}
                 style={{ width: "100%", border: "2px dashed var(--wf-brand-accent)", background: "color-mix(in srgb, var(--wf-brand-accent) 7%, transparent)", borderRadius: 16, padding: archivos.length ? "14px" : "34px 14px", cursor: "pointer", color: "var(--wf-text)", fontFamily: "inherit", marginBottom: 16 }}>
                 <FileUp size={archivos.length ? 18 : 30} color="var(--wf-brand-accent)" />
-                <div style={{ fontWeight: 800, fontSize: archivos.length ? 14 : 16, marginTop: 6 }}>{archivos.length ? "Agregar más PDF" : "Elegir PDF de canciones"}</div>
-                {!archivos.length && <div style={{ fontSize: 12.5, color: "var(--wf-muted)", marginTop: 4 }}>Puedes elegir varios a la vez, o arrastrarlos aquí. Funciona con PDF que traen texto (no fotos escaneadas).</div>}
+                <div style={{ fontWeight: 800, fontSize: archivos.length ? 14 : 16, marginTop: 6 }}>{archivos.length ? "Agregar más archivos" : "Elegir archivos de canciones"}</div>
+                {!archivos.length && <div style={{ fontSize: 12.5, color: "var(--wf-muted)", marginTop: 4 }}>Puedes elegir muchos a la vez, o arrastrarlos aquí. La app reconoce sola cada archivo.</div>}
               </button>
+              {!archivos.length && <AyudaOtrosProgramas />}
 
               {todas.length > 0 && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginBottom: 14, fontSize: 13 }}>
@@ -132,9 +140,9 @@ export default function ImportarCancionesPdf({ library = [], clasificaciones = [
                       {(clasificaciones.length ? clasificaciones : [{ clave: "corito", nombre: "Corito" }]).map((c) => <option key={c.clave} value={c.clave}>{c.nombre}</option>)}
                     </select>
                   </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                  {archivos.some((a) => esPdf(a.file)) && <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                     <input type="checkbox" checked={adjuntarOriginal} onChange={(e) => setAdjuntarOriginal(e.target.checked)} /> Adjuntar el PDF original a cada canción
-                  </label>
+                  </label>}
                 </div>
               )}
 
@@ -217,6 +225,38 @@ export default function ImportarCancionesPdf({ library = [], clasificaciones = [
       </div>
     </div>,
     document.body
+  );
+}
+
+// Cómo sacar las canciones de cada programa (lo que hay que hacer allá antes de subir el archivo aquí).
+const PASOS_PROGRAMAS = [
+  ["Holyrics", "Si tienes el archivo JSON de Holyrics, súbelo aquí. Si no, abre la canción, copia la letra y pégala en Nueva canción → Pegar canción completa."],
+  ["ProPresenter", "Elige las canciones en la biblioteca → Archivo → Exportar → Como texto plano."],
+  ["OpenLP", "Archivo → Exportar → Canciones (OpenLyrics). Sube los archivos .xml que salen."],
+  ["EasyWorship o SongShow Plus", "Abre OpenLP (es gratis), importa ahí tu base de canciones y expórtalas como dice arriba."],
+  ["MediaShout", "Elige las canciones → clic derecho → Exportar letras → archivo de texto (.txt)."],
+  ["OpenSong, OnSong, ChordPro, SongBeamer", "Sube los archivos de canciones tal como están."],
+  ["Word o bloc de notas", "Una canción por archivo. Si pones \"Título:\" arriba de cada una, puedes poner varias en el mismo archivo."],
+];
+function AyudaOtrosProgramas() {
+  const [abierta, setAbierta] = useState(false);
+  return (
+    <div style={{ border: "1px solid var(--wf-divider)", borderRadius: 14, marginBottom: 16, overflow: "hidden" }}>
+      <button onClick={() => setAbierta(!abierta)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", background: "transparent", border: "none", color: "var(--wf-text)", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
+        <span style={{ flex: 1 }}>¿Vienes de otro programa? Así sacas tus canciones</span>
+        {abierta ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+      </button>
+      {abierta && (
+        <div style={{ padding: "0 14px 12px", display: "grid", gap: 9 }}>
+          {PASOS_PROGRAMAS.map(([programa, pasos]) => (
+            <div key={programa} style={{ fontSize: 13, lineHeight: 1.45 }}>
+              <div style={{ fontWeight: 700 }}>{programa}</div>
+              <div style={{ color: "var(--wf-muted)" }}>{pasos}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
