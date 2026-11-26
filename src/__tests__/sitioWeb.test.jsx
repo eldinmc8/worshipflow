@@ -5,7 +5,7 @@ import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 vi.mock("../lib/supabaseClient.js", () => ({ supabase: {}, callUsersFunction: vi.fn() }));
 import SitioWeb from "../SitioWeb.jsx";
 import { CORREO_SOPORTE } from "../lib/soporte.js";
-import { MOMENTO_LANZAMIENTO } from "../lib/lanzamiento.js";
+import { MOMENTO_LANZAMIENTO, MOMENTO_CIERRE_LISTA } from "../lib/lanzamiento.js";
 import { PLANES } from "../lib/planesDatos.js";
 import { datosEstructurados, etiquetasHead, resumenParaRobots, PREGUNTAS, REDES } from "../lib/sitioWebDatos.js";
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -95,11 +95,26 @@ describe("cuenta regresiva del lanzamiento", () => {
     expect(screen.getAllByRole("timer").length).toBeGreaterThan(0);
     expect(container.textContent).toMatch(/Lanzamiento oficial en 2 días, 3 h/);
     expect([...container.querySelectorAll("a")].some((a) => /crear-iglesia/.test(a.getAttribute("href") || ""))).toBe(false);
+  });
+  it("mientras la lista de espera está abierta, sus botones llevan al formulario", () => {
+    reloj(MOMENTO_CIERRE_LISTA - 3600_000);
+    abrir("/web");
     const botones = screen.getAllByText(/Únete a la lista de espera/);
     expect(botones.length).toBeGreaterThan(0);
     const enlace = botones[0].closest("a");
     expect(enlace.getAttribute("href")).toMatch(/docs\.google\.com\/forms/);
     expect(enlace.getAttribute("target")).toBe("_blank");
+  });
+  it("desde el cierre de la lista de espera ya no hay botones de lista ni formulario", () => {
+    reloj(MOMENTO_CIERRE_LISTA);
+    const { container } = abrir("/web");
+    expect(screen.getAllByRole("timer").length).toBeGreaterThan(0);
+    expect(container.textContent).not.toMatch(/lista de espera/i);
+    expect([...container.querySelectorAll("a")].some((a) => /docs\.google\.com\/forms/.test(a.getAttribute("href") || ""))).toBe(false);
+    cleanup();
+    const precios = abrir("/web/precios").container;
+    expect(precios.textContent).not.toMatch(/lista de espera/i);
+    expect(precios.textContent).toMatch(/Disponible desde el/);
   });
   it("antes del lanzamiento los precios se ven completos pero sin botones de pago", () => {
     antes();

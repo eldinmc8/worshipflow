@@ -57,25 +57,26 @@ const ELEGIR_PLAN = `${URL_APP}${URL_APP.includes("?") ? "&" : "?"}planes=1`;
 // pero los botones de crear iglesia y elegir plan se cambian por "Avísame del lanzamiento". La fecha se cambia
 // en supabase/functions/_shared/lanzamiento.js.
 // Lista de espera (2026-11-20): formulario de Google para quienes quieren los beneficios especiales de lanzamiento.
-// Enlace, título y texto viven aquí, en un solo lugar.
+// Enlace, título y texto viven aquí, en un solo lugar. Se cierra sola en CIERRE_LISTA_ESPERA (lib/lanzamiento.js):
+// desde ahí y hasta el lanzamiento ya no hay botones de lista de espera.
 const LISTA_ESPERA = "https://docs.google.com/forms/d/e/1FAIpQLSe30hSHTDvqWe7h3o8bpvVEjD4B7c5wNNAfiFcgsJ_L9shurA/viewform";
 const LISTA_ESPERA_TITULO = "Únete a la lista de espera";
 const LISTA_ESPERA_TEXTO = "Sé de los primeros en entrar y recibe beneficios especiales de lanzamiento.";
-const Lanzamiento = createContext({ lanzado: true, dias: 0, horas: 0, minutos: 0, segundos: 0 });
+const Lanzamiento = createContext({ lanzado: true, listaAbierta: false, dias: 0, horas: 0, minutos: 0, segundos: 0 });
 const useEstadoLanzamiento = () => useContext(Lanzamiento);
 
 // "Crear mi iglesia" antes y después del lanzamiento: mismo lugar, mismo estilo.
 function BotonCrear({ children, ocultarAntes, ...props }) {
-  const { lanzado } = useEstadoLanzamiento();
+  const { lanzado, listaAbierta } = useEstadoLanzamiento();
   if (lanzado) return <Boton href={CREAR_IGLESIA} mismaPestana {...props}>{children}</Boton>;
-  if (ocultarAntes) return null;
+  if (ocultarAntes || !listaAbierta) return null;
   return <Boton href={LISTA_ESPERA} {...props}>{props.grande ? LISTA_ESPERA_TITULO : "Lista de espera"}</Boton>;
 }
 
 // Recuadro grande de la lista de espera: solo antes del lanzamiento.
 function BannerListaEspera({ centrado }) {
-  const { lanzado } = useEstadoLanzamiento();
-  if (lanzado) return null;
+  const { listaAbierta } = useEstadoLanzamiento();
+  if (!listaAbierta) return null;
   return (
     <div style={{ background: "#FFF4E8", border: `1px solid ${NARANJA}`, borderRadius: 16, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12, alignItems: centrado ? "center" : "flex-start", textAlign: centrado ? "center" : "left", maxWidth: 520, width: "100%", boxSizing: "border-box" }}>
       <span style={{ fontSize: 15.5, lineHeight: 1.45, color: TINTA, fontWeight: 500 }}>🎁 {LISTA_ESPERA_TEXTO}</span>
@@ -465,7 +466,7 @@ const precioTexto = (n) => `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
 function Precios() {
   const [anual, setAnual] = useState(false);
-  const { lanzado } = useEstadoLanzamiento();
+  const { lanzado, listaAbierta } = useEstadoLanzamiento();
   return (
     <>
       <Encabezado ruta="/web/precios" />
@@ -508,7 +509,7 @@ function Precios() {
                     <Boton href={gratis ? CREAR_IGLESIA : ELEGIR_PLAN} mismaPestana tipo={destacado ? "principal" : gratis ? "suave" : "oscuro"} style={{ margin: "8px 0 0", width: "100%" }}>
                       {gratis ? "Empezar gratis" : "Elegir plan"}
                     </Boton>
-                  ) : (
+                  ) : listaAbierta && (
                     <Boton href={LISTA_ESPERA} tipo={destacado ? "principal" : gratis ? "suave" : "oscuro"} style={{ margin: "8px 0 0", width: "100%" }}>{LISTA_ESPERA_TITULO}</Boton>
                   )}
                   <span style={{ fontSize: 12.5, color: SUAVE, textAlign: "center", minHeight: 18, marginBottom: 6 }}>

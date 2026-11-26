@@ -5,6 +5,15 @@ import { FECHA_LANZAMIENTO, MOMENTO_LANZAMIENTO, yaLanzamos } from "../../supaba
 
 export { FECHA_LANZAMIENTO, MOMENTO_LANZAMIENTO, yaLanzamos };
 
+// Cierre de la lista de espera (pedido de Eldin, 2026-11-25): el formulario de Google vence a medianoche del
+// 26 de noviembre, hora de Guatemala. Desde ese momento la página web ya no muestra los botones ni el recuadro
+// de la lista de espera (hasta el lanzamiento solo se ven la cuenta regresiva y los precios).
+export const CIERRE_LISTA_ESPERA = "2026-11-26T00:00:00-06:00";
+export const MOMENTO_CIERRE_LISTA = Date.parse(CIERRE_LISTA_ESPERA);
+export function listaEsperaAbierta(ahora = Date.now()) {
+  return ahora < MOMENTO_CIERRE_LISTA && !yaLanzamos(ahora);
+}
+
 // Días, horas, minutos y segundos que faltan (todo en 0 si ya pasó).
 export function tiempoRestante(ahora = Date.now()) {
   const ms = Math.max(0, MOMENTO_LANZAMIENTO - ahora);
@@ -39,5 +48,5 @@ export function useLanzamiento() {
     const id = setInterval(() => setAhora(Date.now()), 1000);
     return () => clearInterval(id);
   }, [lanzado]);
-  return { lanzado, ...tiempoRestante(ahora) };
+  return { lanzado, listaAbierta: listaEsperaAbierta(ahora), ...tiempoRestante(ahora) };
 }
