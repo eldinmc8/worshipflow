@@ -6,6 +6,8 @@ import { suscribirPush } from "./lib/notificaciones.js";
 import { colorLegibleSobre } from "./lib/colores.js";
 import Login, { GoogleIcon } from "./Login.jsx";
 import UnirseIglesia, { EsperandoAprobacion } from "./UnirseIglesia.jsx";
+import SinIglesia from "./SinIglesia.jsx";
+import { pedidoCrear, olvidarPedidoCrear } from "./lib/crearIglesiaGoogle.js";
 import { leerCodigoDeUrl, codigoPendiente, solicitarIngreso, miSolicitud, olvidarCodigo, nombreDeSesion } from "./lib/unirse.js";
 import { validarPassword } from "./lib/passwordSegura.js";
 import { leerSuscribirseDeUrl, guardarPendiente, hayPendiente } from "./lib/suscribirse.js";
@@ -57,10 +59,12 @@ export default function AuthGate() {
   });
 
   // Se enciende si alguien logra obtener una sesión válida de Supabase (típicamente iniciando con
-  // Google) sin tener una fila en "usuarios" — o sea, sin que un administrador lo haya invitado antes.
-  // El acceso sigue siendo de lista cerrada aunque se agregue "Continuar con Google": esa sesión se
-  // cierra de una y se explica por qué, en vez de dejarlo entrar a la app sin rol.
-  const [accessDenied, setAccessDenied] = useState(false);
+  // Google) sin tener una fila en "usuarios" ni una solicitud con enlace. Antes se le cerraba la sesión
+  // ("Todavía no tienes acceso") y se borraba la cuenta; desde 2026-11-26 elige en SinIglesia.jsx: crear su
+  // iglesia o pedir que lo inviten. Sigue sin ver nada de ninguna iglesia hasta tener su fila en "usuarios".
+  const [sinIglesia, setSinIglesia] = useState(false);
+  // Vino de "Crear con Google" en Crear mi iglesia: abre directo el formulario (con su código, si traía).
+  const [pedidoCrearIglesia] = useState(() => pedidoCrear());
   // Consola general, acción "desactivar iglesia" (ver PlataformaAdmin.jsx) — hasta ahora iglesias.
   // activa no bloqueaba nada, era solo un interruptor sin efecto. Nada se borra al desactivar: sus
   // datos siguen intactos en la base, nada más se le niega la entrada a la app con un aviso claro,
@@ -157,7 +161,7 @@ export default function AuthGate() {
   // nuevo y antes eso volvía a leer el perfil cada vez (en la PC con el reloj mal, decenas por segundo).
   const userId = session?.user?.id || null;
   useEffect(() => {
-    if (!userId) { setPerfil(null); setSolicitud(null); return; }
+    if (!userId) { setPerfil(null); setSolicitud(null); setSinIglesia(false); return; }
     let vigente = true; // una respuesta que llega después de cerrar sesión o cambiar de cuenta se ignora
     setErrorPerfil(false);
     const usarGuardado = () => {
@@ -207,12 +211,7 @@ export default function AuthGate() {
             if (esFalloDeConexion(e) || !usarGuardado()) setErrorPerfil(true);
             return;
           }
-          setAccessDenied(true);
-          // Descarta de una la cuenta huérfana que Google acaba de crear en Auth (ver
-          // descartar-acceso-no-invitado) — si no, un admin que después invite este mismo correo se
-          // topa con "ya registrado" (ver crear-usuario/index.ts). Si falla (sin red, etc.) no importa:
-          // ese Edge Function se auto-repara sola la próxima vez que un admin intente invitar.
-          callUsersFunction("descartar-acceso-no-invitado", {}).catch(() => {}).finally(() => supabase.auth.signOut());
+          setSinIglesia(true);
           return;
         }
         if (data.iglesias && data.iglesias.activa === false) {
@@ -224,6 +223,8 @@ export default function AuthGate() {
         }
         setPerfil(data);
         setSolicitud(null);
+        setSinIglesia(false);
+        olvidarPedidoCrear(); // ya tiene iglesia: un "Crear con Google" pendiente ya no aplica
         olvidarCodigo(); // ya es miembro: un enlace para unirse que traiga no hace falta
         if (esperabaAprobacion.current) { esperabaAprobacion.current = false; setShowPushPrompt(true); }
         try { localStorage.setItem(`worshipflow_perfil_${userId}`, JSON.stringify(data)); } catch { /* sin storage */ }
@@ -271,17 +272,6 @@ export default function AuthGate() {
             <button onClick={() => window.location.reload()} style={primaryBtn}>Reintentar</button>
           </div>
         )}
-      </div>
-    );
-  }
-  if (accessDenied) {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "'Poppins', sans-serif", padding: 20 }}>
-        <div className="screen-enter" style={{ width: 360, maxWidth: "92vw", background: "var(--wf-card)", borderRadius: 16, boxShadow: "0 8px 32px rgba(22,50,79,0.15)", padding: 28, textAlign: "center" }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--wf-text)", marginBottom: 8 }}>Todavía no tienes acceso</div>
-          <div style={{ fontSize: 13, color: "var(--wf-muted)", lineHeight: 1.5, marginBottom: 18 }}>Un administrador tiene que invitarte primero, con este mismo correo, desde Usuarios en la app.</div>
-          <button onClick={() => setAccessDenied(false)} style={primaryBtn}>Volver</button>
-        </div>
       </div>
     );
   }
@@ -342,6 +332,24 @@ export default function AuthGate() {
           setNeedsPassword(false);
           if (esRecuperacion) setEsRecuperacion(false);
           else setShowPushPrompt(true);
+        }}
+      />
+    );
+  }
+
+  if (sinIglesia && !perfil && !solicitud) {
+    return (
+      <SinIglesia
+        session={session}
+        abrirCrear={!!pedidoCrearIglesia}
+        codigoInicial={pedidoCrearIglesia?.codigo || ""}
+        onCreada={() => { esperabaAprobacion.current = true; setReintento((n) => n + 1); }} // sigue en "Creando…" hasta que llega su perfil
+        onSalir={() => {
+          setSinIglesia(false);
+          // Descarta la cuenta que Google acaba de crear en Auth (ver descartar-acceso-no-invitado) — si no, un
+          // admin que después invite este mismo correo se topa con "ya registrado" (ver crear-usuario/index.ts).
+          // Si falla (sin red, etc.) no importa: crear-usuario se auto-repara la próxima vez que un admin invite.
+          callUsersFunction("descartar-acceso-no-invitado", {}).catch(() => {}).finally(() => supabase.auth.signOut());
         }}
       />
     );

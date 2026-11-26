@@ -24,8 +24,8 @@ export default function Login({ aviso = "" }) {
     if (error) setError("Correo o contraseña incorrectos.");
   };
 
-  // Solo entra quien un administrador ya invitó (fila en "usuarios") — iniciar sesión con Google no abre
-  // la puerta a cualquiera: AuthGate.jsx cierra la sesión de una si el correo de Google no tiene fila,
+  // Con Google nadie ve una iglesia sin tener su fila en "usuarios": si el correo de Google no tiene fila,
+  // AuthGate.jsx le ofrece crear su iglesia o pedir que lo inviten (SinIglesia.jsx, 2026-11-26),
   // con un aviso explicando que hace falta una invitación. Esto solo sirve como atajo de acceso para
   // alguien que YA fue invitado y cuyo correo de Google coincide con el que se le invitó.
   const loginWithGoogle = async () => {
@@ -71,7 +71,7 @@ export default function Login({ aviso = "" }) {
             <a href="/?crear-iglesia" style={{ color: "#E8821E", fontWeight: 700, textDecoration: "none" }}>Crear mi iglesia gratis</a>
           </div>
         )}
-        <div style={{ fontSize: 11, color: "var(--wf-faint)", textAlign: "center", marginTop: 10 }}>Solo funciona si un administrador ya te invitó con este mismo correo.</div>
+        {!lanzado && <div style={{ fontSize: 11, color: "var(--wf-faint)", textAlign: "center", marginTop: 10 }}>Solo funciona si un administrador ya te invitó con este mismo correo.</div>}
       </div>
     </div>
   );

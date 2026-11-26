@@ -6,6 +6,8 @@ import MarkCircle from "./MarkCircle.jsx";
 import { validarPassword } from "./lib/passwordSegura.js";
 import MedidorPassword from "./MedidorPassword.jsx";
 import { useLanzamiento, fechaLanzamientoTexto } from "./lib/lanzamiento.js";
+import { GoogleIcon } from "./Login.jsx";
+import { guardarPedidoCrear, olvidarPedidoCrear } from "./lib/crearIglesiaGoogle.js";
 
 const inputStyle = { width: "100%", background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "var(--wf-text)", outline: "none", boxSizing: "border-box" };
 const labelStyle = { fontSize: 12, fontWeight: 700, color: "var(--wf-muted)", marginBottom: 4, display: "block" };
@@ -62,6 +64,16 @@ export default function CrearIglesia() {
     }
   };
 
+  // "Crear con Google" (2026-11-26): Google regresa a la dirección principal; AuthGate ve que no tiene iglesia y abre
+  // el formulario corto (SinIglesia.jsx) con el código que haya escrito aquí. Ver lib/crearIglesiaGoogle.js.
+  const crearConGoogle = async () => {
+    if (!lanzado && !codigoInvitacion.trim()) { setError("Hasta el lanzamiento necesitas un código de invitación."); return; }
+    setError("");
+    guardarPedidoCrear(codigoInvitacion);
+    const { error: errGoogle } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
+    if (errGoogle) { olvidarPedidoCrear(); setError(errGoogle.message); }
+  };
+
   if (listo) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--wf-bg)", fontFamily: "'Poppins', sans-serif", padding: 20 }}>
@@ -111,6 +123,14 @@ export default function CrearIglesia() {
           <div>
             <span style={labelStyle}>{lanzado ? "Código de invitación (opcional)" : "Código de invitación"}</span>
             <input required={!lanzado} placeholder={lanzado ? "Solo si te dimos uno" : "El que te dimos"} value={codigoInvitacion} onChange={(e) => setCodigoInvitacion(e.target.value)} style={inputStyle} />
+          </div>
+          <button type="button" onClick={crearConGoogle} disabled={loading} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, background: "var(--wf-card)", border: "1px solid var(--wf-border)", borderRadius: 8, padding: "10px", fontSize: 14, fontWeight: 600, color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit" }}>
+            <GoogleIcon /> Crear con Google
+          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ flex: 1, height: 1, background: "var(--wf-divider)" }} />
+            <span style={{ fontSize: 11, color: "var(--wf-faint)", fontWeight: 600 }}>O CON CORREO Y CONTRASEÑA</span>
+            <div style={{ flex: 1, height: 1, background: "var(--wf-divider)" }} />
           </div>
           <div>
             <span style={labelStyle}>Nombre de la iglesia</span>
