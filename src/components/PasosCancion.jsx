@@ -5,7 +5,7 @@ import { promptDialog, confirmDialog } from "../lib/confirm.js";
 import { acordeEn } from "../lib/preferencias.js";
 import { quitarAcordes, diapositivasDeLineas, distintivoDe } from "../lib/textoCancion.js";
 import {
-  TIPOS_PARTE, ordenDe, partesUnicas, partesSinUsar, agregarParte, repetirParte, moverEnOrden, quitarDelOrden, borrarParte, renombrarParte,
+  TIPOS_PARTE, partesDelTipo, ordenDe, partesUnicas, partesSinUsar, agregarParte, repetirParte, moverEnOrden, quitarDelOrden, borrarParte, renombrarParte,
   textoDeParte, contenidoVaConLetra, escribirLetraParte, lineasParaAcordes, palabrasDe, ponerAcorde, quitarAcorde, agregarAcordeAlFinal,
   partirPalabra, alargarLetra, acortarLetra, puedeAlargar, puedeAcortar, revisarTextoAcordes, unirRenglones, partirRenglon,
   agregarCambioTono, cambiarCambioTono,
@@ -37,6 +37,13 @@ export function PasoEstructura({ cancion, setCancion, colorDe }) {
   const orden = ordenDe(cancion);
   // "Sube de tono": null | { nuevo: true } | { k, idx } (cambiar uno que ya está en el orden).
   const [eligiendoTono, setEligiendoTono] = useState(null);
+  // Coro, puente, pre-coro... que ya existen: se pregunta si repetir el mismo o crear uno nuevo.
+  const [eligiendoTipo, setEligiendoTipo] = useState(null);
+  const tocarTipo = (t) => {
+    if (!t.numerar && partesDelTipo(cancion, t.id).length) { setEligiendoTipo(eligiendoTipo?.id === t.id ? null : t); return; }
+    setEligiendoTipo(null);
+    setCancion((c) => agregarParte(c, t.id));
+  };
   const cambios = cambiosPorPosicion(orden, cancion.blocks);
   const tonoAl = (s) => tonoMas(cancion.key, s);
   const tonoFinal = tonoAl(cambios.length ? cambios[cambios.length - 1] : 0);
@@ -57,12 +64,12 @@ export function PasoEstructura({ cancion, setCancion, colorDe }) {
   return (
     <div>
       <h2 style={tituloPaso}>¿Qué partes tiene la canción?</h2>
-      <p style={ayuda}>Tócalas en el orden en que se cantan. Si el coro se repite, tócalo otra vez. Las estrofas se numeran solas.</p>
+      <p style={ayuda}>Tócalas en el orden en que se cantan. Las estrofas se numeran solas. Si tocas Coro otra vez, eliges si repetir el mismo o agregar un coro nuevo (Coro 2).</p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(118px, 1fr))", gap: 8 }}>
         {TIPOS_PARTE.map((t) => {
           const color = colorDe(t.prefix);
           return (
-            <button key={t.id} type="button" onClick={() => setCancion((c) => agregarParte(c, t.id))} className="hoverable"
+            <button key={t.id} type="button" onClick={() => tocarTipo(t)} aria-expanded={eligiendoTipo?.id === t.id ? true : undefined} className="hoverable"
               style={{ minHeight: TOQUE + 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 14, border: "none", cursor: "pointer", fontSize: 14.5, fontWeight: 700, fontFamily: "inherit", background: `color-mix(in srgb, ${color} 15%, var(--wf-card))`, color }}>
               <Plus size={16} /> {t.label}
             </button>
@@ -76,6 +83,33 @@ export function PasoEstructura({ cancion, setCancion, colorDe }) {
           <ArrowUp size={16} /> Sube de tono
         </button>
       </div>
+      {eligiendoTipo && (() => {
+        const t = eligiendoTipo;
+        const existentes = partesDelTipo(cancion, t.id);
+        const color = colorDe(t.prefix);
+        const siguiente = (() => { const c = agregarParte(cancion, t.id, { nuevo: true }); const o = ordenDe(c); return c.blocks[o[o.length - 1]]?.label; })();
+        const listo = (fn) => { setCancion(fn); setEligiendoTipo(null); };
+        const btn = { minHeight: TOQUE, display: "flex", alignItems: "center", gap: 8, padding: "0 14px 0 8px", borderRadius: 14, cursor: "pointer", fontSize: 14, fontWeight: 700, fontFamily: "inherit" };
+        return (
+          <div style={{ ...tarjeta, marginTop: 10, padding: 12 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>Ya tienes {existentes.length > 1 ? `${existentes.length} partes de ${t.label}` : t.label}. ¿Qué quieres agregar?</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {existentes.map((k) => (
+                <button key={k} type="button" onClick={() => listo((c) => repetirParte(c, k))} className="hoverable"
+                  style={{ ...btn, border: "1px solid var(--wf-divider)", background: "var(--wf-card)", color: "var(--wf-text)" }}>
+                  <Repeat size={15} /> Repetir {cancion.blocks[k].label}
+                </button>
+              ))}
+              <button type="button" onClick={() => listo((c) => agregarParte(c, t.id, { nuevo: true }))} className="hoverable"
+                style={{ ...btn, paddingLeft: 12, border: "none", background: `color-mix(in srgb, ${color} 15%, var(--wf-card))`, color }}>
+                <Plus size={15} /> Crear {siguiente} (otra letra)
+              </button>
+              <button type="button" onClick={() => setEligiendoTipo(null)} className="hoverable"
+                style={{ ...btn, paddingLeft: 14, border: "none", background: "transparent", color: "var(--wf-muted)" }}>Cancelar</button>
+            </div>
+          </div>
+        );
+      })()}
       {eligiendoTono?.nuevo && (
         <ElegirCambioTono desdeKey={tonoFinal} titulo="¿A qué tono sube desde aquí?" onCancelar={() => setEligiendoTono(null)}
           onElegir={(n) => { setCancion((c) => agregarCambioTono(c, n)); setEligiendoTono(null); }} />

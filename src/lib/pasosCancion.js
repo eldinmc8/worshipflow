@@ -49,9 +49,21 @@ const tieneTexto = (cancion, k) => (cancion.blocks[k]?.lines || []).some((l) => 
 let contador = 0;
 const nuevaClave = () => `b${Date.now()}_${contador++}`;
 
+// Partes que ya existen de un tipo (ej. todas las de Coro: "Coro", "Coro 2"...), en el orden en que
+// se crearon.
+export function partesDelTipo(cancion, tipoId) {
+  const tipo = TIPOS_PARTE.find((t) => t.id === tipoId);
+  if (!tipo) return [];
+  const re = new RegExp(`^${tipo.prefix}(\\d*)$`);
+  const blocks = cancion?.blocks || {};
+  return Object.keys(blocks).filter((x) => !esCambioTono(blocks[x]) && re.test(String(blocks[x].badge || "").toUpperCase()));
+}
+
 // Toca "+ Coro": si ya hay coro, se repite el mismo; "+ Estrofa" siempre crea la siguiente (Estrofa 2,
-// Estrofa 3...). Con { nombre } se crea una parte con ese nombre (ej. "Coro 2", "Tag").
-export function agregarParte(cancion, tipoId, { nombre } = {}) {
+// Estrofa 3...). Con { nuevo: true } el coro (o puente, pre-coro...) también se crea nuevo: "Coro 2"
+// (pedido de Eldin, 2026-11-27: a veces la canción tiene un coro distinto). Con { nombre } se crea
+// una parte con ese nombre (ej. "Tag").
+export function agregarParte(cancion, tipoId, { nombre, nuevo } = {}) {
   const blocks = { ...cancion.blocks };
   const letra = { ...(cancion.letra || {}) };
   const orden = [...ordenDe(cancion)];
@@ -68,9 +80,9 @@ export function agregarParte(cancion, tipoId, { nombre } = {}) {
     const tipo = TIPOS_PARTE.find((t) => t.id === tipoId);
     if (!tipo) return cancion;
     const re = new RegExp(`^${tipo.prefix}(\\d*)$`);
-    const delTipo = Object.keys(blocks).filter((x) => re.test(String(blocks[x].badge || "").toUpperCase()));
-    if (tipo.numerar) {
-      const max = delTipo.reduce((m, x) => Math.max(m, parseInt(String(blocks[x].badge).match(re)[1] || "1", 10)), 0);
+    const delTipo = partesDelTipo(cancion, tipoId);
+    if (tipo.numerar || (nuevo && delTipo.length)) {
+      const max = delTipo.reduce((m, x) => Math.max(m, parseInt(String(blocks[x].badge).toUpperCase().match(re)[1] || "1", 10)), 0);
       k = crear(`${tipo.prefix}${max + 1}`, `${tipo.label} ${max + 1}`);
     } else if (delTipo.length) {
       k = delTipo[delTipo.length - 1];

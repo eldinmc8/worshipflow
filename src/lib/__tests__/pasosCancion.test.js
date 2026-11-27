@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  agregarParte, repetirParte, quitarDelOrden, moverEnOrden, ordenDe, partesUnicas, partesSinUsar,
+  agregarParte, partesDelTipo, repetirParte, quitarDelOrden, moverEnOrden, ordenDe, partesUnicas, partesSinUsar,
   escribirLetraParte, textoDeParte, contenidoVaConLetra, pasarAcordes, lineasParaAcordes,
   palabrasDe, ponerAcorde, quitarAcorde, agregarAcordeAlFinal, tieneAcordes,
   alargarLetra, acortarLetra, puedeAlargar, revisarTextoAcordes, unirRenglones, partirRenglon,
@@ -19,6 +19,19 @@ describe("Estructura", () => {
     expect(etiquetas(c)).toEqual(["Estrofa 1", "Coro", "Estrofa 2", "Coro"]);
     expect(Object.keys(c.blocks)).toHaveLength(3);
     expect(c.blocks[ordenDe(c)[0]].badge).toBe("V1");
+  });
+
+  it("un coro nuevo (Coro 2) además de repetir el que ya está", () => {
+    let c = agregarParte(vacia(), "coro");
+    c = agregarParte(c, "coro", { nuevo: true });
+    c = agregarParte(c, "coro");
+    c = agregarParte(c, "coro", { nuevo: true });
+    expect(etiquetas(c)).toEqual(["Coro", "Coro 2", "Coro 2", "Coro 3"]);
+    expect(partesDelTipo(c, "coro").map((k) => c.blocks[k].badge)).toEqual(["C", "C2", "C3"]);
+    let p = agregarParte(vacia(), "puente", { nuevo: true });
+    p = agregarParte(p, "puente", { nuevo: true });
+    expect(etiquetas(p)).toEqual(["Puente", "Puente 2"]);
+    expect(partesDelTipo(agregarParte(vacia(), "precoro"), "puente")).toEqual([]);
   });
 
   it("parte con nombre propio, repetir y mover", () => {

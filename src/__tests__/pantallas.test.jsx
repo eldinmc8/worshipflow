@@ -190,6 +190,9 @@ describe("¿abre la pantalla?", () => {
     fireEvent.click(screen.getByRole("button", { name: "Estrofa" }));
     fireEvent.click(screen.getByRole("button", { name: "Coro" }));
     fireEvent.click(screen.getByRole("button", { name: "Coro" }));
+    // Con un coro ya puesto, pregunta: repetir ese o crear "Coro 2".
+    expect(screen.getByRole("button", { name: /Crear Coro 2/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Repetir Coro" }));
     expect([...document.querySelectorAll("[data-parte]")].map((el) => el.getAttribute("data-parte"))).toEqual(["V1", "C", "C"]);
     fireEvent.click(siguiente());
     // Sin botones de partes: solo un cuadro por cada parte elegida.
