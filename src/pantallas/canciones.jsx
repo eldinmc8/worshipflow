@@ -88,7 +88,7 @@ function isMusicoLeaderFresh(musicoState) {
 const nextSongId = () => crypto.randomUUID();
 
 // ---------------- CANCIONES: LISTA ----------------
-export function CancionesList({ library, clasificaciones, puedeConfigurarClasificaciones, onGuardarClasificaciones, isAdminViewer, onToggleFavorite, onOpen, onNew, onImportarPdf, onBuscarWeb, onDelete, onDeleteMany }) {
+export function CancionesList({ library, clasificaciones, puedeConfigurarClasificaciones, onGuardarClasificaciones, isAdminViewer, onToggleFavorite, onOpen, onNew, onImportarPdf, onBuscarWeb, onDelete, onDeleteMany, vista = "canciones", onVista = null, repertoriosPane = null, totalRepertorios = 0 }) {
   const [query, setQuery] = useState("");
   // Modo "Seleccionar" (2026-11-22): marcar varias canciones y borrarlas juntas (ej. las que se
   // agregaron por accidente). Atrás del teléfono sale del modo sin borrar nada.
@@ -142,8 +142,31 @@ export function CancionesList({ library, clasificaciones, puedeConfigurarClasifi
   useEffect(() => {
     barraRef.current?.querySelector(`[data-filtro="${categoryFilter}"]`)?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   }, [categoryFilter]);
+  // Canciones | Repertorios (2026-11-26, components/Repertorios.jsx): listas fijas para ensayar sin evento.
+  const selectorVista = onVista && repertoriosPane && (
+    <div role="tablist" aria-label="Canciones o repertorios" style={{ display: "flex", gap: 4, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 14, padding: 4, marginBottom: 14 }}>
+      {[["canciones", `Canciones · ${library.length}`], ["repertorios", `Repertorios${totalRepertorios ? ` · ${totalRepertorios}` : ""}`]].map(([clave, texto]) => {
+        const activa = vista === clave;
+        return (
+          <button key={clave} role="tab" aria-selected={activa} onClick={() => onVista(clave)}
+            style={{ flex: 1, height: 34, borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: activa ? "var(--wf-card)" : "transparent", color: activa ? "var(--wf-text)" : "var(--wf-muted)", boxShadow: activa ? "0 1px 3px rgba(22,50,79,0.12)" : "none" }}>
+            {texto}
+          </button>
+        );
+      })}
+    </div>
+  );
+  if (selectorVista && vista === "repertorios") {
+    return (
+      <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+        {selectorVista}
+        {repertoriosPane}
+      </div>
+    );
+  }
   return (
     <div className="screen-enter" style={{ padding: 20, maxWidth: 820, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+      {selectorVista}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
         <h2 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 22, margin: 0 }}>{library.length} Canciones</h2>
         {isAdminViewer && !seleccionando && (
@@ -654,7 +677,7 @@ function AdjuntosModal({ song, iglesiaId, puedeEditar, onClose, onCambio }) {
   );
 }
 
-export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, enterDirection, structureOverride, liveSync, iglesiaId, notasCtx, onAdjuntosChange }) {
+export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, positionDonde = "en el setlist", enterDirection, structureOverride, liveSync, iglesiaId, notasCtx, onAdjuntosChange }) {
   const modoMusicoPermitido = permite(usePlan(), "modo_musico");
   const sectionRefs = useRef({});
   const [showAdjuntos, setShowAdjuntos] = useState(false);
@@ -1147,7 +1170,7 @@ export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onE
       <h2 style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 24, fontWeight: 600, margin: "0 0 4px" }}>{song.title}</h2>
       <div style={{ fontSize: 13, color: "var(--wf-muted)", marginBottom: 16 }}>
         {song.artist || "Unknown"} · {song.tempo} bpm{song.compas ? ` · ${song.compas}` : ""}
-        {positionLabel && <span style={{ marginLeft: 8, fontWeight: 700, color: "var(--wf-brand-accent)" }}>· {positionLabel} en el setlist</span>}
+        {positionLabel && <span style={{ marginLeft: 8, fontWeight: 700, color: "var(--wf-brand-accent)" }}>· {positionLabel}{positionDonde ? ` ${positionDonde}` : ""}</span>}
       </div>
       {inst.semitonos > 0 && (
         <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--wf-text-2)", background: "var(--wf-hover)", borderRadius: 12, padding: "7px 12px", margin: "-6px 0 14px" }}>

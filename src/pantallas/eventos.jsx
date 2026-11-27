@@ -3,6 +3,8 @@ import ConPlan from "../components/ConPlan.jsx";
 import { Pencil, Check, Mic2, ChevronRight, Sparkles, FolderOpen, ExternalLink, ListMusic, Plus, Radio, MapPin, Users, Music, ArrowLeft, Trash2, Bell, X, Eye, EyeOff, Download, Play, GraduationCap, Star, MoreHorizontal, BookOpen, Type, PenTool, FileUp, Search, ArrowUpDown, GripVertical, ChevronUp, ChevronDown, Paperclip, Copy, Timer, CalendarRange, Volume2, ListOrdered } from "lucide-react";
 import OrdenCancionEvento from "../components/OrdenCancionEvento.jsx";
 import CopiarDeOtroCulto from "../components/CopiarDeOtroCulto.jsx";
+import { ElegirRepertorio } from "../components/Repertorios.jsx";
+import { AvisoPlan } from "../components/ConPlan.jsx";
 import { ordenEventoDe, resumenOrden } from "../lib/ordenEvento.js";
 import { bosquejoTieneCambiosSinEnviar, esBloquePredicacion } from "../lib/bosquejos.js";
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -595,7 +597,7 @@ export function EventDetail({
   myIglesiaId, onAbrirEditor, onDisenarNueva,
   event, library, ministries, isCompact, isLive, canStartLive, isAdminViewer, puedeEditarSetlist, userId, usuariosReales, onBack, onStart, onPracticar, onGoLive, onDelete,
   isDraftFromTemplate, onPublish,
-  onAddSong, onCrearCancion = null, eventosParaCopiar = null, onCopiarCantos = null, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder,
+  onAddSong, onCrearCancion = null, eventosParaCopiar = null, onCopiarCantos = null, repertorios = null, repertoriosBloqueados = false, onAgregarRepertorio = null, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder,
   onLinkMinistry, onUpdateSeccionText, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, verDiapositivas = true,
   onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado,
   onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember,
@@ -890,7 +892,7 @@ export function EventDetail({
         onAbrirEditor={onAbrirEditor}
         onDisenarNueva={onDisenarNueva}
         myIglesiaId={myIglesiaId}
-        eventosParaCopiar={eventosParaCopiar} onCopiarCantos={onCopiarCantos}
+        eventosParaCopiar={eventosParaCopiar} onCopiarCantos={onCopiarCantos} repertorios={repertorios} repertoriosBloqueados={repertoriosBloqueados} onAgregarRepertorio={onAgregarRepertorio}
         event={event} library={library} ministries={ministries} isCompact={isCompact} isAdminViewer={isAdminViewer || puedeEditarSetlist} userId={userId} usuariosReales={usuariosReales}
         onAddSong={onAddSong} onCrearCancion={onCrearCancion} onAddSeccion={onAddSeccion}
         onAddBibleClick={onAddBibleClick} onAddSlideClick={onAddSlideClick} onAddItems={onAddItems} onAddCuenta={onAddCuenta}
@@ -1105,7 +1107,7 @@ function CrearCancionEnSetlist({ titulo, onCerrar, onGuardar }) {
   );
 }
 
-function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, eventosParaCopiar = null, onCopiarCantos = null, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onCrearCancion = null, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar = null, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, verDiapositivas = true, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
+function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, eventosParaCopiar = null, onCopiarCantos = null, repertorios = null, repertoriosBloqueados = false, onAgregarRepertorio = null, event, library, ministries, isCompact, isAdminViewer, userId, usuariosReales, onAddSong, onCrearCancion = null, onAddSeccion, onAddBibleClick, onAddSlideClick, onAddItems, onAddCuenta = null, destinoAgregar = null, onDestinoAgregar, onEditarItem, onRemove, onRestaurar, onDuplicate, onReorder, onLinkMinistry, onUpdateSeccionText, onViewMinistry, onOpenSong, onSetSongKey, canAddBibleReading, canAddSermonPoints, bosquejoInfo = null, verDiapositivas = true, onAddEncargado, onSetEncargadoStatus, onSetEncargadoLead, onRemoveEncargado, onAddWorshipRole, onRemoveWorshipRole, onAddWorshipRoleMember, onSetWorshipRoleMemberStatus, onSetWorshipRoleMemberLead, onRemoveWorshipRoleMember, showBibleForm, setShowBibleForm, addBible, showSlideForm, setShowSlideForm, slideDraft, setSlideDraft, addSlide, showSermonForm, setShowSermonForm, sermonPointText, setSermonPointText, addSermonPoint }) {
   const [showImportar, setShowImportar] = useState(false); // Importar presentación (ver ImportarPresentacion)
   // Editar el Setlist (estructura, encargados, equipo de alabanza) es solo de administradores — la
   // única excepción a "solo admin" en todo el Setlist es agregar un versículo, que puede hacerlo además
@@ -1137,6 +1139,14 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, eventosParaCo
   const [nuevaCancion, setNuevaCancion] = useState(null);
   // "Copiar de otro culto" (lib/copiarCantos.js): se abre encima de "Agregar canciones".
   const [copiandoCantos, setCopiandoCantos] = useState(false);
+  // "Agregar repertorio" (components/Repertorios.jsx): mete las canciones de un repertorio de un solo.
+  const [eligiendoRepertorio, setEligiendoRepertorio] = useState(false);
+  const agregarRepertorio = (ids, rep) => {
+    onAgregarRepertorio(ids);
+    setEligiendoRepertorio(false);
+    setElegidasPicker((l) => [...l, ...ids]);
+    showToast(`Se ${ids.length === 1 ? "agregó 1 canción" : `agregaron ${ids.length} canciones`} de "${rep.nombre}".`, "info");
+  };
   const copiarCantos = (items, culto) => {
     onCopiarCantos(items);
     setCopiandoCantos(false);
@@ -1813,6 +1823,16 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, eventosParaCo
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar canción..." style={{ background: "transparent", border: "none", outline: "none", color: "var(--wf-text)", fontSize: 13, width: "100%" }} />
               <BorrarBusqueda valor={query} onBorrar={() => setQuery("")} />
             </div>
+          {onAgregarRepertorio && repertorios?.length > 0 && (
+            <button onClick={() => setEligiendoRepertorio(true)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 8, borderRadius: 12, border: "1px dashed #1F8A73", background: "transparent", color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+              <ListMusic size={17} color="#1F8A73" style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13.5, fontWeight: 700 }}>Agregar repertorio</span>
+                <span style={{ display: "block", fontSize: 11.5, color: "var(--wf-muted)" }}>Mete todas las canciones de una lista ya armada.</span>
+              </span>
+              <ChevronRight size={16} color="var(--wf-faint)" />
+            </button>
+          )}
           {onCopiarCantos && eventosParaCopiar && (
             <button onClick={() => setCopiandoCantos(true)} className="hoverable" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "9px 10px", marginBottom: 10, borderRadius: 12, border: "1px dashed #1F8A73", background: "transparent", color: "var(--wf-text)", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
               <Copy size={17} color="#1F8A73" style={{ flexShrink: 0 }} />
@@ -1868,6 +1888,9 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, eventosParaCo
           <button onClick={() => { setPickerCancion(false); onDestinoAgregar?.(null); }} style={{ ...primaryBtn, marginTop: 10, flexShrink: 0 }}>{elegidasPicker.length ? `Listo · ${elegidasPicker.length} ${elegidasPicker.length === 1 ? "canción agregada" : "canciones agregadas"}` : "Listo"}</button>
         </ModalShell>
       )}
+      {eligiendoRepertorio && (repertoriosBloqueados
+        ? <AvisoPlan funcion="repertorios" onCerrar={() => setEligiendoRepertorio(false)} />
+        : <ElegirRepertorio repertorios={repertorios || []} library={library} onCerrar={() => setEligiendoRepertorio(false)} onAgregar={agregarRepertorio} />)}
       {copiandoCantos && onCopiarCantos && (
         <CopiarDeOtroCulto eventos={eventosParaCopiar} eventoActualId={event.id} library={library} onCerrar={() => setCopiandoCantos(false)} onCopiar={copiarCantos} />
       )}

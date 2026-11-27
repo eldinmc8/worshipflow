@@ -64,6 +64,8 @@ export const FUNCIONES_PLAN = {
   audio_culto: { plan: "ministerio", nombre: "Música y diapositivas con audio" },
   material_cancion: { plan: "ministerio", nombre: "Material de la canción (tutoriales, partituras y fotos)" },
   sin_conexion: { plan: "ministerio", nombre: "Preparar para usar sin conexión" },
+  // Repertorios (Eldin, 2026-11-26): listas fijas de canciones para ensayar sin evento (lib/repertorios.js).
+  repertorios: { plan: "ministerio", nombre: "Repertorios de canciones para ensayar" },
 };
 // ¿El plan incluye esta función? Mientras no se sabe el plan, sí (no se traba un culto por la red).
 export function tiene(plan, funcion) {

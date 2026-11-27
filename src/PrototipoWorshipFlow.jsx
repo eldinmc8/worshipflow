@@ -1,4 +1,6 @@
-import ConPlan from "./components/ConPlan.jsx";
+import ConPlan, { AvisoPlan } from "./components/ConPlan.jsx";
+import { RepertoriosPane } from "./components/Repertorios.jsx";
+import { listarRepertorios, aplicarCambio, cancionesDeRepertorio, repertorioDeLaUrl } from "./lib/repertorios.js";
 import { lazy, useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { esGrupoDiapositivas, slidesDeGrupo, itemConDiapositivas, tituloBase, diapositivasDeItem, nuevaDiapositiva, moverDiapositiva, quitarDiapositiva as quitarDiapositivaDeGrupo, reordenarEnGrupo } from "./lib/diapositivas.js";
 import { usePreferencias } from "./lib/preferencias.js";
@@ -57,7 +59,7 @@ import { ProjectionPanel } from "./pantallas/proyeccion.jsx";
 import { esPopPropio, cuandoListo, useBloquearAtras } from "./lib/atras.js";
 import { suscribirComandos, resolverComando, TEXTO_ACCION } from "./lib/controlRemoto.js";
 import ControlRemoto from "./components/ControlRemoto.jsx";
-import { usePlan, abrirPlanes } from "./lib/planes.js";
+import { usePlan, abrirPlanes, tiene } from "./lib/planes.js";
 import { hayPendiente, olvidarPendiente, destinoSuscribirse, puedeActivarBeneficio, enlacePagoBeneficio, barraCerradaHoy, cerrarBarraHoy, hoyLocal, textoBarraBeneficio } from "./lib/suscribirse.js";
 import { idEquipo, esteEquipoLleva } from "./lib/equipo.js";
 export { ProjectionPanel } from "./pantallas/proyeccion.jsx";
@@ -315,7 +317,16 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
-  const [openSong, setOpenSong] = useState(null); // null = lista; { id, mode: 'view' | 'edit' }
+  const [openSong, setOpenSong] = useState(null); // null = lista; { id, mode: 'view' | 'edit', repertorioId? }
+  // Repertorios (lib/repertorios.js, 2026-11-26): listas fijas de canciones para ensayar sin evento.
+  // Un enlace ?repertorio=<id> abre ese repertorio directo en Canciones → Repertorios.
+  const repertorioEnlaceRef = useRef(repertorioDeLaUrl());
+  const [repertorios, setRepertorios] = useState([]);
+  const [vistaCanciones, setVistaCanciones] = useState(() => (repertorioEnlaceRef.current ? "repertorios" : "canciones")); // canciones | repertorios
+  const [repertorioAbiertoId, setRepertorioAbiertoId] = useState(() => repertorioEnlaceRef.current);
+  const [avisoRepertorios, setAvisoRepertorios] = useState(false);
+  const recargarRepertorios = () => listarRepertorios().then(setRepertorios);
+  const cambioRepertorio = (r) => (r ? setRepertorios((l) => aplicarCambio(l, r)) : recargarRepertorios());
   const [events, setEvents] = useState([]);
   // Espejo síncrono de `events`, escrito a mano en vez de leído del valor de retorno de setEvents(fn) —
   // updateOrder/updateWorshipRoles/etc. necesitan el arreglo YA actualizado ANTES de llamar a
@@ -1512,6 +1523,19 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // este componente necesita saber la iglesia del usuario actual; perfil ya la trae (columna
   // iglesia_id agregada en la Fase 2a).
   const myIglesiaId = perfil?.iglesia_id;
+  // Repertorios: se cargan al saber la iglesia y otra vez al entrar a Canciones (por si otro los cambió).
+  useEffect(() => { if (myIglesiaId) recargarRepertorios(); }, [myIglesiaId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (myIglesiaId && tab === "canciones" && !openSong) recargarRepertorios(); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Enlace ?repertorio=<id>: ir a Canciones con ese repertorio abierto y limpiar la dirección.
+  useEffect(() => {
+    if (!repertorioEnlaceRef.current) return;
+    setTab("canciones");
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete("repertorio");
+      window.history.replaceState(window.history.state, "", u.pathname + u.search + u.hash);
+    } catch { /* sin URL: no pasa nada */ }
+  }, []);
   // myIglesia (slug/nombre/logo/colores) y el useEffect que aplica --wf-brand-primary/accent ya NO
   // viven acá — se movieron a AuthGate.jsx (que los pasa como prop) porque este componente se
   // DESMONTA por completo al entrar a Usuarios/Roles/Consola general (son vistas hermanas, no hijas,
@@ -2706,8 +2730,18 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       )}
 
       {tab === "canciones" && openSong === null && (
-        <CancionesList library={library} clasificaciones={clasificaciones} puedeConfigurarClasificaciones={realIsAdmin && isAdminViewer} onGuardarClasificaciones={guardarClasificaciones} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onImportarPdf={() => setImportandoPdf(true)} onBuscarWeb={() => setBuscandoWeb(true)} onDelete={deleteSong} onDeleteMany={deleteSongs} />
+        <CancionesList library={library} clasificaciones={clasificaciones} puedeConfigurarClasificaciones={realIsAdmin && isAdminViewer} onGuardarClasificaciones={guardarClasificaciones} isAdminViewer={puedeGestionarCanciones} onToggleFavorite={toggleFavorite} onOpen={(id) => setOpenSong({ id, mode: "view" })} onNew={() => setOpenSong({ id: null, mode: "edit" })} onImportarPdf={() => setImportandoPdf(true)} onBuscarWeb={() => setBuscandoWeb(true)} onDelete={deleteSong} onDeleteMany={deleteSongs}
+          vista={vistaCanciones} onVista={setVistaCanciones}
+          totalRepertorios={repertorios.length}
+          repertoriosPane={(
+            <RepertoriosPane repertorios={repertorios} library={library} puedeEditar={puedeGestionarCanciones}
+              bloqueado={!tiene(planIglesia, "repertorios")} onBloqueado={() => setAvisoRepertorios(true)}
+              abiertoId={repertorioAbiertoId} onAbrir={setRepertorioAbiertoId} onCerrar={() => setRepertorioAbiertoId(null)}
+              onAbrirCancion={(rep, songId) => setOpenSong({ id: songId, mode: "view", repertorioId: rep.id })}
+              onCambio={cambioRepertorio} />
+          )} />
       )}
+      {avisoRepertorios && <AvisoPlan funcion="repertorios" onCerrar={() => setAvisoRepertorios(false)} />}
       {importandoPdf && (
         <ConPlan funcion="importar_canciones" onCerrar={() => setImportandoPdf(false)}>
         <ImportarCancionesPdf library={library} clasificaciones={clasificaciones} iglesiaId={myIglesiaId} userId={userId}
@@ -2720,7 +2754,24 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onCerrar={() => setBuscandoWeb(false)} onImportadas={() => reloadLibrary()} />
         </ConPlan>
       )}
-      {tab === "canciones" && openSong && openSong.mode === "view" && (
+      {tab === "canciones" && openSong && openSong.mode === "view" && openSong.repertorioId && (() => {
+        // Ensayar un repertorio como un álbum: Anterior/Siguiente pasan por las canciones de ese repertorio.
+        const rep = repertorios.find((r) => r.id === openSong.repertorioId);
+        const lista = rep ? cancionesDeRepertorio(rep, library) : [];
+        const pos = lista.findIndex((s) => s.id === openSong.id);
+        const prev = pos > 0 ? lista[pos - 1] : null;
+        const next = pos >= 0 && pos < lista.length - 1 ? lista[pos + 1] : null;
+        const ir = (song, enterDir) => setOpenSong({ id: song.id, mode: "view", repertorioId: openSong.repertorioId, enterDir });
+        return (
+          <SongView key={openSong.id} song={library.find((s) => s.id === openSong.id)} notasCtx={notasCtx} iglesiaId={myIglesiaId} onAdjuntosChange={marcarAdjuntos} isAdminViewer={puedeGestionarCanciones} mode="biblioteca"
+            onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong}
+            enterDirection={openSong.enterDir}
+            positionLabel={pos >= 0 && lista.length > 1 ? `${pos + 1} de ${lista.length}` : null} positionDonde={rep ? `en ${rep.nombre}` : ""}
+            onPrev={prev ? () => ir(prev, "prev") : null} onNext={next ? () => ir(next, "next") : null}
+            prevTitle={prev?.title} nextTitle={next?.title} />
+        );
+      })()}
+      {tab === "canciones" && openSong && openSong.mode === "view" && !openSong.repertorioId && (
         <SongView song={library.find((s) => s.id === openSong.id)} notasCtx={notasCtx} iglesiaId={myIglesiaId} onAdjuntosChange={marcarAdjuntos} isAdminViewer={puedeGestionarCanciones} mode="biblioteca" onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong} />
       )}
       {tab === "canciones" && openSong && openSong.mode === "edit" && (
@@ -2768,6 +2819,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onStart={() => startEvent(selectedEvent.id)} onPracticar={() => empezarPractica(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
           onAddSong={addSong} onCrearCancion={puedeGestionarCanciones ? crearCancionEnSetlist : null} onAddSeccion={addSeccion}
           eventosParaCopiar={realEvents} onCopiarCantos={(items) => items.forEach((it) => addSong(it.songId, null, it))}
+          repertorios={repertorios} repertoriosBloqueados={!tiene(planIglesia, "repertorios")} onAgregarRepertorio={(ids) => ids.forEach((id) => addSong(id))}
           onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)} onAddItems={(items) => updateOrder((o) => colocar(o, items))}
           onAddCuenta={(config) => updateOrder((o) => { const it = itemCuentaRegresiva(nextId(), config); return destinoSetlist ? colocar(o, [it]) : [it, ...o]; })}
           destinoAgregar={destinoSetlist} onDestinoAgregar={setDestinoSetlist}
