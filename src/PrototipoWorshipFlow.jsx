@@ -15,6 +15,7 @@ import { saveCache, loadCache } from "./lib/offlineCache.js";
 import { subscribeTableChanges } from "./lib/realtime.js";
 import { palabrasPorParteSegun, expandirVersiculosLargos, reorganizarLetra } from "./lib/dividirTexto.js";
 import { insertarEnBloque } from "./lib/ordenCulto.js";
+import { puntosDeBosquejo } from "./lib/importarPresentacion.js";
 import { estiloDeBiblia } from "./lib/estiloBiblia.js";
 import { esBloquePredicacion, guardarBosquejo, aplicarBosquejoAlOrden, bosquejoAItems, eliminarBosquejo, quitarBosquejoDelOrden, completarVersosBosquejo, subtituloProyectable } from "./lib/bosquejos.js";
 import { animacionEfectiva, estiloDeParte } from "./lib/animacionCancion.js";
@@ -853,8 +854,9 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // Punto del bosquejo del predicador: se guarda como una "slide" más (así Multimedia la proyecta igual que
   // cualquier otra), marcada con isSermonPoint para distinguirla visualmente en el Setlist y en el grid en vivo.
   const addSermonPoint = () => {
-    if (!sermonPointText.trim()) return;
-    updateOrder((o) => colocar(o, { id: nextId(), type: "slide", title: sermonPointText.trim(), subtitle: "", bg: "var(--wf-brand-primary)", bgType: "color", isSermonPoint: true }));
+    const puntos = puntosDeBosquejo(sermonPointText); // un párrafo = una diapositiva
+    if (!puntos.length) return;
+    updateOrder((o) => colocar(o, puntos.map((titulo) => ({ id: nextId(), type: "slide", title: titulo, subtitle: "", bg: "var(--wf-brand-primary)", bgType: "color", isSermonPoint: true }))));
     setSermonPointText("");
     setShowSermonForm(false);
   };

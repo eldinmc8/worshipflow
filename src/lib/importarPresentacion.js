@@ -64,6 +64,14 @@ export function dividirEnDiapositivas(texto, modo = "bloque") {
   return limpio.split(/\n\s*\n+/).map((b) => b.split("\n").map((l) => l.trim()).filter(Boolean).join("\n")).filter(Boolean);
 }
 
+// "Agregar punto del bosquejo" (2026-11-27): cada párrafo escrito o pegado es su propio punto (una
+// diapositiva). Si el texto trae renglones en blanco, lo que está entre ellos va junto (así un punto puede
+// tener dos renglones); si no, cada renglón es un punto.
+export function puntosDeBosquejo(texto) {
+  const limpio = String(texto ?? "").replace(/\r/g, "");
+  return dividirEnDiapositivas(limpio, /\n[ \t]*\n/.test(limpio.trim()) ? "bloque" : "parrafo");
+}
+
 async function canvasABlob(canvas) {
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("No se pudo convertir la página en imagen."))), "image/jpeg", 0.9));
 }

@@ -66,6 +66,7 @@ Vista de solo lectura separada del editor (pestañas V1/C/V2/V3 tipo pill, acord
 **Eventos**: creación desde plantilla (clona roles y setlist de otro evento, reseteando confirmaciones) o en blanco. Cada evento tiene:
 - Roles/Participantes con barra de progreso de confirmados, ícono y color por tipo de ministerio, subgrupos (ej. Limpieza tiene "Supervisión" y "Encargados")
 - Setlist: mezcla de bloques organizativos (secciones del culto sin proyección), canciones, versículos bíblicos (con selector de versión: RVR1960, NVI, TLA, DHH, NTV) y slides personalizadas (color o video de fondo por URL)
+- "Punto del bosquejo" (Agregar en el setlist): cada párrafo escrito o pegado es su propia diapositiva (`puntosDeBosquejo` en `src/lib/importarPresentacion.js`); con renglones en blanco, lo que está entre ellos va junto.
 - Los bloques del Setlist pueden vincularse a un Ministerio — al vincularse, la descripción se reemplaza automáticamente por el líder y la planificación de esa semana desde Ministerios
 
 **Multimedia en vivo / Proyección / Modo Músico — separación crítica de roles**:

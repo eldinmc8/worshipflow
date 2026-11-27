@@ -1711,8 +1711,8 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, eventosParaCo
       )}
       {showSermonForm && (
         <ModalShell title="Agregar punto del bosquejo" icon={Mic2} color="var(--wf-heading)" onClose={() => setShowSermonForm(false)}>
-          <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 10 }}>Cada punto se agrega como su propia diapositiva, en el orden en que los escribas — así Multimedia los proyecta uno por uno mientras predicas.</div>
-          <textarea value={sermonPointText} onChange={(e) => setSermonPointText(e.target.value)} placeholder="Ej. Dios cumple sus promesas a su tiempo" style={{ ...inputStyle, height: 80, resize: "none" }} autoFocus />
+          <div style={{ fontSize: 11, color: "var(--wf-muted)", marginBottom: 10 }}>Escribe o pega tus puntos: cada párrafo se vuelve su propia diapositiva, en el mismo orden. Así Multimedia los proyecta uno por uno mientras predicas.</div>
+          <textarea value={sermonPointText} onChange={(e) => setSermonPointText(e.target.value)} placeholder="Ej. Dios cumple sus promesas a su tiempo" style={{ ...inputStyle, height: 140, resize: "vertical" }} autoFocus />
           <button onClick={addSermonPoint} style={{ ...primaryBtn, marginTop: 10 }}>Agregar punto</button>
         </ModalShell>
       )}

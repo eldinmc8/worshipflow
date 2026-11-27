@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tipoDeArchivo, dividirEnDiapositivas, itemsDeImportacion, esPaginaPresentacion, MARCA_PRESENTACION } from "../importarPresentacion.js";
+import { tipoDeArchivo, dividirEnDiapositivas, itemsDeImportacion, esPaginaPresentacion, MARCA_PRESENTACION, puntosDeBosquejo } from "../importarPresentacion.js";
 
 const archivo = (name, type = "") => ({ name, type });
 
@@ -49,5 +49,18 @@ describe("itemsDeImportacion", () => {
     expect(items).toHaveLength(2);
     expect(items.every((it) => it.type === "slide" && it.isSermonPoint && !esPaginaPresentacion(it))).toBe(true);
     expect(items.map((it) => it.title)).toEqual(["Uno", "Dos"]);
+  });
+});
+
+describe("puntosDeBosquejo (Agregar punto del bosquejo)", () => {
+  it("cada renglón es un punto cuando no hay renglones en blanco", () => {
+    expect(puntosDeBosquejo("Dios cumple\nSu tiempo es perfecto\r\n  Confía  ")).toEqual(["Dios cumple", "Su tiempo es perfecto", "Confía"]);
+  });
+  it("con renglones en blanco, cada párrafo es un punto y conserva sus renglones", () => {
+    expect(puntosDeBosquejo("1. Dios cumple\nsus promesas\n\n2. Su tiempo\n\n\n3. Confía")).toEqual(["1. Dios cumple\nsus promesas", "2. Su tiempo", "3. Confía"]);
+  });
+  it("un solo punto o vacío", () => {
+    expect(puntosDeBosquejo("  Un punto  ")).toEqual(["Un punto"]);
+    expect(puntosDeBosquejo("  \n ")).toEqual([]);
   });
 });
