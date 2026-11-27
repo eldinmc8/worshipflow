@@ -5,8 +5,10 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Timer, X, Check } from "lucide-react";
 import RelojCuentaRegresiva, { ESTILOS_CUENTA } from "./RelojCuentaRegresiva.jsx";
-import { normalizarCuenta, horaDelEvento, MINUTOS_RAPIDOS, AL_TERMINAR } from "../lib/cuentaRegresiva.js";
+import { normalizarCuenta, horaDelEvento, MINUTOS_RAPIDOS, AL_TERMINAR, FONDOS_CUENTA } from "../lib/cuentaRegresiva.js";
 import { inputStyle, primaryBtn, iconGhost } from "../pantallas/compartido.jsx";
+import { MediaPicker } from "../pantallas/ventanas.jsx";
+import { COLORES_LISOS } from "../lib/fondoDiapositiva.js";
 
 import { useCerrarConAtras } from "../lib/atras.js";
 const MORADO = "#5661B3";
@@ -26,7 +28,9 @@ function Pastilla({ activo, onClick, children, title }) {
 
 // inicial: configuración guardada (o nada para una nueva). evento: para mostrar la hora del culto.
 // enConsola: el botón dice "Proyectar ahora" en vez de "Agregar al Setlist"/"Guardar".
-export default function CuentaRegresivaModal({ inicial = null, evento = null, enConsola = false, editando = false, onClose, onGuardar }) {
+// iglesiaId: para subir o elegir la imagen/video de fondo. siguiente: nombre de lo que sigue en el orden del
+// culto (para decir a dónde pasa al llegar a cero); null si no se sabe.
+export default function CuentaRegresivaModal({ inicial = null, evento = null, enConsola = false, editando = false, iglesiaId = null, siguiente = null, onClose, onGuardar }) {
   useCerrarConAtras(true, onClose); // atrás del teléfono cierra esta ventana (ver lib/atras.js)
   const [c, setC] = useState(() => normalizarCuenta(inicial));
   const set = (patch) => setC((x) => ({ ...x, ...patch }));
@@ -107,15 +111,52 @@ export default function CuentaRegresivaModal({ inicial = null, evento = null, en
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {AL_TERMINAR.map((o) => <Pastilla key={o.id} activo={c.alTerminar === o.id} onClick={() => set({ alTerminar: o.id })}>{o.label}</Pastilla>)}
           </div>
+          {c.alTerminar === "avanzar" && (
+            <div style={{ fontSize: 12, color: "var(--wf-muted)", marginTop: 8, lineHeight: 1.45 }}>
+              {enConsola
+                ? "Al llegar a cero, la consola vuelve sola al orden del culto, donde lo dejaste."
+                : siguiente
+                  ? <>Al llegar a cero pasa sola a <b style={{ color: "var(--wf-text)" }}>{siguiente}</b>. Para cambiarlo, mueve en el orden del culto lo que quieres que salga después.</>
+                  : "Al llegar a cero pasa sola a lo que sigue en el orden del culto (por ejemplo, tu diapositiva de Bienvenidos)."}
+            </div>
+          )}
           {c.alTerminar === "mensaje" && (
-            <input value={c.mensajeFinal} onChange={(e) => set({ mensajeFinal: e.target.value })} placeholder="¡Bienvenidos!" style={{ ...inputStyle, marginTop: 8 }} aria-label="Mensaje al llegar a cero" />
+            <textarea value={c.mensajeFinal} onChange={(e) => set({ mensajeFinal: e.target.value })} rows={2} placeholder={"¡Iniciamos!\nBienvenidos"} style={{ ...inputStyle, marginTop: 8, resize: "vertical", fontFamily: "inherit" }} aria-label="Mensaje al llegar a cero" />
           )}
 
           <Titulo>FONDO</Titulo>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <Pastilla activo={c.fondo === "propio"} onClick={() => set({ fondo: "propio" })}>El del estilo</Pastilla>
-            <Pastilla activo={c.fondo === "estilo"} onClick={() => set({ fondo: "estilo" })} title="El mismo fondo de la letra (tema, imagen o video de Estilo)">El fondo de Estilo (imagen o video)</Pastilla>
+            {FONDOS_CUENTA.map((f) => (
+              <Pastilla key={f.id} activo={c.fondo === f.id} onClick={() => set({ fondo: f.id })}
+                title={f.id === "estilo" ? "El mismo fondo de la letra (tema, imagen o video de Estilo)" : undefined}>{f.label}</Pastilla>
+            ))}
           </div>
+          {c.fondo === "estilo" && <div style={{ fontSize: 12, color: "var(--wf-muted)", marginTop: 6 }}>Sale con el fondo que esté puesto en Estilo en ese momento (el mismo de las canciones).</div>}
+          {c.fondo === "color" && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
+              {COLORES_LISOS.map((col) => (
+                <button key={col} type="button" onClick={() => set({ fondoColor: col })} title={col} aria-label={`Color ${col}`} aria-pressed={c.fondoColor.toLowerCase() === col.toLowerCase()}
+                  style={{ width: 34, height: 34, borderRadius: 12, background: col, border: c.fondoColor.toLowerCase() === col.toLowerCase() ? "3px solid var(--wf-brand-accent)" : "1px solid var(--wf-border)", cursor: "pointer", padding: 0, boxSizing: "border-box" }} />
+              ))}
+              <label title="Elegir otro color" style={{ width: 34, height: 34, borderRadius: 12, border: "1px solid var(--wf-border)", cursor: "pointer", position: "relative", overflow: "hidden", background: "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)", display: "flex", boxSizing: "border-box" }}>
+                <input type="color" aria-label="Otro color" value={c.fondoColor} onChange={(e) => set({ fondoColor: e.target.value })} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+              </label>
+            </div>
+          )}
+          {(c.fondo === "imagen" || c.fondo === "video") && (
+            <div style={{ marginTop: 8 }}>
+              <MediaPicker key={c.fondo} iglesiaId={iglesiaId} tipo={c.fondo} value={c.fondo === "imagen" ? c.fondoImagen : c.fondoVideo}
+                onChange={(url) => set(c.fondo === "imagen" ? { fondoImagen: url } : { fondoVideo: url })} color={MORADO} galeriaAbierta />
+              {!(c.fondo === "imagen" ? c.fondoImagen : c.fondoVideo) && (
+                <div style={{ fontSize: 12, color: "#C23B32", marginTop: 6 }}>Elige {c.fondo === "imagen" ? "una imagen" : "un video"} de la biblioteca o súbelo. Mientras no elijas, queda el fondo del estilo.</div>
+              )}
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--wf-muted)", margin: "10px 0 2px" }}>
+                <span>Oscurecer {c.fondo === "imagen" ? "la imagen" : "el video"} (para que se lean los números)</span><b>{c.oscurecer}%</b>
+              </div>
+              <input type="range" min={0} max={80} step={5} value={c.oscurecer} aria-label="Oscurecer el fondo" onChange={(e) => set({ oscurecer: Number(e.target.value) })} style={{ width: "100%", accentColor: "var(--wf-brand-accent)" }} />
+              {c.fondo === "video" && <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>El video se repite sin sonido mientras corre la cuenta.</div>}
+            </div>
+          )}
         </div>
         <div style={{ padding: "10px 16px 14px", borderTop: "1px solid var(--wf-border)", flexShrink: 0 }}>
           <button type="button" onClick={() => onGuardar(normalizarCuenta(c))} style={primaryBtn}>{boton}</button>

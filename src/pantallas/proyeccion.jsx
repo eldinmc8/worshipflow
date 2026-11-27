@@ -139,6 +139,14 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
   // letra lleva sombra (2026-11-02, "que la letra animada siempre se lea").
   const animSobreFondoPropio = !!anim && !fondoAnimado;
   const oscurecerFondo = animSobreFondoPropio ? Math.max(liveStyle?.oscurecer ?? 0.45, OSCURECER_MINIMO_ANIMADA) : (liveStyle?.oscurecer ?? 0.45);
+  // Oscurecido propio de una diapositiva con imagen o video (2026-11-27, una iglesia: "subí una imagen para
+  // la ofrenda pero la opacó"): slide.oscurecer (0-80 %) manda; una imagen SIN texto encima sale con su
+  // brillo normal; si no, el de Estilo, como siempre.
+  const slideSinTexto = slide?.type === "slide" && !String(slide.title || "").trim() && !String(slide.subtitle || "").trim();
+  const oscurecerPropio = slide?.type === "slide" && (slideImageBg || slideVideoBg)
+    ? (Number.isFinite(slide.oscurecer) ? Math.min(80, Math.max(0, slide.oscurecer)) / 100 : slideImageBg && slideSinTexto ? 0 : null)
+    : null;
+  const oscurecerImagen = oscurecerPropio ?? oscurecerFondo;
   const ubicacion = { alinearH: alineacion.flex, alinearV: posicion.flex };
   // Diseño de transmisión (solo canciones, ver LINE_STYLES): cambia cómo se destaca la 2a línea de la
   // diapositiva (la que cierra la frase) -- nunca la 1a, y nunca si la diapositiva es de una sola
@@ -242,11 +250,11 @@ export function ProjectionPanel({ slide, blanked, split, liveStyle: estiloComple
           apaga. Con texto encima es un fondo: sin sonido, en bucle y oscurecido, como siempre. */}
       {videoSrc && !(videoSolo && blanked) && (
         <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-          <VideoProyectado url={videoSrc} conSonido={videoSolo} miniatura={!!thumbnail} control={videoSolo ? slide?.video || null : null} onEstado={videoSolo && !thumbnail ? onEstadoVideo : null} />
-          {!videoSolo && <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${oscurecerFondo})` }} />}
+          <VideoProyectado url={videoSrc} conSonido={videoSolo} repetir={videoSolo && !!slide?.repetir} miniatura={!!thumbnail} control={videoSolo ? slide?.video || null : null} onEstado={videoSolo && !thumbnail ? onEstadoVideo : null} />
+          {!videoSolo && oscurecerImagen > 0 && <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${oscurecerImagen})` }} />}
         </div>
       )}
-      {imageSrc && <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${oscurecerFondo})`, zIndex: 0 }} />}
+      {imageSrc && oscurecerImagen > 0 && <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${oscurecerImagen})`, zIndex: 0 }} />}
       {blanked || !slide ? (
         <div style={{ color: "#2A3140", position: "relative", zIndex: 1 }}><Mic2 size={thumbnail ? 20 : 40} /></div>
       ) : slide.cuenta ? (

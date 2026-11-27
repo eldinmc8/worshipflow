@@ -1206,7 +1206,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, eventosParaCo
   const [ordenCancion, setOrdenCancion] = useState(null);
   // Un video solo (sin texto) se edita con su propio formulario, más simple (2026-11-08).
   const abrirEditarTexto = (it) => (esVideoSolo(it) ? setVideoModal({ item: it }) : abrirEditarDiapositiva(it));
-  const abrirEditarDiapositiva = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", escalaSubtitulo: it.escalaSubtitulo, fuente: it.fuente, colorLetra: it.colorLetra, bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "", ...(it.audio ? { audio: it.audio } : {}) } });
+  const abrirEditarDiapositiva = (it) => setEditTexto({ id: it.id, draft: { title: it.title || "", subtitle: it.subtitle || "", name: it.name || "", escalaSubtitulo: it.escalaSubtitulo, fuente: it.fuente, colorLetra: it.colorLetra, oscurecer: it.oscurecer, repetir: it.repetir, bg: it.bg || "#1B2029", bgType: it.bgType || "color", videoUrl: it.videoUrl || "", imageUrl: it.imageUrl || "", ...(it.audio ? { audio: it.audio } : {}) } });
   // Diapositiva de audio (2026-11-22): suena en la consola mientras se ve su texto o imagen.
   const [audioDraft, setAudioDraft] = useState(null);
   // La parte del culto elegida en "+ Agregar" solo vale mientras se está agregando: al cerrarse todo
@@ -1723,7 +1723,15 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, eventosParaCo
       })()}
       {cuentaModal && (
         <CuentaRegresivaModal
-          inicial={cuentaModal.item?.cuentaRegresiva || null} evento={event} editando={!!cuentaModal.item}
+          inicial={cuentaModal.item?.cuentaRegresiva || null} evento={event} editando={!!cuentaModal.item} iglesiaId={myIglesiaId}
+          siguiente={(() => {
+            // Lo que sale después de la cuenta (para decir a dónde pasa sola): lo siguiente que se proyecta.
+            const orden = event.serviceOrder || [];
+            const desde = cuentaModal.item ? orden.findIndex((x) => x.id === cuentaModal.item.id) + 1 : destinoAgregar ? -1 : 0;
+            if (desde < 0) return null;
+            const sig = orden.slice(desde).find((x) => x.type !== "seccion" && !x.cuentaRegresiva);
+            return sig ? nombreDeItem(sig).split("\n")[0] : null;
+          })()}
           onClose={() => setCuentaModal(null)}
           onGuardar={(c) => {
             if (cuentaModal.item) onEditarItem(cuentaModal.item.id, { cuentaRegresiva: c });
@@ -1737,9 +1745,9 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, eventosParaCo
         onDiseno={isAdminViewer && onDisenarNueva && !isCompact ? (d) => { setShowSlideForm(false); onDisenarNueva(destinoAgregar ? anclaDeBloque(event.serviceOrder, destinoAgregar)?.id : undefined, d); } : null} />}
       {videoModal && (
         <VideoModal iglesiaId={myIglesiaId} inicial={videoModal.item || null} onClose={() => setVideoModal(null)}
-          onAdd={({ videoUrl, name }) => {
-            if (videoModal.item) onEditarItem(videoModal.item.id, { videoUrl, name });
-            else onAddItems([{ id: crypto.randomUUID(), type: "slide", title: "", subtitle: "", name, bg: "#000000", bgType: "video", videoUrl, imageUrl: "" }]);
+          onAdd={({ videoUrl, name, repetir }) => {
+            if (videoModal.item) onEditarItem(videoModal.item.id, { videoUrl, name, repetir: repetir || undefined });
+            else onAddItems([{ id: crypto.randomUUID(), type: "slide", title: "", subtitle: "", name, bg: "#000000", bgType: "video", videoUrl, imageUrl: "", ...(repetir ? { repetir: true } : {}) }]);
             setVideoModal(null);
           }} />
       )}

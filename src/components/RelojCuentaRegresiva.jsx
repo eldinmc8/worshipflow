@@ -5,7 +5,7 @@
 // El tamaño sale del espacio real (ResizeObserver), así se ve igual en la miniatura y en la pantalla
 // grande, sin depender de funciones nuevas del navegador (algunas Smart TV son viejitas).
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { segundosRestantes, textoCuenta, digitosCuenta, progresoCuenta, normalizarCuenta, partesTiempo } from "../lib/cuentaRegresiva.js";
+import { segundosRestantes, textoCuenta, digitosCuenta, progresoCuenta, normalizarCuenta, partesTiempo, fondoPersonalizado } from "../lib/cuentaRegresiva.js";
 
 const NARANJA = "#E8821E";
 const AZUL = "#16324F";
@@ -57,7 +57,7 @@ function Encabezado({ p, style }) {
 function Final({ p, style, escala = 1 }) {
   const msg = p.cuenta.mensajeFinal || "¡Bienvenidos!";
   const tam = p.u * Math.min(14, 150 / Math.max(6, msg.length)) * escala;
-  return <div style={{ fontWeight: 800, textAlign: "center", maxWidth: "88%", lineHeight: 1.1, whiteSpace: msg.length <= 22 ? "nowrap" : "normal", overflowWrap: "break-word", animation: "wfcAparecer .8s ease both", ...style, fontSize: tam }}>{msg}</div>;
+  return <div style={{ fontWeight: 800, textAlign: "center", maxWidth: "88%", lineHeight: 1.1, whiteSpace: msg.includes("\n") ? "pre-line" : msg.length <= 22 ? "nowrap" : "normal", overflowWrap: "break-word", animation: "wfcAparecer .8s ease both", ...style, fontSize: tam }}>{msg}</div>;
 }
 
 function Centro({ children, gap = 3, p, style }) {
@@ -164,7 +164,7 @@ export const ESTILOS_CUENTA = [
     render: (p) => (
       <div style={{ position: "absolute", right: p.u * 6, bottom: p.u * 6, textAlign: "right", color: "#fff", fontFamily: "'Raleway', sans-serif" }}>
         {p.mostrarTexto && p.texto && <div style={{ fontSize: p.u * 3.6, fontWeight: 400, opacity: 0.75, marginBottom: p.u }}>{p.texto}</div>}
-        {p.mostrarFinal ? <div style={{ fontSize: p.u * 7, fontWeight: 600 }}>{p.cuenta.mensajeFinal}</div> : <div style={{ ...numeros, fontSize: p.u * 12, fontWeight: 300 }}>{p.texto2}</div>}
+        {p.mostrarFinal ? <div style={{ fontSize: p.u * 7, fontWeight: 600, whiteSpace: "pre-line", textAlign: "center" }}>{p.cuenta.mensajeFinal}</div> : <div style={{ ...numeros, fontSize: p.u * 12, fontWeight: 300 }}>{p.texto2}</div>}
       </div>
     ),
   },
@@ -371,22 +371,35 @@ export default function RelojCuentaRegresiva({ cuenta: cuentaCruda, quieto = fal
   const u = Math.max(0.5, Math.min(h, w * 0.5625) / 100);
   const p = {
     u, cuenta, seg: segMostrar, quieto,
-    texto: cuenta.texto, mostrarTexto: cuenta.mostrarTexto,
+    // Al terminar con mensaje ya no se deja "El servicio comienza en" arriba (lo pidió una iglesia, 2026-11-27).
+    texto: cuenta.texto, mostrarTexto: cuenta.mostrarTexto && !(terminado && cuenta.alTerminar === "mensaje"),
     texto2: textoCuenta(segMostrar), digitos: digitosCuenta(segMostrar),
     progreso: muestra != null ? 0.35 : progresoCuenta(cuenta, segMostrar),
     mostrarFinal: terminado && cuenta.alTerminar === "mensaje",
     partes: partesTiempo(segMostrar),
   };
-  const conFondo = !sinFondo && cuenta.fondo !== "estilo";
+  // Fondo elegido a mano (2026-11-27): color, imagen o video debajo del reloj, en vez del fondo del estilo.
+  const propio = sinFondo ? null : fondoPersonalizado(cuentaCruda);
+  const conFondo = !sinFondo && !propio && cuenta.fondo !== "estilo";
   return (
-    <div ref={ref} aria-label={p.mostrarFinal ? cuenta.mensajeFinal : `Cuenta regresiva: ${p.texto2}`} style={{ position: "absolute", inset: 0, overflow: "hidden", background: conFondo ? estilo.fondo : "transparent", ...(conFondo ? estilo.fondoExtra || {} : {}), zIndex: 1 }}>
+    <div ref={ref} aria-label={p.mostrarFinal ? cuenta.mensajeFinal : `Cuenta regresiva: ${p.texto2}`} style={{ position: "absolute", inset: 0, overflow: "hidden", background: conFondo ? estilo.fondo : propio ? (propio.tipo === "color" ? propio.color : "#000") : "transparent", ...(conFondo ? estilo.fondoExtra || {} : {}), zIndex: 1 }}>
       <style>{KEYFRAMES}</style>
-      {w > 0 && (
+      {propio && propio.tipo !== "color" && (
+        <div data-testid="fondo-cuenta" style={{ position: "absolute", inset: 0, zIndex: 0 }}>
+          {propio.tipo === "imagen"
+            ? <img src={propio.url} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            : <video src={propio.url} autoPlay={!quieto} muted loop playsInline preload={quieto ? "metadata" : "auto"} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
+          {propio.oscurecer > 0 && <div style={{ position: "absolute", inset: 0, background: `rgba(0,0,0,${propio.oscurecer / 100})` }} />}
+        </div>
+      )}
+      {w > 0 && (propio ? (
+        <div style={{ position: "absolute", inset: 0, zIndex: 1 }}>{estilo.render(p)}</div>
+      ) : (
         <>
           {estilo.capa && conFondo && estilo.capa(p)}
           {estilo.render(p)}
         </>
-      )}
+      ))}
     </div>
   );
 }

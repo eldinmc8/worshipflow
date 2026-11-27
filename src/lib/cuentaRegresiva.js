@@ -9,8 +9,13 @@
 // Modos:
 // - "hora":    hasta la hora del evento (fecha + hora). Si el evento no tiene hora, cuenta los minutos.
 // - "minutos": N minutos desde que se pone al aire.
-// Al llegar a cero (alTerminar): "mensaje" (muestra mensajeFinal), "quedarse" (00:00) o "avanzar"
-// (la consola pasa sola a lo que sigue).
+// Al llegar a cero (alTerminar): "avanzar" (la consola pasa sola a lo que sigue en el orden del culto; por
+// defecto desde 2026-11-27, pedido de Eldin), "mensaje" (muestra mensajeFinal) o "quedarse" (00:00).
+//
+// Fondo (2026-11-27, pedido de Eldin: poder cambiarlo como el de las diapositivas): "propio" (el del estilo
+// del reloj), "estilo" (el fondo de Estilo de la proyección), "color" (fondoColor), "imagen" (fondoImagen)
+// o "video" (fondoVideo, un archivo subido que se repite). Con imagen o video se oscurece un poco
+// (oscurecer, 0-80 %) para que los números se lean.
 
 export const CUENTA_DEFAULT = {
   modo: "hora",
@@ -18,9 +23,13 @@ export const CUENTA_DEFAULT = {
   estilo: "clasico",
   mostrarTexto: true,
   texto: "El servicio comienza en",
-  alTerminar: "mensaje",
-  mensajeFinal: "¡Bienvenidos!",
-  fondo: "propio", // "propio" (el del estilo) | "estilo" (el fondo de Estilo de la proyección)
+  alTerminar: "avanzar",
+  mensajeFinal: "¡Iniciamos!\nBienvenidos",
+  fondo: "propio", // "propio" | "estilo" | "color" | "imagen" | "video" (ver arriba)
+  fondoColor: "#0B0F17",
+  fondoImagen: "",
+  fondoVideo: "",
+  oscurecer: 35,
   versiculo: "Este es el día que hizo el Señor; nos gozaremos y alegraremos en él.",
   referencia: "Salmo 118:24",
 };
@@ -31,10 +40,29 @@ export const MODOS_CUENTA = [
 ];
 
 export const AL_TERMINAR = [
+  { id: "avanzar", label: "Pasar sola a lo que sigue" },
   { id: "mensaje", label: "Mostrar un mensaje" },
   { id: "quedarse", label: "Quedarse en 00:00" },
-  { id: "avanzar", label: "Pasar sola a lo que sigue" },
 ];
+
+export const FONDOS_CUENTA = [
+  { id: "propio", label: "El del estilo" },
+  { id: "estilo", label: "El de Estilo" },
+  { id: "color", label: "Color liso" },
+  { id: "imagen", label: "Imagen" },
+  { id: "video", label: "Video" },
+];
+
+const HEX = /^#[0-9a-f]{6}$/i;
+
+// Fondo elegido a mano (color, imagen o video), o null si va el del estilo del reloj o el de Estilo.
+export function fondoPersonalizado(cuenta) {
+  const c = normalizarCuenta(cuenta);
+  if (c.fondo === "color") return { tipo: "color", color: c.fondoColor };
+  if (c.fondo === "imagen") return { tipo: "imagen", url: c.fondoImagen, oscurecer: c.oscurecer };
+  if (c.fondo === "video") return { tipo: "video", url: c.fondoVideo, oscurecer: c.oscurecer };
+  return null;
+}
 
 export const MINUTOS_RAPIDOS = [1, 3, 5, 10, 15, 20, 30];
 
@@ -44,7 +72,14 @@ export function normalizarCuenta(c) {
   base.minutos = Number.isFinite(minutos) && minutos > 0 ? Math.min(Math.round(minutos * 2) / 2, 600) : CUENTA_DEFAULT.minutos;
   if (!MODOS_CUENTA.some((m) => m.id === base.modo)) base.modo = CUENTA_DEFAULT.modo;
   if (!AL_TERMINAR.some((m) => m.id === base.alTerminar)) base.alTerminar = CUENTA_DEFAULT.alTerminar;
-  if (base.fondo !== "estilo") base.fondo = "propio";
+  if (!FONDOS_CUENTA.some((f) => f.id === base.fondo)) base.fondo = "propio";
+  if (!HEX.test(String(base.fondoColor || ""))) base.fondoColor = CUENTA_DEFAULT.fondoColor;
+  base.fondoImagen = typeof base.fondoImagen === "string" ? base.fondoImagen.trim() : "";
+  base.fondoVideo = typeof base.fondoVideo === "string" ? base.fondoVideo.trim() : "";
+  // Imagen o video sin archivo todavía: se queda con el del estilo del reloj.
+  if ((base.fondo === "imagen" && !base.fondoImagen) || (base.fondo === "video" && !base.fondoVideo)) base.fondo = "propio";
+  const osc = Number(base.oscurecer);
+  base.oscurecer = Number.isFinite(osc) ? Math.min(80, Math.max(0, Math.round(osc))) : CUENTA_DEFAULT.oscurecer;
   base.mostrarTexto = base.mostrarTexto !== false;
   return base;
 }

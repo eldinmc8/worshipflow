@@ -440,30 +440,29 @@ export function AvisoEnlaceVideo({ url }) {
 export function VideoModal({ onClose, onAdd, iglesiaId, inicial = null, destino = null }) {
   const [url, setUrl] = useState(inicial?.videoUrl || "");
   const [nombre, setNombre] = useState(inicial?.name && inicial.name !== "Video" ? inicial.name : "");
-  // Un video ya subido (no es un enlace de YouTube/Vimeo) se abre en "subir", para verlo y cambiarlo.
-  const [subir, setSubir] = useState(!!url && !/youtu|vimeo/i.test(url));
+  // Repetir en bucle (2026-11-27, lo pidió una iglesia: "el video se reproduce una vez y se pausa").
+  const [repetir, setRepetir] = useState(!!inicial?.repetir);
+  // Los videos subidos quedan guardados en la biblioteca de la iglesia (2026-11-27: "las cosas que subo
+  // siempre las tengo que subir" — la biblioteca estaba escondida detrás de un enlace). Ahora se ve de una.
+  const subido = !!url && /\/fondos-en-vivo\//.test(url);
   const aviso = url ? avisoDeEnlace(url) : null;
   const puede = !!url && aviso?.ok !== false;
   return (
     <ModalShell title={inicial ? "Editar video" : "Agregar video al setlist"} icon={Play} color="#C23B32" onClose={onClose}>
       {destino && <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 10 }}>{destino}</div>}
       <label style={etiquetaCampo}>Enlace de YouTube o Google Drive</label>
-      {!subir ? (
-        <>
-          <input autoFocus inputMode="url" placeholder="Pega aquí el enlace de YouTube o Google Drive" value={url} onChange={(e) => setUrl(e.target.value.trim())} style={{ ...inputStyle, marginBottom: 6 }} />
-          <AvisoEnlaceVideo url={url} />
-          <button type="button" onClick={() => { setSubir(true); setUrl(""); }} style={{ background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>¿No está en YouTube ni en Drive? Súbelo desde tu equipo (hasta 50 MB)</button>
-        </>
-      ) : (
-        <>
-          <MediaPicker iglesiaId={iglesiaId} tipo="video" value={url} onChange={(u) => setUrl(u)} color="#C23B32" />
-          <button type="button" onClick={() => { setSubir(false); setUrl(""); }} style={{ background: "none", border: "none", padding: 0, marginTop: 8, fontSize: 12, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>Mejor pegar un enlace de YouTube o Google Drive</button>
-        </>
-      )}
+      <input autoFocus={!inicial} inputMode="url" placeholder="Pega aquí el enlace de YouTube o Google Drive" value={subido ? "" : url} onChange={(e) => setUrl(e.target.value.trim())} style={{ ...inputStyle, marginBottom: 6 }} />
+      {!subido && <AvisoEnlaceVideo url={url} />}
+      <label style={{ ...etiquetaCampo, marginTop: 12 }}>O uno de tus videos guardados</label>
+      <MediaPicker iglesiaId={iglesiaId} tipo="video" value={subido ? url : ""} onChange={(u) => setUrl(u)} color="#C23B32" galeriaAbierta />
+      <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 4 }}>Lo que subes queda guardado aquí para usarlo otra vez, sin volver a subirlo.</div>
       <label style={{ ...etiquetaCampo, marginTop: 14 }}>Nombre · así sale en el orden del culto</label>
       <input placeholder='Ej. "Testimonio de Juan" o "Video de misiones"' value={nombre} onChange={(e) => setNombre(e.target.value)} style={inputStyle} />
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, marginTop: 12, cursor: "pointer" }}>
+        <input type="checkbox" checked={repetir} onChange={(e) => setRepetir(e.target.checked)} aria-label="Repetir el video en bucle" /> Repetir en bucle (vuelve a empezar al terminar)
+      </label>
       <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Queda en el orden del culto. Cuando lo toques en la consola sale a pantalla completa, empieza solo y con sonido; lo pausas, detienes o adelantas con los botones debajo de la vista previa.</div>
-      <button onClick={() => puede && onAdd({ videoUrl: url, name: nombre.trim() || "Video" })} disabled={!puede} style={{ ...primaryBtn, marginTop: 14, opacity: puede ? 1 : 0.5 }}>{inicial ? "Guardar cambios" : "Agregar al setlist"}</button>
+      <button onClick={() => puede && onAdd({ videoUrl: url, name: nombre.trim() || "Video", repetir })} disabled={!puede} style={{ ...primaryBtn, marginTop: 14, opacity: puede ? 1 : 0.5 }}>{inicial ? "Guardar cambios" : "Agregar al setlist"}</button>
     </ModalShell>
   );
 }
@@ -473,6 +472,24 @@ const etiquetaCampo = { display: "block", fontSize: 11.5, fontWeight: 800, color
 // vistaPrevia(draft): la consola pasa una mini pantalla con el estilo en vivo, para ver el fondo ANTES
 // de agregar (2026-11-14: el texto rápido salía con el fondo de las canciones y no se notaba hasta
 // proyectarlo). Fondo: "El de Estilo" (el de siempre), un color liso propio, una imagen o un video.
+// Oscurecer la imagen/video de una diapositiva (2026-11-27, una iglesia: "subí una imagen para la ofrenda
+// pero la opacó"). Sin tocar: una imagen sin texto sale con su brillo normal y con texto, como en Estilo.
+function ControlOscurecer({ draft, setDraft, que }) {
+  const sinTexto = !String(draft.title || "").trim() && !String(draft.subtitle || "").trim();
+  const propio = Number.isFinite(draft.oscurecer);
+  const valor = propio ? draft.oscurecer : sinTexto && draft.bgType === "imagen" ? 0 : 45;
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--wf-muted)", marginBottom: 2 }}>
+        <span>Oscurecer {que}{!propio ? (sinTexto && draft.bgType === "imagen" ? " · sin oscurecer (no lleva texto)" : " · como en Estilo") : ""}</span><b>{valor}%</b>
+      </div>
+      <input type="range" min={0} max={80} step={5} value={valor} aria-label={`Oscurecer ${que}`} onChange={(e) => setDraft({ ...draft, oscurecer: Number(e.target.value) })} style={{ width: "100%", accentColor: "var(--wf-brand-accent)" }} />
+      {propio && <button type="button" onClick={() => { const { oscurecer: _o, ...resto } = draft; setDraft(resto); }} style={{ background: "none", border: "none", padding: 0, fontSize: 11.5, fontWeight: 600, color: "#2F5FA8", cursor: "pointer" }}>Volver a lo automático</button>}
+      <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 2 }}>En 0 se ve con todo su brillo. Súbelo si el texto encima no se lee.</div>
+    </div>
+  );
+}
+
 export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositiva de texto", submitLabel = "Agregar al culto", iglesiaId, vistaPrevia = null, onDiseno = null }) {
   const tipo = tipoDeFondo(draft);
   // Diseños listos solo en computadora (la edición de diapositivas es solo para computadora).
@@ -590,6 +607,7 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
         <div>
           <MediaPicker iglesiaId={iglesiaId} tipo="imagen" value={draft.imageUrl} onChange={(url) => setDraft({ ...draft, bgType: "imagen", imageUrl: url })} galeriaAbierta />
           <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Se estira para cubrir toda la pantalla. Si dejas el contenido vacío, se proyecta a pantalla completa sin texto encima.</div>
+          {draft.imageUrl && <ControlOscurecer draft={draft} setDraft={setDraft} que="la imagen" />}
         </div>
       )}
       {tipo === "video" && (
@@ -599,8 +617,13 @@ export function SlideModal({ draft, setDraft, onClose, onAdd, title = "Diapositi
               la biblioteca) siempre es una URL https:// real, así que nunca lo oculta. */}
           <input placeholder="Pega un enlace de YouTube, Vimeo o un .mp4" value={draft.videoUrl && !draft.videoUrl.startsWith("http") ? "" : draft.videoUrl || ""} onChange={(e) => setDraft({ ...draft, videoUrl: e.target.value.trim() })} style={{ ...inputStyle, marginBottom: 6 }} />
           <AvisoEnlaceVideo url={draft.videoUrl} />
-          <MediaPicker iglesiaId={iglesiaId} tipo="video" value={draft.videoUrl} onChange={(url) => setDraft({ ...draft, videoUrl: url })} />
+          <MediaPicker iglesiaId={iglesiaId} tipo="video" value={draft.videoUrl} onChange={(url) => setDraft({ ...draft, videoUrl: url })} galeriaAbierta />
           <div style={{ fontSize: 11, color: "var(--wf-faint)", marginTop: 6 }}>Con el contenido vacío se proyecta como video, a pantalla completa y <b>con sonido</b>. Con texto encima queda de fondo, sin sonido y en bucle.</div>
+          {draft.videoUrl && !String(draft.title || "").trim() && !String(draft.subtitle || "").trim() ? (
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, marginTop: 8, cursor: "pointer" }}>
+              <input type="checkbox" checked={!!draft.repetir} onChange={(e) => setDraft({ ...draft, repetir: e.target.checked || undefined })} /> Repetir en bucle (vuelve a empezar al terminar)
+            </label>
+          ) : draft.videoUrl ? <ControlOscurecer draft={draft} setDraft={setDraft} que="el video" /> : null}
         </div>
       )}
       {/* Letra propia (pedido de Eldin, 2026-11-22): sin elegir, sale con la tipografía de Estilo (la de
