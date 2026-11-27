@@ -9,7 +9,7 @@ export const PLANES = [
   {
     id: "ministerio", nombre: "Ministerio", precio: 9.99, precioAnual: 99, color: "#1F8A73",
     resumen: "Para el equipo de alabanza completo",
-    incluye: ["Hasta 20 miembros", "Todo lo del plan Gratis", "Canciones ilimitadas", "Modo Músico (acordes, auto-avance, tap tempo)", "Pantalla de escenario y letras para OBS", "Todas las letras animadas y fondos en movimiento", "Galería completa de diseños para diapositivas", "Botones de un solo toque y música en la consola", "Material de la canción (tutoriales y partituras)", "Usar sin conexión", "Plantillas de eventos", "Hasta 3 ministerios", "Asistente: 30 mensajes al día"],
+    incluye: ["Hasta 20 miembros", "Todo lo del plan Gratis", "Canciones ilimitadas", "Modo Músico (acordes, auto-avance, tap tempo)", "Pantalla de escenario y letras para OBS", "Todas las letras animadas y fondos en movimiento", "Galería completa de diseños para diapositivas", "Botones de un solo toque y música en la consola", "Material de la canción (tutoriales y partituras)", "Repertorios para que los músicos ensayen", "Usar sin conexión", "Plantillas de eventos", "Hasta 3 ministerios", "Asistente: 30 mensajes al día"],
   },
   {
     id: "crecimiento", nombre: "Crecimiento", precio: 19.99, precioAnual: 199, color: "#2F5FA8",
@@ -60,6 +60,7 @@ export const COMPARATIVO = [
     ["Acordes y transporte de tono", true, true, true, true],
     ["Modo Músico: auto-avance, tap tempo y dirigir", false, true, true, true],
     ["Material de la canción (tutoriales, partituras y fotos)", false, true, true, true],
+    ["Repertorios de canciones para ensayar (sin evento)", false, true, true, true],
   ] },
   { grupo: "Extras", filas: [
     ["Asistente con IA (mensajes al día)", "5", "30", "60", "100"],
