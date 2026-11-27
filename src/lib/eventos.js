@@ -4,6 +4,7 @@ import { sincronizarRecordatorios } from "./recordatorios.js";
 import { fijarLineaBase, idsABorrar, actualizarTrasGuardar } from "./lineaBase.js";
 import { listBosquejosPorEvento } from "./bosquejos.js";
 import { urlPropia, urlsPropias } from "./urlPropia.js";
+import { limpiarInvitados } from "./gruposEvento.js";
 
 // Algunas acciones (ej. agregar varios versículos de un rango, uno por diapositiva) pueden disparar
 // varios guardados del mismo evento casi al mismo tiempo. Si corrieran en paralelo el más lento podría
@@ -214,6 +215,8 @@ export function eventoCompletoAFormatoEditor({ evento, items, encargados, roles,
     location: evento.ubicacion || "", openPositions: 0, cover: null, esPlantilla: !!evento.es_plantilla,
     // Ministerio dueño del evento (Jóvenes, Damas...); null = evento general de la iglesia.
     ministryId: evento.ministerio_id || null,
+    // Otros grupos que participan (ver gruposEvento.js).
+    ministeriosInvitados: evento.ministerios_invitados || [],
     serviceOrder: items.map((row) => filaAItemServicio(row, encargadosPorItem)),
     worshipRoles: roles.map((row) => filaARolAlabanza(row, miembrosPorRol)),
     reminders: (recordatorios || []).map(filaARecordatorio),
@@ -459,6 +462,7 @@ export async function crearEventoCompleto(evento, userId) {
     hora: evento.hora || null,
     ubicacion: evento.location || null, creado_por: userId, es_plantilla: !!evento.esPlantilla,
     ministerio_id: evento.ministryId || null,
+    ministerios_invitados: limpiarInvitados(evento.ministeriosInvitados, evento.ministryId || null),
   }).then(({ error }) => { if (error) throw error; });
   // Registrado ANTES del await: la app navega a la pantalla del evento de inmediato tras llamar a esta
   // función, así que cualquier escritura que el admin dispare en ese mismo instante (agregar un bloque,

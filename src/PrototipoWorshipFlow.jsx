@@ -9,6 +9,7 @@ import { personasDePlantilla, resumenRango } from "./lib/publicarVarias.js";
 import { showToast, notifyError, esFalloDeConexion } from "./lib/toast.js";
 import { ordenarPor } from "./lib/orden.js";
 import { registrarLineaBaseEventos, listEventosCompletos, sincronizarServiceOrder, sincronizarWorshipRoles, crearEventoCompleto, deleteEvento, updateEvento, marcarAsignacionVista } from "./lib/eventos.js";
+import { limpiarInvitados, lideraGrupoInvitado, eventoEsDelGrupo } from "./lib/gruposEvento.js";
 import { registrarLineaBaseMinisterios, listMinisteriosCompletos, sincronizarPlan, sincronizarRecursos, crearMinisterio, actualizarLiderMinisterio, actualizarNombreMinisterio, actualizarPermisosLider, actualizarColorMinisterio, eliminarMinisterio } from "./lib/ministerios.js";
 import { listCancionesCompletas, updateCancion, guardarLetraCancion, guardarCancionDesdeEditor, deleteCancion, deleteCanciones } from "./lib/canciones.js";
 import { saveCache, loadCache } from "./lib/offlineCache.js";
@@ -1317,7 +1318,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   const [draftFromTemplateId, setDraftFromTemplateId] = useState(null);
   // serviceOrder: el orden del culto armado en el asistente por pasos (evento especial o plantilla nueva,
   // ver AsistenteEvento). abrir: false para no navegar al evento (ej. "Guardar y publicar en varias fechas").
-  const createEvent = ({ templateId, title, dateLabel = "", date, hora, location, esPlantilla, ministryId = null, serviceOrder = null }, { abrir = true } = {}) => {
+  const createEvent = ({ templateId, title, dateLabel = "", date, hora, location, esPlantilla, ministryId = null, ministeriosInvitados = [], serviceOrder = null }, { abrir = true } = {}) => {
     const template = events.find((e) => e.id === templateId);
     const ordenArmado = serviceOrder ? serviceOrder.map((it) => (it.type === "seccion" && !it.ministryId ? { ...it, ministryId: ministerioParaBloque(it.title) } : it)) : null;
     const newEvent = {
@@ -1331,6 +1332,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       vistas: [],
       esPlantilla: !!esPlantilla,
       ministryId: ministryId || null,
+      ministeriosInvitados: esPlantilla ? [] : limpiarInvitados(ministeriosInvitados, ministryId || null),
     };
     setEventsSynced((evs) => [...evs, newEvent]);
     crearEventoCompleto(newEvent, userId).catch((e) => notifyError("No se pudo guardar el evento", e));
@@ -1360,6 +1362,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
       vistas: [],
       esPlantilla: false,
       ministryId: template.ministryId || null,
+      ministeriosInvitados: limpiarInvitados(template.ministeriosInvitados, template.ministryId || null),
     }));
     setEventsSynced((evs) => [...evs, ...nuevos]);
     let hechos = 0;
@@ -1428,9 +1431,12 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // Edita los datos propios del evento/plantilla (título, fecha, hora, ubicación) DESPUÉS de creado —
   // antes solo se podían fijar una vez, al crearlo, y no había forma de corregirlos ni de renombrar
   // una plantilla ya armada.
-  const updateEventDetails = (eventId, { title, dateLabel, date, hora, location }) => {
-    setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, title, dateLabel: dateLabel || "", date: date || null, hora: hora || null, location: location || "" } : e)));
-    return updateEvento(eventId, { titulo: title, fecha_label: dateLabel || null, fecha: date || null, hora: hora || null, ubicacion: location || null });
+  // ministeriosInvitados: solo si vino (la edición de una plantilla no lo manda).
+  const updateEventDetails = (eventId, { title, dateLabel, date, hora, location, ministeriosInvitados }) => {
+    const ev = eventsRef.current.find((e) => e.id === eventId);
+    const invitados = Array.isArray(ministeriosInvitados) ? limpiarInvitados(ministeriosInvitados, ev?.ministryId || null) : null;
+    setEventsSynced((evs) => evs.map((e) => (e.id === eventId ? { ...e, title, dateLabel: dateLabel || "", date: date || null, hora: hora || null, location: location || "", ...(invitados ? { ministeriosInvitados: invitados } : {}) } : e)));
+    return updateEvento(eventId, { titulo: title, fecha_label: dateLabel || null, fecha: date || null, hora: hora || null, ubicacion: location || null, ...(invitados ? { ministerios_invitados: invitados } : {}) });
   };
   // Botón "Guardar" del evento/la plantilla (pedido de Eldin, 2026-11-21: "me reportan que no se guardan
   // las cosas"). Los cambios del Setlist ya se guardaban solos, pero si uno fallaba (ej. la base
@@ -1625,7 +1631,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
   // decidirVisibilidadSetlist lo dejara ver todo POR DENTRO del evento, si la lista de Eventos ya lo
   // filtraba afuera antes de poder entrar.
   const esSupervisorViewer = usuariosReales.find((u) => u.id === myUserId)?.rol === "supervisor" || tienePermiso("ver_todos_eventos");
-  const realEvents = events.filter((e) => !e.esPlantilla && (puedeEditarSetlist || esSupervisorViewer || isEventAssignedToMe(e, myUserId) || (e.ministryId && gruposQueLideroYo.has(e.ministryId)) || (e.serviceOrder || []).some((it) => lideraBloque(it, gruposQueLideroYo))));
+  const realEvents = events.filter((e) => !e.esPlantilla && (puedeEditarSetlist || esSupervisorViewer || isEventAssignedToMe(e, myUserId) || (e.ministryId && gruposQueLideroYo.has(e.ministryId)) || lideraGrupoInvitado(e, gruposQueLideroYo) || (e.serviceOrder || []).some((it) => lideraBloque(it, gruposQueLideroYo))));
   const plantillas = events.filter((e) => e.esPlantilla);
   // Agregar versículos al Setlist es de administradores, con una sola excepción: quien esté asignado
   // como encargado de un bloque de Lectura bíblica/Oración EN ESTE EVENTO puede agregar su propio
@@ -2680,7 +2686,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onSetColor={(color) => setMinistryColor(selectedMinistryId, color)}
           onSetPermisosLider={(permisos) => setMinistryPermisosLider(selectedMinistryId, permisos)}
           onDelete={() => deleteMinistry(ministries.find((m) => m.id === selectedMinistryId))}
-          eventos={events.filter((e) => !e.esPlantilla && e.ministryId === selectedMinistryId)}
+          eventos={events.filter((e) => !e.esPlantilla && eventoEsDelGrupo(e, selectedMinistryId))}
           puedeCrearEventos={puedeGestionarEventos || gruposQueLideroYo.has(selectedMinistryId)}
           onCrearEvento={(datos) => { createEvent(datos); setTab("eventos"); }}
           onAbrirEvento={(id) => { setTab("eventos"); setSelectedEventId(id); }}

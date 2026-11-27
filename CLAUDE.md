@@ -67,6 +67,7 @@ Vista de solo lectura separada del editor (pestañas V1/C/V2/V3 tipo pill, acord
 - Roles/Participantes con barra de progreso de confirmados, ícono y color por tipo de ministerio, subgrupos (ej. Limpieza tiene "Supervisión" y "Encargados")
 - Setlist: mezcla de bloques organizativos (secciones del culto sin proyección), canciones, versículos bíblicos (con selector de versión: RVR1960, NVI, TLA, DHH, NTV) y slides personalizadas (color o video de fondo por URL)
 - "Punto del bosquejo" (Agregar en el setlist): cada párrafo escrito o pegado es su propia diapositiva (`puntosDeBosquejo` en `src/lib/importarPresentacion.js`); con renglones en blanco, lo que está entre ellos va junto.
+- **Varios grupos en un evento** (2026-11-26, migración `20261128000000_eventos_varios_grupos.sql`, `src/lib/gruposEvento.js`): el dueño sigue siendo uno (`ministerio_id`, null = General) y "¿Participan otros grupos?" (al crear y en "Editar") guarda `eventos.ministerios_invitados` (uuid[]). El evento sale en el filtro de Eventos y en la pantalla de cada grupo invitado, y sus líderes lo ven; ser invitado NO da permiso de editar el evento completo (solo admins y líder del grupo dueño).
 - Los bloques del Setlist pueden vincularse a un Ministerio — al vincularse, la descripción se reemplaza automáticamente por el líder y la planificación de esa semana desde Ministerios
 
 **Multimedia en vivo / Proyección / Modo Músico — separación crítica de roles**:

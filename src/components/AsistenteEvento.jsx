@@ -6,6 +6,7 @@ import { BibleModal } from "../pantallas/biblia.jsx";
 import { buscarCanciones } from "../lib/busqueda.js";
 import { ordenarPor } from "../lib/orden.js";
 import { tituloAutomatico, formatHora } from "../lib/dates.js";
+import { limpiarInvitados } from "../lib/gruposEvento.js";
 import { SUGERENCIAS_MOMENTOS, armarOrdenDelCulto, resumenOrden } from "../lib/asistenteEvento.js";
 
 // Nueva plantilla / Nuevo evento por pasos (pedido de Eldin, 2026-11-20), igual que Nueva canción:
@@ -19,12 +20,12 @@ const tarjeta = { background: "var(--wf-card)", boxShadow: "0 1px 3px rgba(22,50
 let semilla = 0;
 const idLocal = () => `m${Date.now().toString(36)}${(semilla++).toString(36)}`;
 
-export default function AsistenteEvento({ modo, plantillas = [], library = [], usuarios = [], ministerios = [], puedeGeneral = true, ministerioInicial = null, isCompact = false, onCrear, onPublicarVarias, onCerrar }) {
+export default function AsistenteEvento({ modo, plantillas = [], library = [], usuarios = [], ministerios = [], todosLosGrupos = null, puedeGeneral = true, ministerioInicial = null, isCompact = false, onCrear, onPublicarVarias, onCerrar }) {
   const esPlantilla = modo === "plantilla";
   const [paso, setPaso] = useState(0);
   const [tipo, setTipo] = useState(esPlantilla ? "especial" : (plantillas.length ? null : "especial")); // "plantilla" | "especial"
   const [plantillaId, setPlantillaId] = useState(null);
-  const [datos, setDatos] = useState({ title: "", tituloTocado: false, date: "", hora: "", location: "", ministryId: ministerioInicial });
+  const [datos, setDatos] = useState({ title: "", tituloTocado: false, date: "", hora: "", location: "", ministryId: ministerioInicial, ministeriosInvitados: [] });
   const [momentos, setMomentos] = useState([]);
   const [cuenta, setCuenta] = useState(null); // null | "hora" | minutos
   const [eligiendoCancion, setEligiendoCancion] = useState(null); // id del momento
@@ -41,6 +42,7 @@ export default function AsistenteEvento({ modo, plantillas = [], library = [], u
   const conTituloAuto = (d) => (d.tituloTocado || esPlantilla ? d : { ...d, title: tituloAutomatico(d.date, d.hora) });
   const cambiar = (patch) => setDatos((d) => conTituloAuto({ ...d, ...patch }));
   const cancionesOrden = useMemo(() => ordenarPor(library, (s) => s.title), [library]);
+  const gruposParaInvitar = useMemo(() => ordenarPor((todosLosGrupos || ministerios).filter((m) => m.id && m.id !== (datos.ministryId || null)), (m) => m.name), [todosLosGrupos, ministerios, datos.ministryId]);
   const plantillasOrden = useMemo(() => ordenarPor(plantillas, (p) => p.title), [plantillas]);
 
   // ---- momentos ----
@@ -75,7 +77,7 @@ export default function AsistenteEvento({ modo, plantillas = [], library = [], u
   const crear = async (publicarDespues = false) => {
     setGuardando(true);
     try {
-      const base = { title: datos.title.trim(), date: esPlantilla ? null : datos.date, hora: datos.hora || null, location: datos.location.trim() || "Por definir", esPlantilla, ministryId: esPlantilla ? null : datos.ministryId || null };
+      const base = { title: datos.title.trim(), date: esPlantilla ? null : datos.date, hora: datos.hora || null, location: datos.location.trim() || "Por definir", esPlantilla, ministryId: esPlantilla ? null : datos.ministryId || null, ministeriosInvitados: esPlantilla ? [] : limpiarInvitados(datos.ministeriosInvitados, datos.ministryId || null) };
       const nuevo = tipo === "plantilla" && !esPlantilla
         ? await onCrear({ ...base, templateId: plantillaId })
         : await onCrear({ ...base, templateId: null, serviceOrder: armarOrdenDelCulto({ momentos, cuenta: isCompact ? null : cuenta }, () => crypto.randomUUID()) }, { abrir: !publicarDespues });
@@ -130,8 +132,24 @@ export default function AsistenteEvento({ modo, plantillas = [], library = [], u
               <Field label="¿De quién es este evento?">
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {[...(puedeGeneral ? [{ id: null, name: "General (toda la iglesia)" }] : []), ...ministerios].map((m) => (
-                    <Pildora key={m.id || "general"} activo={(datos.ministryId || null) === m.id} onClick={() => setDatos((d) => ({ ...d, ministryId: m.id }))}>{m.name}</Pildora>
+                    <Pildora key={m.id || "general"} activo={(datos.ministryId || null) === m.id} onClick={() => setDatos((d) => ({ ...d, ministryId: m.id, ministeriosInvitados: limpiarInvitados(d.ministeriosInvitados, m.id) }))}>{m.name}</Pildora>
                   ))}
+                </div>
+              </Field>
+            )}
+            {/* Varios grupos (2026-11-26): además del dueño, otros grupos que participan. El evento sale
+                en el filtro y en la pantalla de cada uno y sus líderes lo ven (ver gruposEvento.js). */}
+            {!esPlantilla && gruposParaInvitar.length > 0 && (
+              <Field label="¿Participan otros grupos? (opcional)">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {gruposParaInvitar.map((m) => {
+                    const activo = (datos.ministeriosInvitados || []).includes(m.id);
+                    return (
+                      <Pildora key={m.id} activo={activo} onClick={() => setDatos((d) => ({ ...d, ministeriosInvitados: activo ? d.ministeriosInvitados.filter((id) => id !== m.id) : [...d.ministeriosInvitados, m.id] }))}>
+                        {activo && <Check size={13} />} {m.name}
+                      </Pildora>
+                    );
+                  })}
                 </div>
               </Field>
             )}

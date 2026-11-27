@@ -29,6 +29,8 @@ import { BibleModal } from "./biblia.jsx";
 import { SlideModal, VideoModal, audioValido } from "./ventanas.jsx";
 import { nuevaDiapositivaAudio } from "../lib/audioCulto.js";
 import { esVideoSolo } from "../lib/videoEnlace.js";
+import { limpiarInvitados, eventoEsDelGrupo, invitadosDelEvento, resumenGrupos } from "../lib/gruposEvento.js";
+import { ordenarPor } from "../lib/orden.js";
 import { SongEditor } from "./canciones.jsx";
 import { useCerrarConAtras } from "../lib/atras.js";
 import { confirmDialog } from "../lib/confirm.js";
@@ -259,6 +261,18 @@ function EtiquetaMinisterio({ ministerio, claro = false }) {
   );
 }
 
+// Grupos invitados en la tarjeta del evento: hasta 2 etiquetas y "+N" si hay más.
+function EtiquetasInvitados({ ev, ministries, claro = false }) {
+  const invitados = invitadosDelEvento(ev, ministries);
+  if (!invitados.length) return null;
+  return (
+    <>
+      {invitados.slice(0, 2).map((m) => <EtiquetaMinisterio key={m.id} ministerio={m} claro={claro} />)}
+      {invitados.length > 2 && <span style={{ fontSize: 10, fontWeight: 700, color: claro ? "#fff" : "var(--wf-muted)", flexShrink: 0 }}>+{invitados.length - 2}</span>}
+    </>
+  );
+}
+
 export function EventList({ events, plantillas, isAdminViewer, liveEventId, liveLibre, onSelect, onCreate, onPublicarVarias = null, canStartLive, onStartFree, library, myUserId, ministries = [], gruposQueLidero = new Set(), usuarios = [], isCompact = false }) {
   const [viewMode, setViewMode] = useState("eventos");
   const [publicarDe, setPublicarDe] = useState(null); // plantilla abierta en "Publicar en varias fechas"
@@ -271,7 +285,7 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
   // Ministerios para los que esta persona puede crear eventos: todos si organiza eventos; si no, los que lidera.
   const ministeriosParaCrear = isAdminViewer ? ministries : ministries.filter((m) => gruposQueLidero.has(m.id));
   const puedeCrear = isAdminViewer || ministeriosParaCrear.length > 0;
-  const ministeriosConEventos = ministries.filter((m) => events.some((ev) => ev.ministryId === m.id));
+  const ministeriosConEventos = ministries.filter((m) => events.some((ev) => eventoEsDelGrupo(ev, m.id)));
 
   const isPlantillaMode = isAdminViewer && viewMode === "plantillas";
   // Nueva plantilla / Nuevo evento: asistente por pasos (src/components/AsistenteEvento.jsx, 2026-11-20).
@@ -316,7 +330,7 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
           const d = parseIsoDateLocal(ev.date);
           return d && monthKey(d.getFullYear(), d.getMonth()) === monthFilter;
         }))
-      .filter((ev) => ministerioFiltro === "todos" || (ministerioFiltro === "general" ? !ev.ministryId : ev.ministryId === ministerioFiltro));
+      .filter((ev) => ministerioFiltro === "todos" || (ministerioFiltro === "general" ? !ev.ministryId : eventoEsDelGrupo(ev, ministerioFiltro)));
     return list.slice().sort(compareByDay);
   }, [events, monthFilter, isProximos, ministerioFiltro]);
 
@@ -429,6 +443,7 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
                 </div>
                 <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: "rgba(255,255,255,0.85)" }}>PRÓXIMO EVENTO</span>
                 <EtiquetaMinisterio ministerio={ministerioDe(hero)} claro />
+                <EtiquetasInvitados ev={hero} ministries={ministries} claro />
               </div>
               <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 20, fontWeight: 600, color: "#fff" }}>{hero.title}</div>
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)" }}>{hero.location}</div>
@@ -477,6 +492,7 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
                 <MapPin size={11} /> <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.location}</span>
                 <span style={{ marginLeft: 8, display: "flex", alignItems: "center", gap: 4 }}><Users size={11} /> {totalMembers}</span>
                 <EtiquetaMinisterio ministerio={ministerioDe(ev)} />
+                <EtiquetasInvitados ev={ev} ministries={ministries} />
               </div>
               {misCargos.length > 0 && (
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--wf-brand-accent)", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -498,7 +514,7 @@ export function EventList({ events, plantillas, isAdminViewer, liveEventId, live
 
       {step && (
         <AsistenteEvento modo="evento" plantillas={plantillas} library={library} usuarios={usuarios} isCompact={isCompact}
-          ministerios={ministeriosParaCrear} puedeGeneral={isAdminViewer} ministerioInicial={ministerioInicial}
+          ministerios={ministeriosParaCrear} todosLosGrupos={ministries} puedeGeneral={isAdminViewer} ministerioInicial={ministerioInicial}
           onCrear={onCreate} onCerrar={() => setStep(null)} />
       )}
     </div>
@@ -606,7 +622,10 @@ export function EventDetail({
     const t = setTimeout(() => setEstadoGuardar("listo"), 3000);
     return () => clearTimeout(t);
   }, [estadoGuardar]);
-  const datosEvento = { title: event.title || "", date: event.date || "", hora: event.hora || "", location: event.location || "" };
+  const datosEvento = { title: event.title || "", date: event.date || "", hora: event.hora || "", location: event.location || "", ministeriosInvitados: limpiarInvitados(event.ministeriosInvitados, event.ministryId || null) };
+  // Otros grupos que participan (2026-11-26): se cambian aquí mismo, en "Editar".
+  const gruposParaInvitar = ordenarPor((ministries || []).filter((m) => m.id !== (event.ministryId || null)), (m) => m.name);
+  const resumenDeGrupos = resumenGrupos(event, ministries);
   const datos = borrador || datosEvento;
   const abrirEdicion = () => { setBorrador(datosEvento); setEditando(true); setEstadoGuardar("listo"); };
   const cancelarEdicion = () => { setEditando(false); setBorrador(null); setEstadoGuardar("listo"); };
@@ -616,7 +635,7 @@ export function EventDetail({
     if (sinNombre || estadoGuardar === "guardando") return;
     setEstadoGuardar("guardando");
     try {
-      await onGuardar({ title: datos.title.trim(), dateLabel: event.dateLabel || "", date: datos.date || null, hora: datos.hora || null, location: datos.location || "" });
+      await onGuardar({ title: datos.title.trim(), dateLabel: event.dateLabel || "", date: datos.date || null, hora: datos.hora || null, location: datos.location || "", ...(event.esPlantilla ? {} : { ministeriosInvitados: datos.ministeriosInvitados || [] }) });
       setEditando(false);
       setBorrador(null);
       setEstadoGuardar("guardado");
@@ -705,6 +724,23 @@ export function EventDetail({
                     <label style={etiquetaClara} htmlFor="wf-evento-lugar">Lugar</label>
                     <input id="wf-evento-lugar" value={datos.location || ""} onChange={(e) => cambiar({ location: e.target.value })} placeholder="Ej. Pastores, Sacatepéquez" style={campoClaro} />
                   </div>
+                  {gruposParaInvitar.length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <span style={etiquetaClara}>¿Participan otros grupos?</span>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {gruposParaInvitar.map((m) => {
+                          const activo = (datos.ministeriosInvitados || []).includes(m.id);
+                          return (
+                            <button key={m.id} type="button" aria-pressed={activo} onClick={() => cambiar({ ministeriosInvitados: activo ? datos.ministeriosInvitados.filter((id) => id !== m.id) : [...(datos.ministeriosInvitados || []), m.id] })}
+                              style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: 36, borderRadius: 18, padding: "6px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                                background: activo ? "var(--wf-brand-accent)" : "rgba(255,255,255,0.08)", color: "#fff", border: activo ? "1px solid var(--wf-brand-accent)" : "1px solid rgba(255,255,255,0.25)" }}>
+                              {activo && <Check size={13} />} {m.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
               {estadoGuardar === "error" && (
@@ -726,6 +762,9 @@ export function EventDetail({
               <div style={{ fontFamily: "var(--wf-font-titulo)", letterSpacing: "-0.02em", fontSize: 24, fontWeight: 600, lineHeight: 1.2 }}>{event.title || "Sin nombre"}</div>
               {!event.esPlantilla && event.location && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#C8CDD6", marginTop: 6 }}><MapPin size={13} /> {event.location}</div>
+              )}
+              {!event.esPlantilla && resumenDeGrupos && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#C8CDD6", marginTop: 6 }}><Users size={13} /> {resumenDeGrupos}</div>
               )}
             </>
           )}
