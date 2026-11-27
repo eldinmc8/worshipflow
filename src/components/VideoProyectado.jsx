@@ -15,9 +15,10 @@ import { aplicarSalidaAudio, escucharSalidaAudio } from "../lib/salidaAudio.js";
 // - control: lo que mandó la consola ({ estado, pos, en, sonido, n }). Sin control (consola vieja) se
 //   reproduce desde el inicio, como antes.
 // - onEstado: la pantalla de proyección reporta { pos, duracion, reproduciendo, sonidoBloqueado }.
+// - repetir: el video solo vuelve a empezar al terminar (opción "Repetir en bucle", 2026-11-27).
 // - miniatura: vistas previas de la consola → nunca suenan, no se controlan y no cargan el reproductor
 //   de YouTube (se muestra su imagen).
-export default function VideoProyectado({ url, conSonido = false, miniatura = false, ajuste = "cover", control = null, onEstado = null }) {
+export default function VideoProyectado({ url, conSonido = false, miniatura = false, ajuste = "cover", control = null, onEstado = null, repetir = false }) {
   const info = tipoDeVideo(url);
   const conControl = conSonido && !miniatura;
   if (info.tipo === "youtube" || info.tipo === "vimeo") {
@@ -28,10 +29,10 @@ export default function VideoProyectado({ url, conSonido = false, miniatura = fa
         </div>
       );
     }
-    return <ReproductorIncrustado key={info.src} info={info} conSonido={conControl} control={conControl ? control : null} onEstado={conControl ? onEstado : null} />;
+    return <ReproductorIncrustado key={`${info.src}|${repetir ? 1 : 0}`} info={info} repetir={repetir} conSonido={conControl} control={conControl ? control : null} onEstado={conControl ? onEstado : null} />;
   }
   if (info.tipo !== "archivo") return null;
-  return <ReproductorArchivo key={info.src} src={info.src} ajuste={ajuste} conSonido={conControl} control={conControl ? control : null} onEstado={conControl ? onEstado : null} />;
+  return <ReproductorArchivo key={info.src} src={info.src} ajuste={ajuste} repetir={repetir} conSonido={conControl} control={conControl ? control : null} onEstado={conControl ? onEstado : null} />;
 }
 
 const cubrir = { position: "absolute", inset: 0, width: "100%", height: "100%", border: 0, pointerEvents: "none" };
@@ -74,7 +75,7 @@ function useReporte(onEstado) {
 }
 
 // ---------- Archivo de video (<video>) ----------
-function ReproductorArchivo({ src, ajuste, conSonido, control, onEstado }) {
+function ReproductorArchivo({ src, ajuste, conSonido, control, onEstado, repetir = false }) {
   const ref = useRef(null);
   const [bloqueado, setBloqueado] = useState(false);
   // Salida de audio elegida en Ajustes para esta computadora (ej. la consola/mixer en vez del HDMI del
@@ -152,7 +153,7 @@ function ReproductorArchivo({ src, ajuste, conSonido, control, onEstado }) {
   return (
     <>
       <video
-        ref={ref} src={src} autoPlay muted playsInline preload="auto" loop={!conSonido}
+        ref={ref} src={src} autoPlay muted playsInline preload="auto" loop={!conSonido || repetir}
         onTimeUpdate={alAvanzar} onPlay={alAvanzar} onPause={alPausarse} onEnded={alAvanzar} onLoadedMetadata={alAvanzar} onSeeked={alAvanzar}
         style={{ ...cubrir, objectFit: ajuste, visibility: detenido ? "hidden" : "visible" }}
       />
@@ -162,7 +163,7 @@ function ReproductorArchivo({ src, ajuste, conSonido, control, onEstado }) {
 }
 
 // ---------- YouTube / Vimeo (iframe manejado por postMessage) ----------
-function ReproductorIncrustado({ info, conSonido, control, onEstado }) {
+function ReproductorIncrustado({ info, conSonido, control, onEstado, repetir = false }) {
   const ref = useRef(null);
   const listo = useRef(false);
   const estado = useRef({ pos: 0, duration: null, reproduciendo: false, muted: true });
@@ -177,7 +178,7 @@ function ReproductorIncrustado({ info, conSonido, control, onEstado }) {
   const detenido = control?.estado === "stop";
   // Arranca SIEMPRE sin sonido (eso nunca lo bloquea el navegador) y luego se le pide sonido.
   const src = (() => {
-    const base = urlIncrustada(info, { conSonido });
+    const base = urlIncrustada(info, { conSonido, repetir });
     if (!base) return null;
     const u = new URL(base);
     if (esYT) {

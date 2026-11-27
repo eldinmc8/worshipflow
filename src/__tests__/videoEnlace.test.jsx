@@ -64,6 +64,6 @@ describe("agregar un video al Setlist", () => {
     fireEvent.change(enlace, { target: { value: "https://youtu.be/dQw4w9WgXcQ" } });
     fireEvent.change(screen.getByPlaceholderText(/Testimonio de Juan/), { target: { value: "Testimonio" } });
     fireEvent.click(screen.getByRole("button", { name: "Agregar al setlist" }));
-    expect(onAdd).toHaveBeenCalledWith({ videoUrl: "https://youtu.be/dQw4w9WgXcQ", name: "Testimonio" });
+    expect(onAdd).toHaveBeenCalledWith({ videoUrl: "https://youtu.be/dQw4w9WgXcQ", name: "Testimonio", repetir: false });
   });
 });

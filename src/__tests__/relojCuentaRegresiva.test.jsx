@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from "react"; // eslint-disable-line no-unused-vars
-import { describe, it, expect, afterEach, beforeAll } from "vitest";
+import { describe, it, expect, afterEach, beforeAll, vi } from "vitest";
+vi.mock("../lib/supabaseClient.js", () => ({ supabase: {}, callUsersFunction: () => Promise.resolve({}) }));
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import RelojCuentaRegresiva, { ESTILOS_CUENTA } from "../components/RelojCuentaRegresiva.jsx";
 import CuentaRegresivaModal from "../components/CuentaRegresivaModal.jsx";

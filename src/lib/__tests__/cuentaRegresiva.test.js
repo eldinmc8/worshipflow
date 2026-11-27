@@ -10,7 +10,7 @@ const EVENTO = { date: "2026-11-08", hora: "10:00:00" };
 describe("cuenta regresiva", () => {
   it("normaliza la configuración con valores por defecto", () => {
     const c = normalizarCuenta({ minutos: "abc", modo: "raro", alTerminar: "x", mostrarTexto: false });
-    expect(c).toMatchObject({ minutos: 5, modo: "hora", alTerminar: "mensaje", mostrarTexto: false, estilo: "clasico", fondo: "propio" });
+    expect(c).toMatchObject({ minutos: 5, modo: "hora", alTerminar: "avanzar", mostrarTexto: false, estilo: "clasico", fondo: "propio" });
     expect(normalizarCuenta(null).mostrarTexto).toBe(true);
   });
 

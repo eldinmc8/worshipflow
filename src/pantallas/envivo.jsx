@@ -400,7 +400,7 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
     setEditDraft(
       s.type === "biblia" ? { reference: s.baseReference ?? s.reference, text: s.baseText ?? s.text }
       : s.type === "cancion" ? { text: (s.baseLines || s.lines).join("\n") }
-      : { title: s.title, subtitle: s.subtitle || "", name: s.nombre || "", escalaSubtitulo: s.escalaSubtitulo, fuente: s.fuente, colorLetra: s.colorLetra, bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "", ...(s.audio ? { audio: s.audio } : {}) }
+      : { title: s.title, subtitle: s.subtitle || "", name: s.nombre || "", escalaSubtitulo: s.escalaSubtitulo, fuente: s.fuente, colorLetra: s.colorLetra, oscurecer: s.oscurecer, repetir: s.repetir, bg: s.bg || "#1B2029", bgType: s.bgType || "color", videoUrl: s.videoUrl || "", imageUrl: s.imageUrl || "", ...(s.audio ? { audio: s.audio } : {}) }
     );
   };
   const saveSlideEdit = () => {
@@ -1833,13 +1833,13 @@ export function MultimediaControl({ eventTitle, serviceOrder = [], isFreeSession
           }}
         />
       )}
-      {showCuenta && <CuentaRegresivaModal enConsola evento={eventoInfo} onClose={() => setShowCuenta(false)} onGuardar={(c) => { onStartAdHocCuenta(c); setShowCuenta(false); }} />}
+      {showCuenta && <CuentaRegresivaModal enConsola evento={eventoInfo} iglesiaId={myIglesiaId} onClose={() => setShowCuenta(false)} onGuardar={(c) => { onStartAdHocCuenta(c); setShowCuenta(false); }} />}
       {showVideoOrden && (
         <VideoModal iglesiaId={myIglesiaId} onClose={() => setShowVideoOrden(false)}
           destino={anclaParaAgregar() ? `Entra después de "${tituloItem(anclaParaAgregar())}".` : "Entra al final del orden del culto."}
-          onAdd={({ videoUrl, name }) => {
+          onAdd={({ videoUrl, name, repetir }) => {
             const id = crypto.randomUUID();
-            onInsertarItems([{ id, type: "slide", title: "", subtitle: "", name, bg: "#000000", bgType: "video", videoUrl, imageUrl: "" }], anclaParaAgregar()?.id || null);
+            onInsertarItems([{ id, type: "slide", title: "", subtitle: "", name, bg: "#000000", bgType: "video", videoUrl, imageUrl: "", ...(repetir ? { repetir: true } : {}) }], anclaParaAgregar()?.id || null);
             setShowVideoOrden(false);
             setItemVisto(id); setVerTodas(false);
             if (mmPanel === "biblia") setMmPanel("transmision");

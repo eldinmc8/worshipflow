@@ -205,7 +205,7 @@ function buildSlides(serviceOrder, library) {
       // Presentación agrupada o diapositiva diseñada en el editor: cada diapositiva con su diseño.
       slides.push(...slidesDeGrupo(item));
     } else if (item.type === "slide") {
-      slides.push({ slideId: item.id, type: "slide", title: item.title, nombre: item.name || "", subtitle: subtituloProyectable(item), escalaSubtitulo: item.escalaSubtitulo, fuente: item.fuente, colorLetra: item.colorLetra, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl, imageUrl: item.imageUrl, ...(tieneAudio(item) ? { audio: item.audio } : {}) });
+      slides.push({ slideId: item.id, type: "slide", title: item.title, nombre: item.name || "", subtitle: subtituloProyectable(item), escalaSubtitulo: item.escalaSubtitulo, fuente: item.fuente, colorLetra: item.colorLetra, oscurecer: item.oscurecer, repetir: item.repetir, bg: item.bg, bgType: item.bgType, videoUrl: item.videoUrl, imageUrl: item.imageUrl, ...(tieneAudio(item) ? { audio: item.audio } : {}) });
     }
   });
   return slides;
@@ -1814,6 +1814,8 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
     const alAire = fijada ? null : current;
     const hasta = alAire?.cuenta?.hasta;
     if (!llevoLaTransmision || !hasta || alAire.cuenta.alTerminar !== "avanzar") return;
+    // Si ya estaba en cero al ponerla (la hora del culto ya pasó), no se salta sola: la puso alguien a mano.
+    if (hasta <= Date.now()) return;
     const id = alAire.slideId;
     const t = setTimeout(() => {
       if (adHoc) { if (adHocIdx >= adHocSlides.length - 1) exitAdHoc(); else goto(adHocIdx + 1); return; }

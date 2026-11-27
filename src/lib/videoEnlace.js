@@ -51,15 +51,15 @@ export function tipoDeVideo(url) {
 
 // Dirección para el <iframe> de YouTube/Vimeo. conSonido: video a pantalla completa (se ve una vez, con
 // sonido); si no, es fondo de una diapositiva con texto (sin sonido, en bucle).
-export function urlIncrustada(info, { conSonido }) {
+export function urlIncrustada(info, { conSonido, repetir = false }) {
   if (info?.tipo === "youtube") {
     const p = new URLSearchParams({ autoplay: "1", mute: conSonido ? "0" : "1", controls: "0", rel: "0", playsinline: "1", modestbranding: "1", iv_load_policy: "3", disablekb: "1" });
-    if (!conSonido) { p.set("loop", "1"); p.set("playlist", info.id); }
+    if (!conSonido || repetir) { p.set("loop", "1"); p.set("playlist", info.id); }
     return `https://www.youtube-nocookie.com/embed/${info.id}?${p}`;
   }
   if (info?.tipo === "vimeo") {
     const p = conSonido
-      ? new URLSearchParams({ autoplay: "1", muted: "0", title: "0", byline: "0", portrait: "0", dnt: "1" })
+      ? new URLSearchParams({ autoplay: "1", muted: "0", title: "0", byline: "0", portrait: "0", dnt: "1", ...(repetir ? { loop: "1" } : {}) })
       : new URLSearchParams({ background: "1", autoplay: "1", muted: "1", loop: "1", dnt: "1" });
     return `https://player.vimeo.com/video/${info.id}?${p}`;
   }
