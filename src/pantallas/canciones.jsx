@@ -413,7 +413,7 @@ const CEJILLA_SESSION_KEY = "wf-cejilla-por-cancion";
 // tonalidad sigue siendo menor) y la cejilla (traste físico, siempre ≥0 — ya NO es un "transportador"
 // con signo negativo como el Capo viejo). Quién puede tocar "Guardar" y qué hace ese guardado
 // depende de dónde se abrió este modal — ver SongView, que decide puedeCambiarPermanente/Local.
-function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResultKey, puedeCambiarPermanente, puedeCambiarLocal, onClose, onGuardarPermanente, onGuardarLocal }) {
+function TonalidadModal({ song, keyOriginal, displayedKey, cejilla, setCejilla, cejillaResultKey, puedeCambiarPermanente, puedeCambiarLocal, onClose, onGuardarPermanente, onGuardarLocal }) {
   const { instrumento } = usePreferencias();
   const isMinorKey = song.key.endsWith("m");
   const parsed = displayedKey.match(/^([A-G])(#|b)?/);
@@ -430,7 +430,12 @@ function TonalidadModal({ song, displayedKey, cejilla, setCejilla, cejillaResult
   const inactiveStyle = { background: "var(--wf-hover)", color: "var(--wf-text)" };
   return (
     <ModalShell title="Cambiar tonalidad" icon={Music} color="var(--wf-brand-accent)" onClose={onClose}>
-      <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>Original {acordeEn(song.key)}</div>
+      <div style={{ fontSize: 12, color: "var(--wf-muted)", marginBottom: 12 }}>Original {acordeEn(keyOriginal || song.key)}{keyOriginal && keyOriginal !== song.key ? ` · en este repertorio ${acordeEn(song.key)}` : ""}</div>
+      {keyOriginal && (
+        <div style={{ fontSize: 11.5, color: "var(--wf-text-2)", background: "var(--wf-hover)", borderRadius: 10, padding: "7px 10px", marginBottom: 12, lineHeight: 1.4 }}>
+          {puedeCambiarPermanente ? "El tono se guarda solo en este repertorio. La canción de la biblioteca no cambia." : "Solo cambia lo que tú ves. La canción no cambia para nadie más."}
+        </div>
+      )}
 
       {puedeCambiarRoot ? (
         <>
@@ -677,7 +682,7 @@ function AdjuntosModal({ song, iglesiaId, puedeEditar, onClose, onCambio }) {
   );
 }
 
-export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, positionDonde = "en el setlist", enterDirection, structureOverride, liveSync, iglesiaId, notasCtx, onAdjuntosChange }) {
+export function SongView({ song, isAdminViewer, mode = "biblioteca", keyOriginal, autoInicio = false, alTerminar, onBack, onEdit, onTranspose, onDelete, onPrev, onNext, prevTitle, nextTitle, positionLabel, positionDonde = "en el setlist", enterDirection, structureOverride, liveSync, iglesiaId, notasCtx, onAdjuntosChange }) {
   const modoMusicoPermitido = permite(usePlan(), "modo_musico");
   const sectionRefs = useRef({});
   const [showAdjuntos, setShowAdjuntos] = useState(false);
@@ -734,7 +739,8 @@ export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onE
   // · EN VIVO: nada de compases ni BPM — el pedido fue explícito, la música real no siempre respeta el
   //   tempo "de papel". El líder avanza a mano (‹›/pills) y cada movimiento se refleja al instante en
   //   todos los demás dispositivos, como un espejo — ver más abajo. ----
-  const [autoMode, setAutoMode] = useState(false);
+  // autoInicio: "Modo Músico" de un repertorio abre cada canción con el auto-avance ya prendido.
+  const [autoMode, setAutoMode] = useState(() => !!autoInicio && modoMusicoPermitido);
   const [liveBpm, setLiveBpm] = useState(Number(song?.tempo) || 120);
   const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
   const tapTimesRef = useRef([]);
@@ -1005,12 +1011,16 @@ export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onE
     const beatsPerBar = tiemposPorCompas(song.compas);
     const durationMs = Math.max(1500, ((block.bars || 8) * beatsPerBar / liveBpm) * 60000);
     const timer = setTimeout(() => {
-      if (currentSectionIdx >= order.length - 1) { setAutoMode(false); broadcastMusico({ autoMode: false }); return; } // se acabó la canción
+      if (currentSectionIdx >= order.length - 1) { // se acabó la canción
+        setAutoMode(false); broadcastMusico({ autoMode: false });
+        alTerminar?.(); // repertorio en Modo Músico: pasa sola a la siguiente
+        return;
+      }
       goToSectionIdx(currentSectionIdx + 1);
     }, durationMs);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoMode, currentSectionIdx, liveBpm, order, song, porMiCuenta]);
+  }, [autoMode, currentSectionIdx, liveBpm, order, song, porMiCuenta, alTerminar]);
   if (!song) return null;
   const scrollTo = (key) => sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
   // Modo "Anotar": cada parte UNA vez (en el orden en que se canta), con sus etiquetas y un renglón.
@@ -1138,8 +1148,9 @@ export function SongView({ song, isAdminViewer, mode = "biblioteca", onBack, onE
               cejilla={cejilla}
               setCejilla={setCejilla}
               cejillaResultKey={cejillaResultKey}
-              puedeCambiarPermanente={mode === "biblioteca" && isAdminViewer}
-              puedeCambiarLocal={mode === "setlist"}
+              keyOriginal={keyOriginal}
+              puedeCambiarPermanente={(mode === "biblioteca" || mode === "repertorio") && isAdminViewer}
+              puedeCambiarLocal={mode === "setlist" || mode === "repertorio"}
               onClose={() => setShowTonalidadModal(false)}
               onGuardarPermanente={(nuevaTonalidad) => { onTranspose(song.id, nuevaTonalidad); setTonalidadLocal(null); setShowTonalidadModal(false); }}
               onGuardarLocal={(nuevaTonalidad) => { setTonalidadLocal(nuevaTonalidad === song.key ? null : nuevaTonalidad); setShowTonalidadModal(false); }}

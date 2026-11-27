@@ -4,6 +4,8 @@ import { supabase } from "./supabaseClient.js";
 // nombre propio ("Lista 1 Alabanza"…), sin evento ni fecha. Los músicos los abren para ensayar cuando
 // quieran y, al armar un culto, "Agregar repertorio" mete todas sus canciones de un solo.
 // Fila: { id, nombre, descripcion, canciones: [idCanción, …] } (el orden del arreglo es el del repertorio).
+// Tono propio (2026-11-27): una canción con tono para ESTE repertorio va como { id, tono } en vez del id
+// solo (sin cambio de base: la columna ya es un arreglo JSON). La canción de la biblioteca no cambia.
 
 const comparar = (a, b) => (a || "").localeCompare(b || "", "es", { sensitivity: "base", numeric: true });
 
@@ -12,8 +14,40 @@ export function ordenarRepertorios(lista) {
   return (lista || []).slice().sort((a, b) => comparar(a.nombre, b.nombre));
 }
 
+const idDeEntrada = (x) => (typeof x === "string" ? x : x && typeof x === "object" && typeof x.id === "string" ? x.id : "");
+
+// Deja solo entradas válidas: "id" o { id, tono }.
+export function entradasDe(rep) {
+  const lista = Array.isArray(rep?.canciones) ? rep.canciones : Array.isArray(rep) ? rep : [];
+  return lista.filter((x) => idDeEntrada(x)).map((x) => (typeof x === "string" ? x : x.tono ? { id: x.id, tono: String(x.tono) } : x.id));
+}
+
 export function idsDe(rep) {
-  return Array.isArray(rep?.canciones) ? rep.canciones.filter((x) => typeof x === "string" && x) : [];
+  return entradasDe(rep).map(idDeEntrada);
+}
+
+// { idCanción: tono } con los tonos propios del repertorio.
+export function tonosDe(rep) {
+  const res = {};
+  entradasDe(rep).forEach((x) => { if (typeof x === "object") res[x.id] = x.tono; });
+  return res;
+}
+
+export function tonoEnRepertorio(rep, songId) {
+  return tonosDe(rep)[songId] || null;
+}
+
+// Arma el arreglo que se guarda: los ids en su orden, con su tono donde lo tengan.
+export function armarCanciones(ids, tonos = {}) {
+  return (ids || []).map((id) => (tonos[id] ? { id, tono: tonos[id] } : id));
+}
+
+// Pone (o quita, si es el tono de la canción o vacío) el tono propio de una canción del repertorio.
+export function ponerTono(rep, songId, tono, tonoOriginal) {
+  const tonos = tonosDe(rep);
+  if (!tono || tono === tonoOriginal) delete tonos[songId];
+  else tonos[songId] = tono;
+  return armarCanciones(idsDe(rep), tonos);
 }
 
 // Las canciones del repertorio que siguen en la biblioteca, en su orden.
@@ -74,7 +108,7 @@ export async function listarRepertorios() {
   try {
     const { data, error } = await supabase.from("repertorios").select("id, nombre, descripcion, canciones, updated_at");
     if (error) return [];
-    return ordenarRepertorios((data || []).map((r) => ({ ...r, canciones: idsDe(r) })));
+    return ordenarRepertorios((data || []).map((r) => ({ ...r, canciones: entradasDe(r) })));
   } catch {
     return [];
   }
@@ -87,7 +121,7 @@ export async function crearRepertorio({ nombre, descripcion = "", canciones = []
     .insert({ nombre: limpio, descripcion: (descripcion || "").trim().slice(0, 300), canciones })
     .select("id, nombre, descripcion, canciones, updated_at").single();
   if (error) throw error;
-  return { ...data, canciones: idsDe(data) };
+  return { ...data, canciones: entradasDe(data) };
 }
 
 export async function guardarRepertorio(id, cambios) {
@@ -97,11 +131,11 @@ export async function guardarRepertorio(id, cambios) {
     if (!fila.nombre) throw new Error("Escribe un nombre para el repertorio.");
   }
   if (cambios.descripcion != null) fila.descripcion = cambios.descripcion.trim().slice(0, 300);
-  if (cambios.canciones != null) fila.canciones = cambios.canciones;
+  if (cambios.canciones != null) fila.canciones = entradasDe(cambios.canciones);
   const { data, error } = await supabase.from("repertorios").update(fila).eq("id", id)
     .select("id, nombre, descripcion, canciones, updated_at").single();
   if (error) throw error;
-  return { ...data, canciones: idsDe(data) };
+  return { ...data, canciones: entradasDe(data) };
 }
 
 export async function borrarRepertorio(id) {

@@ -4,19 +4,28 @@
 // administra canciones crear, renombrar, agregar/quitar/ordenar canciones y compartir el enlace.
 // ElegirRepertorio es la ventana "Agregar repertorio" del setlist de un culto.
 import { useMemo, useState } from "react";
-import { ListMusic, Plus, ChevronRight, ArrowLeft, Pencil, Trash2, ChevronUp, ChevronDown, X, Search, Check, Link2, Share2, Lock, Paperclip, Music, ArrowUpDown } from "lucide-react";
+import { Radio, ListMusic, Plus, ChevronRight, ArrowLeft, Pencil, Trash2, ChevronUp, ChevronDown, X, Search, Check, Link2, Share2, Lock, Paperclip, Music, ArrowUpDown } from "lucide-react";
 import { ModalShell, primaryBtn, inputStyle, iconGhost, BorrarBusqueda } from "../pantallas/compartido.jsx";
 import { buscarCanciones } from "../lib/busqueda.js";
 import { acordeEn } from "../lib/preferencias.js";
 import { confirmDialog } from "../lib/confirm.js";
 import { useCerrarConAtras } from "../lib/atras.js";
 import { notifyError, showToast } from "../lib/toast.js";
-import { cancionesDeRepertorio, idsDe, agregarCanciones, quitarCancion, moverCancion, crearRepertorio, guardarRepertorio, borrarRepertorio, enlaceRepertorio, textoWhatsApp } from "../lib/repertorios.js";
+import { NOTES } from "../lib/musicTheory.js";
+import { usePlan, permite, abrirPlanes } from "../lib/planes.js";
+import { cancionesDeRepertorio, idsDe, tonosDe, armarCanciones, ponerTono, agregarCanciones, quitarCancion, moverCancion, crearRepertorio, guardarRepertorio, borrarRepertorio, enlaceRepertorio, textoWhatsApp } from "../lib/repertorios.js";
 
 const VERDE = "#1F8A73";
 const chip = { fontSize: 11, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", borderRadius: 20, padding: "3px 10px", color: "var(--wf-text-2)", flexShrink: 0 };
 const botonSuave = { display: "flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 10, background: "var(--wf-hover)", border: "1px solid var(--wf-border)", color: "var(--wf-text)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const tarjeta = { display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "var(--wf-card)", border: "none", boxShadow: "0 1px 3px rgba(22,50,79,0.08)", borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: "pointer", color: "var(--wf-text)", fontFamily: "inherit" };
+
+// Las 12 notas, en menor si la canción es menor (igual que el setlist: nunca cambia de mayor a menor).
+function opcionesTono(original, actual) {
+  const menor = (original || "").endsWith("m");
+  const lista = NOTES.map((n) => (menor ? `${n}m` : n));
+  return [original, actual].filter((k) => k && !lista.includes(k)).concat(lista);
+}
 
 const nCanciones = (n) => `${n} ${n === 1 ? "canción" : "canciones"}`;
 
@@ -73,10 +82,14 @@ function DetalleRepertorio({ rep, library, puedeEditar, onCerrar, onAbrirCancion
   const [compartiendo, setCompartiendo] = useState(false);
   const [ordenando, setOrdenando] = useState(false);
   const canciones = cancionesDeRepertorio(rep, library);
+  const tonos = tonosDe(rep);
+  const modoMusicoPermitido = permite(usePlan(), "modo_musico");
 
-  const guardarIds = async (ids) => {
-    try { onCambio?.(await guardarRepertorio(rep.id, { canciones: ids })); } catch (e) { notifyError("No se pudo guardar el repertorio", e); }
+  const guardarCanciones = async (lista) => {
+    try { onCambio?.(await guardarRepertorio(rep.id, { canciones: lista })); } catch (e) { notifyError("No se pudo guardar el repertorio", e); }
   };
+  const guardarIds = (ids) => guardarCanciones(armarCanciones(ids, tonosDe(rep))); // los tonos propios se quedan
+  const cambiarTono = (song, tono) => guardarCanciones(ponerTono(rep, song.id, tono, song.key));
   const quitar = async (song) => {
     if (!(await confirmDialog(`¿Quitar "${song.title}" de este repertorio? La canción sigue en la biblioteca.`, { danger: true, textoConfirmar: "Quitar" }))) return;
     guardarIds(quitarCancion(idsDe(rep), song.id));
@@ -109,6 +122,13 @@ function DetalleRepertorio({ rep, library, puedeEditar, onCerrar, onAbrirCancion
             <Music size={14} /> Ensayar desde el inicio
           </button>
         )}
+        {canciones.length > 0 && (
+          <button onClick={() => (modoMusicoPermitido ? onAbrirCancion(rep, canciones[0].id, { modoMusico: true }) : abrirPlanes())}
+            title={modoMusicoPermitido ? "Acordes con avance automático; al terminar una canción pasa sola a la siguiente" : "Modo Músico es parte de los planes Ministerio e Iglesia"}
+            style={modoMusicoPermitido ? { ...botonSuave, background: "var(--wf-brand-accent)", border: "none", color: "var(--wf-on-brand-accent)" } : { ...botonSuave, borderStyle: "dashed", color: "var(--wf-muted)" }}>
+            {modoMusicoPermitido ? <Radio size={14} /> : <Lock size={14} />} Modo Músico
+          </button>
+        )}
         {puedeEditar && <button onClick={() => setAgregando(true)} style={botonSuave}><Plus size={14} /> Agregar canciones</button>}
         {puedeEditar && canciones.length > 1 && (
           <button onClick={() => setOrdenando((v) => !v)} aria-pressed={ordenando} style={{ ...botonSuave, ...(ordenando ? { borderColor: "var(--wf-brand-accent)", color: "var(--wf-brand-accent)" } : {}) }}>
@@ -126,7 +146,15 @@ function DetalleRepertorio({ rep, library, puedeEditar, onCerrar, onAbrirCancion
             <span style={{ display: "block", fontSize: 12, color: "var(--wf-muted)" }}>{s.artist || "Unknown"}</span>
           </span>
           {s.hasAttachment && !ordenando && <Paperclip size={14} color="var(--wf-faint)" />}
-          {!ordenando && <span style={{ ...chip, color: VERDE, fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)}</span>}
+          {!ordenando && (puedeEditar ? (
+            <select value={tonos[s.id] || s.key} onClick={(e) => e.stopPropagation()} onChange={(e) => cambiarTono(s, e.target.value)}
+              title="Tono en este repertorio (la canción no cambia)" aria-label={`Tono de ${s.title} en este repertorio`}
+              style={{ ...chip, padding: "3px 4px", cursor: "pointer", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", color: tonos[s.id] ? "var(--wf-brand-accent)" : VERDE, borderColor: tonos[s.id] ? "var(--wf-brand-accent)" : "var(--wf-border)" }}>
+              {opcionesTono(s.key, tonos[s.id]).map((k) => <option key={k} value={k}>{acordeEn(k)}{k === s.key ? " (original)" : ""}</option>)}
+            </select>
+          ) : (
+            <span title={tonos[s.id] ? `Original ${acordeEn(s.key)}` : undefined} style={{ ...chip, color: tonos[s.id] ? "var(--wf-brand-accent)" : VERDE, fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(tonos[s.id] || s.key)}</span>
+          ))}
           {ordenando && (
             <>
               <button onClick={() => guardarIds(moverCancion(idsDe(rep), s.id, -1))} disabled={i === 0} aria-label="Subir" style={{ ...iconGhost, width: 32, height: 32, opacity: i === 0 ? 0.3 : 1 }}><ChevronUp size={18} /></button>
@@ -291,7 +319,7 @@ export function ElegirRepertorio({ repertorios, library, onCerrar, onAgregar }) 
                     {marcada && <Check size={15} color="#fff" strokeWidth={3} />}
                   </span>
                   <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600 }}>{s.title}</span>
-                  <span style={{ ...chip, color: VERDE, fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(s.key)}</span>
+                  <span style={{ ...chip, color: tonosDe(rep)[s.id] ? "var(--wf-brand-accent)" : VERDE, fontFamily: "'JetBrains Mono', monospace" }}>{acordeEn(tonosDe(rep)[s.id] || s.key)}</span>
                 </button>
               );
             })}

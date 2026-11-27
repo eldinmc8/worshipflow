@@ -1142,7 +1142,7 @@ function SetlistPane({ onAbrirEditor, onDisenarNueva, myIglesiaId, eventosParaCo
   // "Agregar repertorio" (components/Repertorios.jsx): mete las canciones de un repertorio de un solo.
   const [eligiendoRepertorio, setEligiendoRepertorio] = useState(false);
   const agregarRepertorio = (ids, rep) => {
-    onAgregarRepertorio(ids);
+    onAgregarRepertorio(ids, rep);
     setEligiendoRepertorio(false);
     setElegidasPicker((l) => [...l, ...ids]);
     showToast(`Se ${ids.length === 1 ? "agregó 1 canción" : `agregaron ${ids.length} canciones`} de "${rep.nombre}".`, "info");

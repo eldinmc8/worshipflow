@@ -1,6 +1,6 @@
 import ConPlan, { AvisoPlan } from "./components/ConPlan.jsx";
 import { RepertoriosPane } from "./components/Repertorios.jsx";
-import { listarRepertorios, aplicarCambio, cancionesDeRepertorio, repertorioDeLaUrl } from "./lib/repertorios.js";
+import { listarRepertorios, aplicarCambio, cancionesDeRepertorio, repertorioDeLaUrl, tonoEnRepertorio, tonosDe, ponerTono, guardarRepertorio } from "./lib/repertorios.js";
 import { lazy, useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { esGrupoDiapositivas, slidesDeGrupo, itemConDiapositivas, tituloBase, diapositivasDeItem, nuevaDiapositiva, moverDiapositiva, quitarDiapositiva as quitarDiapositivaDeGrupo, reordenarEnGrupo } from "./lib/diapositivas.js";
 import { usePreferencias } from "./lib/preferencias.js";
@@ -2737,7 +2737,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
             <RepertoriosPane repertorios={repertorios} library={library} puedeEditar={puedeGestionarCanciones}
               bloqueado={!tiene(planIglesia, "repertorios")} onBloqueado={() => setAvisoRepertorios(true)}
               abiertoId={repertorioAbiertoId} onAbrir={setRepertorioAbiertoId} onCerrar={() => setRepertorioAbiertoId(null)}
-              onAbrirCancion={(rep, songId) => setOpenSong({ id: songId, mode: "view", repertorioId: rep.id })}
+              onAbrirCancion={(rep, songId, op) => setOpenSong({ id: songId, mode: "view", repertorioId: rep.id, modoMusico: !!op?.modoMusico })}
               onCambio={cambioRepertorio} />
           )} />
       )}
@@ -2761,13 +2761,22 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
         const pos = lista.findIndex((s) => s.id === openSong.id);
         const prev = pos > 0 ? lista[pos - 1] : null;
         const next = pos >= 0 && pos < lista.length - 1 ? lista[pos + 1] : null;
-        const ir = (song, enterDir) => setOpenSong({ id: song.id, mode: "view", repertorioId: openSong.repertorioId, enterDir });
+        const ir = (song, enterDir, modoMusico = false) => setOpenSong({ id: song.id, mode: "view", repertorioId: openSong.repertorioId, enterDir, modoMusico });
+        // Tono propio del repertorio (2026-11-27): se ve en ese tono; la canción de la biblioteca no cambia.
+        const base = library.find((s) => s.id === openSong.id);
+        const tonoRep = rep ? tonoEnRepertorio(rep, openSong.id) : null;
+        const guardarTonoRep = (songId, nuevo) => {
+          if (!rep) return;
+          guardarRepertorio(rep.id, { canciones: ponerTono(rep, songId, nuevo, base?.key) })
+            .then(cambioRepertorio).catch((e) => notifyError("No se pudo guardar el tono del repertorio", e));
+        };
         return (
-          <SongView key={openSong.id} song={library.find((s) => s.id === openSong.id)} notasCtx={notasCtx} iglesiaId={myIglesiaId} onAdjuntosChange={marcarAdjuntos} isAdminViewer={puedeGestionarCanciones} mode="biblioteca"
-            onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={transposeSong} onDelete={deleteSong}
+          <SongView key={openSong.id} song={songWithKeyOverride(base, tonoRep)} keyOriginal={base?.key} notasCtx={notasCtx} iglesiaId={myIglesiaId} onAdjuntosChange={marcarAdjuntos} isAdminViewer={puedeGestionarCanciones} mode="repertorio"
+            onBack={() => window.history.back()} onEdit={() => setOpenSong({ id: openSong.id, mode: "edit" })} onTranspose={guardarTonoRep} onDelete={deleteSong}
             enterDirection={openSong.enterDir}
+            autoInicio={!!openSong.modoMusico} alTerminar={openSong.modoMusico && next ? () => ir(next, "next", true) : undefined}
             positionLabel={pos >= 0 && lista.length > 1 ? `${pos + 1} de ${lista.length}` : null} positionDonde={rep ? `en ${rep.nombre}` : ""}
-            onPrev={prev ? () => ir(prev, "prev") : null} onNext={next ? () => ir(next, "next") : null}
+            onPrev={prev ? () => ir(prev, "prev", !!openSong.modoMusico) : null} onNext={next ? () => ir(next, "next", !!openSong.modoMusico) : null}
             prevTitle={prev?.title} nextTitle={next?.title} />
         );
       })()}
@@ -2819,7 +2828,7 @@ export default function WorshipFlowPrototype({ userId, perfil, myIglesia, onIgle
           onStart={() => startEvent(selectedEvent.id)} onPracticar={() => empezarPractica(selectedEvent.id)} onGoLive={() => setTab("envivo")} onDelete={deleteEvent}
           onAddSong={addSong} onCrearCancion={puedeGestionarCanciones ? crearCancionEnSetlist : null} onAddSeccion={addSeccion}
           eventosParaCopiar={realEvents} onCopiarCantos={(items) => items.forEach((it) => addSong(it.songId, null, it))}
-          repertorios={repertorios} repertoriosBloqueados={!tiene(planIglesia, "repertorios")} onAgregarRepertorio={(ids) => ids.forEach((id) => addSong(id))}
+          repertorios={repertorios} repertoriosBloqueados={!tiene(planIglesia, "repertorios")} onAgregarRepertorio={(ids, rep) => { const tonos = tonosDe(rep); ids.forEach((id) => addSong(id, null, tonos[id] ? { keyOverride: tonos[id] } : null)); }}
           onAddBibleClick={() => setShowBibleForm(true)} onAddSlideClick={() => setShowSlideForm(true)} onAddItems={(items) => updateOrder((o) => colocar(o, items))}
           onAddCuenta={(config) => updateOrder((o) => { const it = itemCuentaRegresiva(nextId(), config); return destinoSetlist ? colocar(o, [it]) : [it, ...o]; })}
           destinoAgregar={destinoSetlist} onDestinoAgregar={setDestinoSetlist}
